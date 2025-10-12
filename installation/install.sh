@@ -244,7 +244,7 @@ stringSearchHostname="hostname = \"EXAMPLE NAME\";"
 stringReplaceHostname="hostname = \"$DayzServerName\";"
 if ! grep -q "$stringSearchHostname" "$ServerDZFile"; then
     echo "Não foi possível encontrar a linha '$stringSearchHostname' no arquivo $ServerDZFile"
-    echo "Copie o arquivo server-defaults/serverDZ.cfg para $ServerDZFile e edite-o manualmente."
+    echo "Copie o arquivo serverDZ.cfg para $ServerDZFile e edite-o manualmente."
     exit 1
 fi
 
@@ -252,7 +252,7 @@ stringSearchPasswordAdmin="passwordAdmin = \"\";"
 stringReplacePasswordAdmin="passwordAdmin = \"$DayzPasswordAdmin\";"
 if ! grep -q "$stringSearchPasswordAdmin" "$ServerDZFile"; then
     echo "Não foi possível encontrar a linha '$stringSearchPasswordAdmin' no arquivo $ServerDZFile"
-    echo "Copie o arquivo server-defaults/serverDZ.cfg para $ServerDZFile e edite-o manualmente."
+    echo "Copie o arquivo serverDZ.cfg para $ServerDZFile e edite-o manualmente."
     exit 1
 fi
 
@@ -260,7 +260,7 @@ stringSearchMaxPlayers="maxPlayers = 60;"
 stringReplaceMaxPlayers="maxPlayers = $DayzMaxPlayers;"
 if ! grep -q "$stringSearchMaxPlayers" "$ServerDZFile"; then
     echo "Não foi possível encontrar a linha '$stringSearchMaxPlayers' no arquivo $ServerDZFile"
-    echo "Copie o arquivo server-defaults/serverDZ.cfg para $ServerDZFile e reincie o script com as flags --skip-user e --skip-steam."
+    echo "Copie o arquivo serverDZ.cfg para $ServerDZFile e reincie o script com as flags --skip-user e --skip-steam."
     exit 1
 fi
 
@@ -307,7 +307,7 @@ stringSearchMaxCores="maxcores=\"2\""
 stringReplaceMaxCores="maxcores=\"$DayzPcCpuMaxCores\""
 if ! grep -q "$stringSearchMaxCores" "$DayzSettingXmlFile"; then
     echo "❌ Não foi possível encontrar '$stringSearchMaxCores' em $DayzSettingXmlFile"
-    echo "⚠️  Copie o arquivo server-defaults/dayzsetting.cfg para $DayzSettingXmlFile e reinicie com --skip-user e --skip-steam."
+    echo "⚠️  Copie o arquivo dayzsetting.cfg para $DayzSettingXmlFile e reinicie com --skip-user e --skip-steam."
     exit 1
 fi
 sed -i "s#$stringSearchMaxCores#$stringReplaceMaxCores#g" "$DayzSettingXmlFile"
@@ -317,7 +317,7 @@ stringSearchReservedcores="reservedcores=\"1\""
 stringReplaceReservedcores="reservedcores=\"$DayzPcCpuReservedcores\""
 if ! grep -q "$stringSearchReservedcores" "$DayzSettingXmlFile"; then
     echo "❌ Não foi possível encontrar '$stringSearchReservedcores' em $DayzSettingXmlFile"
-    echo "⚠️  Copie o arquivo server-defaults/dayzsetting.cfg para $DayzSettingXmlFile e reinicie com --skip-user e --skip-steam."
+    echo "⚠️  Copie o arquivo dayzsetting.cfg para $DayzSettingXmlFile e reinicie com --skip-user e --skip-steam."
     exit 1
 fi
 sed -i "s#$stringSearchReservedcores#$stringReplaceReservedcores#g" "$DayzSettingXmlFile"
