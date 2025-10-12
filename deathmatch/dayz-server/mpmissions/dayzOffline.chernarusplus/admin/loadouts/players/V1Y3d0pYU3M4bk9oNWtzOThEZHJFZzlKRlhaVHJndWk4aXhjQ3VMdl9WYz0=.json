@@ -1,0 +1,169 @@
+[
+    {
+        "Id": 384,
+        "Name": "estrupador",
+        "IsActive": true,
+        "Loadout": {
+            "weapons": {
+                "primary_weapon": {
+                    "name_type": "M79",
+                    "feed_type": "internal",
+                    "slots": 18,
+                    "width": 6,
+                    "height": 3,
+                    "ammunitions": {
+                        "name_type": "Ammo_40mm_Explosive",
+                        "slots": 2,
+                        "width": 1,
+                        "height": 2
+                    }
+                },
+                "secondary_weapon": {
+                    "name_type": "Izh43Shotgun",
+                    "feed_type": "manual",
+                    "slots": 27,
+                    "width": 9,
+                    "height": 3,
+                    "ammunitions": {
+                        "name_type": "Ammo_12gaPellets",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    }
+                },
+                "small_weapon": {
+                    "name_type": "Longhorn",
+                    "feed_type": "manual",
+                    "slots": 10,
+                    "width": 5,
+                    "height": 2,
+                    "ammunitions": {
+                        "name_type": "Ammo_308Win",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "ImprovisedSuppressor",
+                            "type": "suppressor",
+                            "slots": 3,
+                            "width": 1,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "PistolOptic",
+                            "type": "scope",
+                            "slots": 3,
+                            "width": 3,
+                            "height": 1,
+                            "battery": false
+                        }
+                    ]
+                }
+            },
+            "explosives": null,
+            "items": [
+                {
+                    "name_type": "NVGHeadstrap",
+                    "type_name": "Equipamentos",
+                    "slots": 9,
+                    "width": 3,
+                    "height": 3,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "head",
+                    "subitems": [
+                        {
+                            "name_type": "NVGoggles",
+                            "type_name": "Equipamentos",
+                            "slots": 4,
+                            "width": 2,
+                            "height": 2,
+                            "storage_slots": 0,
+                            "storage_width": 0,
+                            "storage_height": 0,
+                            "localization": "",
+                            "subitems": [
+                                {
+                                    "name_type": "Battery9V",
+                                    "type_name": "Acessorios Extra",
+                                    "slots": 1,
+                                    "width": 1,
+                                    "height": 1,
+                                    "storage_slots": 0,
+                                    "storage_width": 0,
+                                    "storage_height": 0,
+                                    "localization": "",
+                                    "subitems": []
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name_type": "PlateCarrierVest_Black",
+                    "type_name": "Coletes",
+                    "slots": 25,
+                    "width": 5,
+                    "height": 5,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "WitchHat",
+                    "type_name": "Roupas",
+                    "slots": 6,
+                    "width": 3,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "head",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Chainmail",
+                    "type_name": "Roupas",
+                    "slots": 12,
+                    "width": 3,
+                    "height": 4,
+                    "storage_slots": 12,
+                    "storage_width": 4,
+                    "storage_height": 3,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "HipPack_Party",
+                    "type_name": "Roupas",
+                    "slots": 8,
+                    "width": 4,
+                    "height": 2,
+                    "storage_slots": 6,
+                    "storage_width": 3,
+                    "storage_height": 2,
+                    "localization": "waist",
+                    "subitems": []
+                },
+                {
+                    "name_type": "AviatorGlasses",
+                    "type_name": "Roupas",
+                    "slots": 2,
+                    "width": 2,
+                    "height": 1,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "eyes",
+                    "subitems": []
+                }
+            ]
+        }
+    }
+]

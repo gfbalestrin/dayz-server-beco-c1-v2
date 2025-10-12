@@ -1,0 +1,2467 @@
+[
+    {
+        "Id": 165,
+        "Name": "gsrg",
+        "IsActive": false,
+        "Loadout": {
+            "weapons": {
+                "primary_weapon": {
+                    "name_type": "M4A1_Green",
+                    "feed_type": "magazine",
+                    "slots": 24,
+                    "width": 8,
+                    "height": 3,
+                    "magazine": {
+                        "name_type": "Mag_STANAG_60Rnd",
+                        "capacity": 60,
+                        "slots": 6,
+                        "width": 2,
+                        "height": 3
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_556x45",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "M4_RISHndgrd_Green",
+                            "type": "handguard",
+                            "slots": 2,
+                            "width": 2,
+                            "height": 1,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "M4_MPBttstck",
+                            "type": "buttstock",
+                            "slots": 2,
+                            "width": 2,
+                            "height": 1,
+                            "battery": false
+                        }
+                    ]
+                },
+                "secondary_weapon": {
+                    "name_type": "SV98",
+                    "feed_type": "magazine",
+                    "slots": 27,
+                    "width": 9,
+                    "height": 3,
+                    "magazine": {
+                        "name_type": "Mag_SV98_10Rnd",
+                        "capacity": 10,
+                        "slots": 2,
+                        "width": 1,
+                        "height": 2
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_762x54",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "ImprovisedSuppressor",
+                            "type": "suppressor",
+                            "slots": 3,
+                            "width": 1,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "GhillieAtt_Woodland",
+                            "type": "ghillie",
+                            "slots": 12,
+                            "width": 4,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "MK4Optic_Black",
+                            "type": "scope",
+                            "slots": 4,
+                            "width": 4,
+                            "height": 1,
+                            "battery": true
+                        }
+                    ]
+                },
+                "small_weapon": {
+                    "name_type": "Flaregun",
+                    "feed_type": "manual",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "ammunitions": {
+                        "name_type": "Ammo_FlareGreen",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    }
+                }
+            },
+            "explosives": [
+                {
+                    "name_type": "M67Grenade",
+                    "slots": 2,
+                    "width": 2,
+                    "height": 1,
+                    "quantity": 3
+                },
+                {
+                    "name_type": "LandMineTrap",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "quantity": 2
+                }
+            ],
+            "items": [
+                {
+                    "name_type": "Mich2001Helmet",
+                    "type_name": "Capacetes",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "head",
+                    "subitems": [
+                        {
+                            "name_type": "NVGoggles",
+                            "type_name": "Equipamentos",
+                            "slots": 4,
+                            "width": 2,
+                            "height": 2,
+                            "storage_slots": 0,
+                            "storage_width": 0,
+                            "storage_height": 0,
+                            "localization": "",
+                            "subitems": [
+                                {
+                                    "name_type": "Battery9V",
+                                    "type_name": "Acessorios Extra",
+                                    "slots": 1,
+                                    "width": 1,
+                                    "height": 1,
+                                    "storage_slots": 0,
+                                    "storage_width": 0,
+                                    "storage_height": 0,
+                                    "localization": "",
+                                    "subitems": []
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name_type": "Balaclava3Holes_Black",
+                    "type_name": "Roupas",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "face",
+                    "subitems": []
+                },
+                {
+                    "name_type": "PlateCarrierVest_Black",
+                    "type_name": "Coletes",
+                    "slots": 25,
+                    "width": 5,
+                    "height": 5,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "WoolGloves_Black",
+                    "type_name": "Roupas",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "hands",
+                    "subitems": []
+                },
+                {
+                    "name_type": "TortillaBag_Winter",
+                    "type_name": "Mochilas",
+                    "slots": 30,
+                    "width": 5,
+                    "height": 6,
+                    "storage_slots": 56,
+                    "storage_width": 7,
+                    "storage_height": 8,
+                    "localization": "back",
+                    "subitems": []
+                },
+                {
+                    "name_type": "CombatBoots_Black",
+                    "type_name": "Roupas",
+                    "slots": 16,
+                    "width": 4,
+                    "height": 4,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "foot",
+                    "subitems": []
+                },
+                {
+                    "name_type": "BandageDressing",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Armband_Red",
+                    "type_name": "Roupas",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "AviatorGlasses",
+                    "type_name": "Roupas",
+                    "slots": 2,
+                    "width": 2,
+                    "height": 1,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "eyes",
+                    "subitems": []
+                },
+                {
+                    "name_type": "GorkaPants_Winter",
+                    "type_name": "Roupas",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 20,
+                    "storage_width": 5,
+                    "storage_height": 4,
+                    "localization": "legs",
+                    "subitems": []
+                },
+                {
+                    "name_type": "GorkaEJacket_Winter",
+                    "type_name": "Roupas",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 24,
+                    "storage_width": 6,
+                    "storage_height": 4,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Megaphone",
+                    "type_name": "Equipamentos",
+                    "slots": 12,
+                    "width": 3,
+                    "height": 4,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": [
+                        {
+                            "name_type": "Battery9V",
+                            "type_name": "Acessorios Extra",
+                            "slots": 1,
+                            "width": 1,
+                            "height": 1,
+                            "storage_slots": 0,
+                            "storage_width": 0,
+                            "storage_height": 0,
+                            "localization": "",
+                            "subitems": []
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "Id": 305,
+        "Name": "irrita_boot",
+        "IsActive": false,
+        "Loadout": {
+            "weapons": {
+                "primary_weapon": {
+                    "name_type": "AKM",
+                    "feed_type": "magazine",
+                    "slots": 24,
+                    "width": 8,
+                    "height": 3,
+                    "magazine": {
+                        "name_type": "Mag_AKM_Drum75Rnd",
+                        "capacity": 75,
+                        "slots": 9,
+                        "width": 3,
+                        "height": 3
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_762x39",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "ImprovisedSuppressor",
+                            "type": "suppressor",
+                            "slots": 3,
+                            "width": 1,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "AK_Bayonet",
+                            "type": "compensator",
+                            "slots": 3,
+                            "width": 1,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "AK_PlasticBttstck_Green",
+                            "type": "buttstock",
+                            "slots": 3,
+                            "width": 3,
+                            "height": 1,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "AK_RailHndgrd_Green",
+                            "type": "handguard",
+                            "slots": 2,
+                            "width": 2,
+                            "height": 1,
+                            "battery": false
+                        }
+                    ]
+                },
+                "secondary_weapon": {
+                    "name_type": "SV98",
+                    "feed_type": "magazine",
+                    "slots": 27,
+                    "width": 9,
+                    "height": 3,
+                    "magazine": {
+                        "name_type": "Mag_SV98_10Rnd",
+                        "capacity": 10,
+                        "slots": 2,
+                        "width": 1,
+                        "height": 2
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_762x54",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "ImprovisedSuppressor",
+                            "type": "suppressor",
+                            "slots": 3,
+                            "width": 1,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "GhillieAtt_Woodland",
+                            "type": "ghillie",
+                            "slots": 12,
+                            "width": 4,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "MK4Optic_Black",
+                            "type": "scope",
+                            "slots": 4,
+                            "width": 4,
+                            "height": 1,
+                            "battery": true
+                        }
+                    ]
+                },
+                "small_weapon": {
+                    "name_type": "P1",
+                    "feed_type": "magazine",
+                    "slots": 6,
+                    "width": 3,
+                    "height": 2,
+                    "magazine": {
+                        "name_type": "Mag_P1_8Rnd",
+                        "capacity": 8,
+                        "slots": 2,
+                        "width": 1,
+                        "height": 2
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_9x19",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "ImprovisedSuppressor",
+                            "type": "suppressor",
+                            "slots": 3,
+                            "width": 1,
+                            "height": 3,
+                            "battery": false
+                        }
+                    ]
+                }
+            },
+            "explosives": null,
+            "items": [
+                {
+                    "name_type": "Mich2001Helmet",
+                    "type_name": "Capacetes",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "head",
+                    "subitems": [
+                        {
+                            "name_type": "NVGoggles",
+                            "type_name": "Equipamentos",
+                            "slots": 4,
+                            "width": 2,
+                            "height": 2,
+                            "storage_slots": 0,
+                            "storage_width": 0,
+                            "storage_height": 0,
+                            "localization": "",
+                            "subitems": [
+                                {
+                                    "name_type": "Battery9V",
+                                    "type_name": "Acessorios Extra",
+                                    "slots": 1,
+                                    "width": 1,
+                                    "height": 1,
+                                    "storage_slots": 0,
+                                    "storage_width": 0,
+                                    "storage_height": 0,
+                                    "localization": "",
+                                    "subitems": []
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name_type": "BalaclavaMask_Green",
+                    "type_name": "Roupas",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "face",
+                    "subitems": []
+                },
+                {
+                    "name_type": "PlateCarrierVest_Camo",
+                    "type_name": "Coletes",
+                    "slots": 25,
+                    "width": 5,
+                    "height": 5,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "torso",
+                    "subitems": [
+                        {
+                            "name_type": "PlateCarrierPouches_Camo",
+                            "type_name": "Coletes",
+                            "slots": 24,
+                            "width": 6,
+                            "height": 4,
+                            "storage_slots": 15,
+                            "storage_width": 5,
+                            "storage_height": 3,
+                            "localization": "torso",
+                            "subitems": []
+                        }
+                    ]
+                },
+                {
+                    "name_type": "WoolGlovesFingerless_Green",
+                    "type_name": "Roupas",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "hands",
+                    "subitems": []
+                },
+                {
+                    "name_type": "HuntingBag",
+                    "type_name": "Mochilas",
+                    "slots": 30,
+                    "width": 5,
+                    "height": 6,
+                    "storage_slots": 42,
+                    "storage_width": 7,
+                    "storage_height": 6,
+                    "localization": "back",
+                    "subitems": []
+                },
+                {
+                    "name_type": "HuntingJacket_Autumn",
+                    "type_name": "Roupas",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 24,
+                    "storage_width": 6,
+                    "storage_height": 4,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "HunterPants_Autumn",
+                    "type_name": "Roupas",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 20,
+                    "storage_width": 5,
+                    "storage_height": 4,
+                    "localization": "legs",
+                    "subitems": []
+                },
+                {
+                    "name_type": "JungleBoots_Olive",
+                    "type_name": "Roupas",
+                    "slots": 16,
+                    "width": 4,
+                    "height": 4,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "foot",
+                    "subitems": []
+                },
+                {
+                    "name_type": "BandageDressing",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Epinephrine",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "SalineBag",
+                    "type_name": "Suprimentos",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "TacticalGoggles",
+                    "type_name": "Roupas",
+                    "slots": 2,
+                    "width": 2,
+                    "height": 1,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "eyes",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Armband_Green",
+                    "type_name": "Roupas",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                }
+            ]
+        }
+    },
+    {
+        "Id": 307,
+        "Name": "louco",
+        "IsActive": false,
+        "Loadout": {
+            "weapons": {
+                "primary_weapon": {
+                    "name_type": "FAL",
+                    "feed_type": "magazine",
+                    "slots": 24,
+                    "width": 8,
+                    "height": 3,
+                    "magazine": {
+                        "name_type": "Mag_FAL_20Rnd",
+                        "capacity": 20,
+                        "slots": 2,
+                        "width": 1,
+                        "height": 2
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_308Win",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "ImprovisedSuppressor",
+                            "type": "suppressor",
+                            "slots": 3,
+                            "width": 1,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "ReflexOptic",
+                            "type": "scope",
+                            "slots": 2,
+                            "width": 2,
+                            "height": 1,
+                            "battery": true
+                        },
+                        {
+                            "name_type": "Fal_OeBttstck",
+                            "type": "buttstock",
+                            "slots": 3,
+                            "width": 3,
+                            "height": 1,
+                            "battery": false
+                        }
+                    ]
+                },
+                "secondary_weapon": {
+                    "name_type": "B95",
+                    "feed_type": "manual",
+                    "slots": 27,
+                    "width": 9,
+                    "height": 3,
+                    "ammunitions": {
+                        "name_type": "Ammo_308Win",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "GhillieAtt_Woodland",
+                            "type": "ghillie",
+                            "slots": 12,
+                            "width": 4,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "HuntingOptic",
+                            "type": "scope",
+                            "slots": 4,
+                            "width": 4,
+                            "height": 1,
+                            "battery": false
+                        }
+                    ]
+                },
+                "small_weapon": null
+            },
+            "explosives": null,
+            "items": [
+                {
+                    "name_type": "Mich2001Helmet",
+                    "type_name": "Capacetes",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "head",
+                    "subitems": [
+                        {
+                            "name_type": "NVGoggles",
+                            "type_name": "Equipamentos",
+                            "slots": 4,
+                            "width": 2,
+                            "height": 2,
+                            "storage_slots": 0,
+                            "storage_width": 0,
+                            "storage_height": 0,
+                            "localization": "",
+                            "subitems": [
+                                {
+                                    "name_type": "Battery9V",
+                                    "type_name": "Acessorios Extra",
+                                    "slots": 1,
+                                    "width": 1,
+                                    "height": 1,
+                                    "storage_slots": 0,
+                                    "storage_width": 0,
+                                    "storage_height": 0,
+                                    "localization": "",
+                                    "subitems": []
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name_type": "MilitaryBoots_Redpunk",
+                    "type_name": "Roupas",
+                    "slots": 16,
+                    "width": 4,
+                    "height": 4,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "foot",
+                    "subitems": []
+                },
+                {
+                    "name_type": "BandageDressing",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Epinephrine",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "SalineBag",
+                    "type_name": "Suprimentos",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Armband_Red",
+                    "type_name": "Roupas",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "ParamedicJacket_Crimson",
+                    "type_name": "Roupas",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 24,
+                    "storage_width": 6,
+                    "storage_height": 4,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "SkiGloves_Red",
+                    "type_name": "Roupas",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "hands",
+                    "subitems": []
+                },
+                {
+                    "name_type": "TacticalGoggles",
+                    "type_name": "Roupas",
+                    "slots": 2,
+                    "width": 2,
+                    "height": 1,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "eyes",
+                    "subitems": []
+                },
+                {
+                    "name_type": "ParamedicPants_Crimson",
+                    "type_name": "Roupas",
+                    "slots": 12,
+                    "width": 3,
+                    "height": 4,
+                    "storage_slots": 15,
+                    "storage_width": 5,
+                    "storage_height": 3,
+                    "localization": "legs",
+                    "subitems": []
+                },
+                {
+                    "name_type": "PressVest_LightBlue",
+                    "type_name": "Coletes",
+                    "slots": 16,
+                    "width": 4,
+                    "height": 4,
+                    "storage_slots": 16,
+                    "storage_width": 4,
+                    "storage_height": 4,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Bandana_Redpattern",
+                    "type_name": "Roupas",
+                    "slots": 3,
+                    "width": 3,
+                    "height": 1,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "face",
+                    "subitems": []
+                },
+                {
+                    "name_type": "DryBag_Red",
+                    "type_name": "Mochilas",
+                    "slots": 30,
+                    "width": 5,
+                    "height": 6,
+                    "storage_slots": 42,
+                    "storage_width": 7,
+                    "storage_height": 6,
+                    "localization": "back",
+                    "subitems": []
+                }
+            ]
+        }
+    },
+    {
+        "Id": 306,
+        "Name": "medieval",
+        "IsActive": false,
+        "Loadout": {
+            "weapons": {
+                "primary_weapon": {
+                    "name_type": "Saiga",
+                    "feed_type": "magazine",
+                    "slots": 21,
+                    "width": 7,
+                    "height": 3,
+                    "magazine": {
+                        "name_type": "Mag_Saiga_Drum20Rnd",
+                        "capacity": 20,
+                        "slots": 4,
+                        "width": 2,
+                        "height": 2
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_12gaPellets",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "Saiga_Bttstck",
+                            "type": "buttstock",
+                            "slots": 3,
+                            "width": 1,
+                            "height": 3,
+                            "battery": false
+                        }
+                    ]
+                },
+                "secondary_weapon": {
+                    "name_type": "Mosin9130_Black",
+                    "feed_type": "internal",
+                    "slots": 30,
+                    "width": 10,
+                    "height": 3,
+                    "ammunitions": {
+                        "name_type": "Ammo_762x54",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "ImprovisedSuppressor",
+                            "type": "suppressor",
+                            "slots": 3,
+                            "width": 1,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "PUScopeOptic",
+                            "type": "scope",
+                            "slots": 3,
+                            "width": 3,
+                            "height": 1,
+                            "battery": false
+                        }
+                    ]
+                },
+                "small_weapon": null
+            },
+            "explosives": null,
+            "items": [
+                {
+                    "name_type": "AssaultBag_Winter",
+                    "type_name": "Mochilas",
+                    "slots": 20,
+                    "width": 5,
+                    "height": 4,
+                    "storage_slots": 36,
+                    "storage_width": 6,
+                    "storage_height": 6,
+                    "localization": "back",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Chainmail",
+                    "type_name": "Roupas",
+                    "slots": 12,
+                    "width": 3,
+                    "height": 4,
+                    "storage_slots": 12,
+                    "storage_width": 4,
+                    "storage_height": 3,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Chainmail_Leggings",
+                    "type_name": "Roupas",
+                    "slots": 12,
+                    "width": 3,
+                    "height": 4,
+                    "storage_slots": 8,
+                    "storage_width": 4,
+                    "storage_height": 2,
+                    "localization": "legs",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Chainmail_Coif",
+                    "type_name": "Roupas",
+                    "slots": 6,
+                    "width": 2,
+                    "height": 3,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "head",
+                    "subitems": []
+                },
+                {
+                    "name_type": "MilitaryBoots_Bluerock",
+                    "type_name": "Roupas",
+                    "slots": 16,
+                    "width": 4,
+                    "height": 4,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "foot",
+                    "subitems": []
+                },
+                {
+                    "name_type": "BandageDressing",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Epinephrine",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "SalineBag",
+                    "type_name": "Suprimentos",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "SantasBeard",
+                    "type_name": "Roupas",
+                    "slots": 3,
+                    "width": 3,
+                    "height": 1,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "face",
+                    "subitems": []
+                },
+                {
+                    "name_type": "PaddedGloves_Brown",
+                    "type_name": "Roupas",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "hands",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Chestplate",
+                    "type_name": "Coletes",
+                    "slots": 25,
+                    "width": 5,
+                    "height": 5,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Armband_White",
+                    "type_name": "Roupas",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                }
+            ]
+        }
+    },
+    {
+        "Id": 415,
+        "Name": "pelado",
+        "IsActive": true,
+        "Loadout": {
+            "weapons": {
+                "primary_weapon": {
+                    "name_type": "Mp133Shotgun",
+                    "feed_type": "internal",
+                    "slots": 27,
+                    "width": 9,
+                    "height": 3,
+                    "ammunitions": {
+                        "name_type": "Ammo_12gaSlug",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "FNP45_MRDSOptic",
+                            "type": "scope",
+                            "slots": 1,
+                            "width": 1,
+                            "height": 1,
+                            "battery": true
+                        }
+                    ]
+                },
+                "secondary_weapon": {
+                    "name_type": "Izh18",
+                    "feed_type": "manual",
+                    "slots": 27,
+                    "width": 9,
+                    "height": 3,
+                    "ammunitions": {
+                        "name_type": "Ammo_762x39",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    }
+                },
+                "small_weapon": null
+            },
+            "explosives": null,
+            "items": [
+                {
+                    "name_type": "GhillieSuit_Mossy",
+                    "type_name": "Mochilas",
+                    "slots": 30,
+                    "width": 5,
+                    "height": 6,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "back",
+                    "subitems": []
+                },
+                {
+                    "name_type": "DirtBikeHelmet_Khaki",
+                    "type_name": "Capacetes",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "head",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Handcuffs",
+                    "type_name": "Equipamentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "PolicePants",
+                    "type_name": "Roupas",
+                    "slots": 6,
+                    "width": 3,
+                    "height": 2,
+                    "storage_slots": 12,
+                    "storage_width": 4,
+                    "storage_height": 3,
+                    "localization": "legs",
+                    "subitems": []
+                },
+                {
+                    "name_type": "PressVest_Blue",
+                    "type_name": "Coletes",
+                    "slots": 16,
+                    "width": 4,
+                    "height": 4,
+                    "storage_slots": 16,
+                    "storage_width": 4,
+                    "storage_height": 4,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "PoliceJacket",
+                    "type_name": "Roupas",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 20,
+                    "storage_width": 5,
+                    "storage_height": 4,
+                    "localization": "torso",
+                    "subitems": []
+                }
+            ]
+        }
+    },
+    {
+        "Id": 416,
+        "Name": "pelado444",
+        "IsActive": false,
+        "Loadout": {
+            "weapons": {
+                "primary_weapon": {
+                    "name_type": "Repeater",
+                    "feed_type": "internal",
+                    "slots": 27,
+                    "width": 9,
+                    "height": 3,
+                    "ammunitions": {
+                        "name_type": "Ammo_357",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    }
+                },
+                "secondary_weapon": {
+                    "name_type": "Mp133Shotgun",
+                    "feed_type": "internal",
+                    "slots": 27,
+                    "width": 9,
+                    "height": 3,
+                    "ammunitions": {
+                        "name_type": "Ammo_12gaPellets",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "FNP45_MRDSOptic",
+                            "type": "scope",
+                            "slots": 1,
+                            "width": 1,
+                            "height": 1,
+                            "battery": true
+                        }
+                    ]
+                },
+                "small_weapon": null
+            },
+            "explosives": null,
+            "items": [
+                {
+                    "name_type": "PressVest_LightBlue",
+                    "type_name": "Coletes",
+                    "slots": 16,
+                    "width": 4,
+                    "height": 4,
+                    "storage_slots": 16,
+                    "storage_width": 4,
+                    "storage_height": 4,
+                    "localization": "torso",
+                    "subitems": []
+                }
+            ]
+        }
+    },
+    {
+        "Id": 313,
+        "Name": "silenciado",
+        "IsActive": false,
+        "Loadout": {
+            "weapons": {
+                "primary_weapon": {
+                    "name_type": "SV98",
+                    "feed_type": "magazine",
+                    "slots": 27,
+                    "width": 9,
+                    "height": 3,
+                    "magazine": {
+                        "name_type": "Mag_SV98_10Rnd",
+                        "capacity": 10,
+                        "slots": 2,
+                        "width": 1,
+                        "height": 2
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_762x54",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    }
+                },
+                "secondary_weapon": {
+                    "name_type": "ASVAL",
+                    "feed_type": "magazine",
+                    "slots": 32,
+                    "width": 8,
+                    "height": 4,
+                    "magazine": {
+                        "name_type": "Mag_Vikhr_30Rnd",
+                        "capacity": 30,
+                        "slots": 3,
+                        "width": 1,
+                        "height": 3
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_9x39",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    }
+                },
+                "small_weapon": {
+                    "name_type": "MakarovIJ70",
+                    "feed_type": "magazine",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "ammunitions": {
+                        "name_type": "Ammo_380",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    }
+                }
+            },
+            "explosives": null,
+            "items": [
+                {
+                    "name_type": "Mich2001Helmet",
+                    "type_name": "Capacetes",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "head",
+                    "subitems": [
+                        {
+                            "name_type": "NVGoggles",
+                            "type_name": "Equipamentos",
+                            "slots": 4,
+                            "width": 2,
+                            "height": 2,
+                            "storage_slots": 0,
+                            "storage_width": 0,
+                            "storage_height": 0,
+                            "localization": "",
+                            "subitems": [
+                                {
+                                    "name_type": "Battery9V",
+                                    "type_name": "Acessorios Extra",
+                                    "slots": 1,
+                                    "width": 1,
+                                    "height": 1,
+                                    "storage_slots": 0,
+                                    "storage_width": 0,
+                                    "storage_height": 0,
+                                    "localization": "",
+                                    "subitems": []
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name_type": "BalaclavaMask_Green",
+                    "type_name": "Roupas",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "face",
+                    "subitems": []
+                },
+                {
+                    "name_type": "PlateCarrierVest_Green",
+                    "type_name": "Coletes",
+                    "slots": 25,
+                    "width": 5,
+                    "height": 5,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "AssaultBag_Green",
+                    "type_name": "Mochilas",
+                    "slots": 20,
+                    "width": 4,
+                    "height": 5,
+                    "storage_slots": 36,
+                    "storage_width": 6,
+                    "storage_height": 6,
+                    "localization": "back",
+                    "subitems": []
+                },
+                {
+                    "name_type": "BDUJacket",
+                    "type_name": "Roupas",
+                    "slots": 12,
+                    "width": 3,
+                    "height": 4,
+                    "storage_slots": 24,
+                    "storage_width": 6,
+                    "storage_height": 4,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "BDUPants",
+                    "type_name": "Roupas",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 20,
+                    "storage_width": 5,
+                    "storage_height": 4,
+                    "localization": "legs",
+                    "subitems": []
+                },
+                {
+                    "name_type": "JungleBoots_Green",
+                    "type_name": "Roupas",
+                    "slots": 16,
+                    "width": 4,
+                    "height": 4,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "foot",
+                    "subitems": []
+                },
+                {
+                    "name_type": "BandageDressing",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Epinephrine",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "SalineBag",
+                    "type_name": "Suprimentos",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "WoolGloves_Green",
+                    "type_name": "Roupas",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "hands",
+                    "subitems": []
+                },
+                {
+                    "name_type": "TacticalGoggles",
+                    "type_name": "Roupas",
+                    "slots": 2,
+                    "width": 2,
+                    "height": 1,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "eyes",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Armband_Green",
+                    "type_name": "Roupas",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                }
+            ]
+        }
+    },
+    {
+        "Id": 308,
+        "Name": "sniper",
+        "IsActive": false,
+        "Loadout": {
+            "weapons": {
+                "primary_weapon": {
+                    "name_type": "SV98",
+                    "feed_type": "magazine",
+                    "slots": 27,
+                    "width": 9,
+                    "height": 3,
+                    "magazine": {
+                        "name_type": "Mag_SV98_10Rnd",
+                        "capacity": 10,
+                        "slots": 2,
+                        "width": 1,
+                        "height": 2
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_762x54",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "ImprovisedSuppressor",
+                            "type": "suppressor",
+                            "slots": 3,
+                            "width": 1,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "GhillieAtt_Woodland",
+                            "type": "ghillie",
+                            "slots": 12,
+                            "width": 4,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "MK4Optic_Black",
+                            "type": "scope",
+                            "slots": 4,
+                            "width": 4,
+                            "height": 1,
+                            "battery": true
+                        }
+                    ]
+                },
+                "secondary_weapon": {
+                    "name_type": "ASVAL",
+                    "feed_type": "magazine",
+                    "slots": 32,
+                    "width": 8,
+                    "height": 4,
+                    "magazine": {
+                        "name_type": "Mag_Vikhr_30Rnd",
+                        "capacity": 30,
+                        "slots": 3,
+                        "width": 1,
+                        "height": 3
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_9x39",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "ImprovisedSuppressor",
+                            "type": "suppressor",
+                            "slots": 3,
+                            "width": 1,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "GhillieAtt_Woodland",
+                            "type": "ghillie",
+                            "slots": 12,
+                            "width": 4,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "ReflexOptic",
+                            "type": "scope",
+                            "slots": 2,
+                            "width": 2,
+                            "height": 1,
+                            "battery": true
+                        }
+                    ]
+                },
+                "small_weapon": {
+                    "name_type": "P1",
+                    "feed_type": "magazine",
+                    "slots": 6,
+                    "width": 3,
+                    "height": 2,
+                    "magazine": {
+                        "name_type": "Mag_P1_8Rnd",
+                        "capacity": 8,
+                        "slots": 2,
+                        "width": 1,
+                        "height": 2
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_9x19",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "ImprovisedSuppressor",
+                            "type": "suppressor",
+                            "slots": 3,
+                            "width": 1,
+                            "height": 3,
+                            "battery": false
+                        }
+                    ]
+                }
+            },
+            "explosives": null,
+            "items": [
+                {
+                    "name_type": "Mich2001Helmet",
+                    "type_name": "Capacetes",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "head",
+                    "subitems": [
+                        {
+                            "name_type": "NVGoggles",
+                            "type_name": "Equipamentos",
+                            "slots": 4,
+                            "width": 2,
+                            "height": 2,
+                            "storage_slots": 0,
+                            "storage_width": 0,
+                            "storage_height": 0,
+                            "localization": "",
+                            "subitems": [
+                                {
+                                    "name_type": "Battery9V",
+                                    "type_name": "Acessorios Extra",
+                                    "slots": 1,
+                                    "width": 1,
+                                    "height": 1,
+                                    "storage_slots": 0,
+                                    "storage_width": 0,
+                                    "storage_height": 0,
+                                    "localization": "",
+                                    "subitems": []
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name_type": "CargoPants_Green",
+                    "type_name": "Roupas",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 20,
+                    "storage_width": 5,
+                    "storage_height": 4,
+                    "localization": "legs",
+                    "subitems": []
+                },
+                {
+                    "name_type": "BalaclavaMask_Green",
+                    "type_name": "Roupas",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "face",
+                    "subitems": []
+                },
+                {
+                    "name_type": "PlateCarrierVest_Green",
+                    "type_name": "Coletes",
+                    "slots": 25,
+                    "width": 5,
+                    "height": 5,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "WoolGlovesFingerless_Green",
+                    "type_name": "Roupas",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "hands",
+                    "subitems": []
+                },
+                {
+                    "name_type": "JungleBoots_Green",
+                    "type_name": "Roupas",
+                    "slots": 16,
+                    "width": 4,
+                    "height": 4,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "foot",
+                    "subitems": []
+                },
+                {
+                    "name_type": "BandageDressing",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Epinephrine",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "SalineBag",
+                    "type_name": "Suprimentos",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "GhillieSuit_Woodland",
+                    "type_name": "Mochilas",
+                    "slots": 30,
+                    "width": 6,
+                    "height": 5,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "back",
+                    "subitems": []
+                },
+                {
+                    "name_type": "TacticalGoggles",
+                    "type_name": "Roupas",
+                    "slots": 2,
+                    "width": 2,
+                    "height": 1,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "eyes",
+                    "subitems": []
+                },
+                {
+                    "name_type": "HikingJacket_Green",
+                    "type_name": "Roupas",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 24,
+                    "storage_width": 6,
+                    "storage_height": 4,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Armband_Green",
+                    "type_name": "Roupas",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                }
+            ]
+        }
+    },
+    {
+        "Id": 310,
+        "Name": "sniper_2",
+        "IsActive": false,
+        "Loadout": {
+            "weapons": {
+                "primary_weapon": {
+                    "name_type": "Winchester70",
+                    "feed_type": "manual",
+                    "slots": 30,
+                    "width": 10,
+                    "height": 3,
+                    "ammunitions": {
+                        "name_type": "Ammo_308Win",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    }
+                },
+                "secondary_weapon": {
+                    "name_type": "VSS",
+                    "feed_type": "magazine",
+                    "slots": 24,
+                    "width": 8,
+                    "height": 3,
+                    "magazine": {
+                        "name_type": "Mag_Vikhr_30Rnd",
+                        "capacity": 30,
+                        "slots": 3,
+                        "width": 1,
+                        "height": 3
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_9x39",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    }
+                },
+                "small_weapon": null
+            },
+            "explosives": null,
+            "items": [
+                {
+                    "name_type": "Mich2001Helmet",
+                    "type_name": "Capacetes",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "head",
+                    "subitems": [
+                        {
+                            "name_type": "NVGoggles",
+                            "type_name": "Equipamentos",
+                            "slots": 4,
+                            "width": 2,
+                            "height": 2,
+                            "storage_slots": 0,
+                            "storage_width": 0,
+                            "storage_height": 0,
+                            "localization": "",
+                            "subitems": [
+                                {
+                                    "name_type": "Battery9V",
+                                    "type_name": "Acessorios Extra",
+                                    "slots": 1,
+                                    "width": 1,
+                                    "height": 1,
+                                    "storage_slots": 0,
+                                    "storage_width": 0,
+                                    "storage_height": 0,
+                                    "localization": "",
+                                    "subitems": []
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name_type": "BalaclavaMask_Green",
+                    "type_name": "Roupas",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "face",
+                    "subitems": []
+                },
+                {
+                    "name_type": "PlateCarrierVest_Green",
+                    "type_name": "Coletes",
+                    "slots": 25,
+                    "width": 5,
+                    "height": 5,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "WoolGlovesFingerless_Green",
+                    "type_name": "Roupas",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "hands",
+                    "subitems": []
+                },
+                {
+                    "name_type": "HuntingJacket_Spring",
+                    "type_name": "Roupas",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 24,
+                    "storage_width": 6,
+                    "storage_height": 4,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "HunterPants_Spring",
+                    "type_name": "Roupas",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 20,
+                    "storage_width": 5,
+                    "storage_height": 4,
+                    "localization": "legs",
+                    "subitems": []
+                },
+                {
+                    "name_type": "JungleBoots_Green",
+                    "type_name": "Roupas",
+                    "slots": 16,
+                    "width": 4,
+                    "height": 4,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "foot",
+                    "subitems": []
+                },
+                {
+                    "name_type": "BandageDressing",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Epinephrine",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "SalineBag",
+                    "type_name": "Suprimentos",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "GhillieSuit_Woodland",
+                    "type_name": "Mochilas",
+                    "slots": 30,
+                    "width": 6,
+                    "height": 5,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "back",
+                    "subitems": []
+                },
+                {
+                    "name_type": "TacticalGoggles",
+                    "type_name": "Roupas",
+                    "slots": 2,
+                    "width": 2,
+                    "height": 1,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "eyes",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Armband_Green",
+                    "type_name": "Roupas",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                }
+            ]
+        }
+    },
+    {
+        "Id": 311,
+        "Name": "sniper_3",
+        "IsActive": false,
+        "Loadout": {
+            "weapons": {
+                "primary_weapon": {
+                    "name_type": "Mosin9130_Camo",
+                    "feed_type": "internal",
+                    "slots": 30,
+                    "width": 10,
+                    "height": 3,
+                    "ammunitions": {
+                        "name_type": "Ammo_762x54",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "ImprovisedSuppressor",
+                            "type": "suppressor",
+                            "slots": 3,
+                            "width": 1,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "GhillieAtt_Woodland",
+                            "type": "ghillie",
+                            "slots": 12,
+                            "width": 4,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "PUScopeOptic",
+                            "type": "scope",
+                            "slots": 3,
+                            "width": 3,
+                            "height": 1,
+                            "battery": false
+                        }
+                    ]
+                },
+                "secondary_weapon": {
+                    "name_type": "ASVAL",
+                    "feed_type": "magazine",
+                    "slots": 32,
+                    "width": 8,
+                    "height": 4,
+                    "magazine": {
+                        "name_type": "Mag_Vikhr_30Rnd",
+                        "capacity": 30,
+                        "slots": 3,
+                        "width": 1,
+                        "height": 3
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_9x39",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "ImprovisedSuppressor",
+                            "type": "suppressor",
+                            "slots": 3,
+                            "width": 1,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "GhillieAtt_Woodland",
+                            "type": "ghillie",
+                            "slots": 12,
+                            "width": 4,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "ReflexOptic",
+                            "type": "scope",
+                            "slots": 2,
+                            "width": 2,
+                            "height": 1,
+                            "battery": true
+                        }
+                    ]
+                },
+                "small_weapon": null
+            },
+            "explosives": null,
+            "items": []
+        }
+    },
+    {
+        "Id": 312,
+        "Name": "zuera",
+        "IsActive": false,
+        "Loadout": {
+            "weapons": {
+                "primary_weapon": {
+                    "name_type": "AK101_Green",
+                    "feed_type": "magazine",
+                    "slots": 24,
+                    "width": 8,
+                    "height": 3,
+                    "magazine": {
+                        "name_type": "Mag_AK101_30Rnd",
+                        "capacity": 30,
+                        "slots": 3,
+                        "width": 3,
+                        "height": 1
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_556x45",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "ImprovisedSuppressor",
+                            "type": "suppressor",
+                            "slots": 3,
+                            "width": 1,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "AK_PlasticBttstck_Green",
+                            "type": "buttstock",
+                            "slots": 3,
+                            "width": 3,
+                            "height": 1,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "AK_RailHndgrd_Green",
+                            "type": "handguard",
+                            "slots": 2,
+                            "width": 2,
+                            "height": 1,
+                            "battery": false
+                        }
+                    ]
+                },
+                "secondary_weapon": {
+                    "name_type": "Scout",
+                    "feed_type": "magazine",
+                    "slots": 21,
+                    "width": 7,
+                    "height": 3,
+                    "magazine": {
+                        "name_type": "Mag_Scout_5Rnd",
+                        "capacity": 5,
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_556x45",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "ACOGOptic",
+                            "type": "scope",
+                            "slots": 2,
+                            "width": 2,
+                            "height": 1,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "ImprovisedSuppressor",
+                            "type": "suppressor",
+                            "slots": 3,
+                            "width": 1,
+                            "height": 3,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "GhillieAtt_Mossy",
+                            "type": "ghillie",
+                            "slots": 12,
+                            "width": 4,
+                            "height": 3,
+                            "battery": false
+                        }
+                    ]
+                },
+                "small_weapon": null
+            },
+            "explosives": null,
+            "items": [
+                {
+                    "name_type": "PlateCarrierVest_Camo",
+                    "type_name": "Coletes",
+                    "slots": 25,
+                    "width": 5,
+                    "height": 5,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "BandageDressing",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Epinephrine",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "SalineBag",
+                    "type_name": "Suprimentos",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "SkiGloves_90s",
+                    "type_name": "Roupas",
+                    "slots": 4,
+                    "width": 2,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "hands",
+                    "subitems": []
+                },
+                {
+                    "name_type": "JoggingShoes_Red",
+                    "type_name": "Roupas",
+                    "slots": 8,
+                    "width": 4,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "foot",
+                    "subitems": []
+                },
+                {
+                    "name_type": "TacticalGoggles",
+                    "type_name": "Roupas",
+                    "slots": 2,
+                    "width": 2,
+                    "height": 1,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "eyes",
+                    "subitems": []
+                },
+                {
+                    "name_type": "FirefightersHelmet_Yellow",
+                    "type_name": "Capacetes",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "head",
+                    "subitems": []
+                },
+                {
+                    "name_type": "NBCPantsYellow",
+                    "type_name": "Roupas",
+                    "slots": 6,
+                    "width": 3,
+                    "height": 2,
+                    "storage_slots": 12,
+                    "storage_width": 4,
+                    "storage_height": 3,
+                    "localization": "legs",
+                    "subitems": []
+                },
+                {
+                    "name_type": "NBCJacketYellow",
+                    "type_name": "Roupas",
+                    "slots": 6,
+                    "width": 2,
+                    "height": 3,
+                    "storage_slots": 12,
+                    "storage_width": 4,
+                    "storage_height": 3,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "NBCJacketYellow",
+                    "type_name": "Roupas",
+                    "slots": 6,
+                    "width": 2,
+                    "height": 3,
+                    "storage_slots": 12,
+                    "storage_width": 4,
+                    "storage_height": 3,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Armband_Yellow",
+                    "type_name": "Roupas",
+                    "slots": 2,
+                    "width": 2,
+                    "height": 1,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "DrysackBag_Yellow",
+                    "type_name": "Mochilas",
+                    "slots": 20,
+                    "width": 5,
+                    "height": 4,
+                    "storage_slots": 20,
+                    "storage_width": 5,
+                    "storage_height": 4,
+                    "localization": "back",
+                    "subitems": []
+                }
+            ]
+        }
+    }
+]

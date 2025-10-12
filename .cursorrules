@@ -1,0 +1,31 @@
+# Servidores DayZ - Beco Gaming
+
+Você está trabalhando em dois servidores DayZ customizados em Enforce Script.
+
+## Estrutura
+- deathmatch/: Servidor PvP com funcionalidades avançadas
+- vanilla/: Servidor tradicional com admin básico
+
+## Documentação
+Consulte as documentações completas:
+- deathmatch/docs/README.md (sistema completo)
+- vanilla/docs/README.md (sistema simplificado)
+- README.md (visão geral)
+
+## Arquivos Importantes
+- init.c: Inicialização do servidor
+- admin/Commands.c: Sistema de comandos
+- admin/files/*.txt: Arquivos de comunicação
+- admin/loadouts/*.json: Configurações de loadouts
+
+## Logs
+- init.log: Log principal (profiles/init.log)
+- position.log: Coordenadas
+
+## Convenções
+- Sempre usar WriteToLog() com tipo apropriado (INFO/ERROR/DEBUG)
+- JSON configs devem ser validados
+- Comandos externos via commands_to_execute.txt
+- Integração externa via external_actions.txt
+
+Responda sempre em português do Brasil.

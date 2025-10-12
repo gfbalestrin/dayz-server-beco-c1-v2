@@ -1,0 +1,44 @@
+{
+    "Linux": {
+        "User": {
+            "Name": "dayzadmin",        
+            "Password": "********"
+        }    
+    },
+    "DayZ": {
+        "ServerName": "[BR] BECO-C1 | EM TESTE | discord.gg/Zatp99MQ3a",
+        "PasswordAdmin": "*********",
+        "MaxPlayers": 60,
+        "MotdMessage": "Bem vindo ao servidor!",
+        "MotdIntervalSeconds": 600,
+        "PcCpuMaxCores": 4,
+        "PcCpuReservedcores": 1,    
+        "RestartMinutes": 60,    
+        "RConPassword": "**************",
+        "MaxPing": 400,
+        "RestrictRCon": "0",
+        "RConPort": "2305",
+        "RConIP": "0.0.0.0",
+        "MpMission": "dayzOffline.chernarusplus",
+        "LimitFPS": "200",
+        "Deathmatch": "0",
+        "WipeOnRestart": "0"
+    },
+    "App": {
+    },
+    "Discord": {
+        "WebhookLogs": "https://discord.com/api/webhooks/1111111111111111111/abcdefghijklmnopqrstuvwxyz1234567890",
+        "WebhookLogsAdmin": "https://discord.com/api/webhooks/1111111111111111111/abcdefghijklmnopqrstuvwxyz1234567890",
+        "ChannelPlayersOnline": {
+            "ChannelId": "1111111111111111111",
+            "BotToken": "abcdefghijklmnopqrstuvwxyz1234567890"
+        },
+        "ChannelPlayersStats": {
+            "ChannelId": "1111111111111111111",
+            "BotToken": "abcdefghijklmnopqrstuvwxyz1234567890"
+        }
+    },   
+    "Steam": {
+        "Account": "contasteam"        
+    }    
+}

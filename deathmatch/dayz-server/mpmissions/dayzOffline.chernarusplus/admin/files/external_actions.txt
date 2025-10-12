@@ -1,0 +1,5 @@
+
+{"action":"event_start_finished","current_map":"Zeleno","current_time":"06:00 (manhã)"}
+{"action":"update_player","player_id":"RAYX0mD6IZ5t2F-byELSJYNMfn0yBARqnj1Fkz03SBo=","player_name":"VIZION","steam_id":"76561199493351151"}
+{"action":"player_connected","player_id":"RAYX0mD6IZ5t2F-byELSJYNMfn0yBARqnj1Fkz03SBo="}
+{"action":"player_disconnected","player_id":"RAYX0mD6IZ5t2F-byELSJYNMfn0yBARqnj1Fkz03SBo="}

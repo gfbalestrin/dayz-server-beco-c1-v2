@@ -1,0 +1,16 @@
+[
+    {
+        "Id": 108,
+        "Name": "xd",
+        "IsActive": false,
+        "Loadout": {
+            "weapons": {
+                "primary_weapon": null,
+                "secondary_weapon": null,
+                "small_weapon": null
+            },
+            "explosives": null,
+            "items": []
+        }
+    }
+]

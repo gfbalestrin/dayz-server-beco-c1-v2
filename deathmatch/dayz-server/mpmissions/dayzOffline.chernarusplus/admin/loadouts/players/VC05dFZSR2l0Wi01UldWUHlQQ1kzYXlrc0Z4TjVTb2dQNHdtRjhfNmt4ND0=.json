@@ -1,0 +1,158 @@
+[
+    {
+        "Id": 196,
+        "Name": "Loadout Padrão",
+        "IsActive": true,
+        "Loadout": {
+            "weapons": {
+                "primary_weapon": {
+                    "name_type": "AK101_Green",
+                    "feed_type": "magazine",
+                    "slots": 24,
+                    "width": 8,
+                    "height": 3,
+                    "magazine": {
+                        "name_type": "Mag_AK101_30Rnd",
+                        "capacity": 30,
+                        "slots": 3,
+                        "width": 3,
+                        "height": 1
+                    },
+                    "ammunitions": {
+                        "name_type": "Ammo_556x45",
+                        "slots": 1,
+                        "width": 1,
+                        "height": 1
+                    },
+                    "attachments": [
+                        {
+                            "name_type": "AK_PlasticBttstck_Green",
+                            "type": "buttstock",
+                            "slots": 3,
+                            "width": 3,
+                            "height": 1,
+                            "battery": false
+                        },
+                        {
+                            "name_type": "AK_RailHndgrd_Green",
+                            "type": "handguard",
+                            "slots": 2,
+                            "width": 2,
+                            "height": 1,
+                            "battery": false
+                        }
+                    ]
+                },
+                "secondary_weapon": null,
+                "small_weapon": null
+            },
+            "explosives": [
+                {
+                    "name_type": "M67Grenade",
+                    "slots": 2,
+                    "width": 2,
+                    "height": 1,
+                    "quantity": 3
+                }
+            ],
+            "items": [
+                {
+                    "name_type": "PlateCarrierVest",
+                    "type_name": "Coletes",
+                    "slots": 25,
+                    "width": 5,
+                    "height": 5,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "torso",
+                    "subitems": []
+                },
+                {
+                    "name_type": "HipPack_Party",
+                    "type_name": "Roupas",
+                    "slots": 8,
+                    "width": 4,
+                    "height": 2,
+                    "storage_slots": 6,
+                    "storage_width": 3,
+                    "storage_height": 2,
+                    "localization": "waist",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Epinephrine",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Morphine",
+                    "type_name": "Suprimentos",
+                    "slots": 2,
+                    "width": 1,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "",
+                    "subitems": []
+                },
+                {
+                    "name_type": "JoggingShoes_Violet",
+                    "type_name": "Roupas",
+                    "slots": 8,
+                    "width": 4,
+                    "height": 2,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "foot",
+                    "subitems": []
+                },
+                {
+                    "name_type": "DirtBikeHelmet_Chernarus",
+                    "type_name": "Capacetes",
+                    "slots": 12,
+                    "width": 4,
+                    "height": 3,
+                    "storage_slots": 0,
+                    "storage_width": 0,
+                    "storage_height": 0,
+                    "localization": "head",
+                    "subitems": []
+                },
+                {
+                    "name_type": "Skirt_Blue",
+                    "type_name": "Roupas",
+                    "slots": 3,
+                    "width": 3,
+                    "height": 1,
+                    "storage_slots": 8,
+                    "storage_width": 4,
+                    "storage_height": 2,
+                    "localization": "legs",
+                    "subitems": []
+                },
+                {
+                    "name_type": "MiniDress_PinkChecker",
+                    "type_name": "Roupas",
+                    "slots": 9,
+                    "width": 3,
+                    "height": 3,
+                    "storage_slots": 9,
+                    "storage_width": 3,
+                    "storage_height": 3,
+                    "localization": "torso",
+                    "subitems": []
+                }
+            ]
+        }
+    }
+]

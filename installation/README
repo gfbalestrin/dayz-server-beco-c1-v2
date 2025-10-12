@@ -1,0 +1,17 @@
+# Copiar diretório Installation para o linux
+
+# Configurar config/config.json
+
+# Aplicar permissões de execução
+chmod +x install.sh && chmod +x config/config.sh
+
+# Executar o script de instalação
+./install.sh
+
+# No processo será requisitado a senha da steam e para confirmar o steamguard code
+
+# Após a instalação:
+# Sistema de log e administração básico:
+./install_log_admin.sh
+
+# Para configurar o Cftools e utilizar banlists públicas siga o tutorial:
