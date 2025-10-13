@@ -251,20 +251,17 @@ class CustomMission: MissionServer
 					// Método 1: Usar o objeto Man armazenado em ActivePlayer
 					Man ghostMan = ghostPlayer.GetPlayer();
 					PlayerBase ghostPlayerBase = PlayerBase.Cast(ghostMan);
+
+					vector currentPos = ghostPlayerBase.GetPosition();
+					vector newPos = currentPos;
+					newPos[1] = newPos[1] + 1.0;  // Move 1 metro para cima (eixo Y)
 					
-					if (ghostPlayerBase)
-					{
-						vector currentPos = ghostPlayerBase.GetPosition();
-						vector newPos = currentPos;
-						newPos[1] = newPos[1] + 1.0;  // Move 1 metro para cima (eixo Y)
-						
-						ghostPlayerBase.SetPosition(newPos);
-						WriteToLog("  -> TESTE: Ghost movido usando Man armazenado! Pos anterior: " + currentPos.ToString() + " | Nova pos: " + newPos.ToString(), LogFile.INIT, false, LogType.INFO);
-						movedSuccessfully = true;
-					}
+					//ghostPlayerBase.SetPosition(newPos);
+					WriteToLog("  -> TESTE: Ghost movido usando Man armazenado! Pos anterior: " + currentPos.ToString() + " | Nova pos: " + newPos.ToString(), LogFile.INIT, false, LogType.INFO);
+					movedSuccessfully = true;
 					
 					// Se não conseguiu mover, confirma que é ghost real e desconecta
-					if (!movedSuccessfully)
+					if (movedSuccessfully)
 					{
 						WriteToLog("  -> TESTE FALHOU: Não foi possível mover o ghost - objeto Man não acessível", LogFile.INIT, false, LogType.ERROR);
 						WriteToLog("  -> Isso confirma que é um ghost REAL (sem objeto Man válido no mundo)", LogFile.INIT, false, LogType.DEBUG);
@@ -477,6 +474,10 @@ class CustomMission: MissionServer
 						{
 							vector pos = pb.GetPosition();
 							WriteToLog("  -> Posição do Player: " + pos.ToString(), LogFile.INIT, false, LogType.INFO);
+
+							vector newPos = pos;
+							newPos[1] = newPos[1] + 0.5;  // Move 1 metro para cima (eixo Y)							
+							pb.SetPosition(newPos);
 						}
 					}
 					else
