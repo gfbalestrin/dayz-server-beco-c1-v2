@@ -2,6 +2,7 @@
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/models/SafeZoneData.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/models/LoadoutPlayer.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/models/LoadoutPlayerId.c"
+#include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/models/ActivePlayer.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/Log.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/Functions.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/ExternalActions.c"
@@ -44,7 +45,7 @@ void main()
 
 class CustomMission: MissionServer
 {
-	ref set<string> ActivePlayers;
+	ref array<ref ActivePlayer> ActivePlayers;  // Lista de jogadores ativos/conectados
 	ref array<string> FixedMessages;
 	float m_AdminCheckCooldown10 = 10.0;
 	float m_AdminCheckTimer10 = 0.0;
@@ -65,8 +66,226 @@ class CustomMission: MissionServer
 
 		WriteToLog("OnMissionStart(): Servidor reiniciado com sucesso!", LogFile.INIT, false, LogType.INFO);
 		AppendExternalAction("{\"action\":\"event_start_finished\",\"current_time\":\"" + GetCurrentTimeInGame() + "\"}");
-        ActivePlayers = new set<string>();
+        ActivePlayers = new array<ref ActivePlayer>();
     }
+	
+	// ============================================================================
+	// FUNÇÕES HELPER PARA GERENCIAR JOGADORES ATIVOS
+	// ============================================================================
+	
+	// Adiciona ou atualiza um jogador à lista de jogadores ativos
+	void AddOrUpdateActivePlayer(PlayerIdentity identity, Man player = null)
+	{
+		if (!identity)
+		{
+			WriteToLog("AddOrUpdateActivePlayer(): Identity nula!", LogFile.INIT, false, LogType.ERROR);
+			return;
+		}
+		
+		string steamId = identity.GetPlainId();
+		string playerName = identity.GetName();
+		string playerId = identity.GetId();
+		
+		// Verifica se o jogador já está na lista
+		ActivePlayer existingPlayer = GetActivePlayerBySteamId(steamId);
+		if (existingPlayer)
+		{
+			// Atualiza o objeto Man se fornecido
+			if (player)
+			{
+				existingPlayer.SetPlayer(player);
+				WriteToLog("AddOrUpdateActivePlayer(): Player atualizado para " + playerName + " (" + playerId + ")", LogFile.INIT, false, LogType.DEBUG);
+			}
+			else
+			{
+				WriteToLog("AddOrUpdateActivePlayer(): Jogador já está na lista: " + playerName + " (" + playerId + ")", LogFile.INIT, false, LogType.DEBUG);
+			}
+			return;
+		}
+		
+		// Cria e adiciona o novo jogador
+		ActivePlayer newPlayer = new ActivePlayer(identity, player);
+		ActivePlayers.Insert(newPlayer);
+		WriteToLog("AddOrUpdateActivePlayer(): Jogador adicionado: " + playerName + " (PlayerID: " + playerId + ", SteamID: " + steamId + ")", LogFile.INIT, false, LogType.INFO);
+	}
+	
+	// Remove um jogador da lista pelo Steam ID
+	void RemoveActivePlayer(string steamId)
+	{
+		for (int i = 0; i < ActivePlayers.Count(); i++)
+		{
+			ActivePlayer player = ActivePlayers.Get(i);
+			if (player && player.IsSamePlayer(steamId))
+			{
+				WriteToLog("RemoveActivePlayer(): Jogador removido: " + player.GetPlayerName() + " (SteamID: " + steamId + ")", LogFile.INIT, false, LogType.INFO);
+				ActivePlayers.Remove(i);
+				return;
+			}
+		}
+		WriteToLog("RemoveActivePlayer(): Jogador não encontrado na lista: " + steamId, LogFile.INIT, false, LogType.DEBUG);
+	}
+	
+	// Remove um jogador da lista pelo Player ID
+	void RemoveActivePlayerById(string playerId)
+	{
+		for (int i = 0; i < ActivePlayers.Count(); i++)
+		{
+			ActivePlayer player = ActivePlayers.Get(i);
+			if (player && player.IsSamePlayerById(playerId))
+			{
+				WriteToLog("RemoveActivePlayerById(): Jogador removido: " + player.GetPlayerName() + " (PlayerID: " + playerId + ")", LogFile.INIT, false, LogType.INFO);
+				ActivePlayers.Remove(i);
+				return;
+			}
+		}
+		WriteToLog("RemoveActivePlayerById(): Jogador não encontrado na lista: " + playerId, LogFile.INIT, false, LogType.DEBUG);
+	}
+	
+	// Busca um jogador ativo pelo Steam ID
+	ActivePlayer GetActivePlayerBySteamId(string steamId)
+	{
+		for (int i = 0; i < ActivePlayers.Count(); i++)
+		{
+			ActivePlayer player = ActivePlayers.Get(i);
+			if (player && player.IsSamePlayer(steamId))
+			{
+				return player;
+			}
+		}
+		return null;
+	}
+	
+	// Busca um jogador ativo pelo Player ID
+	ActivePlayer GetActivePlayerById(string playerId)
+	{
+		for (int i = 0; i < ActivePlayers.Count(); i++)
+		{
+			ActivePlayer player = ActivePlayers.Get(i);
+			if (player && player.IsSamePlayerById(playerId))
+			{
+				return player;
+			}
+		}
+		return null;
+	}
+	
+	// Retorna a quantidade de jogadores ativos
+	int GetActivePlayersCount()
+	{
+		return ActivePlayers.Count();
+	}
+	
+	// Lista todos os jogadores ativos no log
+	void ListActivePlayers()
+	{
+		WriteToLog("=== JOGADORES ATIVOS (" + ActivePlayers.Count() + ") ===", LogFile.INIT, false, LogType.INFO);
+		for (int i = 0; i < ActivePlayers.Count(); i++)
+		{
+			ActivePlayer player = ActivePlayers.Get(i);
+			if (player && player.HasIdentity())
+			{
+				float duration = player.GetConnectedDuration();
+				WriteToLog("  [" + (i+1) + "] " + player.GetPlayerName() + " | PlayerID: " + player.GetPlayerId() + " | SteamID: " + player.GetSteamId() + " | Conectado há: " + duration.ToString() + "s", LogFile.INIT, false, LogType.INFO);
+			}
+		}
+	}
+	
+	// Detecta jogadores "ghost" e tenta movê-los 1 metro para cima (MODO TESTE)
+	// Se conseguir mover = ghost tem Man mas não aparece em GetPlayers()
+	// Se não conseguir mover = ghost real sem Man válido (será desconectado)
+	void DetectAndDisconnectGhosts()
+	{
+		// Pega todos os jogadores com objetos Man válidos
+		array<Man> players = new array<Man>();
+		GetGame().GetPlayers(players);
+		
+		// Criar set de Player IDs válidos
+		ref set<string> validPlayerIds = new set<string>();
+		foreach (Man man : players)
+		{
+			PlayerBase player = PlayerBase.Cast(man);
+			if (player && player.GetIdentity())
+			{
+				validPlayerIds.Insert(player.GetIdentity().GetId());
+			}
+		}
+		
+		// Verificar quais ActivePlayers são ghosts
+		array<int> ghostIndices = new array<int>();
+		for (int i = 0; i < ActivePlayers.Count(); i++)
+		{
+			ActivePlayer activePlayer = ActivePlayers.Get(i);
+			if (!activePlayer || !activePlayer.HasIdentity()) continue;
+			
+			string playerId = activePlayer.GetPlayerId();
+			
+			// Se está em ActivePlayers mas NÃO está em GetPlayers = é um GHOST!
+			if (validPlayerIds.Find(playerId) == -1)
+			{
+				ghostIndices.Insert(i);
+			}
+		}
+		
+		// Tenta mover os ghosts 1 metro para cima (TESTE)
+		if (ghostIndices.Count() > 0)
+		{
+			WriteToLog("=== DETECTADOS " + ghostIndices.Count() + " JOGADORES GHOST - TENTANDO MOVER ===", LogFile.INIT, false, LogType.DEBUG);
+			
+			for (int j = ghostIndices.Count() - 1; j >= 0; j--)
+			{
+				int ghostIndex = ghostIndices.Get(j);
+				ActivePlayer ghostPlayer = ActivePlayers.Get(ghostIndex);
+				
+				if (ghostPlayer && ghostPlayer.HasIdentity())
+				{
+					PlayerIdentity ghostIdentity = ghostPlayer.GetIdentity();
+					string ghostName = ghostPlayer.GetPlayerName();
+					string ghostPlayerId = ghostPlayer.GetPlayerId();
+					string ghostSteamId = ghostPlayer.GetSteamId();
+					
+					WriteToLog("  -> GHOST DETECTADO: " + ghostName + " | PlayerID: " + ghostPlayerId + " | SteamID: " + ghostSteamId, LogFile.INIT, false, LogType.DEBUG);
+					
+					// Tenta mover o ghost 1 metro para cima
+					bool movedSuccessfully = false;
+					
+					// Método 1: Usar o objeto Man armazenado em ActivePlayer
+					Man ghostMan = ghostPlayer.GetPlayer();
+					PlayerBase ghostPlayerBase = PlayerBase.Cast(ghostMan);
+					
+					if (ghostPlayerBase)
+					{
+						vector currentPos = ghostPlayerBase.GetPosition();
+						vector newPos = currentPos;
+						newPos[1] = newPos[1] + 1.0;  // Move 1 metro para cima (eixo Y)
+						
+						ghostPlayerBase.SetPosition(newPos);
+						WriteToLog("  -> TESTE: Ghost movido usando Man armazenado! Pos anterior: " + currentPos.ToString() + " | Nova pos: " + newPos.ToString(), LogFile.INIT, false, LogType.INFO);
+						movedSuccessfully = true;
+					}
+					
+					// Se não conseguiu mover, confirma que é ghost real e desconecta
+					if (!movedSuccessfully)
+					{
+						WriteToLog("  -> TESTE FALHOU: Não foi possível mover o ghost - objeto Man não acessível", LogFile.INIT, false, LogType.ERROR);
+						WriteToLog("  -> Isso confirma que é um ghost REAL (sem objeto Man válido no mundo)", LogFile.INIT, false, LogType.DEBUG);
+						
+						// Desconecta o ghost
+						WriteToLog("  -> Desconectando ghost...", LogFile.INIT, false, LogType.INFO);
+						GetGame().DisconnectPlayer(ghostIdentity, ghostPlayerId);
+						
+						// Remove da lista
+						ActivePlayers.Remove(ghostIndex);
+						WriteToLog("  -> Ghost desconectado e removido da lista", LogFile.INIT, false, LogType.INFO);
+					}
+					else
+					{
+						WriteToLog("  -> TESTE SUCESSO: Ghost foi movido! Isso significa que ele TEM objeto Man, mas não aparece em GetPlayers()", LogFile.INIT, false, LogType.INFO);
+						WriteToLog("  -> Ghost NÃO será desconectado para observação", LogFile.INIT, false, LogType.INFO);
+					}
+				}
+			}
+		}
+	}
 
 	// Função helper para identificar o nome do EventType
 	string GetEventTypeName(EventType eventTypeId)
@@ -170,6 +389,7 @@ class CustomMission: MissionServer
 			
 			// Aqui você pode adicionar lógica personalizada
 			// Ex: verificar banimentos, whitelist, etc
+			// NOTA: Jogador será adicionado à lista no ClientReadyEventTypeID
 		}
 		
 		// ============================================================================
@@ -195,6 +415,10 @@ class CustomMission: MissionServer
 			{
 				WriteToLog("  -> Jogador: " + identity.GetName() + " | ID: " + identity.GetId(), LogFile.INIT, false, LogType.DEBUG);
 				WriteToLog("  -> LogoutTime: " + logoutTime + " | AuthFailed: " + authFailed, LogFile.INIT, false, LogType.DEBUG);
+				
+				// Remove o jogador da lista de jogadores ativos
+				steamId = identity.GetPlainId();
+				RemoveActivePlayer(steamId);
 			}
 			
 			// Aqui você pode adicionar lógica de cleanup ou notificações
@@ -219,7 +443,11 @@ class CustomMission: MissionServer
 			
 			if (identity)
 			{
-				WriteToLog("  -> Novo jogador: " + identity.GetName() + " | Posição: " + position.ToString(), LogFile.INIT, false, LogType.DEBUG);
+				WriteToLog("  -> Novo jogador: " + identity.GetName() + " | PlayerID: " + identity.GetId() + " | Posição: " + position.ToString(), LogFile.INIT, false, LogType.INFO);
+				
+				// ⭐ ADICIONA o jogador novo à lista de jogadores ativos
+				// Nota: Man/Player pode não estar disponível ainda neste evento
+				AddOrUpdateActivePlayer(identity, null);
 			}
 			
 			// Aqui você pode personalizar o spawn de novos jogadores
@@ -241,21 +469,78 @@ class CustomMission: MissionServer
 				
 				if (identity)
 				{
-					WriteToLog("  -> Jogador pronto: " + identity.GetName(), LogFile.INIT, false, LogType.DEBUG);
+					if (player)
+					{
+						WriteToLog("  -> Man/Player PRESENTE no evento ClientReadyEventTypeID", LogFile.INIT, false, LogType.INFO);
+						PlayerBase pb = PlayerBase.Cast(player);
+						if (pb)
+						{
+							vector pos = pb.GetPosition();
+							WriteToLog("  -> Posição do Player: " + pos.ToString(), LogFile.INIT, false, LogType.INFO);
+						}
+					}
+					else
+					{
+						WriteToLog("  -> AVISO: Man/Player é NULL no ClientReadyEventTypeID!", LogFile.INIT, false, LogType.DEBUG);
+					}
+					
+					WriteToLog("  -> Jogador pronto: " + identity.GetName() + " | PlayerID: " + identity.GetId() + " | SteamID: " + identity.GetPlainId(), LogFile.INIT, false, LogType.INFO);
+					
+					// ⭐ ADICIONE ESTE LOG ANTES
+					if (player)
+					{
+						WriteToLog("  -> ANTES AddOrUpdate: Man não é null", LogFile.INIT, false, LogType.DEBUG);
+					}
+					else
+					{
+						WriteToLog("  -> ANTES AddOrUpdate: Man é NULL!", LogFile.INIT, false, LogType.ERROR);
+					}
+					
+					// Adiciona o jogador à lista
+					AddOrUpdateActivePlayer(identity, player);
+					
+					// ⭐ ADICIONE ESTE LOG DEPOIS
+					ActivePlayer addedPlayer = GetActivePlayerById(identity.GetId());
+					if (addedPlayer)
+					{
+						if (addedPlayer.HasPlayer())
+						{
+							WriteToLog("  -> DEPOIS AddOrUpdate: Man foi armazenado com sucesso!", LogFile.INIT, false, LogType.INFO);
+						}
+						else
+						{
+							WriteToLog("  -> DEPOIS AddOrUpdate: Man NÃO foi armazenado (é null)!", LogFile.INIT, false, LogType.ERROR);
+						}
+					}
+					
+					WriteToLog("Total de jogadores conectados: " + GetActivePlayersCount(), LogFile.INIT, false, LogType.INFO);
 				}
-				
-				// Ideal para enviar mensagens de boas-vindas ou aplicar configurações iniciais
 			}
 		}
 		
 		// ============================================================================
 		// EVENTO: ClientPrepareEventTypeID
 		// Disparado durante a preparação do cliente (antes de estar pronto)
+		// Params: <PlayerIdentity, bool, vector, float, int> - Identity, useDB, pos, yaw, preloadTimeout
 		// ============================================================================
 		else if (eventTypeId == ClientPrepareEventTypeID)
 		{
-			WriteToLog("EVENT: ClientPrepareEventTypeID - Cliente se preparando", LogFile.INIT, false, LogType.DEBUG);
-			// Sem params específicos conhecidos
+			WriteToLog("EVENT: ClientPrepareEventTypeID - Cliente se preparando", LogFile.INIT, false, LogType.INFO);
+			ClientPrepareEventParams prepareParams = ClientPrepareEventParams.Cast(params);
+			if (prepareParams)
+			{
+				identity = prepareParams.param1;        // PlayerIdentity
+				bool useDB = prepareParams.param2;      // Usa banco de dados
+				position = prepareParams.param3;        // Posição
+				float yaw = prepareParams.param4;       // Rotação yaw
+				int preloadTimeout = prepareParams.param5;  // Timeout de preload adicional
+				
+				if (identity)
+				{
+					WriteToLog("  -> Jogador preparando: " + identity.GetName() + " | PlayerID: " + identity.GetId(), LogFile.INIT, false, LogType.DEBUG);
+					WriteToLog("  -> UseDB: " + useDB + " | Pos: " + position.ToString() + " | Yaw: " + yaw + " | Timeout: " + preloadTimeout, LogFile.INIT, false, LogType.DEBUG);
+				}
+			}
 		}
 		
 		// ============================================================================
@@ -582,10 +867,15 @@ class CustomMission: MissionServer
 			CheckCommands();
 			array<string> msgs = CheckMessages();
 			array<string> privMsgs = CheckPrivateMessages();
+			
+			// ⭐ Detecta e desconecta jogadores ghost automaticamente
+			DetectAndDisconnectGhosts();
 
 			array<Man> players = new array<Man>;
 			GetGame().GetPlayers(players);
 			WriteToLog("OnUpdate(): Encontrados " + players.Count() + " jogadores.", LogFile.INIT, false, LogType.INFO);
+
+			ListActivePlayers();
 
 			ref set<string> currentPlayers = new set<string>();
 
