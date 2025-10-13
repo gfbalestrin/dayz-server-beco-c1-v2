@@ -30,6 +30,7 @@ usage() {
 
 SKIP_USER=0
 SKIP_STEAM=0
+SKIP_SERVER_CONFIG=0
 NO_CONFIRM=0
 
 # Processa os argumentos
@@ -41,6 +42,10 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --skip-steam)
       SKIP_STEAM=1
+      shift
+      ;;
+    --skip-server-config)
+      SKIP_SERVER_CONFIG=1
       shift
       ;;
     --no-confirm)
@@ -68,6 +73,7 @@ fi
 
 [[ "$SKIP_USER" -eq 1 ]] && echo "Flag --skip-user foi ativada"
 [[ "$SKIP_STEAM" -eq 1 ]] && echo "Flag --skip-steam foi ativada"
+[[ "$SKIP_SERVER_CONFIG" -eq 1 ]] && echo "Flag --skip-server-config foi ativada"
 [[ "$NO_CONFIRM" -eq 1 ]] && echo "Flag --no-confirm foi ativada (modo automático)"
 
 echo "Iniciando em $DELAY segundos..."
@@ -126,7 +132,7 @@ done
 
 echo "✅ Lock liberado. Prosseguindo com instalação..."
 apt -y update
-apt -y install jq curl wget
+apt -y install jq curl wget git
 
 # Determina o diretório do script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -229,156 +235,158 @@ else
 fi
 
 sleep $DELAY
-
-confirm_step "Configuração do arquivo serverDZ.cfg (nome, senha admin, jogadores)"
-
 DayzFolder="/home/$LinuxUserName/servers/dayz-server"
-echo "Entrando no diretório $DayzFolder"
-cd "$DayzFolder"
-
 ServerDZFile="$DayzFolder/serverDZ.cfg"
-
-cp -Rap $ServerDZFile serverDZ.cfg.bkp
-
-stringSearchHostname="hostname = \"EXAMPLE NAME\";"
-stringReplaceHostname="hostname = \"$DayzServerName\";"
-if ! grep -q "$stringSearchHostname" "$ServerDZFile"; then
-    echo "Não foi possível encontrar a linha '$stringSearchHostname' no arquivo $ServerDZFile"
-    echo "Copie o arquivo serverDZ.cfg para $ServerDZFile e edite-o manualmente."
-    exit 1
-fi
-
-stringSearchPasswordAdmin="passwordAdmin = \"\";"
-stringReplacePasswordAdmin="passwordAdmin = \"$DayzPasswordAdmin\";"
-if ! grep -q "$stringSearchPasswordAdmin" "$ServerDZFile"; then
-    echo "Não foi possível encontrar a linha '$stringSearchPasswordAdmin' no arquivo $ServerDZFile"
-    echo "Copie o arquivo serverDZ.cfg para $ServerDZFile e edite-o manualmente."
-    exit 1
-fi
-
-stringSearchMaxPlayers="maxPlayers = 60;"
-stringReplaceMaxPlayers="maxPlayers = $DayzMaxPlayers;"
-if ! grep -q "$stringSearchMaxPlayers" "$ServerDZFile"; then
-    echo "Não foi possível encontrar a linha '$stringSearchMaxPlayers' no arquivo $ServerDZFile"
-    echo "Copie o arquivo serverDZ.cfg para $ServerDZFile e reincie o script com as flags --skip-user e --skip-steam."
-    exit 1
-fi
-
-echo "Editando o arquivo $ServerDZFile ..."
-
-sed -i "s#${stringSearchHostname}#${stringReplaceHostname}#g" "$ServerDZFile"
-sed -i "s#${stringSearchPasswordAdmin}#${stringReplacePasswordAdmin}#g" "$ServerDZFile"
-sed -i "s#${stringSearchMaxPlayers}#${stringReplaceMaxPlayers}#g" "$ServerDZFile"
-
-# Modificar
-#disable3rdPerson=0;         // Toggles the 3rd person view for players (value 0-1)
-sed -i "s#disable3rdPerson=0;#disable3rdPerson=1;#g" "$ServerDZFile"
-#disableCrosshair=0;         // Toggles the cross-hair (value 0-1)
-sed -i "s#disableCrosshair=0;#disableCrosshair=1;#g" "$ServerDZFile"
-#lightingConfig = 0;         // 0 for brighter night setup, 1 for darker night setup
-sed -i "s#lightingConfig = 0;#lightingConfig = 1;#g" "$ServerDZFile"
-#serverTimeAcceleration=12;  // Accelerated Time (value 0-24)// This is a time multiplier for in-game time. In this case, the time would move 24 times faster than normal, so an entire day would pass in one hour.
-sed -i "s#serverTimeAcceleration=12;#serverTimeAcceleration=6;#g" "$ServerDZFile"
-#serverNightTimeAcceleration=1;  // Accelerated Nigh Time - The numerical value being a multiplier (0.1-64) and also multiplied by serverTimeAcceleration value. Thus, in case it is set to 4 and serverTimeAcceleration is set to 2, night time would move 8 times faster than normal. An entire night would pass in 3 hours.
-sed -i "s#serverNightTimeAcceleration=1;#serverNightTimeAcceleration=4;#g" "$ServerDZFile"
-#serverTimePersistent=0;     // Persistent Time (value 0-1)// The actual server time is saved to storage, so when active, the next server start will use the saved time value.
-sed -i "s#serverTimePersistent=0;#serverTimePersistent=1;#g" "$ServerDZFile"
-
-# Adicionar antes de 'class Missions'
-motd="motd[] = { \"$DayzMotdMessage\" };"
-sed -i "/class Missions/i $motd" "$ServerDZFile"
-sed -i "/class Missions/i motdInterval = $DayzMotdIntervalSeconds;" "$ServerDZFile"
-sed -i "/class Missions/i BattlEye = 1;" "$ServerDZFile" 
-
-echo "Arquivo $ServerDZFile editado com sucesso."
-
-confirm_step "Configuração do arquivo dayzsetting.xml (CPU cores)"
-
 DayzSettingXmlFile="$DayzFolder/dayzsetting.xml"
-echo "Editando arquivo $DayzSettingXmlFile ..."
-sleep ${DELAY:-1}  # usa valor padrão de 1 segundo se DELAY não estiver definido
-
-# --- Definições fixas (ajuste para usar variáveis no futuro) ---
-DayzGlobalQueue="2048"
-DayzThreadQueue="512"
-
-# --- Substituição: maxcores ---
-stringSearchMaxCores="maxcores=\"2\""
-stringReplaceMaxCores="maxcores=\"$DayzPcCpuMaxCores\""
-if ! grep -q "$stringSearchMaxCores" "$DayzSettingXmlFile"; then
-    echo "❌ Não foi possível encontrar '$stringSearchMaxCores' em $DayzSettingXmlFile"
-    echo "⚠️  Copie o arquivo dayzsetting.cfg para $DayzSettingXmlFile e reinicie com --skip-user e --skip-steam."
-    exit 1
-fi
-sed -i "s#$stringSearchMaxCores#$stringReplaceMaxCores#g" "$DayzSettingXmlFile"
-
-# --- Substituição: reservedcores ---
-stringSearchReservedcores="reservedcores=\"1\""
-stringReplaceReservedcores="reservedcores=\"$DayzPcCpuReservedcores\""
-if ! grep -q "$stringSearchReservedcores" "$DayzSettingXmlFile"; then
-    echo "❌ Não foi possível encontrar '$stringSearchReservedcores' em $DayzSettingXmlFile"
-    echo "⚠️  Copie o arquivo dayzsetting.cfg para $DayzSettingXmlFile e reinicie com --skip-user e --skip-steam."
-    exit 1
-fi
-sed -i "s#$stringSearchReservedcores#$stringReplaceReservedcores#g" "$DayzSettingXmlFile"
-
-# --- Substituição: globalqueue ---
-stringSearchGlobalQueue="globalqueue=\"4096\""
-stringReplaceGlobalQueue="globalqueue=\"$DayzGlobalQueue\""
-if grep -q "$stringSearchGlobalQueue" "$DayzSettingXmlFile"; then
-    sed -i "s#$stringSearchGlobalQueue#$stringReplaceGlobalQueue#g" "$DayzSettingXmlFile"
-else
-    echo "⚠️  'globalqueue' não encontrado ou já editado. Pulando..."
-fi
-
-# --- Substituição: threadqueue ---
-stringSearchThreadQueue="threadqueue=\"1024\""
-stringReplaceThreadQueue="threadqueue=\"$DayzThreadQueue\""
-if grep -q "$stringSearchThreadQueue" "$DayzSettingXmlFile"; then
-    sed -i "s#$stringSearchThreadQueue#$stringReplaceThreadQueue#g" "$DayzSettingXmlFile"
-else
-    echo "⚠️  'threadqueue' não encontrado ou já editado. Pulando..."
-fi
-
-echo "✅ Arquivo $DayzSettingXmlFile editado com sucesso com as configurações:"
-echo "   maxcores=$DayzPcCpuMaxCores"
-echo "   reservedcores=$DayzPcCpuReservedcores"
-echo "   globalqueue=$DayzGlobalQueue"
-echo "   threadqueue=$DayzThreadQueue"
-
-confirm_step "Configuração do BattlEye (RCon para administração remota)"
-
 DayzBeServerFile="$DayzFolder/battleye/beserver_x64.cfg"
-echo "Configurando integração com RCtools no arquivo $DayzBeServerFile ..."
-sleep $DELAY
-
-echo "RConPassword $DayzRConPassword" > "$DayzBeServerFile"
-echo "RConIP $DayzRConIP" >> "$DayzBeServerFile"
-echo "RConPort $DayzRConPort" >> "$DayzBeServerFile"
-echo "MaxPing $DayzMaxPing" >> "$DayzBeServerFile"
-echo "RestrictRCon $DayzRestrictRCon" >> "$DayzBeServerFile"
-
-echo "Arquivo $DayzBeServerFile editado com sucesso."
-
-confirm_step "Configuração de mensagens de reinício automático"
-
 DayzMpmissionMessagesXml="$DayzFolder/mpmissions/$DayzMpmission/db/messages.xml"
-cp -Rap $DayzMpmissionMessagesXml "$DayzFolder/mpmissions/$DayzMpmission/db/messages.xml.bkp"
-echo "Editando arquivo $DayzMpmissionMessagesXml ..."
-sleep $DELAY
 
-awk -v dl="$DayzRestartMinutes" '
-/<\/messages>/ {
-    print "<message>";
-    print "    <deadline>" dl "</deadline>";
-    print "    <shutdown>1</shutdown>";
-    print "    <text>O servidor vai ser reiniciado em #tmin minutos.</text>";
-    print "</message>";
-}
-{ print }
-' "$DayzMpmissionMessagesXml" > tmp.xml && mv tmp.xml "$DayzMpmissionMessagesXml"
+if [[ "$SKIP_SERVER_CONFIG" -eq 0 ]]; then
+    confirm_step "Configuração do arquivo serverDZ.cfg (nome, senha admin, jogadores)"    
+    echo "Entrando no diretório $DayzFolder"
+    cd "$DayzFolder"
 
-echo "Arquivo $DayzMpmissionMessagesXml editado com sucesso."
+    cp -Rap $ServerDZFile serverDZ.cfg.bkp
+
+    stringSearchHostname="hostname = \"EXAMPLE NAME\";"
+    stringReplaceHostname="hostname = \"$DayzServerName\";"
+    if ! grep -q "$stringSearchHostname" "$ServerDZFile"; then
+        echo "Não foi possível encontrar a linha '$stringSearchHostname' no arquivo $ServerDZFile"
+        echo "Copie o arquivo serverDZ.cfg para $ServerDZFile e edite-o manualmente."
+        exit 1
+    fi
+
+    stringSearchPasswordAdmin="passwordAdmin = \"\";"
+    stringReplacePasswordAdmin="passwordAdmin = \"$DayzPasswordAdmin\";"
+    if ! grep -q "$stringSearchPasswordAdmin" "$ServerDZFile"; then
+        echo "Não foi possível encontrar a linha '$stringSearchPasswordAdmin' no arquivo $ServerDZFile"
+        echo "Copie o arquivo serverDZ.cfg para $ServerDZFile e edite-o manualmente."
+        exit 1
+    fi
+
+    stringSearchMaxPlayers="maxPlayers = 60;"
+    stringReplaceMaxPlayers="maxPlayers = $DayzMaxPlayers;"
+    if ! grep -q "$stringSearchMaxPlayers" "$ServerDZFile"; then
+        echo "Não foi possível encontrar a linha '$stringSearchMaxPlayers' no arquivo $ServerDZFile"
+        echo "Copie o arquivo serverDZ.cfg para $ServerDZFile e reincie o script com as flags --skip-user e --skip-steam."
+        exit 1
+    fi
+
+    echo "Editando o arquivo $ServerDZFile ..."
+
+    sed -i "s#${stringSearchHostname}#${stringReplaceHostname}#g" "$ServerDZFile"
+    sed -i "s#${stringSearchPasswordAdmin}#${stringReplacePasswordAdmin}#g" "$ServerDZFile"
+    sed -i "s#${stringSearchMaxPlayers}#${stringReplaceMaxPlayers}#g" "$ServerDZFile"
+
+    # Modificar
+    #disable3rdPerson=0;         // Toggles the 3rd person view for players (value 0-1)
+    sed -i "s#disable3rdPerson=0;#disable3rdPerson=1;#g" "$ServerDZFile"
+    #disableCrosshair=0;         // Toggles the cross-hair (value 0-1)
+    sed -i "s#disableCrosshair=0;#disableCrosshair=1;#g" "$ServerDZFile"
+    #lightingConfig = 0;         // 0 for brighter night setup, 1 for darker night setup
+    sed -i "s#lightingConfig = 0;#lightingConfig = 1;#g" "$ServerDZFile"
+    #serverTimeAcceleration=12;  // Accelerated Time (value 0-24)// This is a time multiplier for in-game time. In this case, the time would move 24 times faster than normal, so an entire day would pass in one hour.
+    sed -i "s#serverTimeAcceleration=12;#serverTimeAcceleration=6;#g" "$ServerDZFile"
+    #serverNightTimeAcceleration=1;  // Accelerated Nigh Time - The numerical value being a multiplier (0.1-64) and also multiplied by serverTimeAcceleration value. Thus, in case it is set to 4 and serverTimeAcceleration is set to 2, night time would move 8 times faster than normal. An entire night would pass in 3 hours.
+    sed -i "s#serverNightTimeAcceleration=1;#serverNightTimeAcceleration=4;#g" "$ServerDZFile"
+    #serverTimePersistent=0;     // Persistent Time (value 0-1)// The actual server time is saved to storage, so when active, the next server start will use the saved time value.
+    sed -i "s#serverTimePersistent=0;#serverTimePersistent=1;#g" "$ServerDZFile"
+
+    # Adicionar antes de 'class Missions'
+    motd="motd[] = { \"$DayzMotdMessage\" };"
+    sed -i "/class Missions/i $motd" "$ServerDZFile"
+    sed -i "/class Missions/i motdInterval = $DayzMotdIntervalSeconds;" "$ServerDZFile"
+    sed -i "/class Missions/i BattlEye = 1;" "$ServerDZFile" 
+
+    echo "Arquivo $ServerDZFile editado com sucesso."
+
+    confirm_step "Configuração do arquivo dayzsetting.xml (CPU cores)"
+    
+    echo "Editando arquivo $DayzSettingXmlFile ..."
+    sleep ${DELAY:-1}  # usa valor padrão de 1 segundo se DELAY não estiver definido
+
+    # --- Definições fixas (ajuste para usar variáveis no futuro) ---
+    DayzGlobalQueue="2048"
+    DayzThreadQueue="512"
+
+    # --- Substituição: maxcores ---
+    stringSearchMaxCores="maxcores=\"2\""
+    stringReplaceMaxCores="maxcores=\"$DayzPcCpuMaxCores\""
+    if ! grep -q "$stringSearchMaxCores" "$DayzSettingXmlFile"; then
+        echo "❌ Não foi possível encontrar '$stringSearchMaxCores' em $DayzSettingXmlFile"
+        echo "⚠️  Copie o arquivo dayzsetting.cfg para $DayzSettingXmlFile e reinicie com --skip-user e --skip-steam."
+        exit 1
+    fi
+    sed -i "s#$stringSearchMaxCores#$stringReplaceMaxCores#g" "$DayzSettingXmlFile"
+
+    # --- Substituição: reservedcores ---
+    stringSearchReservedcores="reservedcores=\"1\""
+    stringReplaceReservedcores="reservedcores=\"$DayzPcCpuReservedcores\""
+    if ! grep -q "$stringSearchReservedcores" "$DayzSettingXmlFile"; then
+        echo "❌ Não foi possível encontrar '$stringSearchReservedcores' em $DayzSettingXmlFile"
+        echo "⚠️  Copie o arquivo dayzsetting.cfg para $DayzSettingXmlFile e reinicie com --skip-user e --skip-steam."
+        exit 1
+    fi
+    sed -i "s#$stringSearchReservedcores#$stringReplaceReservedcores#g" "$DayzSettingXmlFile"
+
+    # --- Substituição: globalqueue ---
+    stringSearchGlobalQueue="globalqueue=\"4096\""
+    stringReplaceGlobalQueue="globalqueue=\"$DayzGlobalQueue\""
+    if grep -q "$stringSearchGlobalQueue" "$DayzSettingXmlFile"; then
+        sed -i "s#$stringSearchGlobalQueue#$stringReplaceGlobalQueue#g" "$DayzSettingXmlFile"
+    else
+        echo "⚠️  'globalqueue' não encontrado ou já editado. Pulando..."
+    fi
+
+    # --- Substituição: threadqueue ---
+    stringSearchThreadQueue="threadqueue=\"1024\""
+    stringReplaceThreadQueue="threadqueue=\"$DayzThreadQueue\""
+    if grep -q "$stringSearchThreadQueue" "$DayzSettingXmlFile"; then
+        sed -i "s#$stringSearchThreadQueue#$stringReplaceThreadQueue#g" "$DayzSettingXmlFile"
+    else
+        echo "⚠️  'threadqueue' não encontrado ou já editado. Pulando..."
+    fi
+
+    echo "✅ Arquivo $DayzSettingXmlFile editado com sucesso com as configurações:"
+    echo "   maxcores=$DayzPcCpuMaxCores"
+    echo "   reservedcores=$DayzPcCpuReservedcores"
+    echo "   globalqueue=$DayzGlobalQueue"
+    echo "   threadqueue=$DayzThreadQueue"
+
+    confirm_step "Configuração do BattlEye (RCon para administração remota)"
+    
+    echo "Configurando integração com RCtools no arquivo $DayzBeServerFile ..."
+    sleep $DELAY
+
+    echo "RConPassword $DayzRConPassword" > "$DayzBeServerFile"
+    echo "RConIP $DayzRConIP" >> "$DayzBeServerFile"
+    echo "RConPort $DayzRConPort" >> "$DayzBeServerFile"
+    echo "MaxPing $DayzMaxPing" >> "$DayzBeServerFile"
+    echo "RestrictRCon $DayzRestrictRCon" >> "$DayzBeServerFile"
+
+    echo "Arquivo $DayzBeServerFile editado com sucesso."
+
+    confirm_step "Configuração de mensagens de reinício automático"
+    
+    cp -Rap $DayzMpmissionMessagesXml "$DayzFolder/mpmissions/$DayzMpmission/db/messages.xml.bkp"
+    echo "Editando arquivo $DayzMpmissionMessagesXml ..."
+    sleep $DELAY
+
+    awk -v dl="$DayzRestartMinutes" '
+    /<\/messages>/ {
+        print "<message>";
+        print "    <deadline>" dl "</deadline>";
+        print "    <shutdown>1</shutdown>";
+        print "    <text>O servidor vai ser reiniciado em #tmin minutos.</text>";
+        print "</message>";
+    }
+    { print }
+    ' "$DayzMpmissionMessagesXml" > tmp.xml && mv tmp.xml "$DayzMpmissionMessagesXml"
+
+    echo "Arquivo $DayzMpmissionMessagesXml editado com sucesso."
+else
+    echo "❌ Configuração do arquivo serverDZ.cfg não foi feita, pois a flag --skip-server-config foi ativada."
+fi
 
 confirm_step "Criação do serviço systemd para inicialização automática"
 
@@ -475,9 +483,15 @@ cd "$DayzFolder"
 cd "$DayzFolder/mpmissions/$DayzMpmission/"
 rm init.c
 echo "Baixando init.c para Deathmatch..."
-curl -o init.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/deathmatch/dayz-server/mpmissions/dayzOffline.chernarusplus/init.c
+curl -o init.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/deathmatch/dayz-server/mpmissions/$DayzMpmission/init.c
 
 chown "$LinuxUserName:$LinuxUserName" init.c
+
+echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/commands_to_execute.txt
+echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_to_send.txt
+echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_private_to_send.txt
+echo > $DayzFolder/profiles/dayz-server.log
+echo > $DayzFolder/profiles/dayz-server.err
 
 echo "[INFO] Update concluído com sucesso."
 EOF
@@ -495,51 +509,32 @@ cd "$DayzFolder"
 /home/$LinuxUserName/servers/steamcmd/steamcmd.sh +force_install_dir "$DayzFolder/" +login $SteamAccount +app_update 223350 validate +quit
 
 cd "$DayzFolder/mpmissions/$DayzMpmission/"
-rm init.c
-echo "Baixando init.c para Vanilla..."
-curl -o init.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/init.c
 
-chown "$LinuxUserName:$LinuxUserName" init.c
+# Remove arquivos existentes para evitar conflitos
+rm -f init.c
+rm -rf admin
 
-mkdir -p admin/files
-mkdir -p admin/loadouts
-mkdir -p admin/models
+echo "[INFO] Baixando arquivos do servidor via Git..."
+# Clone temporário do repositório
+TEMP_REPO="/tmp/dayz-server-beco-c1-v2-$(date +%s)"
+git clone --depth 1 https://github.com/gfbalestrin/dayz-server-beco-c1-v2.git "\$TEMP_REPO"
 
-cd admin
+# Copia arquivos específicos do vanilla
+echo "[INFO] Copiando arquivos para Vanilla..."
+cp "\$TEMP_REPO/installation/vanilla/dayz-server/mpmissions/$DayzMpmission/init.c" .
+cp -r "\$TEMP_REPO/installation/vanilla/dayz-server/mpmissions/$DayzMpmission/admin" .
 
-# Baixa arquivos principais do admin
-curl -o Commands.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/Commands.c
-curl -o ExternalActions.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/ExternalActions.c
-curl -o Construction.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/Construction.c
-curl -o Functions.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/Functions.c
-curl -o Globals.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/Globals.c
-curl -o Log.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/Log.c
-curl -o Messages.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/Messages.c
-curl -o PlayersLoadout.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/PlayersLoadout.c
-curl -o VehicleSpawner.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/VehicleSpawner.c
+# Limpa repositório temporário
+rm -rf "\$TEMP_REPO"
 
-# Baixa arquivos da pasta files (comunicação)
-cd files
-curl -O https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/commands_to_execute.txt
-curl -O https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/messages_to_send.txt
-curl -O https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/messages_private_to_send.txt
-cd ..
-
-# Baixa exemplos de loadouts JSON
-cd loadouts
-curl -O https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/loadouts/admin_default.json
-cd ..
-
-# Baixa arquivos da pasta models (modelos)
-cd models
-curl -O https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/models/LoadoutPlayer.c
-curl -O https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/models/LoadoutPlayerId.c
-curl -O https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/models/SafeZoneData.c
-curl -O https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/models/ActivePlayer.c
-cd ..
-
-# Define permissões de usuário para todos os arquivos e subpastas
+# Define permissões corretas
 chown -R "$LinuxUserName:$LinuxUserName" .
+
+echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/commands_to_execute.txt
+echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_to_send.txt
+echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_private_to_send.txt
+echo > $DayzFolder/profiles/dayz-server.log
+echo > $DayzFolder/profiles/dayz-server.err
 
 echo "[INFO] Update concluído com sucesso."
 EOF
@@ -549,6 +544,66 @@ chmod +x "$DayzFolder/scripts/update.sh"
 
 echo "Configurando script de pós inicialização $DayzFolder/scripts/execute_script_pos.sh ..."
 echo "#!/bin/bash" > "$DayzFolder/scripts/execute_script_pos.sh"
+cat <<EOF > "$DayzFolder/scripts/execute_script_pos.sh"
+export TZ=America/Sao_Paulo
+CURRENT_DATE=\$(date "+%Y-%m-%d_%H-%M-%S")
+PLAYER_DB="/home/$LinuxUserName/servers/dayz-server/mpmissions/$DayzMpmission/storage_1/players.db"
+BACKUP_DIR="/home/$LinuxUserName/servers/dayz-server/mpmissions/$DayzMpmission/storage_1/backup_custom"
+BACKUP_FILE="\$BACKUP_DIR/players.db_\$CURRENT_DATE"
+
+echo "Fazendo backup do banco de players..."
+
+# Cria a pasta backup_custom se não existir
+if [ ! -d "\$BACKUP_DIR" ]; then
+    mkdir -p "\$BACKUP_DIR"
+    chown "$LinuxUserName:$LinuxUserName" "\$BACKUP_DIR"
+fi
+
+cp -Rap "\$PLAYER_DB" "\$BACKUP_FILE"
+
+# Remove arquivos de backup mais antigos que 7 dias
+echo "Removendo backups antigos (mais de 7 dias)..."
+find "\$BACKUP_DIR" -name "players.db_*" -type f -mtime +7 -delete
+
+# Opcional: Log da limpeza
+if [ \$? -eq 0 ]; then
+    echo "Limpeza de backups antigos concluída"
+else
+    echo "Aviso: Erro durante limpeza de backups antigos"
+fi
+
+LOG_DIR="/home/$LinuxUserName/servers/dayz-server/profiles"
+
+# Remove arquivos de log mais antigos que 7 dias
+echo "Removendo logs antigos (mais de 7 dias)..."
+find "\$LOG_DIR" -name "DayZServer_*.ADM" -type f -mtime +7 -delete
+find "\$LOG_DIR" -name "DayZServer_*.RPT" -type f -mtime +7 -delete
+find "\$LOG_DIR" -name "DayZServer_*.log" -type f -mtime +7 -delete
+
+# Log da limpeza de logs
+if [ \$? -eq 0 ]; then
+    echo "Limpeza de logs antigos concluída"
+else
+    echo "Aviso: Erro durante limpeza de logs antigos"
+fi
+
+# Aguarda alguns segundos para o arquivo ser gerado
+sleep 10
+
+# Encontra o arquivo .ADM mais recente
+ADM_FILE=\$(ls -t "\$LOG_DIR"/DayZServer_*.ADM 2>/dev/null | head -n 1)
+
+# Se encontrado, cria ou atualiza link simbólico
+if [[ -f "\$ADM_FILE" ]]; then
+    ln -sf "\$(basename "\$ADM_FILE")" "\$LOG_DIR/DayZServer.ADM"
+fi
+
+systemctl restart dayz-monitor.service
+EOF
+
+chmod +x "$DayzFolder/scripts/execute_script_pos.sh"
+
+
 echo "" >> "$DayzFolder/scripts/execute_script_pos.sh"
 chmod +x "$DayzFolder/scripts/execute_script_pos.sh"
 
