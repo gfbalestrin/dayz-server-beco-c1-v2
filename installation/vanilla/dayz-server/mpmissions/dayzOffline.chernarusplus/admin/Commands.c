@@ -42,7 +42,7 @@ void CheckCommands()
     // Libera o lock
     m_IsProcessingCommands = false;
     
-    WriteToLog("CheckCommands(): Processamento concluído", LogFile.INIT, false, LogType.DEBUG);
+    //WriteToLog("CheckCommands(): Processamento concluído", LogFile.INIT, false, LogType.DEBUG);
 }
 
 bool ExecuteCommand(TStringArray tokens)

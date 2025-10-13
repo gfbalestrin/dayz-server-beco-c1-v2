@@ -186,6 +186,9 @@ class CustomMission: MissionServer
 			{
 				float duration = player.GetConnectedDuration();
 				WriteToLog("  [" + (i+1) + "] " + player.GetPlayerName() + " | PlayerID: " + player.GetPlayerId() + " | SteamID: " + player.GetSteamId() + " | Conectado há: " + duration.ToString() + "s", LogFile.INIT, false, LogType.INFO);
+			} else {
+				//RemoveActivePlayerById(player.GetPlayerId());
+				RemoveActivePlayer(player.GetSteamId());
 			}
 		}
 	}
