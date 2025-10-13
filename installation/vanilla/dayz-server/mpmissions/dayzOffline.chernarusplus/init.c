@@ -68,6 +68,70 @@ class CustomMission: MissionServer
         ActivePlayers = new set<string>();
     }
 
+	// Função helper para identificar o nome do EventType
+	string GetEventTypeName(EventType eventTypeId)
+	{
+		// Eventos de Cliente/Conexão
+		if (eventTypeId == ClientConnectedEventTypeID) return "ClientConnectedEventTypeID";
+		if (eventTypeId == ClientDisconnectedEventTypeID) return "ClientDisconnectedEventTypeID";
+		if (eventTypeId == ClientNewEventTypeID) return "ClientNewEventTypeID";
+		if (eventTypeId == ClientReadyEventTypeID) return "ClientReadyEventTypeID";
+		if (eventTypeId == ClientPrepareEventTypeID) return "ClientPrepareEventTypeID";
+		if (eventTypeId == ClientRespawnEventTypeID) return "ClientRespawnEventTypeID";
+		if (eventTypeId == ClientReconnectEventTypeID) return "ClientReconnectEventTypeID";
+		
+		// Eventos de Login/Logout
+		if (eventTypeId == LoginTimeEventTypeID) return "LoginTimeEventTypeID";
+		if (eventTypeId == LoginStatusEventTypeID) return "LoginStatusEventTypeID";
+		if (eventTypeId == LogoutCancelEventTypeID) return "LogoutCancelEventTypeID";
+		
+		// Eventos de Spawn/Respawn
+		if (eventTypeId == RespawnEventTypeID) return "RespawnEventTypeID";
+		
+		// Eventos de Câmera/Debug
+		if (eventTypeId == SetFreeCameraEventTypeID) return "SetFreeCameraEventTypeID";
+		
+		// Eventos de Sistema
+		if (eventTypeId == PreloadEventTypeID) return "PreloadEventTypeID";
+		if (eventTypeId == ChatMessageEventTypeID) return "ChatMessageEventTypeID";
+		
+		// Eventos de Multiplayer/Sessão
+		if (eventTypeId == MPSessionStartEventTypeID) return "MPSessionStartEventTypeID";
+		if (eventTypeId == MPSessionEndEventTypeID) return "MPSessionEndEventTypeID";
+		//if (eventTypeId == MPConnectionLostEventTypeID) return "MPConnectionLostEventTypeID";
+		//if (eventTypeId == MPConnectionRecoveredEventTypeID) return "MPConnectionRecoveredEventTypeID";
+		if (eventTypeId == MPSessionPlayerReadyEventTypeID) return "MPSessionPlayerReadyEventTypeID";
+		if (eventTypeId == MPSessionFailEventTypeID) return "MPSessionFailEventTypeID";
+		
+		// Eventos de Rede
+		if (eventTypeId == NetworkManagerClientEventTypeID) return "NetworkManagerClientEventTypeID";
+		if (eventTypeId == NetworkManagerServerEventTypeID) return "NetworkManagerServerEventTypeID";
+		
+		// Eventos de Progresso
+		if (eventTypeId == ProgressEventTypeID) return "ProgressEventTypeID";
+		
+		// Eventos de Entidade
+		//if (eventTypeId == EntityEventTypeID) return "EntityEventTypeID";
+		
+		// Eventos de VON (Voice Over Network)
+		if (eventTypeId == VONStateEventTypeID) return "VONStateEventTypeID";
+		if (eventTypeId == VONStartSpeakingEventTypeID) return "VONStartSpeakingEventTypeID";
+		if (eventTypeId == VONStopSpeakingEventTypeID) return "VONStopSpeakingEventTypeID";
+		
+		// Eventos de Menu/Interface
+		//if (eventTypeId == DialogQueueAddEventTypeID) return "DialogQueueAddEventTypeID";
+		//if (eventTypeId == DialogQueueRemoveEventTypeID) return "DialogQueueRemoveEventTypeID";
+		
+		// Eventos de Partículas/Efeitos
+		//if (eventTypeId == ParticleEventTypeID) return "ParticleEventTypeID";
+		
+		// Eventos de Mundo
+		if (eventTypeId == WorldCleaupEventTypeID) return "WorldCleaupEventTypeID";
+		
+		// Se não encontrou, retorna desconhecido
+		return "UNKNOWN_EVENT_TYPE";
+	}
+
 	override void OnEvent(EventType eventTypeId, Param params)
 	{
 		super.OnEvent(eventTypeId, params);
@@ -324,6 +388,104 @@ class CustomMission: MissionServer
 		}
 		
 		// ============================================================================
+		// EVENTO: MPSessionStartEventTypeID
+		// Disparado quando uma sessão multiplayer inicia
+		// ============================================================================
+		// else if (eventTypeId == MPSessionStartEventTypeID)
+		// {
+		// 	WriteToLog("EVENT: MPSessionStartEventTypeID - Sessão multiplayer iniciada", LogFile.INIT, false, LogType.INFO);
+		// 	MPSessionStartEventParams sessionStartParams = MPSessionStartEventParams.Cast(params);
+		// 	if (sessionStartParams)
+		// 	{
+		// 		WriteToLog("  -> Sessão MP iniciada", LogFile.INIT, false, LogType.DEBUG);
+		// 	}
+		// }
+		
+		// ============================================================================
+		// EVENTO: MPSessionEndEventTypeID
+		// Disparado quando uma sessão multiplayer termina
+		// ============================================================================
+		// else if (eventTypeId == MPSessionEndEventTypeID)
+		// {
+		// 	WriteToLog("EVENT: MPSessionEndEventTypeID - Sessão multiplayer encerrada", LogFile.INIT, false, LogType.INFO);
+		// 	MPSessionEndEventParams sessionEndParams = MPSessionEndEventParams.Cast(params);
+		// 	if (sessionEndParams)
+		// 	{
+		// 		WriteToLog("  -> Sessão MP encerrada", LogFile.INIT, false, LogType.DEBUG);
+		// 	}
+		// }
+		
+		// ============================================================================
+		// EVENTO: MPConnectionLostEventTypeID
+		// Disparado quando a conexão multiplayer é perdida
+		// ============================================================================
+		else if (eventTypeId == MPConnectionLostEventTypeID)
+		{
+			WriteToLog("EVENT: MPConnectionLostEventTypeID - Conexão MP perdida", LogFile.INIT, false, LogType.DEBUG);
+			MPConnectionLostEventParams connectionLostParams = MPConnectionLostEventParams.Cast(params);
+			if (connectionLostParams)
+			{
+				WriteToLog("  -> Conexão perdida", LogFile.INIT, false, LogType.DEBUG);
+			}
+		}
+		
+		// ============================================================================
+		// EVENTO: MPConnectionRecoveredEventTypeID
+		// Disparado quando a conexão multiplayer é recuperada
+		// ============================================================================
+		// else if (eventTypeId == MPConnectionRecoveredEventTypeID)
+		// {
+		// 	WriteToLog("EVENT: MPConnectionRecoveredEventTypeID - Conexão MP recuperada", LogFile.INIT, false, LogType.DEBUG);
+		// 	MPConnectionRecoveredEventParams connectionRecoveredParams = MPConnectionRecoveredEventParams.Cast(params);
+		// 	if (connectionRecoveredParams)
+		// 	{
+		// 		WriteToLog("  -> Conexão recuperada", LogFile.INIT, false, LogType.DEBUG);
+		// 	}
+		// }
+		
+		// ============================================================================
+		// EVENTO: VONStateEventTypeID
+		// Disparado quando o estado do Voice Over Network muda
+		// ============================================================================
+		else if (eventTypeId == VONStateEventTypeID)
+		{
+			WriteToLog("EVENT: VONStateEventTypeID - Estado VON alterado", LogFile.INIT, false, LogType.DEBUG);
+			VONStateEventParams vonStateParams = VONStateEventParams.Cast(params);
+			if (vonStateParams)
+			{
+				WriteToLog("  -> Estado VON mudou", LogFile.INIT, false, LogType.DEBUG);
+			}
+		}
+		
+		// ============================================================================
+		// EVENTO: VONStartSpeakingEventTypeID
+		// Disparado quando um jogador começa a falar no VON
+		// ============================================================================
+		else if (eventTypeId == VONStartSpeakingEventTypeID)
+		{
+			WriteToLog("EVENT: VONStartSpeakingEventTypeID - Jogador começou a falar", LogFile.INIT, false, LogType.DEBUG);
+			VONStartSpeakingEventParams vonStartParams = VONStartSpeakingEventParams.Cast(params);
+			if (vonStartParams)
+			{
+				WriteToLog("  -> Jogador falando no VON", LogFile.INIT, false, LogType.DEBUG);
+			}
+		}
+		
+		// ============================================================================
+		// EVENTO: VONStopSpeakingEventTypeID
+		// Disparado quando um jogador para de falar no VON
+		// ============================================================================
+		else if (eventTypeId == VONStopSpeakingEventTypeID)
+		{
+			WriteToLog("EVENT: VONStopSpeakingEventTypeID - Jogador parou de falar", LogFile.INIT, false, LogType.DEBUG);
+			VONStopSpeakingEventParams vonStopParams = VONStopSpeakingEventParams.Cast(params);
+			if (vonStopParams)
+			{
+				WriteToLog("  -> Jogador parou de falar no VON", LogFile.INIT, false, LogType.DEBUG);
+			}
+		}
+		
+		// ============================================================================
 		// EVENTO: ChatMessageEventTypeID
 		// Disparado quando uma mensagem de chat é enviada
 		// Params: <int, string, string, string> - Channel, From, Text, ColorClass
@@ -399,7 +561,8 @@ class CustomMission: MissionServer
 		// ============================================================================
 		else
 		{
-			WriteToLog("EVENT: Evento desconhecido capturado", LogFile.INIT, false, LogType.DEBUG);
+			string eventTypeName = GetEventTypeName(eventTypeId);
+			WriteToLog("EVENT: Evento não mapeado capturado - Tipo: " + eventTypeName, LogFile.INIT, false, LogType.DEBUG);
 		}
 	}
 
