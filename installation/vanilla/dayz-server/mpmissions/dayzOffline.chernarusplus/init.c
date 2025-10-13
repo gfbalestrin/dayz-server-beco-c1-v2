@@ -72,27 +72,282 @@ class CustomMission: MissionServer
 	{
 		super.OnEvent(eventTypeId, params);
 
-		WriteToLog("Evento: " + eventTypeId, LogFile.INIT, false, LogType.DEBUG);
-		
-		if (eventTypeId == ChatMessageEventTypeID)
+		// Variáveis compartilhadas entre os eventos
+		PlayerIdentity identity;
+		Man player;
+		PlayerBase playerBase;
+		string playerName;
+		string steamId;
+		int logoutTime;
+		bool authFailed;
+		vector position;
+		int channel;
+		string text;
+		string colorClass;
+
+		// ============================================================================
+		// EVENTO: ClientConnectedEventTypeID
+		// Disparado quando um cliente se conecta ao servidor (antes de spawn)
+		// Params: <string, string> - Nome do jogador, SteamID
+		// ============================================================================
+		if (eventTypeId == ClientConnectedEventTypeID)
 		{
+			WriteToLog("EVENT: ClientConnectedEventTypeID - Cliente conectando ao servidor", LogFile.INIT, false, LogType.INFO);
+			ClientConnectedEventParams connectedParams = ClientConnectedEventParams.Cast(params);
+			if (!connectedParams) {
+				WriteToLog("ClientConnectedEventParams cast falhou.", LogFile.INIT, false, LogType.ERROR);
+				return;
+			}
+			
+			playerName = connectedParams.param1;  // Nome do jogador
+			steamId = connectedParams.param2;      // Steam ID
+			
+			WriteToLog("  -> Nome: " + playerName + " | SteamID: " + steamId, LogFile.INIT, false, LogType.DEBUG);
+			
+			// Aqui você pode adicionar lógica personalizada
+			// Ex: verificar banimentos, whitelist, etc
+		}
+		
+		// ============================================================================
+		// EVENTO: ClientDisconnectedEventTypeID
+		// Disparado quando um cliente se desconecta
+		// Params: <PlayerIdentity, Man, int, bool> - Identity, Player, LogoutTime, AuthFailed
+		// ============================================================================
+		else if (eventTypeId == ClientDisconnectedEventTypeID)
+		{
+			WriteToLog("EVENT: ClientDisconnectedEventTypeID - Cliente desconectando", LogFile.INIT, false, LogType.INFO);
+			ClientDisconnectedEventParams disconnectedParams = ClientDisconnectedEventParams.Cast(params);
+			if (!disconnectedParams) {
+				WriteToLog("ClientDisconnectedEventParams cast falhou.", LogFile.INIT, false, LogType.ERROR);
+				return;
+			}
+			
+			identity = disconnectedParams.param1;      // PlayerIdentity
+			player = disconnectedParams.param2;        // Man/PlayerBase
+			logoutTime = disconnectedParams.param3;    // Tempo de logout
+			authFailed = disconnectedParams.param4;    // Falha de autenticação
+			
+			if (identity)
+			{
+				WriteToLog("  -> Jogador: " + identity.GetName() + " | ID: " + identity.GetId(), LogFile.INIT, false, LogType.DEBUG);
+				WriteToLog("  -> LogoutTime: " + logoutTime + " | AuthFailed: " + authFailed, LogFile.INIT, false, LogType.DEBUG);
+			}
+			
+			// Aqui você pode adicionar lógica de cleanup ou notificações
+		}
+		
+		// ============================================================================
+		// EVENTO: ClientNewEventTypeID
+		// Disparado quando um cliente novo (primeira vez) entra no servidor
+		// Params: <PlayerIdentity, vector, Serializer> - Identity, Position, Serializer (roupas)
+		// ============================================================================
+		else if (eventTypeId == ClientNewEventTypeID)
+		{
+			WriteToLog("EVENT: ClientNewEventTypeID - Novo jogador entrando pela primeira vez", LogFile.INIT, false, LogType.INFO);
+			ClientNewEventParams newParams = ClientNewEventParams.Cast(params);
+			if (!newParams) {
+				WriteToLog("ClientNewEventParams cast falhou.", LogFile.INIT, false, LogType.ERROR);
+				return;
+			}
+			
+			identity = newParams.param1;   // PlayerIdentity
+			position = newParams.param2;   // Posição de spawn
+			
+			if (identity)
+			{
+				WriteToLog("  -> Novo jogador: " + identity.GetName() + " | Posição: " + position.ToString(), LogFile.INIT, false, LogType.DEBUG);
+			}
+			
+			// Aqui você pode personalizar o spawn de novos jogadores
+		}
+		
+		// ============================================================================
+		// EVENTO: ClientReadyEventTypeID
+		// Disparado quando o cliente está totalmente carregado e pronto para jogar
+		// Params: <PlayerIdentity, Man> - Identity, Player
+		// ============================================================================
+		else if (eventTypeId == ClientReadyEventTypeID)
+		{
+			WriteToLog("EVENT: ClientReadyEventTypeID - Cliente pronto para jogar", LogFile.INIT, false, LogType.INFO);
+			ClientReadyEventParams readyParams = ClientReadyEventParams.Cast(params);
+			if (readyParams)
+			{
+				identity = readyParams.param1;
+				player = readyParams.param2;
+				
+				if (identity)
+				{
+					WriteToLog("  -> Jogador pronto: " + identity.GetName(), LogFile.INIT, false, LogType.DEBUG);
+				}
+				
+				// Ideal para enviar mensagens de boas-vindas ou aplicar configurações iniciais
+			}
+		}
+		
+		// ============================================================================
+		// EVENTO: ClientPrepareEventTypeID
+		// Disparado durante a preparação do cliente (antes de estar pronto)
+		// ============================================================================
+		else if (eventTypeId == ClientPrepareEventTypeID)
+		{
+			WriteToLog("EVENT: ClientPrepareEventTypeID - Cliente se preparando", LogFile.INIT, false, LogType.DEBUG);
+			// Sem params específicos conhecidos
+		}
+		
+		// ============================================================================
+		// EVENTO: ClientRespawnEventTypeID
+		// Disparado quando um jogador respawna após a morte
+		// Params: <PlayerIdentity, Man> - Identity, Player
+		// ============================================================================
+		else if (eventTypeId == ClientRespawnEventTypeID)
+		{
+			WriteToLog("EVENT: ClientRespawnEventTypeID - Jogador respawnando", LogFile.INIT, false, LogType.INFO);
+			ClientRespawnEventParams respawnParams = ClientRespawnEventParams.Cast(params);
+			if (respawnParams)
+			{
+				identity = respawnParams.param1;
+				if (identity)
+				{
+					WriteToLog("  -> Jogador respawnou: " + identity.GetName(), LogFile.INIT, false, LogType.DEBUG);
+				}
+			}
+		}
+		
+		// ============================================================================
+		// EVENTO: ClientReconnectEventTypeID
+		// Disparado quando um jogador reconecta ao servidor
+		// Params: <PlayerIdentity, Man> - Identity, Player
+		// ============================================================================
+		else if (eventTypeId == ClientReconnectEventTypeID)
+		{
+			WriteToLog("EVENT: ClientReconnectEventTypeID - Jogador reconectando", LogFile.INIT, false, LogType.INFO);
+			ClientReconnectEventParams reconnectParams = ClientReconnectEventParams.Cast(params);
+			if (reconnectParams)
+			{
+				identity = reconnectParams.param1;
+				if (identity)
+				{
+					WriteToLog("  -> Jogador reconectou: " + identity.GetName(), LogFile.INIT, false, LogType.DEBUG);
+				}
+			}
+		}
+		
+		// ============================================================================
+		// EVENTO: LoginTimeEventTypeID
+		// Disparado relacionado ao tempo de login do jogador
+		// ============================================================================
+		else if (eventTypeId == LoginTimeEventTypeID)
+		{
+			WriteToLog("EVENT: LoginTimeEventTypeID - Tempo de login", LogFile.INIT, false, LogType.DEBUG);
+			LoginTimeEventParams loginTimeParams = LoginTimeEventParams.Cast(params);
+			if (loginTimeParams)
+			{
+				// Params podem conter informações sobre o tempo de login
+				WriteToLog("  -> LoginTime params disponíveis", LogFile.INIT, false, LogType.DEBUG);
+			}
+		}
+		
+		// ============================================================================
+		// EVENTO: LoginStatusEventTypeID
+		// Disparado quando o status de login muda
+		// ============================================================================
+		else if (eventTypeId == LoginStatusEventTypeID)
+		{
+			WriteToLog("EVENT: LoginStatusEventTypeID - Status de login alterado", LogFile.INIT, false, LogType.DEBUG);
+			LoginStatusEventParams loginStatusParams = LoginStatusEventParams.Cast(params);
+			if (loginStatusParams)
+			{
+				WriteToLog("  -> LoginStatus params disponíveis", LogFile.INIT, false, LogType.DEBUG);
+			}
+		}
+		
+		// ============================================================================
+		// EVENTO: LogoutCancelEventTypeID
+		// Disparado quando um logout é cancelado (jogador se move durante logout)
+		// Params: <Man> - Player
+		// ============================================================================
+		else if (eventTypeId == LogoutCancelEventTypeID)
+		{
+			WriteToLog("EVENT: LogoutCancelEventTypeID - Logout cancelado", LogFile.INIT, false, LogType.INFO);
+			LogoutCancelEventParams logoutCancelParams = LogoutCancelEventParams.Cast(params);
+			if (logoutCancelParams)
+			{
+				player = logoutCancelParams.param1;
+				playerBase = PlayerBase.Cast(player);
+				if (playerBase && playerBase.GetIdentity())
+				{
+					WriteToLog("  -> Logout cancelado para: " + playerBase.GetIdentity().GetName(), LogFile.INIT, false, LogType.DEBUG);
+				}
+			}
+		}
+		
+		// ============================================================================
+		// EVENTO: RespawnEventTypeID
+		// Disparado durante o processo de respawn
+		// ============================================================================
+		else if (eventTypeId == RespawnEventTypeID)
+		{
+			WriteToLog("EVENT: RespawnEventTypeID - Processo de respawn", LogFile.INIT, false, LogType.DEBUG);
+			RespawnEventParams respawnEventParams = RespawnEventParams.Cast(params);
+			if (respawnEventParams)
+			{
+				WriteToLog("  -> Respawn event params disponíveis", LogFile.INIT, false, LogType.DEBUG);
+			}
+		}
+		
+		// ============================================================================
+		// EVENTO: SetFreeCameraEventTypeID
+		// Disparado quando a câmera livre é ativada (modo admin/espectador)
+		// ============================================================================
+		else if (eventTypeId == SetFreeCameraEventTypeID)
+		{
+			WriteToLog("EVENT: SetFreeCameraEventTypeID - Câmera livre ativada", LogFile.INIT, false, LogType.INFO);
+			SetFreeCameraEventParams freeCamParams = SetFreeCameraEventParams.Cast(params);
+			if (freeCamParams)
+			{
+				WriteToLog("  -> Câmera livre params disponíveis", LogFile.INIT, false, LogType.DEBUG);
+			}
+		}
+		
+		// ============================================================================
+		// EVENTO: PreloadEventTypeID
+		// Disparado durante o pré-carregamento de recursos
+		// ============================================================================
+		else if (eventTypeId == PreloadEventTypeID)
+		{
+			WriteToLog("EVENT: PreloadEventTypeID - Pré-carregamento de recursos", LogFile.INIT, false, LogType.DEBUG);
+			PreloadEventParams preloadParams = PreloadEventParams.Cast(params);
+			if (preloadParams)
+			{
+				WriteToLog("  -> Preload params disponíveis", LogFile.INIT, false, LogType.DEBUG);
+			}
+		}
+		
+		// ============================================================================
+		// EVENTO: ChatMessageEventTypeID
+		// Disparado quando uma mensagem de chat é enviada
+		// Params: <int, string, string, string> - Channel, From, Text, ColorClass
+		// ============================================================================
+		else if (eventTypeId == ChatMessageEventTypeID)
+		{
+			WriteToLog("EVENT: ChatMessageEventTypeID - Mensagem de chat recebida", LogFile.INIT, false, LogType.DEBUG);
 			ChatMessageEventParams chatParams = ChatMessageEventParams.Cast(params);
 			if (!chatParams) {
-				WriteToLog("chatParams cast falhou.", LogFile.INIT, false, LogType.ERROR);
+				WriteToLog("ChatMessageEventParams cast falhou.", LogFile.INIT, false, LogType.ERROR);
 				return;
 			}
 
-			WriteToLog("param1: " + chatParams.param1, LogFile.INIT, false, LogType.DEBUG);
-			WriteToLog("param2: " + chatParams.param2, LogFile.INIT, false, LogType.DEBUG);
-			WriteToLog("param3: " + chatParams.param3, LogFile.INIT, false, LogType.DEBUG);
-
-			int channel = chatParams.param1;          // canal (ex: 0 = Global)
-			string playerName = chatParams.param2;    // nome do jogador
-			string text = chatParams.param3;          // mensagem digitada			
+			channel = chatParams.param1;          // canal (0 = Global, 1 = System, etc)
+			playerName = chatParams.param2;       // nome do jogador
+			text = chatParams.param3;             // mensagem digitada
+			colorClass = chatParams.param4;       // classe de cor
+			
+			WriteToLog("  -> Canal: " + channel + " | De: " + playerName + " | Mensagem: " + text, LogFile.INIT, false, LogType.DEBUG);
 
 			if (text == "")
             	return;
 			
+			// Mensagens do sistema (reinício)
 			if (channel == 1 && playerName == "" && text.Contains("O servidor vai ser reiniciado em"))
 			{
 				//BroadcastMessage("Próximo mapa: " + nextMap.Region, MessageColor.FRIENDLY);				
@@ -116,25 +371,35 @@ class CustomMission: MissionServer
 				return;
 			}
 			
+			// Processar comandos de jogadores
 			if (text.Length() == 0 || text.Get(0) != "!")
 				return;
 
-			PlayerBase player = GetPlayerByName(playerName);
-			if (!player) {				
-				WriteToLog("Player não identificado.", LogFile.INIT, false, LogType.ERROR);
+			playerBase = GetPlayerByName(playerName);
+			if (!playerBase) {				
+				WriteToLog("Player não identificado: " + playerName, LogFile.INIT, false, LogType.ERROR);
 				return;
 			}
 
 			TStringArray tokensCommands = new TStringArray;
 			text.Split(" ", tokensCommands);			
 			tokensCommands[0] = tokensCommands[0].Substring(1, tokensCommands[0].Length() - 1);
-			string playerID = player.GetIdentity().GetId();
+			string playerID = playerBase.GetIdentity().GetId();
 			TStringArray tokens = new TStringArray;
 			tokens.Insert(playerID);
 			for (int i = 0; i < tokensCommands.Count(); i++)
 				tokens.Insert(tokensCommands.Get(i));
 
 			ExecuteCommand(tokens);
+		}
+		
+		// ============================================================================
+		// EVENTO DESCONHECIDO
+		// Captura qualquer outro evento não mapeado acima
+		// ============================================================================
+		else
+		{
+			WriteToLog("EVENT: Evento desconhecido capturado", LogFile.INIT, false, LogType.DEBUG);
 		}
 	}
 
