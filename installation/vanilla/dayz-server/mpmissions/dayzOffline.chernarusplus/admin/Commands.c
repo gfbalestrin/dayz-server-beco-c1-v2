@@ -1,8 +1,22 @@
 void CheckCommands()
 {
+    // Verifica se já está processando comandos
+    if (m_IsProcessingCommands)
+    {
+        WriteToLog("CheckCommands(): Já está processando comandos, pulando execução", LogFile.INIT, false, LogType.DEBUG);
+        return;
+    }
+    
+    // Define flag de processamento
+    m_IsProcessingCommands = true;
+    
     string path = ExternalCommandsFile;
     FileHandle file = OpenFile(path, FileMode.READ);
-    if (file == 0) return;
+    if (file == 0) 
+    {
+        m_IsProcessingCommands = false;
+        return;
+    }
 
     string line;
     while (FGets(file, line) > 0)
@@ -19,9 +33,16 @@ void CheckCommands()
     }
 
     CloseFile(file);
+    
+    // Limpa o arquivo apenas após processar tudo
     FileHandle clearFile = OpenFile(path, FileMode.WRITE);
     if (clearFile != 0)
         CloseFile(clearFile);
+    
+    // Libera o lock
+    m_IsProcessingCommands = false;
+    
+    WriteToLog("CheckCommands(): Processamento concluído", LogFile.INIT, false, LogType.DEBUG);
 }
 
 bool ExecuteCommand(TStringArray tokens)

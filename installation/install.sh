@@ -475,7 +475,7 @@ cd "$DayzFolder"
 cd "$DayzFolder/mpmissions/$DayzMpmission/"
 rm init.c
 echo "Baixando init.c para Deathmatch..."
-curl -o init.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/deathmatch/init.c
+curl -o init.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/deathmatch/dayz-server/mpmissions/dayzOffline.chernarusplus/init.c
 
 chown "$LinuxUserName:$LinuxUserName" init.c
 
@@ -497,9 +497,49 @@ cd "$DayzFolder"
 cd "$DayzFolder/mpmissions/$DayzMpmission/"
 rm init.c
 echo "Baixando init.c para Vanilla..."
-curl -o init.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/init.c
+curl -o init.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/init.c
 
 chown "$LinuxUserName:$LinuxUserName" init.c
+
+mkdir -p admin/files
+mkdir -p admin/loadouts
+mkdir -p admin/models
+
+cd admin
+
+# Baixa arquivos principais do admin
+curl -o Commands.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/Commands.c
+curl -o ExternalActions.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/ExternalActions.c
+curl -o Construction.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/Construction.c
+curl -o Functions.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/Functions.c
+curl -o Globals.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/Globals.c
+curl -o Log.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/Log.c
+curl -o Messages.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/Messages.c
+curl -o PlayersLoadout.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/PlayersLoadout.c
+curl -o VehicleSpawner.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/VehicleSpawner.c
+
+# Baixa arquivos da pasta files (comunicação)
+cd files
+curl -O https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/commands_to_execute.txt
+curl -O https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/messages_to_send.txt
+curl -O https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/messages_private_to_send.txt
+cd ..
+
+# Baixa exemplos de loadouts JSON
+cd loadouts
+curl -O https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/loadouts/admin_default.json
+cd ..
+
+# Baixa arquivos da pasta models (modelos)
+cd models
+curl -O https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/models/LoadoutPlayer.c
+curl -O https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/models/LoadoutPlayerId.c
+curl -O https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/models/SafeZoneData.c
+curl -O https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/models/ActivePlayer.c
+cd ..
+
+# Define permissões de usuário para todos os arquivos e subpastas
+chown -R "$LinuxUserName:$LinuxUserName" .
 
 echo "[INFO] Update concluído com sucesso."
 EOF

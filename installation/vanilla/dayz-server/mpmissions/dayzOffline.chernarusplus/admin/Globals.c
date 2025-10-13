@@ -23,6 +23,5 @@ enum LogFile
     INIT,
     POSITION
 }
-
-ref map<string, float> lastSeenPlayers = new map<string, float>();
+bool m_IsProcessingCommands = false;
 const float PLAYER_TIMEOUT = 15.0; // tempo em segundos para considerar desconexão

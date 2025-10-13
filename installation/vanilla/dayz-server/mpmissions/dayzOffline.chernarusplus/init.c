@@ -314,8 +314,6 @@ class CustomMission: MissionServer
 		// Eventos de Multiplayer/Sessão
 		if (eventTypeId == MPSessionStartEventTypeID) return "MPSessionStartEventTypeID";
 		if (eventTypeId == MPSessionEndEventTypeID) return "MPSessionEndEventTypeID";
-		//if (eventTypeId == MPConnectionLostEventTypeID) return "MPConnectionLostEventTypeID";
-		//if (eventTypeId == MPConnectionRecoveredEventTypeID) return "MPConnectionRecoveredEventTypeID";
 		if (eventTypeId == MPSessionPlayerReadyEventTypeID) return "MPSessionPlayerReadyEventTypeID";
 		if (eventTypeId == MPSessionFailEventTypeID) return "MPSessionFailEventTypeID";
 		
@@ -326,26 +324,117 @@ class CustomMission: MissionServer
 		// Eventos de Progresso
 		if (eventTypeId == ProgressEventTypeID) return "ProgressEventTypeID";
 		
-		// Eventos de Entidade
-		//if (eventTypeId == EntityEventTypeID) return "EntityEventTypeID";
-		
 		// Eventos de VON (Voice Over Network)
 		if (eventTypeId == VONStateEventTypeID) return "VONStateEventTypeID";
 		if (eventTypeId == VONStartSpeakingEventTypeID) return "VONStartSpeakingEventTypeID";
 		if (eventTypeId == VONStopSpeakingEventTypeID) return "VONStopSpeakingEventTypeID";
 		
-		// Eventos de Menu/Interface
-		//if (eventTypeId == DialogQueueAddEventTypeID) return "DialogQueueAddEventTypeID";
-		//if (eventTypeId == DialogQueueRemoveEventTypeID) return "DialogQueueRemoveEventTypeID";
-		
-		// Eventos de Partículas/Efeitos
-		//if (eventTypeId == ParticleEventTypeID) return "ParticleEventTypeID";
-		
 		// Eventos de Mundo
 		if (eventTypeId == WorldCleaupEventTypeID) return "WorldCleaupEventTypeID";
+
+		//ConnectivityStatsUpdatedEventTypeID
+		if (eventTypeId == ConnectivityStatsUpdatedEventTypeID) return "ConnectivityStatsUpdatedEventTypeID";
+		//LogoutEventTypeID
+		if (eventTypeId == LogoutEventTypeID) return "LogoutEventTypeID";
+		//PlayerDeathEventTypeID
+		if (eventTypeId == PlayerDeathEventTypeID) return "PlayerDeathEventTypeID";
+		//ScriptLogEventTypeID
+		if (eventTypeId == ScriptLogEventTypeID) return "ScriptLogEventTypeID";
+		//ChatChannelEventTypeID
+		if (eventTypeId == ChatChannelEventTypeID) return "ChatChannelEventTypeID";
 		
 		// Se não encontrou, retorna desconhecido
 		return "UNKNOWN_EVENT_TYPE";
+	}
+
+	// Função helper para obter o objeto Man através do PlayerIdentity
+	Man GetManFromIdentity(PlayerIdentity identity)
+	{
+		if (!identity)
+		{
+			WriteToLog("GetManFromIdentity(): Identity nula!", LogFile.INIT, false, LogType.ERROR);
+			return null;
+		}
+
+		// Usa a função GetPlayerById que já existe em Functions.c
+		PlayerBase player = GetPlayerById(identity.GetId());
+		if (player)
+		{
+			WriteToLog("GetManFromIdentity(): Man encontrado para " + identity.GetName(), LogFile.INIT, false, LogType.DEBUG);
+			return player;
+		}
+		else
+		{
+			WriteToLog("GetManFromIdentity(): Man NÃO encontrado para " + identity.GetName(), LogFile.INIT, false, LogType.DEBUG);
+			return null;
+		}
+	}
+
+	// Função reutilizável para processar jogador quando estiver pronto
+	void ProcessPlayerReady(PlayerIdentity identity, Man player)
+	{
+		if (!identity)
+		{
+			WriteToLog("ProcessPlayerReady(): Identity nula!", LogFile.INIT, false, LogType.ERROR);
+			return;
+		}
+
+		if (player)
+		{
+			WriteToLog("  -> Man/Player PRESENTE no evento ClientReadyEventTypeID", LogFile.INIT, false, LogType.INFO);
+			PlayerBase pb = PlayerBase.Cast(player);
+			if (pb)
+			{
+				vector pos = pb.GetPosition();
+				WriteToLog("  -> Posição do Player: " + pos.ToString(), LogFile.INIT, false, LogType.INFO);
+
+				vector newPos = pos;
+				newPos[1] = newPos[1] + 0.5;  // Move 0.5 metro para cima (eixo Y)							
+				pb.SetPosition(newPos);
+			}
+		}
+		else
+		{
+			WriteToLog("  -> AVISO: Man/Player é NULL no ClientReadyEventTypeID!", LogFile.INIT, false, LogType.DEBUG);
+		}
+		
+		WriteToLog("  -> Jogador pronto: " + identity.GetName() + " | PlayerID: " + identity.GetId() + " | SteamID: " + identity.GetPlainId(), LogFile.INIT, false, LogType.INFO);
+									
+		// Adiciona o jogador à lista
+		AddOrUpdateActivePlayer(identity, player);
+		
+		// Verifica se o jogador foi adicionado corretamente
+		ActivePlayer addedPlayer = GetActivePlayerById(identity.GetId());
+		if (addedPlayer)
+		{
+			if (addedPlayer.HasPlayer())
+			{
+				string playerNameToUpdate = identity.GetName();
+
+				// Sanitize o nome do jogador para uso seguro em JSON/Banco/Shell
+				// Remove caracteres potencialmente perigosos: | ; ` $ " ' \ < > & (pipe, ponto e vírgula, aspas, etc)
+				TStringArray unsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
+				foreach (string ch : unsafeChars) {
+					playerNameToUpdate.Replace(ch, "-");
+				}
+
+				// Limita o tamanho do nome e remove caracteres de controle \n \r \t
+				playerNameToUpdate.Replace("\n", "");
+				playerNameToUpdate.Replace("\r", "");
+				playerNameToUpdate.Replace("\t", "");
+				if (playerNameToUpdate.Length() > 32)
+					playerNameToUpdate = playerNameToUpdate.Substring(0, 32);
+
+				AppendExternalAction("{\"action\":\"update_player\",\"player_id\":\"" + identity.GetId() + "\",\"player_name\":\"" + playerNameToUpdate + "\",\"steam_id\":\"" + identity.GetPlainId() + "\"}");
+				AppendExternalAction("{\"action\":\"player_connected\",\"player_id\":\"" + identity.GetId() + "\"}");
+			}
+			else
+			{
+				WriteToLog("  -> DEPOIS AddOrUpdate: Man NÃO foi armazenado (é null)!", LogFile.INIT, false, LogType.ERROR);
+			}
+		}
+		
+		WriteToLog("Total de jogadores conectados: " + GetActivePlayersCount(), LogFile.INIT, false, LogType.INFO);
 	}
 
 	override void OnEvent(EventType eventTypeId, Param params)
@@ -391,7 +480,7 @@ class CustomMission: MissionServer
 		
 		// ============================================================================
 		// EVENTO: ClientDisconnectedEventTypeID
-		// Disparado quando um cliente se desconecta
+		// Disparado quando um cliente inicia a desconexão MAS NÃO INDICA QUE O JOGADOR DESCONECTOU!
 		// Params: <PlayerIdentity, Man, int, bool> - Identity, Player, LogoutTime, AuthFailed
 		// ============================================================================
 		else if (eventTypeId == ClientDisconnectedEventTypeID)
@@ -410,12 +499,11 @@ class CustomMission: MissionServer
 			
 			if (identity)
 			{
-				WriteToLog("  -> Jogador: " + identity.GetName() + " | ID: " + identity.GetId(), LogFile.INIT, false, LogType.DEBUG);
-				WriteToLog("  -> LogoutTime: " + logoutTime + " | AuthFailed: " + authFailed, LogFile.INIT, false, LogType.DEBUG);
-				
+				//WriteToLog("  -> Jogador: " + identity.GetName() + " | ID: " + identity.GetId(), LogFile.INIT, false, LogType.DEBUG);
+				//WriteToLog("  -> LogoutTime: " + logoutTime + " | AuthFailed: " + authFailed, LogFile.INIT, false, LogType.DEBUG);				
 				// Remove o jogador da lista de jogadores ativos
-				steamId = identity.GetPlainId();
-				RemoveActivePlayer(steamId);
+				//steamId = identity.GetPlainId();
+				//RemoveActivePlayer(steamId);				
 			}
 			
 			// Aqui você pode adicionar lógica de cleanup ou notificações
@@ -442,9 +530,11 @@ class CustomMission: MissionServer
 			{
 				WriteToLog("  -> Novo jogador: " + identity.GetName() + " | PlayerID: " + identity.GetId() + " | Posição: " + position.ToString(), LogFile.INIT, false, LogType.INFO);
 				
-				// ⭐ ADICIONA o jogador novo à lista de jogadores ativos
-				// Nota: Man/Player pode não estar disponível ainda neste evento
-				AddOrUpdateActivePlayer(identity, null);
+				// Tenta obter o objeto Man através do PlayerIdentity
+				Man playerMan = GetManFromIdentity(identity);
+				
+				// Usa a função reutilizável para processar o jogador
+				ProcessPlayerReady(identity, playerMan);
 			}
 			
 			// Aqui você pode personalizar o spawn de novos jogadores
@@ -466,55 +556,8 @@ class CustomMission: MissionServer
 				
 				if (identity)
 				{
-					if (player)
-					{
-						WriteToLog("  -> Man/Player PRESENTE no evento ClientReadyEventTypeID", LogFile.INIT, false, LogType.INFO);
-						PlayerBase pb = PlayerBase.Cast(player);
-						if (pb)
-						{
-							vector pos = pb.GetPosition();
-							WriteToLog("  -> Posição do Player: " + pos.ToString(), LogFile.INIT, false, LogType.INFO);
-
-							vector newPos = pos;
-							newPos[1] = newPos[1] + 0.5;  // Move 1 metro para cima (eixo Y)							
-							pb.SetPosition(newPos);
-						}
-					}
-					else
-					{
-						WriteToLog("  -> AVISO: Man/Player é NULL no ClientReadyEventTypeID!", LogFile.INIT, false, LogType.DEBUG);
-					}
-					
-					WriteToLog("  -> Jogador pronto: " + identity.GetName() + " | PlayerID: " + identity.GetId() + " | SteamID: " + identity.GetPlainId(), LogFile.INIT, false, LogType.INFO);
-					
-					// ⭐ ADICIONE ESTE LOG ANTES
-					if (player)
-					{
-						WriteToLog("  -> ANTES AddOrUpdate: Man não é null", LogFile.INIT, false, LogType.DEBUG);
-					}
-					else
-					{
-						WriteToLog("  -> ANTES AddOrUpdate: Man é NULL!", LogFile.INIT, false, LogType.ERROR);
-					}
-					
-					// Adiciona o jogador à lista
-					AddOrUpdateActivePlayer(identity, player);
-					
-					// ⭐ ADICIONE ESTE LOG DEPOIS
-					ActivePlayer addedPlayer = GetActivePlayerById(identity.GetId());
-					if (addedPlayer)
-					{
-						if (addedPlayer.HasPlayer())
-						{
-							WriteToLog("  -> DEPOIS AddOrUpdate: Man foi armazenado com sucesso!", LogFile.INIT, false, LogType.INFO);
-						}
-						else
-						{
-							WriteToLog("  -> DEPOIS AddOrUpdate: Man NÃO foi armazenado (é null)!", LogFile.INIT, false, LogType.ERROR);
-						}
-					}
-					
-					WriteToLog("Total de jogadores conectados: " + GetActivePlayersCount(), LogFile.INIT, false, LogType.INFO);
+					// Usa a função reutilizável para processar o jogador
+					ProcessPlayerReady(identity, player);
 				}
 			}
 		}
@@ -539,7 +582,7 @@ class CustomMission: MissionServer
 				if (identity)
 				{
 					WriteToLog("  -> Jogador preparando: " + identity.GetName() + " | PlayerID: " + identity.GetId(), LogFile.INIT, false, LogType.DEBUG);
-					WriteToLog("  -> UseDB: " + useDB + " | Pos: " + position.ToString() + " | Yaw: " + yaw + " | Timeout: " + preloadTimeout, LogFile.INIT, false, LogType.DEBUG);
+					//WriteToLog("  -> UseDB: " + useDB + " | Pos: " + position.ToString() + " | Yaw: " + yaw + " | Timeout: " + preloadTimeout, LogFile.INIT, false, LogType.DEBUG);
 				}
 			}
 		}
@@ -732,6 +775,8 @@ class CustomMission: MissionServer
 		// ============================================================================
 		// EVENTO: VONStateEventTypeID
 		// Disparado quando o estado do Voice Over Network muda
+		// typedef Param2<bool, bool> VONStateEventParams
+		// Params: <bool, bool> - listening, toggled
 		// ============================================================================
 		else if (eventTypeId == VONStateEventTypeID)
 		{
@@ -739,7 +784,9 @@ class CustomMission: MissionServer
 			VONStateEventParams vonStateParams = VONStateEventParams.Cast(params);
 			if (vonStateParams)
 			{
-				WriteToLog("  -> Estado VON mudou", LogFile.INIT, false, LogType.DEBUG);
+				bool listening = vonStateParams.param1;
+				bool toggled = vonStateParams.param2;
+				WriteToLog("  -> Listening: " + listening + " | Toggled: " + toggled, LogFile.INIT, false, LogType.DEBUG);
 			}
 		}
 		
@@ -770,7 +817,62 @@ class CustomMission: MissionServer
 				WriteToLog("  -> Jogador parou de falar no VON", LogFile.INIT, false, LogType.DEBUG);
 			}
 		}
+		// typedef Param2<DayZPlayer, Object> PlayerDeathEventParams
+		// Player, "Killer" (Beware: Not necessarily actually the killer, Client doesn't have this info)
+		// Params: <DayZPlayer, Object> - Player, Killer
+		// Killer can be null if the player died by accident, or by suicide
+		// Killer can be a DayZPlayer if the player was killed by another player
+		// Killer can be an object if the player was killed by an object
+		// Killer can be a string if the player was killed by a string
+		// Killer can be a vector if the player was killed by a vector
+		// Killer can be a float if the player was killed by a float
+		else if (eventTypeId == PlayerDeathEventTypeID)
+		{
+			WriteToLog("EVENT: PlayerDeathEventTypeID - Jogador morreu", LogFile.INIT, false, LogType.DEBUG);
+			PlayerDeathEventParams playerDeathParams = PlayerDeathEventParams.Cast(params);
+			if (playerDeathParams)
+			{
+				DayZPlayer playerDead = playerDeathParams.param1;
+				Object killer = playerDeathParams.param2;
+				PlayerIdentity identityPlayerDead = playerDead.GetIdentity();
+				if (identityPlayerDead)
+				{
+					WriteToLog("  -> Jogador morreu: " + identityPlayerDead.GetName() + " | PlayerID: " + identityPlayerDead.GetId() + " | SteamID: " + identityPlayerDead.GetPlainId(), LogFile.INIT, false, LogType.DEBUG);
+				}
+				if (killer)
+				{
+					WriteToLog("  -> Killer: " + killer.GetName(), LogFile.INIT, false, LogType.DEBUG);
+				}
+			}
+		}
 		
+		// ScriptLogEventTypeID
+		//  typedef Param1<string> ScriptLogEventParams
+		else if (eventTypeId == ScriptLogEventTypeID)
+		{
+			WriteToLog("EVENT: ScriptLogEventTypeID", LogFile.INIT, false, LogType.DEBUG);
+			ScriptLogEventParams scriptParams = ScriptLogEventParams.Cast(params);
+			if (scriptParams)
+			{
+				WriteToLog("  -> " + scriptParams.param1, LogFile.INIT, false, LogType.DEBUG);
+				// Exemplo: "SCRIPT       : [Logout]: Player HdhIzjGbaI-1_-Q7p8Y1Xos04N4hk1DCNAn2QtdSYqw= finished"
+				
+				string msg = scriptParams.param1;
+				if (msg.Contains("[Logout]"))
+				{
+					int playerStart = msg.IndexOf("Player ");
+					int playerEnd = msg.IndexOf(" finished");
+					if (playerStart != -1 && playerEnd != -1 && playerEnd > playerStart)
+					{
+						playerStart += 7; // Pular "Player "
+						string playerUID = msg.Substring(playerStart, playerEnd - playerStart).Trim();
+						WriteToLog("  -> EVENTO DE LOGOUT DETECTADO | UID: " + playerUID, LogFile.INIT, false, LogType.INFO);
+						RemoveActivePlayerById(playerUID);
+						AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + playerUID + "\"}");
+					}
+				}
+			}
+		}
 		// ============================================================================
 		// EVENTO: ChatMessageEventTypeID
 		// Disparado quando uma mensagem de chat é enviada
@@ -823,6 +925,12 @@ class CustomMission: MissionServer
 			if (text.Length() == 0 || text.Get(0) != "!")
 				return;
 
+			// Se channel for 0 (Global), então é um comando de jogador
+			// Solução abandonada porque o playername aqui pode ser duplicado
+			// Para agilizar a execução, chama o CheckCommands diretamente
+			CheckCommands();
+			return;
+
 			playerBase = GetPlayerByName(playerName);
 			if (!playerBase) {				
 				WriteToLog("Player não identificado: " + playerName, LogFile.INIT, false, LogType.ERROR);
@@ -839,8 +947,7 @@ class CustomMission: MissionServer
 				tokens.Insert(tokensCommands.Get(i));
 
 			ExecuteCommand(tokens);
-		}
-		
+		} 
 		// ============================================================================
 		// EVENTO DESCONHECIDO
 		// Captura qualquer outro evento não mapeado acima
@@ -857,10 +964,6 @@ class CustomMission: MissionServer
 		super.OnUpdate(timeslice);
 		m_AdminCheckTimer10 += timeslice;
 
-		// Garante que o mapa de rastreamento foi inicializado
-		if (!lastSeenPlayers)
-			lastSeenPlayers = new map<string, float>();
-
 		if (m_AdminCheckTimer10 >= m_AdminCheckCooldown10)
 		{
 			m_AdminCheckTimer10 = 0.0;
@@ -869,16 +972,13 @@ class CustomMission: MissionServer
 			array<string> msgs = CheckMessages();
 			array<string> privMsgs = CheckPrivateMessages();
 			
-			// ⭐ Detecta e desconecta jogadores ghost automaticamente
-			DetectAndDisconnectGhosts();
-
-			array<Man> players = new array<Man>;
-			GetGame().GetPlayers(players);
-			WriteToLog("OnUpdate(): Encontrados " + players.Count() + " jogadores.", LogFile.INIT, false, LogType.INFO);
+			// Detecta e desconecta jogadores ghost automaticamente (aparentemente resolvido e não é necessário mais)
+			//DetectAndDisconnectGhosts();
 
 			ListActivePlayers();
 
-			ref set<string> currentPlayers = new set<string>();
+			array<Man> players = new array<Man>;
+			GetGame().GetPlayers(players);
 
 			foreach (Man man : players)
 			{
@@ -893,21 +993,7 @@ class CustomMission: MissionServer
 				string playerId = identity.GetId();
 				string playerName = identity.GetName();		
 				string steamId = identity.GetPlainId();
-				currentPlayers.Insert(playerId);
-
-				// Atualiza ou insere no mapa de "vistos recentemente"
-				if (lastSeenPlayers.Contains(playerId))
-				{
-					lastSeenPlayers.Set(playerId, GetGame().GetTime());
-				}
-				else
-				{
-					lastSeenPlayers.Insert(playerId, GetGame().GetTime());
-					WriteToLog("Jogador logou " + playerId, LogFile.INIT, false, LogType.INFO);
-					AppendExternalAction("{\"action\":\"update_player\",\"player_id\":\"" + playerId + "\",\"player_name\":\"" + playerName + "\",\"steam_id\":\"" + steamId + "\"}");
-					AppendExternalAction("{\"action\":\"player_connected\",\"player_id\":\"" + playerId + "\"}");
-				}
-
+				
 				// Mensagens públicas
 				if (msgs)
 				{
@@ -953,26 +1039,6 @@ class CustomMission: MissionServer
 				}
 			}
 
-			// Verifica quem desconectou
-			array<string> disconnected = new array<string>();
-			foreach (string pid, float timestamp : lastSeenPlayers)
-			{
-				if (currentPlayers.Find(pid) == -1)
-				{
-					float elapsed = GetGame().GetTime() - timestamp;
-					if (elapsed > PLAYER_TIMEOUT * 1000)
-					{
-						disconnected.Insert(pid);						
-					}
-				}
-			}
-
-			foreach (string disconnectedId : disconnected)
-			{
-				lastSeenPlayers.Remove(disconnectedId);
-				WriteToLog("Jogador deslogou " + disconnectedId, LogFile.INIT, false, LogType.INFO);
-				AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + disconnectedId + "\"}");					
-			}
 		}
 	}
 	
