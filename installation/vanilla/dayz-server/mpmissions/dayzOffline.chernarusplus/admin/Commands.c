@@ -26,12 +26,18 @@ void CheckCommands()
 
 bool ExecuteCommand(TStringArray tokens)
 {
+    
     string playerID = tokens[0];
-    string command = tokens[1];
+    string command = tokens[1];    
+
+    WriteToLog("ExecuteCommand(): Executando comando: " + command + " para o jogador: " + playerID, LogFile.INIT, false, LogType.DEBUG);
     
     PlayerBase target = null;
     array<Man> players = {};
     GetGame().GetPlayers(players);
+
+    
+    WriteToLog("ExecuteCommand(): Encontrados " + players.Count() + " jogadores.", LogFile.INIT, false, LogType.DEBUG);
 
     foreach (Man man : players)
     {

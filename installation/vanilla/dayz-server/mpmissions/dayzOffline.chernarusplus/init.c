@@ -71,6 +71,8 @@ class CustomMission: MissionServer
 	override void OnEvent(EventType eventTypeId, Param params)
 	{
 		super.OnEvent(eventTypeId, params);
+
+		WriteToLog("Evento: " + eventTypeId.ToString(), LogFile.INIT, false, LogType.DEBUG);
 		
 		if (eventTypeId == ChatMessageEventTypeID)
 		{
@@ -119,6 +121,10 @@ class CustomMission: MissionServer
 
 			PlayerBase player = GetPlayerByName(playerName);
 			if (!player) {
+				array<PlayerIdentity> ids = new array<PlayerIdentity>;
+				GetGame().GetPlayerIdentities(ids);
+				WriteToLog("ExecuteCommand(): Encontrados " + ids.Count() + " jogadores.", LogFile.INIT, false, LogType.ERROR);
+				
 				WriteToLog("Player não identificado.", LogFile.INIT, false, LogType.ERROR);
 				return;
 			}
@@ -153,9 +159,25 @@ class CustomMission: MissionServer
 			array<string> msgs = CheckMessages();
 			array<string> privMsgs = CheckPrivateMessages();
 
+			// Obter TODAS as identidades conectadas (inclui "ghosts")
+			array<PlayerIdentity> allIdentities = new array<PlayerIdentity>;
+			GetGame().GetPlayerIdentities(allIdentities);
+			WriteToLog("OnUpdate(): Encontrados " + allIdentities.Count() + " jogadores.", LogFile.INIT, false, LogType.INFO);
+
 			array<Man> players = new array<Man>;
 			GetGame().GetPlayers(players);
+			WriteToLog("OnUpdate(): Encontrados " + players.Count() + " jogadores.", LogFile.INIT, false, LogType.INFO);
+
 			ref set<string> currentPlayers = new set<string>();
+			ref map<string, PlayerIdentity> identityMap = new map<string, PlayerIdentity>();
+			// Mapear todas as identidades conectadas
+			foreach (PlayerIdentity identity : allIdentities)
+			{
+				if (!identity) continue;
+				string playerId = identity.GetId();
+				identityMap.Insert(playerId, identity);
+				currentPlayers.Insert(playerId);
+			}
 
 			foreach (Man man : players)
 			{
@@ -230,6 +252,22 @@ class CustomMission: MissionServer
 				}
 			}
 
+			// DETECTAR E TRATAR JOGADORES "GHOST"
+			foreach (string ghostId, PlayerIdentity ghostIdentity : identityMap)
+			{
+				// Este é um jogador "ghost" - conectado mas sem objeto válido
+				WriteToLog("GHOST DETECTADO: " + ghostIdentity.GetName() + " (" + ghostId + ")", LogFile.INIT, false, LogType.INFO);
+					
+				// OPÇÕES DE CORREÇÃO:
+				
+				// Opção 1: Desconectar o jogador ghost (recomendado)
+				GetGame().DisconnectPlayer(ghostIdentity, ghostId);
+				WriteToLog("Ghost desconectado: " + ghostIdentity.GetName(), LogFile.INIT, false, LogType.INFO);
+				
+				// Opção 2: Apenas registrar e monitorar
+				// AppendExternalAction("{\"action\":\"ghost_detected\",\"player_id\":\"" + ghostId + "\",\"player_name\":\"" + ghostIdentity.GetName() + "\"}");
+			}
+
 			// Verifica quem desconectou
 			array<string> disconnected = new array<string>();
 			foreach (string pid, float timestamp : lastSeenPlayers)
@@ -279,6 +317,8 @@ class CustomMission: MissionServer
 			WriteToLog("CreateCharacter(): " + playerName + " é admin.", LogFile.INIT, false, LogType.DEBUG);
 			m_player.SetAllowDamage(false);
 			GiveAdminLoadout(m_player, playerId);
+		} else {
+			WriteToLog("CreateCharacter(): " + playerName + " é jogador comum.", LogFile.INIT, false, LogType.DEBUG);
 		}
 
 		return m_player;
