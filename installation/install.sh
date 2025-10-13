@@ -227,7 +227,7 @@ if [[ "$SKIP_STEAM" -eq 0 ]]; then
     cd "/home/$LinuxUserName"
     mkdir -p "servers/steamcmd" && cd servers/steamcmd
     curl -sqL "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz" | tar zxvf -    
-    chown -R "$LinuxUserName:$LinuxUserName" "/home/$LinuxUserName/servers"
+    chown -R "$LinuxUserName:$LinuxUserName" "/home/$LinuxUserName/servers" 2>/dev/null || echo "Aviso: Não foi possível alterar permissões da pasta servers (alguns arquivos podem ter restrições)"
     sudo -u "$LinuxUserName" ./steamcmd.sh +force_install_dir "/home/$LinuxUserName/servers/dayz-server/" +login "$SteamAccount" +app_update 223350 +quit
     echo "SteamCMD instalado com sucesso."
 else
@@ -393,6 +393,10 @@ confirm_step "Criação do serviço systemd para inicialização automática"
 DayzServerServiceFile="/etc/systemd/system/dayz-server.service"
 echo "Configurando serviço no systemd $DayzServerServiceFile ..."
 sleep $DELAY
+echo > $DayzFolder/profiles/dayz-server.log
+echo > $DayzFolder/profiles/dayz-server.err
+chown "$LinuxUserName:$LinuxUserName" $DayzFolder/profiles/dayz-server.log
+chown "$LinuxUserName:$LinuxUserName" "$DayzFolder/profiles/dayz-server.err"
 
 cat <<EOF > "$DayzServerServiceFile"
 [Unit]
@@ -437,10 +441,10 @@ WantedBy=multi-user.target
 EOF
 
 mkdir -p "${DayzFolder}/profiles"
-chown -R "$LinuxUserName:$LinuxUserName" "${DayzFolder}/profiles"
+chown -R "$LinuxUserName:$LinuxUserName" "${DayzFolder}/profiles" 2>/dev/null || echo "Aviso: Não foi possível alterar permissões da pasta profiles"
 
 mkdir -p "$DayzFolder/scripts"
-chown -R "$LinuxUserName:$LinuxUserName" "$DayzFolder/scripts"
+chown -R "$LinuxUserName:$LinuxUserName" "$DayzFolder/scripts" 2>/dev/null || echo "Aviso: Não foi possível alterar permissões da pasta scripts"
 
 if [[ "$DayzWipeOnRestart" == "1" ]]; then
 
@@ -527,8 +531,9 @@ cp -r "\$TEMP_REPO/installation/vanilla/dayz-server/mpmissions/$DayzMpmission/ad
 # Limpa repositório temporário
 rm -rf "\$TEMP_REPO"
 
-# Define permissões corretas
-chown -R "$LinuxUserName:$LinuxUserName" .
+# Define permissões corretas apenas nos arquivos copiados
+chown "$LinuxUserName:$LinuxUserName" init.c 2>/dev/null || echo "Aviso: Não foi possível alterar permissões do init.c"
+chown -R "$LinuxUserName:$LinuxUserName" admin 2>/dev/null || echo "Aviso: Não foi possível alterar permissões da pasta admin"
 
 echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/commands_to_execute.txt
 echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_to_send.txt
@@ -543,8 +548,8 @@ fi
 chmod +x "$DayzFolder/scripts/update.sh"
 
 echo "Configurando script de pós inicialização $DayzFolder/scripts/execute_script_pos.sh ..."
-echo "#!/bin/bash" > "$DayzFolder/scripts/execute_script_pos.sh"
 cat <<EOF > "$DayzFolder/scripts/execute_script_pos.sh"
+#!/bin/bash
 export TZ=America/Sao_Paulo
 CURRENT_DATE=\$(date "+%Y-%m-%d_%H-%M-%S")
 PLAYER_DB="/home/$LinuxUserName/servers/dayz-server/mpmissions/$DayzMpmission/storage_1/players.db"
@@ -559,7 +564,11 @@ if [ ! -d "\$BACKUP_DIR" ]; then
     chown "$LinuxUserName:$LinuxUserName" "\$BACKUP_DIR"
 fi
 
-cp -Rap "\$PLAYER_DB" "\$BACKUP_FILE"
+if [ -f "\$PLAYER_DB" ]; then
+    cp -Rap "\$PLAYER_DB" "\$BACKUP_FILE"
+else
+    echo "Aviso: arquivo \$PLAYER_DB não encontrado, backup não realizado."
+fi
 
 # Remove arquivos de backup mais antigos que 7 dias
 echo "Removendo backups antigos (mais de 7 dias)..."
@@ -598,7 +607,9 @@ if [[ -f "\$ADM_FILE" ]]; then
     ln -sf "\$(basename "\$ADM_FILE")" "\$LOG_DIR/DayZServer.ADM"
 fi
 
-systemctl restart dayz-monitor.service
+if systemctl list-units --full -all | grep -Fq "dayz-monitor.service"; then
+    systemctl restart dayz-monitor.service
+fi
 EOF
 
 chmod +x "$DayzFolder/scripts/execute_script_pos.sh"
@@ -607,7 +618,7 @@ chmod +x "$DayzFolder/scripts/execute_script_pos.sh"
 echo "" >> "$DayzFolder/scripts/execute_script_pos.sh"
 chmod +x "$DayzFolder/scripts/execute_script_pos.sh"
 
-chown -R "$LinuxUserName:$LinuxUserName" "/home/$LinuxUserName/servers"
+chown -R "$LinuxUserName:$LinuxUserName" "/home/$LinuxUserName/servers" 2>/dev/null || echo "Aviso: Não foi possível alterar permissões da pasta servers (alguns arquivos podem ter restrições)"
 
 systemctl enable dayz-server.service
 
@@ -660,7 +671,7 @@ echo ""
 echo "📋 Próximos passos:"
 echo "  1. Iniciar servidor:   systemctl start dayz-server.service"
 echo "  2. Ver status:         systemctl status dayz-server.service"
-echo "  3. Ver logs em tempo real: journalctl -f -u dayz-server.service"
+echo "  3. Ver logs em tempo real: tail -f /home/dayzadmin/servers/dayz-server/profiles/dayz-server.err"
 echo "  4. Parar servidor:     systemctl stop dayz-server.service"
 echo "  5. Reiniciar servidor: systemctl restart dayz-server.service"
 echo ""
