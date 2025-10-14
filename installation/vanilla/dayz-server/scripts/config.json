@@ -16,7 +16,7 @@
         "CloseTestPassword": ""        
     },
     "App": {
-        "Folder": "/etc/servers/dayz-server/scripts",
+        "Folder": "/home/dayzadmin/servers/dayz-server/scripts",
         "PlayerBecoC1DbFile": "databases/players_beco_c1.db",
         "ServerBecoC1LogsDbFile": "databases/server_beco_c1_logs.db",
         "DayzItemsDbFile": "databases/dayz_items.db",

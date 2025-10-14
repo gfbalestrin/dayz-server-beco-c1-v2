@@ -6,9 +6,13 @@
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/Log.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/Functions.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/ExternalActions.c"
+#include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/Construction.c"
+#include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/VoteMapManager.c"
+#include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/VoteKickManager.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/PlayersLoadout.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/Commands.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/VehicleSpawner.c"
+#include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/DeathMatchConfig.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/Messages.c"
 
 void main()

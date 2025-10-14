@@ -89,16 +89,13 @@ tail -n 0 -F "$LogFileName" | grep --line-buffered -e "killed by" -e "is unconsc
 			INSERT_CUSTOM_LOG "Ignorando pois PlayerId está em branco" "INFO" "$ScriptName"
 			continue
 		fi
-		if [[ "$DayzDeathmatch" -eq "1" ]]; then			
-			Command="${Content##*: }"
-            if [[ "$Command" == "!"* ]]; then
-                Command="${Command:1}"
-            fi
-            echo $Command
-			echo "$PlayerId $Command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
-			continue
-		fi		
-		continue
+		Command="${Content##*: }"
+        if [[ "$Command" == "!"* ]]; then
+            Command="${Command:1}"
+        fi
+        echo $Command
+        echo "$PlayerId $Command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
+        continue
     # Evento de morte por player
     elif [[ "$Content" == *"killed by Player"* ]]; then
         INSERT_CUSTOM_LOG "Evento de PVP detectado!" "INFO" "$ScriptName"

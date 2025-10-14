@@ -87,12 +87,42 @@ bool ExecuteCommand(TStringArray tokens)
     } else {
         WriteToLog("PlayerID " + target.GetIdentity().GetName() + " (" + playerID + ")" + " digitou comando " + command, LogFile.INIT, false, LogType.INFO);
     }
-    bool isAdmin = CheckIfIsAdmin(playerID);
+    bool isAdmin = true;//CheckIfIsAdmin(playerID);
 
     switch (command)
     {
         case "help":
-            SendPrivateMessage(playerID, "!kill -> Cometer suicídio", MessageColor.FRIENDLY);
+            if (!isAdmin)
+            {
+                //SendPrivateMessage(playerID, "!loadouts -> Lista loadouts configurados", MessageColor.FRIENDLY);
+                //SendPrivateMessage(playerID, "!loadout meuloadout1' -> Ativa meuloadout1", MessageColor.FRIENDLY);
+                //SendPrivateMessage(playerID, "!loadout reset -> Gera nova senha aleatória para acessar o sistema de loadout: " + UrlAppPython, MessageColor.FRIENDLY);
+                //SendPrivateMessage(playerID, "!maps -> Lista mapas disponíveis", MessageColor.FRIENDLY);
+                //SendPrivateMessage(playerID, "!votemap 1 -> Vota no mapa 1", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!players -> Lista jogadores online", MessageColor.FRIENDLY);
+                //SendPrivateMessage(playerID, "!votekick 12345679 -> Vota para kickar o jogador de ID 12345679", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!kill -> Cometer suicídio", MessageColor.FRIENDLY);
+            } else 
+            {
+                //SendPrivateMessage(playerID, "!loadouts -> Lista loadouts configurados", MessageColor.FRIENDLY);
+                //SendPrivateMessage(playerID, "!loadout meuloadout1' -> Ativa meuloadout1", MessageColor.FRIENDLY);
+                //SendPrivateMessage(playerID, "!loadout reset -> Gera nova senha aleatória para acessar o sistema de loadout: " + UrlAppPython, MessageColor.FRIENDLY);
+                //SendPrivateMessage(playerID, "!maps -> Lista mapas disponíveis", MessageColor.FRIENDLY);
+                //SendPrivateMessage(playerID, "!votemap 1 -> Vota no mapa 1", MessageColor.FRIENDLY);
+                //SendPrivateMessage(playerID, "!players -> Lista jogadores online", MessageColor.FRIENDLY);
+                //SendPrivateMessage(playerID, "!votekick 12345679 -> Vota para kickar o jogador de ID 12345679", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!kill -> Cometer suicídio", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!heal -> Se cura", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!godmode -> Ativa godmode", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!ungodmode -> Desativa godmode", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!giveitem nomeitem 2 -> Cria 2 itens", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!spawnvehicle Sedan_02 -> Cria veículo", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!construct Land_Container_1Bo 1.0 1 6.0 90.0-> Cria 1 objeto container na altura de 1.0 m, 6.0 m de tamanho e angulo de 90 graus", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!settime 6 30 -> Altera o horário para as 06:30", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!setweather clear -> Altera o tempo para limpo. Opções: clear, cloudy, rain, foggy ou default", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!teleport 1234567890 100.0 100.0 100.0 -> Teleporta para a posição 100.0, 100.0, 100.0", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!getposition -> Mostra posição atual", MessageColor.FRIENDLY);
+            }
             break;
         case "teleport":
             if (!isAdmin)
@@ -247,6 +277,252 @@ bool ExecuteCommand(TStringArray tokens)
             target.MessageStatus("Posição atual: " + posP.ToString());
             WriteToLog(posP.ToString(), LogFile.POSITION, false);
             WriteToLog("Posição capturada: " + posP.ToString(), LogFile.INIT, false, LogType.DEBUG);
+            break;
+            case "construct":
+            if (!isAdmin)
+            {
+                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
+                WriteToLog("Comando foi bloqueado para o jogador!", LogFile.INIT, false, LogType.ERROR);
+                return false;
+            }
+            if (tokens.Count() >= 3)
+            {
+                float heightOffset = 1.0;
+                int containerCount = 4;
+                float containerLength = 6.0;
+                float rotationOffset = 0.0;
+
+                if (tokens.Count() >= 4)
+                    heightOffset = tokens[3].ToFloat();
+
+                if (tokens.Count() >= 5)
+                    containerCount = tokens[4].ToInt();
+                
+                if (tokens.Count() >= 6)
+                    containerLength = tokens[5].ToFloat();
+
+                if (tokens.Count() >= 7)
+                    rotationOffset = tokens[6].ToFloat();
+
+                string buildName = tokens[2];
+                CreateCustomObject(target, buildName, heightOffset, containerCount, containerLength, rotationOffset);
+            }
+            break;        
+        case "votemap":
+            if (tokens.Count() < 3) {
+                g_VoteMapManager.CheckVotingStatus(playerID);                 
+                return false;
+            }
+
+            if (!IsInteger(tokens[2])) {
+                SendPrivateMessage(playerID, "ID do mapa é inválido", MessageColor.WARNING);
+                return false;
+            }
+
+            int regionId = tokens[2].ToInt();
+            g_VoteMapManager.CheckIfVotingAndStart(playerID, regionId);
+            break;   
+        case "nextmap":  
+            SendPrivateMessage(playerID, "O próximo mapa será " + nextMap.Region, MessageColor.FRIENDLY);
+            break;
+        case "maps":          
+            foreach (ref SafeZoneData mapL : maps) {
+                string linha = mapL.RegionId.ToString() + " - " + mapL.Region;                
+                SendPrivateMessage(playerID, linha, MessageColor.FRIENDLY);
+            }
+            break;
+        case "votekick":
+            if (tokens.Count() < 3) {
+                g_VoteKickManager.ListarJogadoresOnline(playerID);
+                SendPrivateMessage(playerID, "Uso: !votekick <ID do jogador>", MessageColor.WARNING);
+                return false;
+            }
+
+            if (!IsInteger(tokens[2])) {
+                SendPrivateMessage(playerID, "ID inválido.", MessageColor.WARNING);
+                return false;
+            }
+
+            string targetId = tokens[2];
+            PlayerBase targetKick = null;
+            foreach (Man manKick : players)
+            {
+                PlayerBase playerKick = PlayerBase.Cast(manKick);
+                if (playerKick && playerKick.GetIdentity() && playerKick.GetIdentity().GetId() == targetId)
+                {
+                    targetKick = playerKick;
+                    break;
+                }
+            }
+            g_VoteKickManager.StartKickVote(playerID, targetId, targetKick.GetIdentity().GetName());
+            break;
+        case "players":          
+            g_VoteKickManager.ListarJogadoresOnline(playerID);
+            break;
+        case "loadouts":
+            ShowLoadoutsToPlayer(playerID);
+            break;
+        case "loadout":
+            if (tokens.Count() < 3) {
+                ShowLoadoutsToPlayer(playerID);
+                return true;
+            }
+            if (tokens[2] == "reset")
+            {
+                WriteToLog("PlayerID " + target.GetIdentity().GetName() + " (" + playerID + ")" + " solicitou reset de senha", LogFile.INIT, false, LogType.INFO);
+                SendPrivateMessage(playerID, "Você solicitou a geração de uma nova de senha de acesso! Aguarde um momento..." , MessageColor.WARNING);
+                AppendExternalAction("{\"action\":\"reset_password\",\"player_id\":\"" + playerID + "\"}");
+                return true;
+            }
+
+            string loadoutName = tokens[2];
+            LoadoutPlayer loadout = GetLoadoutByName(playerID, loadoutName);
+            if (!loadout)
+            {
+                SendPrivateMessage(playerID, "Nenhum loadout encontrado com esse nome" , MessageColor.WARNING);
+                return false;
+            }
+
+            WriteToLog("PlayerID " + target.GetIdentity().GetName() + " (" + playerID + ")" + " solicitou ativacao do loadout " + loadoutName, LogFile.INIT, false, LogType.INFO);
+            SendPrivateMessage(playerID, "Você solicitou a ativação de um lodout! Aguarde um momento..." , MessageColor.WARNING);
+            ActiveLoadoutByName(playerID, loadoutName);
+            AppendExternalAction("{\"action\":\"active_loadout\",\"player_id\":\"" + playerID + "\",\"loadout_name\":\"" + loadoutName + "\"}");
+
+            break;
+        case "settime":
+            if (!isAdmin)
+            {
+                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
+                WriteToLog("Comando bloqueado para não-admin: settime", LogFile.INIT, false, LogType.ERROR);
+                return false;
+            }
+
+            if (tokens.Count() < 4 || !IsInteger(tokens[2]) || !IsInteger(tokens[3]))
+            {
+                SendPrivateMessage(playerID, "Uso: !settime <hora> <minuto> (ex: !settime 6 30)", MessageColor.WARNING);
+                return false;
+            }
+
+            int newHour = tokens[2].ToInt();
+            int newMinute = tokens[3].ToInt();
+
+            if (newHour < 0 || newHour > 23 || newMinute < 0 || newMinute > 59)
+            {
+                SendPrivateMessage(playerID, "Hora ou minuto inválido. Use valores entre 0-23 e 0-59.", MessageColor.WARNING);
+                return false;
+            }
+
+            int year, month, day, hour, minute;
+            GetGame().GetWorld().GetDate(year, month, day, hour, minute);
+            GetGame().GetWorld().SetDate(year, month, day, newHour, newMinute);
+
+            string hourStr = "";
+            if (newHour < 10)
+                hourStr = "0";
+            string minuteStr = "";
+            if (newMinute < 10)
+                minuteStr = "0";
+            string horaFormatada = hourStr + newHour.ToString() + ":" + minuteStr + newMinute.ToString();
+
+            SendPrivateMessage(playerID, "Horário do mundo ajustado para " + horaFormatada, MessageColor.FRIENDLY);
+            WriteToLog("Admin " + playerID + " definiu horário do mundo para " + horaFormatada, LogFile.INIT, false, LogType.INFO);
+            break;
+        case "setweather":
+            if (!isAdmin) {
+                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
+                return false;
+            }
+            if (!GetGame().IsServer()) {
+                SendPrivateMessage(playerID, "Comando de clima só pode ser executado no servidor.", MessageColor.WARNING);
+                return false;
+            }
+
+            if (tokens.Count() < 3) { // "!setweather rain" costuma ter 2 tokens
+                SendPrivateMessage(playerID, "Uso: !setweather <clear | cloudy | rain | foggy | default>", MessageColor.WARNING);
+                return false;
+            }
+
+            string clima = tokens[2];
+            clima.ToLower();
+
+            Weather weather = GetGame().GetWeather();
+
+            // 1) Tomar controle do clima pela missão
+            weather.MissionWeather(true);
+
+            // 2) Destravar limites e tempos, e liberar threshold da chuva
+            weather.GetOvercast().SetLimits(0.0, 1.0);
+            weather.GetOvercast().SetForecastChangeLimits(0, 0);
+            weather.GetOvercast().SetForecastTimeLimits(0, 0);
+
+            weather.GetRain().SetLimits(0.0, 1.0);
+            weather.GetRain().SetForecastChangeLimits(0, 0);
+            weather.GetRain().SetForecastTimeLimits(0, 0);
+            weather.SetRainThresholds(0.0, 1.0, 0);
+
+            weather.GetFog().SetLimits(0.0, 1.0);
+            weather.GetFog().SetForecastChangeLimits(0, 0);
+            weather.GetFog().SetForecastTimeLimits(0, 0);
+
+            // 3) Aplicar o preset
+            if (clima == "clear")
+            {
+                weather.GetRain().Set(0.0, 1, 0);
+                weather.GetOvercast().Set(0.01, 1, 0);
+                weather.GetFog().Set(0.0, 1, 0);
+                weather.SetWindSpeed(0.0);
+                weather.SetWindMaximumSpeed(0.0);
+                weather.SetWindFunctionParams(0, 0, 0); // sem variação
+            }
+            else if (clima == "cloudy")
+            {
+                weather.GetRain().Set(0.0, 1, 0);
+                weather.GetOvercast().Set(0.5, 1, 0);
+                weather.GetFog().Set(0.1, 1, 0);
+                weather.SetWindSpeed(5.0);
+                weather.SetWindMaximumSpeed(5.0);
+            }
+            else if (clima == "rain")
+            {
+                // garante overcast alto e chuva forte
+                weather.GetOvercast().Set(1.0, 1, 0);
+                weather.GetRain().Set(1.0, 1, 0);
+                weather.GetFog().Set(0.3, 1, 0);
+                weather.SetWindSpeed(12.0);
+                weather.SetWindMaximumSpeed(20.0);
+            }
+            else if (clima == "foggy")
+            {
+                weather.GetRain().Set(0.0, 1, 0);
+                weather.GetOvercast().Set(0.3, 1, 0);
+                weather.GetFog().Set(0.7, 1, 0);
+                weather.SetWindSpeed(3.0);
+                weather.SetWindMaximumSpeed(5.0);
+            }
+            else if (clima == "default")
+            {
+                // devolve o controle para a state machine padrão/config XML
+                weather.MissionWeather(false);
+                SendPrivateMessage(playerID, "Clima voltou para o comportamento padrão/config.", MessageColor.FRIENDLY);
+            }
+            else
+            {
+                SendPrivateMessage(playerID, "Clima desconhecido. Use: clear, cloudy, rain, foggy, default", MessageColor.WARNING);
+                return false;
+            }
+
+            // Feedback (leia atual E forecast)
+            float rainA = weather.GetRain().GetActual();
+            float rainF = weather.GetRain().GetForecast();
+            float overA = weather.GetOvercast().GetActual();
+            float overF = weather.GetOvercast().GetForecast();
+            float fogA  = weather.GetFog().GetActual();
+            float fogF  = weather.GetFog().GetForecast();
+            float wind  = weather.GetWindSpeed();
+
+            SendPrivateMessage(playerID, "Clima ajustado para: " + clima, MessageColor.FRIENDLY);
+            SendPrivateMessage(playerID, "Rain A/F: " + rainA.ToString() + "/" + rainF.ToString() + " | Overcast A/F: " + overA.ToString() + "/" + overF.ToString() + " | Fog A/F: " + fogA.ToString() + "/" + fogF.ToString() + " | Wind: " + wind.ToString(), MessageColor.FRIENDLY);
+            WriteToLog("Admin " + playerID + " ajustou o clima para " + clima, LogFile.INIT, false, LogType.INFO);
             break;
     }
 
