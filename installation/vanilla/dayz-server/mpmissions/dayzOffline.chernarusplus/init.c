@@ -85,15 +85,45 @@ class CustomMission: MissionServer
 			WriteToLog("AddOrUpdateActivePlayer(): Identity nula!", LogFile.INIT, false, LogType.ERROR);
 			return;
 		}
-		
+
 		string steamId = identity.GetPlainId();
 		string playerName = identity.GetName();
 		string playerId = identity.GetId();
-		
-		// Verifica se o jogador já está na lista
-		ActivePlayer existingPlayer = GetActivePlayerBySteamId(steamId);
-		if (existingPlayer)
+
+		// Verifica se existe algum player na lista com o mesmo steamId OU playerId
+		ActivePlayer foundBySteamId = null;
+		ActivePlayer foundByPlayerId = null;
+
+		for (int i = 0; i < ActivePlayers.Count(); i++)
 		{
+			ActivePlayer actPlayer = ActivePlayers.Get(i);
+			if (!actPlayer) continue;
+
+			if (actPlayer.IsSamePlayer(steamId)) {
+				foundBySteamId = actPlayer;
+			}
+
+			if (actPlayer.IsSamePlayerById(playerId)) {
+				foundByPlayerId = actPlayer;
+			}
+
+			// Se já encontrou ambos, pode parar
+			if (foundBySteamId && foundByPlayerId) break;
+		}
+
+		// Se já existe o jogador por steamId OU por playerId, atualiza se necessário e retorna
+		if (foundBySteamId || foundByPlayerId)
+		{
+			ActivePlayer existingPlayer = foundBySteamId;
+			if (!existingPlayer) existingPlayer = foundByPlayerId;
+
+			// Garante que playerId e steamId não são inconsistentes
+			if (foundBySteamId && foundByPlayerId && foundBySteamId != foundByPlayerId)
+			{
+				WriteToLog("AddOrUpdateActivePlayer(): Conflito - jogador com playerId e steamId duplicados diferentes! SteamID: " + steamId + ", PlayerID: " + playerId, LogFile.INIT, false, LogType.ERROR);
+				return;
+			}
+
 			// Atualiza o objeto Man se fornecido
 			if (player)
 			{
@@ -106,7 +136,7 @@ class CustomMission: MissionServer
 			}
 			return;
 		}
-		
+
 		// Cria e adiciona o novo jogador
 		ActivePlayer newPlayer = new ActivePlayer(identity, player);
 		ActivePlayers.Insert(newPlayer);
@@ -192,7 +222,7 @@ class CustomMission: MissionServer
 				WriteToLog("  [" + (i+1) + "] " + player.GetPlayerName() + " | PlayerID: " + player.GetPlayerId() + " | SteamID: " + player.GetSteamId() + " | Conectado há: " + duration.ToString() + "s", LogFile.INIT, false, LogType.INFO);
 			} else {
 				//RemoveActivePlayerById(player.GetPlayerId());
-				RemoveActivePlayer(player.GetSteamId());
+				// RemoveActivePlayer(player.GetSteamId());
 			}
 		}
 	}
@@ -398,6 +428,8 @@ class CustomMission: MissionServer
 				vector newPos = pos;
 				newPos[1] = newPos[1] + 0.5;  // Move 0.5 metro para cima (eixo Y)							
 				pb.SetPosition(newPos);
+
+				WriteToLog("  -> Posição alterada para: " + newPos[0].ToString() + " " + newPos[1].ToString() + " " + newPos[2].ToString(), LogFile.INIT, false, LogType.INFO);
 			}
 		}
 		else
@@ -935,25 +967,27 @@ class CustomMission: MissionServer
 			// Se channel for 0 (Global), então é um comando de jogador
 			// Solução abandonada porque o playername aqui pode ser duplicado
 			// Para agilizar a execução, chama o CheckCommands diretamente
+			GetGame().GetCallQueue(CALL_CATEGORY_GAMEPLAY).CallLater(CheckCommands, 2000, false);
+			
 			CheckCommands();
 			return;
 
-			playerBase = GetPlayerByName(playerName);
-			if (!playerBase) {				
-				WriteToLog("Player não identificado: " + playerName, LogFile.INIT, false, LogType.ERROR);
-				return;
-			}
+			// playerBase = GetPlayerByName(playerName);
+			// if (!playerBase) {				
+			// 	WriteToLog("Player não identificado: " + playerName, LogFile.INIT, false, LogType.ERROR);
+			// 	return;
+			// }
 
-			TStringArray tokensCommands = new TStringArray;
-			text.Split(" ", tokensCommands);			
-			tokensCommands[0] = tokensCommands[0].Substring(1, tokensCommands[0].Length() - 1);
-			string playerID = playerBase.GetIdentity().GetId();
-			TStringArray tokens = new TStringArray;
-			tokens.Insert(playerID);
-			for (int i = 0; i < tokensCommands.Count(); i++)
-				tokens.Insert(tokensCommands.Get(i));
+			// TStringArray tokensCommands = new TStringArray;
+			// text.Split(" ", tokensCommands);			
+			// tokensCommands[0] = tokensCommands[0].Substring(1, tokensCommands[0].Length() - 1);
+			// string playerID = playerBase.GetIdentity().GetId();
+			// TStringArray tokens = new TStringArray;
+			// tokens.Insert(playerID);
+			// for (int i = 0; i < tokensCommands.Count(); i++)
+			// 	tokens.Insert(tokensCommands.Get(i));
 
-			ExecuteCommand(tokens);
+			// ExecuteCommand(tokens);
 		} 
 		// ============================================================================
 		// EVENTO DESCONHECIDO

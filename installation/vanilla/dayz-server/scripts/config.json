@@ -13,7 +13,23 @@
         "MessagesXmlFile": "mpmissions/dayzOffline.chernarusplus/db/messages.xml",
         "Deathmatch": "0",
         "WipeOnRestart": "0",
-        "CloseTestPassword": ""        
+        "CloseTestPassword": "",
+        "EconomyFiles": {
+            "Repository": "https://github.com/BohemiaInteractive/DayZ-Central-Economy.git",
+            "Local": "mpmissions/dayzOffline.chernarusplus/default_economy",
+            "Events": [
+            {
+                "Name": "dayzOffline.chernarusplus",
+                "Date": "01/01-31/12",
+                "ReplaceFolders":[
+                    "db",
+                    "env"
+                ],
+                "IgnoreFiles": [
+                    "init.c"
+                ]
+            }
+        ]}
     },
     "App": {
         "Folder": "/home/dayzadmin/servers/dayz-server/scripts",

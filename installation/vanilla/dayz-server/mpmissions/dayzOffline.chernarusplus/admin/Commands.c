@@ -120,7 +120,7 @@ bool ExecuteCommand(TStringArray tokens)
                 SendPrivateMessage(playerID, "!construct Land_Container_1Bo 1.0 1 6.0 90.0-> Cria 1 objeto container na altura de 1.0 m, 6.0 m de tamanho e angulo de 90 graus", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!settime 6 30 -> Altera o horário para as 06:30", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!setweather clear -> Altera o tempo para limpo. Opções: clear, cloudy, rain, foggy ou default", MessageColor.FRIENDLY);
-                SendPrivateMessage(playerID, "!teleport 1234567890 100.0 100.0 100.0 -> Teleporta para a posição 100.0, 100.0, 100.0", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!teleport 100.0 100.0 100.0 -> Teleporta para a posição 100.0, 100.0, 100.0", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!getposition -> Mostra posição atual", MessageColor.FRIENDLY);
             }
             break;

@@ -16,7 +16,17 @@ LogFileName="$DayzServerFolder/$DayzLogAdmFile"
 
 INSERT_CUSTOM_LOG "Monitorando arquivo: $LogFileName" "INFO" "$ScriptName"
 
-tail -n 0 -F "$LogFileName" | grep --line-buffered -e "killed by" -e "is unconscious" -e "bled out" -e "died. Stats" -e "hit by Player" -e "Chat(" | while IFS='' read -r Line; do
+stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
+    # Ignora linhas que não contêm os eventos desejados
+    if [[ "$Line" != *"killed by"* && \
+          "$Line" != *"is unconscious"* && \
+          "$Line" != *"bled out"* && \
+          "$Line" != *"died. Stats"* && \
+          "$Line" != *"hit by Player"* && \
+          "$Line" != *"Chat("* ]]; then
+        continue
+    fi
+    
     echo "$Line" | grep -q "\[HP: 0\]" && continue
 
     INSERT_ADM_LOG "$Line" "INFO"
