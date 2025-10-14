@@ -205,7 +205,9 @@ tail -F "$COMMAND_FILE" | while read -r line; do
             PlayerId=$(echo "$line" | jq -r '.player_id')
             echo "Evento de player desconectado detectado!" 
             INSERT_CUSTOM_LOG "Evento de player desconectado detectado!" "INFO" "$ScriptName"
-            sqlite3 "$DayzServerFolder/$DayzPlayerDbFile" "UPDATE Players set Alive = 0 where UID = '$PlayerId';"
+            if [[ "$DayzDeathmatch" -eq "1" ]]; then
+                sqlite3 "$DayzServerFolder/$DayzPlayerDbFile" "UPDATE Players set Alive = 0 where UID = '$PlayerId';"
+            fi            
             "$AppFolder/$AppScriptUpdatePlayersOnlineFile" "$PlayerId" "DISCONNECT"
             ;;
         event_restarting)     
