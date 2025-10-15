@@ -20,7 +20,20 @@
             "Events": [
             {
                 "Name": "dayzOffline.chernarusplus",
-                "Date": "01/01-31/12",
+                "Default": "1",
+                "Date": "01/01-30/11",
+                "ReplaceFolders":[
+                    "db",
+                    "env"
+                ],
+                "IgnoreFiles": [
+                    "init.c"
+                ]
+            },
+            {
+                "Name": "ChristmasOffline.ChernarusPlus",
+                "Default": "0",
+                "Date": "01/12-31/12",
                 "ReplaceFolders":[
                     "db",
                     "env"

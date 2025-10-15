@@ -203,27 +203,60 @@ class CustomMission: MissionServer
 		return null;
 	}
 	
-	// Retorna a quantidade de jogadores ativos
+	// Retorna a quantidade de jogadores ativos (apenas jogadores válidos)
 	int GetActivePlayersCount()
 	{
-		return ActivePlayers.Count();
+		int validCount = 0;
+		for (int i = 0; i < ActivePlayers.Count(); i++)
+		{
+			ActivePlayer player = ActivePlayers.Get(i);
+			if (player && player.HasIdentity())
+			{
+				validCount++;
+			}
+		}
+		return validCount;
 	}
 	
 	// Lista todos os jogadores ativos no log
 	void ListActivePlayers()
 	{
-		WriteToLog("=== JOGADORES ATIVOS (" + ActivePlayers.Count() + ") ===", LogFile.INIT, false, LogType.INFO);
+		int validCount = GetActivePlayersCount();
+		WriteToLog("=== JOGADORES ATIVOS (" + validCount + ") ===", LogFile.INIT, false, LogType.INFO);
+		
+		int displayIndex = 1;
 		for (int i = 0; i < ActivePlayers.Count(); i++)
 		{
 			ActivePlayer player = ActivePlayers.Get(i);
 			if (player && player.HasIdentity())
 			{
 				float duration = player.GetConnectedDuration();
-				WriteToLog("  [" + (i+1) + "] " + player.GetPlayerName() + " | PlayerID: " + player.GetPlayerId() + " | SteamID: " + player.GetSteamId() + " | Conectado há: " + duration.ToString() + "s", LogFile.INIT, false, LogType.INFO);
+				WriteToLog("  [" + displayIndex + "] " + player.GetPlayerName() + " | PlayerID: " + player.GetPlayerId() + " | SteamID: " + player.GetSteamId() + " | Conectado há: " + duration.ToString() + "s", LogFile.INIT, false, LogType.INFO);
+				displayIndex++;
 			} else {
-				//RemoveActivePlayerById(player.GetPlayerId());
-				// RemoveActivePlayer(player.GetSteamId());
+				// Jogador inválido encontrado - será removido na próxima limpeza
+				WriteToLog("  [INVÁLIDO] Índice " + i + " contém jogador inválido", LogFile.INIT, false, LogType.DEBUG);
 			}
+		}
+	}
+	
+	// Limpa jogadores inválidos do array ActivePlayers
+	void CleanupInvalidActivePlayers()
+	{
+		int removedCount = 0;
+		for (int i = ActivePlayers.Count() - 1; i >= 0; i--)
+		{
+			ActivePlayer player = ActivePlayers.Get(i);
+			if (!player || !player.HasIdentity())
+			{
+				ActivePlayers.Remove(i);
+				removedCount++;
+			}
+		}
+		
+		if (removedCount > 0)
+		{
+			WriteToLog("CleanupInvalidActivePlayers(): Removidos " + removedCount + " jogadores inválidos do array ActivePlayers", LogFile.INIT, false, LogType.INFO);
 		}
 	}
 	
