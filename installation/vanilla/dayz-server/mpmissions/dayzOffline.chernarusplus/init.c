@@ -218,13 +218,14 @@ class CustomMission: MissionServer
 		return validCount;
 	}
 	
-	// Lista todos os jogadores ativos no log
+	// Lista todos os jogadores ativos no log e limpa automaticamente jogadores inválidos
 	void ListActivePlayers()
 	{
 		int validCount = GetActivePlayersCount();
 		WriteToLog("=== JOGADORES ATIVOS (" + validCount + ") ===", LogFile.INIT, false, LogType.INFO);
 		
 		int displayIndex = 1;
+		bool hasInvalidPlayers = false;
 		for (int i = 0; i < ActivePlayers.Count(); i++)
 		{
 			ActivePlayer player = ActivePlayers.Get(i);
@@ -234,9 +235,17 @@ class CustomMission: MissionServer
 				WriteToLog("  [" + displayIndex + "] " + player.GetPlayerName() + " | PlayerID: " + player.GetPlayerId() + " | SteamID: " + player.GetSteamId() + " | Conectado há: " + duration.ToString() + "s", LogFile.INIT, false, LogType.INFO);
 				displayIndex++;
 			} else {
-				// Jogador inválido encontrado - será removido na próxima limpeza
+				// Jogador inválido encontrado - será removido automaticamente
 				WriteToLog("  [INVÁLIDO] Índice " + i + " contém jogador inválido", LogFile.INIT, false, LogType.DEBUG);
+				hasInvalidPlayers = true;
 			}
+		}
+		
+		// Limpa automaticamente jogadores inválidos se encontrados
+		if (hasInvalidPlayers)
+		{
+			WriteToLog("ListActivePlayers(): Jogadores inválidos detectados, executando limpeza automática...", LogFile.INIT, false, LogType.INFO);
+			CleanupInvalidActivePlayers();
 		}
 	}
 	
