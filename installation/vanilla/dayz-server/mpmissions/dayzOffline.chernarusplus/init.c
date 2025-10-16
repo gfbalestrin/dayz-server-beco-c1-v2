@@ -1220,7 +1220,7 @@ class CustomMission: MissionServer
 		if (!m_TrackedVehicles)
 		{
 			WriteToLog("Inicializando array m_TrackedVehicles...", LogFile.INIT, false, LogType.DEBUG);
-			m_TrackedVehicles = new array<ref CarScript>();
+			m_TrackedVehicles = new array<CarScript>();
 		}
 		else
 		{
