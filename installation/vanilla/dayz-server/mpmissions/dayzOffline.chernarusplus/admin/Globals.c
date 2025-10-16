@@ -41,3 +41,4 @@ ref VoteKickManager g_VoteKickManager;
 bool serverWillRestartSoon = false;
 bool m_IsProcessingCommands = false;
 const float PLAYER_TIMEOUT = 15.0; // tempo em segundos para considerar desconexão
+ref array<ref CarScript> m_TrackedVehicles;

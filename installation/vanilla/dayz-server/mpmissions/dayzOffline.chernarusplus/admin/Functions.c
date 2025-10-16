@@ -294,7 +294,7 @@ void SetCleanWeather()
 
 void LogAllVehicles()
 {
-    Print("[DEBUG] Iniciando varredura de veículos no mundo...");
+    WriteToLog("Iniciando varredura de veículos no mundo...", LogFile.INIT, false, LogType.DEBUG);	
 
     vector center = "7500 0 7500"; // Centro aproximado do mapa Chernarus
     float radius = 20000; // Varre praticamente o mapa todo
@@ -314,13 +314,75 @@ void LogAllVehicles()
         {
             vector pos = vehicle.GetPosition();
             string name = vehicle.GetDisplayName();
-            Print("[VEÍCULO] " + name + " em " + pos.ToString());
+            WriteToLog("[VEÍCULO] " + name + " em " + pos.ToString(), LogFile.INIT, false, LogType.DEBUG);
             count++;
         }
     }
 
-    Print("[DEBUG] Total de veículos detectados: " + count.ToString());
+    WriteToLog("Total de veículos detectados: " + count.ToString(), LogFile.INIT, false, LogType.DEBUG);
 }
+
+void InitVehicleTracking()
+{
+    WriteToLog("Iniciando rastreamento de veículos...", LogFile.INIT, false, LogType.DEBUG);
+
+    // Garante que o array seja inicializado
+    if (!m_TrackedVehicles)
+    {
+        WriteToLog("Inicializando array m_TrackedVehicles...", LogFile.INIT, false, LogType.DEBUG);
+        m_TrackedVehicles = new array<ref CarScript>();
+    }
+    else
+    {
+        WriteToLog("Array m_TrackedVehicles já existe, limpando conteúdo...", LogFile.INIT, false, LogType.DEBUG);
+        m_TrackedVehicles.Clear();
+    }
+
+    vector center = "7500 0 7500";
+    float radius = 20000;
+
+    array<Object> nearbyObjects = new array<Object>();
+    GetGame().GetObjectsAtPosition(center, radius, nearbyObjects, null);
+
+    foreach (Object obj : nearbyObjects)
+    {
+        CarScript vehicle = CarScript.Cast(obj);
+        if (vehicle)
+        {
+            m_TrackedVehicles.Insert(vehicle);
+            WriteToLog("[TRACKING] Veículo adicionado: " + vehicle.GetDisplayName(), LogFile.INIT, false, LogType.DEBUG);
+        }
+    }
+
+    WriteToLog("Total de veículos em rastreamento: " + m_TrackedVehicles.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
+}
+
+void TrackVehiclePositions()
+{
+    // Verifica se o array foi inicializado
+    if (!m_TrackedVehicles)
+    {
+        WriteToLog("[TRACKING] Array m_TrackedVehicles não foi inicializado ainda, ignorando rastreamento...", LogFile.INIT, false, LogType.DEBUG);
+        return;
+    }
+
+    WriteToLog("[TRACKING] Atualização de posições dos veículos... " + m_TrackedVehicles.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
+
+    foreach (CarScript vehicle : m_TrackedVehicles)
+    {
+        //if (vehicle && vehicle.IsAlive())
+        if (vehicle)
+        {
+            vector pos = vehicle.GetPosition();
+            WriteToLog("[POSIÇÃO] " + vehicle.GetDisplayName() + " em " + pos.ToString(), LogFile.INIT, false, LogType.DEBUG);
+        }
+        else
+        {
+            WriteToLog("[REMOVER] Veículo inválido ou destruído.", LogFile.INIT, false, LogType.DEBUG);
+        }
+    }
+}
+
 
 // ======== CONFIG ========
 static const float CLEAN_RADIUS_M        = 100.0;   // alcance ao redor de cada player

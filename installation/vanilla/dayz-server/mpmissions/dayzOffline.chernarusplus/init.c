@@ -64,6 +64,13 @@ class CustomMission: MissionServer
 		//FixedMessages.Insert("Para visualizar os comandos digite no chat: !help");
 	}
 
+	override void OnInit()
+    {
+        super.OnInit();
+        // Aguarda o mundo carregar, detecta veículos e inicia rastreamento
+    	GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(this.InitVehicleTracking, 10000, false);
+    }
+
 	override void OnMissionStart()
     {
         super.OnMissionStart();
@@ -71,6 +78,7 @@ class CustomMission: MissionServer
 		WriteToLog("OnMissionStart(): Servidor reiniciado com sucesso!", LogFile.INIT, false, LogType.INFO);
 		AppendExternalAction("{\"action\":\"event_start_finished\",\"current_time\":\"" + GetCurrentTimeInGame() + "\"}");
         ActivePlayers = new array<ref ActivePlayer>();
+		
     }
 	
 	// ============================================================================
@@ -1058,6 +1066,8 @@ class CustomMission: MissionServer
 			// Detecta e desconecta jogadores ghost automaticamente (aparentemente resolvido e não é necessário mais)
 			//DetectAndDisconnectGhosts();
 
+			TrackVehiclePositions();
+
 			ListActivePlayers();
 
 			array<Man> players = new array<Man>;
@@ -1195,6 +1205,72 @@ class CustomMission: MissionServer
 			SetRandomHealth( itemClothing );
 		
 		itemClothing = player.FindAttachmentBySlotName( "Feet" );
+	}
+	
+	// ============================================================================
+	// FUNÇÕES DE TRACKING DE VEÍCULOS
+	// ============================================================================
+	
+	// Inicializa o rastreamento de veículos
+	void InitVehicleTracking()
+	{
+		WriteToLog("Iniciando rastreamento de veículos...", LogFile.INIT, false, LogType.DEBUG);
+
+		// Garante que o array seja inicializado
+		if (!m_TrackedVehicles)
+		{
+			WriteToLog("Inicializando array m_TrackedVehicles...", LogFile.INIT, false, LogType.DEBUG);
+			m_TrackedVehicles = new array<ref CarScript>();
+		}
+		else
+		{
+			WriteToLog("Array m_TrackedVehicles já existe, limpando conteúdo...", LogFile.INIT, false, LogType.DEBUG);
+			m_TrackedVehicles.Clear();
+		}
+
+		vector center = "7500 0 7500";
+		float radius = 20000;
+
+		array<Object> nearbyObjects = new array<Object>();
+		GetGame().GetObjectsAtPosition(center, radius, nearbyObjects, null);
+
+		foreach (Object obj : nearbyObjects)
+		{
+			CarScript vehicle = CarScript.Cast(obj);
+			if (vehicle)
+			{
+				m_TrackedVehicles.Insert(vehicle);
+				WriteToLog("[TRACKING] Veículo adicionado: " + vehicle.GetDisplayName(), LogFile.INIT, false, LogType.DEBUG);
+			}
+		}
+
+		WriteToLog("Total de veículos em rastreamento: " + m_TrackedVehicles.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
+	}
+
+	// Rastreia posições dos veículos
+	void TrackVehiclePositions()
+	{
+		// Verifica se o array foi inicializado
+		if (!m_TrackedVehicles)
+		{
+			WriteToLog("[TRACKING] Array m_TrackedVehicles não foi inicializado ainda, ignorando rastreamento...", LogFile.INIT, false, LogType.DEBUG);
+			return;
+		}
+
+		WriteToLog("[TRACKING] Atualização de posições dos veículos... " + m_TrackedVehicles.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
+
+		foreach (CarScript vehicle : m_TrackedVehicles)
+		{
+			if (vehicle)
+			{
+				vector pos = vehicle.GetPosition();
+				WriteToLog("[POSIÇÃO] " + vehicle.GetDisplayName() + " em " + pos.ToString(), LogFile.INIT, false, LogType.DEBUG);
+			}
+			else
+			{
+				WriteToLog("[REMOVER] Veículo inválido ou destruído.", LogFile.INIT, false, LogType.DEBUG);
+			}
+		}
 	}
 };
 
