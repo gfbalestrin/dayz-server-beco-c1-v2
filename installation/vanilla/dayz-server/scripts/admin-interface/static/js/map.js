@@ -254,14 +254,19 @@ function loadPlayerTrail(playerId) {
 function drawTrail(playerId, trail) {
     // Remover trail antigo se existir
     if (playerTrails[playerId]) {
-        map.removeLayer(playerTrails[playerId]);
+        if (Array.isArray(playerTrails[playerId])) {
+            playerTrails[playerId].forEach(item => map.removeLayer(item));
+        } else {
+            map.removeLayer(playerTrails[playerId]);
+        }
     }
     
-    // Criar linha do trail
-    const latlngs = trail.map(function(point) {
-        return [point.pixel_coords[0], point.pixel_coords[1]];
-    });
+    playerTrails[playerId] = [];
     
+    if (trail.length === 0) return;
+    
+    // Criar linha do trail
+    const latlngs = trail.map(point => [point.pixel_coords[0], point.pixel_coords[1]]);
     const color = getPlayerColor(playerId);
     
     const polyline = L.polyline(latlngs, {
@@ -270,7 +275,73 @@ function drawTrail(playerId, trail) {
         opacity: 0.6
     }).addTo(map);
     
-    playerTrails[playerId] = polyline;
+    playerTrails[playerId].push(polyline);
+    
+    // Adicionar marcadores em cada ponto com cálculo de velocidade
+    for (let i = 0; i < trail.length; i++) {
+        const point = trail[i];
+        let tooltipText = `<strong>📍 Ponto ${trail.length - i}</strong><br>`;
+        tooltipText += `⏰ Tempo: <span class="value">${point.timestamp}</span><br>`;
+        tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
+        
+        let speed = null;
+        let distance = null;
+        let timeDiff = null;
+        let pointColor = color;
+        
+        // Calcular velocidade se houver ponto anterior
+        if (i > 0) {
+            const prevPoint = trail[i - 1];
+            
+            // Calcular distância em metros (Pitágoras)
+            const dx = point.coord_x - prevPoint.coord_x;
+            const dy = point.coord_y - prevPoint.coord_y;
+            distance = Math.sqrt(dx * dx + dy * dy);
+            
+            // Calcular diferença de tempo em segundos
+            const time1 = new Date(point.timestamp);
+            const time2 = new Date(prevPoint.timestamp);
+            timeDiff = Math.abs(time2 - time1) / 1000; // segundos
+            
+            // Calcular velocidade em km/h
+            if (timeDiff > 0) {
+                speed = (distance / timeDiff) * 3.6; // m/s para km/h
+                
+                tooltipText += `<br><br><strong>📊 Desde último ponto:</strong><br>`;
+                tooltipText += `📏 Distância: <span class="value">${distance.toFixed(1)}m</span><br>`;
+                tooltipText += `⏱️ Tempo: <span class="value">${timeDiff.toFixed(1)}s</span><br>`;
+                tooltipText += `🚀 Velocidade: <span class="value">${speed.toFixed(1)} km/h</span>`;
+                
+                // Velocidade suspeita (>30 km/h)
+                if (speed > 30) {
+                    pointColor = '#dc3545'; // vermelho
+                    tooltipText += `<br><br><span style="color: #ff5252; font-weight: bold; font-size: 14px; background: rgba(255,0,0,0.2); padding: 4px 8px; border-radius: 4px; display: inline-block;">⚠️ VELOCIDADE SUSPEITA!</span>`;
+                }
+            }
+        }
+        
+        // Criar marcador circular no ponto
+        const circleMarker = L.circleMarker(
+            [point.pixel_coords[0], point.pixel_coords[1]],
+            {
+                radius: 4,
+                fillColor: pointColor,
+                color: 'white',
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.8
+            }
+        ).addTo(map);
+        
+        // Adicionar tooltip
+        circleMarker.bindTooltip(tooltipText, {
+            permanent: false,
+            direction: 'top',
+            className: 'trail-tooltip'
+        });
+        
+        playerTrails[playerId].push(circleMarker);
+    }
 }
 
 /**
@@ -287,7 +358,12 @@ function toggleTrails() {
         $('#toggleTrailsBtn').html('<i class="fas fa-route me-1"></i>Mostrar Trails');
         // Remover todos os trails
         Object.keys(playerTrails).forEach(function(key) {
-            map.removeLayer(playerTrails[key]);
+            const trail = playerTrails[key];
+            if (Array.isArray(trail)) {
+                trail.forEach(item => map.removeLayer(item));
+            } else {
+                map.removeLayer(trail);
+            }
         });
         playerTrails = {};
     }
