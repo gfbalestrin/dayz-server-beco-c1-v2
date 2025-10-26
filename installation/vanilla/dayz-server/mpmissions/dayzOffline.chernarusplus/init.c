@@ -1349,7 +1349,7 @@ class CustomMission: MissionServer
 
 			vector position = vehicle.GetPosition();
 			string vehicleName = vehicle.GetDisplayName();
-			string vehicleId = vehicle.GetNetworkID();
+			int vehicleId = vehicle.GetID();
 			
 			// Sanitiza o nome do veículo
 			string safeName = vehicleName;
@@ -1359,17 +1359,10 @@ class CustomMission: MissionServer
 				safeName.Replace(ch, "-");
 			}
 			
-			// Sanitiza o ID do veículo
-			string safeId = vehicleId;
-			foreach (string ch : unsafeChars)
-			{
-				safeId.Replace(ch, "-");
-			}
-			
 			if (vehiclesJson != "")
 				vehiclesJson += ",";
 			
-			vehiclesJson += "{\"vehicle_id\":\"" + safeId + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + position[0].ToString() + ",\"z\":" + position[1].ToString() + ",\"y\":" + position[2].ToString() + "}";
+			vehiclesJson += "{\"vehicle_id\":\"" + vehicleId.ToString() + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + position[0].ToString() + ",\"z\":" + position[1].ToString() + ",\"y\":" + position[2].ToString() + "}";
 		}
 
 		string jsonAction = "{\"action\":\"vehicles_positions\",\"vehicles\":[" + vehiclesJson + "]}";
