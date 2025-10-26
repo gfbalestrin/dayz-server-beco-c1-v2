@@ -78,10 +78,15 @@ class CustomMission: MissionServer
         super.OnMissionStart();
 
 		WriteToLog("OnMissionStart(): Servidor reiniciado com sucesso!", LogFile.INIT, false, LogType.INFO);
-		AppendExternalAction("{\"action\":\"event_start_finished\",\"current_time\":\"" + GetCurrentTimeInGame() + "\"}");
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SendStartEvent, 5000, false);
         ActivePlayers = new array<ref ActivePlayer>();
 		
     }
+
+	void SendStartEvent()
+	{
+		AppendExternalAction("{\"action\":\"event_start_finished\",\"current_time\":\"" + GetCurrentTimeInGame() + "\"}");
+	}
 	
 	// ============================================================================
 	// FUNÇÕES HELPER PARA GERENCIAR JOGADORES ATIVOS

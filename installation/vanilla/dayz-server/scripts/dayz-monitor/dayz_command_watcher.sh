@@ -356,7 +356,7 @@ EOF
                 
                 if [ $? -eq 0 ] && [ -n "$VehicleTrackingId" ]; then
                     #echo ">> Posição do veículo $vehicle_name (ID: $vehicle_id) armazenada com sucesso (TrackingID: $VehicleTrackingId)"
-                    INSERT_CUSTOM_LOG "Veículo rastreado: $vehicle_name (ID: $vehicle_id) | Posição: X=$coord_x, Z=$coord_z, Y=$coord_y" "INFO" "$ScriptName"
+                    #INSERT_CUSTOM_LOG "Veículo rastreado: $vehicle_name (ID: $vehicle_id) | Posição: X=$coord_x, Z=$coord_z, Y=$coord_y" "INFO" "$ScriptName"
                 else
                     echo ">> Erro ao armazenar posição do veículo $vehicle_name"
                     INSERT_CUSTOM_LOG "Erro ao rastrear veículo: $vehicle_name (ID: $vehicle_id)" "ERROR" "$ScriptName"
