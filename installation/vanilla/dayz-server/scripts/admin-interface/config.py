@@ -37,3 +37,6 @@ RESTORE_BACKUP_WORKDIR = '/home/dayzadmin/servers/dayz-server/scripts'
 
 # Arquivo de comandos do DayZ
 COMMANDS_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/commands_to_execute.txt'
+
+# Banco de dados de itens
+DB_ITEMS = os.path.join(BASE_DIR, "..", "databases", "dayz_items.db")

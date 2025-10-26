@@ -11,7 +11,8 @@ from database import (
     get_player_trail, get_online_players_positions,
     get_players_positions_by_timerange, dayz_to_pixel,
     get_vehicles_last_position, get_recent_kills, parse_position,
-    check_backup_exists, get_backup_info
+    check_backup_exists, get_backup_info, get_online_players,
+    get_weapons, get_items, get_item_types
 )
 from datetime import datetime
 
@@ -441,6 +442,179 @@ def api_kills():
             })
     
     return jsonify(result)
+
+@app.route('/players-manage')
+@login_required
+def players_manage():
+    """Página de gerenciamento de jogadores"""
+    return render_template('players_manage.html')
+
+@app.route('/api/players/online')
+@login_required
+def api_online_players():
+    """API com jogadores online e suas informações"""
+    players = get_online_players()
+    return jsonify({'players': players})
+
+@app.route('/api/players/<player_id>/action', methods=['POST'])
+@login_required
+def api_player_action(player_id):
+    """Executar ação administrativa em jogador"""
+    import fcntl
+    import os
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    data = request.get_json()
+    action = data.get('action')
+    
+    # Validar ação
+    valid_actions = ['heal', 'kill', 'kick', 'godmode', 'ungodmode', 
+                     'ghostmode', 'unghostmode', 'desbug', 'getposition']
+    
+    if action not in valid_actions:
+        return jsonify({'success': False, 'message': 'Ação inválida'}), 400
+    
+    # Formato: PlayerID action
+    command_line = f"{player_id} {action}\n"
+    
+    try:
+        with open(config.COMMANDS_FILE, 'a') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.write(command_line)
+                f.flush()
+                os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        
+        logger.info(f"Comando enviado: {command_line.strip()}")
+        return jsonify({
+            'success': True,
+            'message': f'Comando {action} enviado com sucesso!'
+        })
+    except Exception as e:
+        logger.exception("Erro ao executar ação")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao executar ação: {str(e)}'
+        }), 500
+
+@app.route('/spawning')
+@login_required
+def spawning():
+    """Página de spawning de itens e veículos"""
+    return render_template('spawning.html')
+
+@app.route('/api/items/weapons')
+@login_required
+def api_weapons():
+    """API para buscar armas"""
+    search = request.args.get('search', '')
+    weapons = get_weapons(search)
+    return jsonify({'weapons': weapons})
+
+@app.route('/api/items/items')
+@login_required
+def api_items():
+    """API para buscar itens"""
+    type_id = request.args.get('type_id', type=int)
+    search = request.args.get('search', '')
+    items = get_items(type_id, search)
+    return jsonify({'items': items})
+
+@app.route('/api/items/types')
+@login_required
+def api_item_types():
+    """API para buscar tipos de itens"""
+    types = get_item_types()
+    return jsonify({'types': types})
+
+@app.route('/api/spawn/item', methods=['POST'])
+@login_required
+def api_spawn_item():
+    """Spawnar item para jogador ou em coordenadas"""
+    import fcntl
+    import os
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    data = request.get_json()
+    player_id = data.get('player_id')
+    item_type = data.get('item_type')  # name_type do item
+    quantity = data.get('quantity', 1)
+    
+    if not player_id or not item_type:
+        return jsonify({'success': False, 'message': 'Dados incompletos'}), 400
+    
+    # Formato: PlayerID giveitem item_type quantity
+    command_line = f"{player_id} giveitem {item_type} {quantity}\n"
+    
+    try:
+        with open(config.COMMANDS_FILE, 'a') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.write(command_line)
+                f.flush()
+                os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        
+        logger.info(f"Comando enviado: {command_line.strip()}")
+        return jsonify({
+            'success': True,
+            'message': f'Item {item_type} spawned com sucesso!'
+        })
+    except Exception as e:
+        logger.exception("Erro ao spawnar item")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao spawnar item: {str(e)}'
+        }), 500
+
+@app.route('/api/spawn/vehicle', methods=['POST'])
+@login_required
+def api_spawn_vehicle():
+    """Spawnar veículo em coordenadas ou próximo a jogador"""
+    import fcntl
+    import os
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    data = request.get_json()
+    player_id = data.get('player_id')
+    vehicle_type = data.get('vehicle_type')
+    
+    if not player_id or not vehicle_type:
+        return jsonify({'success': False, 'message': 'Dados incompletos'}), 400
+    
+    # Formato: PlayerID spawnvehicle vehicle_type
+    command_line = f"{player_id} spawnvehicle {vehicle_type}\n"
+    
+    try:
+        with open(config.COMMANDS_FILE, 'a') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.write(command_line)
+                f.flush()
+                os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        
+        logger.info(f"Comando enviado: {command_line.strip()}")
+        return jsonify({
+            'success': True,
+            'message': f'Veículo {vehicle_type} spawned com sucesso!'
+        })
+    except Exception as e:
+        logger.exception("Erro ao spawnar veículo")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao spawnar veículo: {str(e)}'
+        }), 500
 
 @app.errorhandler(404)
 def not_found(e):

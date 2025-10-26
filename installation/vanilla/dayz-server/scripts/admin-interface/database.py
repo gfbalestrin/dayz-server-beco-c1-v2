@@ -293,3 +293,74 @@ def get_backup_info(player_coord_id: int) -> Dict:
         """, (player_coord_id,))
         result = cursor.fetchone()
         return dict(result) if result else None
+
+def get_online_players() -> List[Dict]:
+    """Retorna lista de jogadores online com informações completas"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                pd.PlayerID,
+                pd.PlayerName,
+                pd.SteamName,
+                po.DataConnect as LastUpdate,
+                pc.CoordX,
+                pc.CoordY,
+                pc.CoordZ
+            FROM players_online po
+            INNER JOIN players_database pd ON po.PlayerID = pd.PlayerID
+            LEFT JOIN (
+                SELECT PlayerID, CoordX, CoordY, CoordZ, Data,
+                       ROW_NUMBER() OVER (PARTITION BY PlayerID ORDER BY Data DESC) as rn
+                FROM players_coord
+            ) pc ON pd.PlayerID = pc.PlayerID AND pc.rn = 1
+            ORDER BY pd.PlayerName
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_weapons(search: str = None, limit: int = 50) -> List[Dict]:
+    """Retorna lista de armas com filtro opcional"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        if search:
+            cursor.execute("""
+                SELECT id, name, name_type, img
+                FROM weapons
+                WHERE name LIKE ? OR name_type LIKE ?
+                LIMIT ?
+            """, (f'%{search}%', f'%{search}%', limit))
+        else:
+            cursor.execute("""
+                SELECT id, name, name_type, img
+                FROM weapons
+                LIMIT ?
+            """, (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_items(type_id: int = None, search: str = None, limit: int = 50) -> List[Dict]:
+    """Retorna lista de itens com filtros opcionais"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        query = "SELECT id, name, name_type, type_id, img FROM item WHERE 1=1"
+        params = []
+        
+        if type_id:
+            query += " AND type_id = ?"
+            params.append(type_id)
+        
+        if search:
+            query += " AND (name LIKE ? OR name_type LIKE ?)"
+            params.extend([f'%{search}%', f'%{search}%'])
+        
+        query += " LIMIT ?"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_item_types() -> List[Dict]:
+    """Retorna lista de tipos de itens"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name FROM item_types ORDER BY name")
+        return [dict(row) for row in cursor.fetchall()]

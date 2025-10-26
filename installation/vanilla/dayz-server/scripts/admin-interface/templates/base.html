@@ -67,6 +67,16 @@
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'players_manage' %}active{% endif %}" href="{{ url_for('players_manage') }}">
+                                <i class="fas fa-users-cog me-2"></i>Gerenciar Jogadores
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'spawning' %}active{% endif %}" href="{{ url_for('spawning') }}">
+                                <i class="fas fa-magic me-2"></i>Spawning
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link {% if request.endpoint == 'map_view' %}active{% endif %}" href="{{ url_for('map_view') }}">
                                 <i class="fas fa-map me-2"></i>Mapa
                             </a>

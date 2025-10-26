@@ -15,6 +15,8 @@ let autoRefreshInterval = null;
 let showTrails = false;
 let showVehicles = false;
 let showKills = false;
+let currentMode = 'normal'; // normal, teleport
+let teleportTargetPlayer = null;
 
 // Cor padrão do Leaflet
 const iconColors = [
@@ -44,6 +46,10 @@ $(document).ready(function() {
     $('#toggleTrailsBtn').on('click', toggleTrails);
     $('#toggleVehiclesBtn').on('click', toggleVehiclesDisplay);
     $('#toggleKillsBtn').on('click', toggleKills);
+    
+    // Event listeners para modos
+    $('#btnModeNormal').on('click', () => setMode('normal'));
+    $('#btnModeTeleport').on('click', () => setMode('teleport'));
     
     // Auto-refresh inicial
     toggleAutoRefresh();
@@ -97,6 +103,13 @@ function initMap() {
     img.src = imageUrl;
     
     imageOverlay.addTo(map);
+    
+    // Adicionar evento de clique no mapa
+    map.on('click', function(e) {
+        if (currentMode === 'teleport') {
+            handleTeleportClick(e);
+        }
+    });
     
     console.log('Mapa inicializado com imagem:', imageUrl);
 }
@@ -821,3 +834,104 @@ $(document).ready(function() {
     // Botão de teleporte
     $('#confirmTeleportBtn').on('click', executeTeleport);
 });
+
+/**
+ * Definir modo de interação do mapa
+ */
+function setMode(mode) {
+    currentMode = mode;
+    
+    // Atualizar UI dos botões
+    $('#btnModeNormal, #btnModeTeleport').removeClass('active');
+    if (mode === 'normal') {
+        $('#btnModeNormal').addClass('active');
+        $('#teleportControls').hide();
+        map.getContainer().style.cursor = '';
+    } else if (mode === 'teleport') {
+        $('#btnModeTeleport').addClass('active');
+        $('#teleportControls').show();
+        map.getContainer().style.cursor = 'crosshair';
+        
+        // Carregar jogadores online no select
+        loadPlayersForTeleport();
+    }
+}
+
+/**
+ * Carregar jogadores online para o select de teleporte
+ */
+function loadPlayersForTeleport() {
+    $.ajax({
+        url: '/api/players/online',
+        method: 'GET',
+        success: function(response) {
+            const select = $('#teleportPlayerSelect');
+            select.html('<option value="">Selecione um jogador...</option>');
+            
+            response.players.forEach(player => {
+                select.append(`<option value="${player.PlayerID}">${player.PlayerName || 'Sem nome'} (${player.SteamName || 'N/A'})</option>`);
+            });
+        },
+        error: function(xhr) {
+            showToast('Erro', 'Erro ao carregar jogadores', 'error');
+        }
+    });
+}
+
+/**
+ * Converter coordenadas de pixel para DayZ
+ */
+function pixelToDayz(pixelCoords) {
+    // Inverso da conversão dayz_to_pixel
+    // pixel_x = (coord_x / 15360.0) * 4096
+    // pixel_y = (coord_y / 15360.0) * 4096
+    const x = (pixelCoords[1] / 4096) * 15360.0;
+    const y = (pixelCoords[0] / 4096) * 15360.0;
+    return { x: x, y: y };
+}
+
+/**
+ * Handler para clique no mapa em modo teleporte
+ */
+function handleTeleportClick(e) {
+    const playerId = $('#teleportPlayerSelect').val();
+    if (!playerId) {
+        showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+        return;
+    }
+    
+    // Converter pixel para coordenadas DayZ
+    const pixelCoords = [e.latlng.lat, e.latlng.lng];
+    const dayzCoords = pixelToDayz(pixelCoords);
+    
+    // Buscar nome do jogador
+    const select = $('#teleportPlayerSelect');
+    const playerName = select.find('option:selected').text();
+    
+    if (!confirm(`Teleportar ${playerName} para X=${dayzCoords.x.toFixed(1)}, Y=${dayzCoords.y.toFixed(1)}?`)) {
+        return;
+    }
+    
+    // Executar teleporte
+    $.ajax({
+        url: `/api/players/${playerId}/teleport`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            coord_x: dayzCoords.x,
+            coord_y: dayzCoords.y,
+            coord_z: 0
+        }),
+        success: function(response) {
+            showToast('Sucesso', response.message, 'success');
+            // Voltar ao modo normal após teleporte
+            setMode('normal');
+            // Atualizar posições
+            setTimeout(() => loadPositions(), 1000);
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            showToast('Erro', error.message || 'Erro ao teleportar', 'error');
+        }
+    });
+}

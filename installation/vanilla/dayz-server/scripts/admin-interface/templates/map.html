@@ -12,19 +12,41 @@
     <h1 class="h2">
         <i class="fas fa-map me-2"></i>Mapa do Servidor
     </h1>
-    <div class="btn-group" role="group">
-        <button type="button" class="btn btn-primary" id="refreshBtn">
-            <i class="fas fa-sync-alt me-1"></i>Atualizar
-        </button>
-        <button type="button" class="btn btn-secondary" id="toggleTrailsBtn">
-            <i class="fas fa-route me-1"></i>Mostrar Trails
-        </button>
-        <button type="button" class="btn btn-success" id="toggleVehiclesBtn">
-            <i class="fas fa-car me-1"></i>Mostrar Veículos
-        </button>
-        <button type="button" class="btn btn-danger" id="toggleKillsBtn">
-            <i class="fas fa-skull-crossbones me-1"></i>Mostrar Kills
-        </button>
+    <div class="btn-toolbar" role="toolbar">
+        <div class="btn-group me-2" role="group">
+            <button type="button" class="btn btn-primary" id="refreshBtn">
+                <i class="fas fa-sync-alt me-1"></i>Atualizar
+            </button>
+            <button type="button" class="btn btn-secondary" id="toggleTrailsBtn">
+                <i class="fas fa-route me-1"></i>Mostrar Trails
+            </button>
+            <button type="button" class="btn btn-success" id="toggleVehiclesBtn">
+                <i class="fas fa-car me-1"></i>Mostrar Veículos
+            </button>
+            <button type="button" class="btn btn-danger" id="toggleKillsBtn">
+                <i class="fas fa-skull-crossbones me-1"></i>Mostrar Kills
+            </button>
+        </div>
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-primary active" id="btnModeNormal">
+                <i class="fas fa-mouse-pointer me-1"></i>Normal
+            </button>
+            <button type="button" class="btn btn-outline-primary" id="btnModeTeleport">
+                <i class="fas fa-map-marker-alt me-1"></i>Modo Teleporte
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-3" id="teleportControls" style="display: none;">
+    <div class="col-md-12">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Modo Teleporte Ativo:</strong> Selecione um jogador abaixo e clique no mapa para teleportá-lo.
+        </div>
+        <select id="teleportPlayerSelect" class="form-select" style="max-width: 400px;">
+            <option value="">Selecione um jogador...</option>
+        </select>
     </div>
 </div>
 
