@@ -497,6 +497,14 @@ echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_private_to_sen
 echo > $DayzFolder/profiles/dayz-server.log
 echo > $DayzFolder/profiles/dayz-server.err
 
+# Cria diretórios de posições para hoje e amanhã
+echo "[INFO] Criando diretórios de posições..."
+TODAY_DATE=\$(date "+%Y-%m-%d")
+TOMORROW_DATE=\$(date -d "+1 day" "+%Y-%m-%d")
+mkdir -p "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/\$TODAY_DATE"
+mkdir -p "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/\$TOMORROW_DATE"
+chown -R "$LinuxUserName:$LinuxUserName" "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/"
+
 echo "[INFO] Update concluído com sucesso."
 EOF
 else
@@ -553,6 +561,14 @@ echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_private_to_sen
 echo > $DayzFolder/profiles/dayz-server.log
 echo > $DayzFolder/profiles/dayz-server.err
 
+# Cria diretórios de posições para hoje e amanhã
+echo "[INFO] Criando diretórios de posições..."
+TODAY_DATE=\$(date "+%Y-%m-%d")
+TOMORROW_DATE=\$(date -d "+1 day" "+%Y-%m-%d")
+mkdir -p "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/\$TODAY_DATE"
+mkdir -p "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/\$TOMORROW_DATE"
+chown -R "$LinuxUserName:$LinuxUserName" "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/"
+
 echo "[INFO] Update concluído com sucesso."
 EOF
 fi
@@ -567,6 +583,15 @@ CURRENT_DATE=\$(date "+%Y-%m-%d_%H-%M-%S")
 PLAYER_DB="/home/$LinuxUserName/servers/dayz-server/mpmissions/$DayzMpmission/storage_1/players.db"
 BACKUP_DIR="/home/$LinuxUserName/servers/dayz-server/mpmissions/$DayzMpmission/storage_1/backup_custom"
 BACKUP_FILE="\$BACKUP_DIR/players.db_\$CURRENT_DATE"
+
+# Cria diretórios de posições para hoje e amanhã
+echo "[INFO] Garantindo diretórios de posições..."
+TODAY_DATE=\$(date "+%Y-%m-%d")
+TOMORROW_DATE=\$(date -d "+1 day" "+%Y-%m-%d")
+POSITIONS_BASE_DIR="/home/$LinuxUserName/servers/dayz-server/mpmissions/$DayzMpmission/admin/positions"
+mkdir -p "\$POSITIONS_BASE_DIR/\$TODAY_DATE"
+mkdir -p "\$POSITIONS_BASE_DIR/\$TOMORROW_DATE"
+chown -R "$LinuxUserName:$LinuxUserName" "\$POSITIONS_BASE_DIR"
 
 echo "Fazendo backup do banco de players..."
 

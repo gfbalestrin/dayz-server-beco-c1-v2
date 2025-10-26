@@ -69,6 +69,28 @@ void ResetLog(string logfile = "init.log")
     }
 }
 
+string GetCurrentDate()
+{
+	int year, month, day, hour, minute;
+	GetGame().GetWorld().GetDate(year, month, day, hour, minute);
+	
+	string yearStr = year.ToString();
+	
+	string monthStr;
+	if (month < 10)
+		monthStr = "0" + month.ToString();
+	else
+		monthStr = month.ToString();
+	
+	string dayStr;
+	if (day < 10)
+		dayStr = "0" + day.ToString();
+	else
+		dayStr = day.ToString();
+	
+	return yearStr + "-" + monthStr + "-" + dayStr;
+}
+
 string GetCurrentTimestamp()
 {
 	int year, month, day, hour, minute;
@@ -136,6 +158,25 @@ void EnsurePositionsFolderExists()
 	}
 }
 
+void EnsureDateFolderExists(string dateFolder)
+{
+	WriteToLog("EnsureDateFolderExists: Verificando pasta: " + dateFolder, LogFile.INIT, false, LogType.DEBUG);
+	
+	string testFile = dateFolder + "test.txt";
+	FileHandle handle = OpenFile(testFile, FileMode.WRITE);
+	
+	if (handle)
+	{
+		CloseFile(handle);
+		DeleteFile(testFile);
+		WriteToLog("Diretório de data criado: " + dateFolder, LogFile.INIT, false, LogType.DEBUG);
+	}
+	else
+	{
+		WriteToLog("Erro ao criar diretório: " + dateFolder, LogFile.INIT, false, LogType.ERROR);
+	}
+}
+
 void SavePlayerPosition(string playerId, string playerName, vector position)
 {
 	if (playerId == "" || playerName == "")
@@ -144,7 +185,15 @@ void SavePlayerPosition(string playerId, string playerName, vector position)
 		return;
 	}
 	
-	string fileName = PlayerPositionsFolder + playerId + ".json";
+	// Obtém a data atual e cria o caminho do diretório
+	string currentDate = GetCurrentDate();
+	string dateFolder = PlayerPositionsFolder + currentDate + "/";
+	
+	// Garante que o diretório da data existe
+	EnsureDateFolderExists(dateFolder);
+	
+	// Caminho completo do arquivo
+	string fileName = dateFolder + playerId + ".json";
 	WriteToLog("SavePlayerPosition: Tentando salvar arquivo: " + fileName, LogFile.INIT, false, LogType.DEBUG);
 	
 	string jsonContent = "";

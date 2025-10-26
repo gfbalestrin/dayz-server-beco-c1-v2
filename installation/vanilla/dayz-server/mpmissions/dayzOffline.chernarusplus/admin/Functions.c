@@ -5,7 +5,6 @@ void EnsureAllFilesExist()
     EnsureFileExists("$mission:admin/files/messages_to_send.txt");
     EnsureFileExists("$mission:admin/files/messages_private_to_send.txt");
     EnsureFileExists("$mission:admin/files/admin_ids.txt");
-    EnsurePositionsFolderExists();
 }
 void EnsureFileExists(string path)
 {
