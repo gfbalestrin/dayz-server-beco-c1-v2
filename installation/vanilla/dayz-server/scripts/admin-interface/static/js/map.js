@@ -8,6 +8,8 @@ let playerMarkers = {};
 let playerTrails = {};
 let vehicleMarkers = {};
 let killMarkers = [];
+let playersData = {}; // Armazenar dados dos jogadores
+let currentPointContext = null; // Contexto do ponto para ações
 let currentFilter = null;
 let autoRefreshInterval = null;
 let showTrails = false;
@@ -173,6 +175,13 @@ function updatePositions(data) {
     data.players.forEach(function(player) {
         const playerId = player.player_id;
         
+        // Armazenar dados do jogador
+        playersData[playerId] = {
+            name: player.player_name,
+            steamName: player.steam_name,
+            isOnline: player.is_online
+        };
+        
         // Aplicar filtro se existir
         if (currentFilter && currentFilter !== playerId) {
             // Remover marcador se não corresponde ao filtro
@@ -284,6 +293,12 @@ function drawTrail(playerId, trail) {
         tooltipText += `⏰ Tempo: <span class="value">${point.timestamp}</span><br>`;
         tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
         
+        // Indicador de backup
+        if (point.has_backup) {
+            tooltipText += `<br>💾 <span class="value" style="color: #4caf50;">Backup disponível</span>`;
+            tooltipText += `<br><br><span style="color: #4caf50; font-weight: bold;">🖱️ Clique para restaurar backup</span>`;
+        }
+        
         let speed = null;
         let distance = null;
         let timeDiff = null;
@@ -320,18 +335,29 @@ function drawTrail(playerId, trail) {
             }
         }
         
+        // Aumentar raio se houver backup
+        const markerRadius = point.has_backup ? 6 : 4;
+        
         // Criar marcador circular no ponto
         const circleMarker = L.circleMarker(
             [point.pixel_coords[0], point.pixel_coords[1]],
             {
-                radius: 4,
+                radius: markerRadius,
                 fillColor: pointColor,
-                color: 'white',
-                weight: 1,
+                color: point.has_backup ? '#4caf50' : 'white',
+                weight: point.has_backup ? 2 : 1,
                 opacity: 1,
                 fillOpacity: 0.8
             }
         ).addTo(map);
+        
+        // Adicionar evento de clique (sempre, para mostrar menu de ações)
+        circleMarker.on('click', function() {
+            showPointActionsMenu(playerId, point, trail.length - i);
+        });
+        
+        // Adicionar cursor pointer
+        circleMarker.getElement().style.cursor = 'pointer';
         
         // Adicionar tooltip
         circleMarker.bindTooltip(tooltipText, {
@@ -597,3 +623,201 @@ function toggleKills() {
         killMarkers = [];
     }
 }
+
+/**
+ * Mostrar modal de restauração de backup
+ */
+function showRestoreBackupModal(playerId, point, pointNumber) {
+    // Buscar nome do jogador dos dados armazenados
+    const playerData = playersData[playerId];
+    const playerName = playerData ? playerData.name : 'Desconhecido';
+    
+    // Preencher informações no modal
+    $('#backupPlayerName').text(playerName);
+    $('#backupPointNumber').text(pointNumber);
+    $('#backupPointDate').text(point.timestamp);
+    $('#backupCoords').text(`X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}, Z=${point.coord_z ? point.coord_z.toFixed(1) : 'N/A'}`);
+    
+    // Armazenar dados para restauração
+    $('#confirmRestoreBtn').data('playerId', playerId);
+    $('#confirmRestoreBtn').data('playerCoordId', point.player_coord_id);
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('restoreBackupModal'));
+    modal.show();
+}
+
+/**
+ * Executar restauração de backup
+ */
+function executeRestoreBackup() {
+    const playerId = $('#confirmRestoreBtn').data('playerId');
+    const playerCoordId = $('#confirmRestoreBtn').data('playerCoordId');
+    
+    if (!playerId || !playerCoordId) {
+        showToast('Erro', 'Dados inválidos para restauração', 'error');
+        return;
+    }
+    
+    // Desabilitar botão e mostrar loading
+    $('#confirmRestoreBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Restaurando...');
+    
+    $.ajax({
+        url: `/api/players/${playerId}/restore-backup`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            player_coord_id: playerCoordId
+        }),
+        success: function(response) {
+            // Fechar modal
+            bootstrap.Modal.getInstance(document.getElementById('restoreBackupModal')).hide();
+            
+            // Mostrar mensagem de sucesso
+            showToast('Sucesso', response.message, 'success');
+            
+            // Recarregar posições
+            loadPositions();
+        },
+        error: function(xhr) {
+            console.error('Erro ao restaurar backup:', xhr);
+            const error = xhr.responseJSON || {};
+            const errorMsg = error.message || error.error || 'Erro desconhecido ao restaurar backup';
+            
+            // Log detalhado para debug
+            if (error.stdout) console.log('Script stdout:', error.stdout);
+            if (error.error) console.error('Script stderr:', error.error);
+            
+            showToast('Erro', errorMsg, 'error');
+        },
+        complete: function() {
+            // Reabilitar botão
+            $('#confirmRestoreBtn').prop('disabled', false).html('<i class="fas fa-undo me-1"></i>Restaurar Backup');
+        }
+    });
+}
+
+/**
+ * Mostrar menu de ações do ponto
+ */
+function showPointActionsMenu(playerId, point, pointNumber) {
+    // Armazenar contexto
+    currentPointContext = {
+        playerId: playerId,
+        point: point,
+        pointNumber: pointNumber,
+        hasBackup: point.has_backup
+    };
+    
+    // Mostrar modal de ações
+    const modal = new bootstrap.Modal(document.getElementById('pointActionsModal'));
+    modal.show();
+    
+    // Desabilitar botão de backup se não houver backup
+    if (!point.has_backup) {
+        $('#restoreBackupActionBtn').prop('disabled', true);
+    } else {
+        $('#restoreBackupActionBtn').prop('disabled', false);
+    }
+}
+
+/**
+ * Mostrar modal de teleporte
+ */
+function showTeleportModal(playerId, point, pointNumber) {
+    const playerData = playersData[playerId];
+    const playerName = playerData ? playerData.name : 'Desconhecido';
+    
+    $('#teleportPlayerName').text(playerName);
+    $('#teleportPointNumber').text(pointNumber);
+    $('#teleportCoords').text(`X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}, Z=${point.coord_z ? point.coord_z.toFixed(1) : 'N/A'}`);
+    
+    // Armazenar dados
+    $('#confirmTeleportBtn').data('playerId', playerId);
+    $('#confirmTeleportBtn').data('coordX', point.coord_x);
+    $('#confirmTeleportBtn').data('coordY', point.coord_y);
+    $('#confirmTeleportBtn').data('coordZ', point.coord_z);
+    
+    const modal = new bootstrap.Modal(document.getElementById('teleportModal'));
+    modal.show();
+}
+
+/**
+ * Executar teleporte
+ */
+function executeTeleport() {
+    const playerId = $('#confirmTeleportBtn').data('playerId');
+    const coordX = $('#confirmTeleportBtn').data('coordX');
+    const coordY = $('#confirmTeleportBtn').data('coordY');
+    const coordZ = $('#confirmTeleportBtn').data('coordZ');
+    
+    if (!playerId || coordX === undefined || coordY === undefined) {
+        showToast('Erro', 'Dados inválidos para teleporte', 'error');
+        return;
+    }
+    
+    $('#confirmTeleportBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Teleportando...');
+    
+    $.ajax({
+        url: `/api/players/${playerId}/teleport`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            coord_x: coordX,
+            coord_y: coordY,
+            coord_z: coordZ || 0
+        }),
+        success: function(response) {
+            bootstrap.Modal.getInstance(document.getElementById('teleportModal')).hide();
+            showToast('Sucesso', response.message, 'success');
+            loadPositions();
+        },
+        error: function(xhr) {
+            console.error('Erro ao teleportar:', xhr);
+            const error = xhr.responseJSON || {};
+            const errorMsg = error.message || error.error || 'Erro desconhecido ao teleportar';
+            showToast('Erro', errorMsg, 'error');
+        },
+        complete: function() {
+            $('#confirmTeleportBtn').prop('disabled', false).html('<i class="fas fa-map-marker-alt me-1"></i>Teleportar');
+        }
+    });
+}
+
+// Event listeners
+$(document).ready(function() {
+    // Botão de restaurar backup
+    $('#confirmRestoreBtn').on('click', executeRestoreBackup);
+    
+    // Menu de ações
+    $('#restoreBackupActionBtn').on('click', function() {
+        if (currentPointContext && currentPointContext.hasBackup) {
+            // Fechar menu de ações
+            bootstrap.Modal.getInstance(document.getElementById('pointActionsModal')).hide();
+            
+            // Abrir modal de restauração
+            showRestoreBackupModal(
+                currentPointContext.playerId,
+                currentPointContext.point,
+                currentPointContext.pointNumber
+            );
+        }
+    });
+    
+    $('#teleportActionBtn').on('click', function() {
+        if (currentPointContext) {
+            // Fechar menu de ações
+            bootstrap.Modal.getInstance(document.getElementById('pointActionsModal')).hide();
+            
+            // Abrir modal de teleporte
+            showTeleportModal(
+                currentPointContext.playerId,
+                currentPointContext.point,
+                currentPointContext.pointNumber
+            );
+        }
+    });
+    
+    // Botão de teleporte
+    $('#confirmTeleportBtn').on('click', executeTeleport);
+});

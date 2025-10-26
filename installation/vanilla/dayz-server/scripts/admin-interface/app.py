@@ -10,7 +10,8 @@ from database import (
     get_player_by_id, search_players, get_players_last_position,
     get_player_trail, get_online_players_positions,
     get_players_positions_by_timerange, dayz_to_pixel,
-    get_vehicles_last_position, get_recent_kills, parse_position
+    get_vehicles_last_position, get_recent_kills, parse_position,
+    check_backup_exists, get_backup_info
 )
 from datetime import datetime
 
@@ -161,11 +162,13 @@ def api_player_trail(player_id):
     for point in trail:
         pixel_coords = dayz_to_pixel(point['CoordX'], point['CoordY'])
         result['trail'].append({
+            'player_coord_id': point['PlayerCoordId'],
             'coord_x': point['CoordX'],
             'coord_y': point['CoordY'],
             'coord_z': point['CoordZ'],
             'pixel_coords': pixel_coords,
-            'timestamp': point['Data'] or ''
+            'timestamp': point['Data'] or '',
+            'has_backup': bool(point.get('HasBackup', 0))
         })
     
     return jsonify(result)
@@ -236,6 +239,171 @@ def api_search_players():
     
     results = search_players(query)
     return jsonify(results)
+
+@app.route('/api/players/<player_id>/restore-backup', methods=['POST'])
+@login_required
+def api_restore_backup(player_id):
+    """API para restaurar backup de um jogador"""
+    import subprocess
+    import os
+    import logging
+    
+    # Configurar logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        data = request.get_json()
+        player_coord_id = data.get('player_coord_id')
+        
+        logger.debug(f"Restore backup request: player_id={player_id}, player_coord_id={player_coord_id}")
+        
+        if not player_coord_id:
+            return jsonify({'success': False, 'message': 'PlayerCoordId não fornecido'}), 400
+        
+        # Validar se o backup existe
+        backup_exists = check_backup_exists(player_id, player_coord_id)
+        if not backup_exists:
+            logger.warning(f"Backup não encontrado: player_id={player_id}, coord_id={player_coord_id}")
+            return jsonify({'success': False, 'message': 'Backup não encontrado'}), 404
+        
+        # Executar script de restauração
+        script_path = config.RESTORE_BACKUP_SCRIPT
+        
+        # Verificar se script existe
+        if not os.path.exists(script_path):
+            logger.error(f"Script não encontrado: {script_path}")
+            return jsonify({
+                'success': False,
+                'message': f'Script de restauração não encontrado: {script_path}'
+            }), 500
+        
+        # Verificar se script é executável
+        if not os.access(script_path, os.X_OK):
+            logger.error(f"Script sem permissão de execução: {script_path}")
+            return jsonify({
+                'success': False,
+                'message': 'Script de restauração sem permissão de execução'
+            }), 500
+        
+        logger.info(f"Executando script: {script_path} {player_id} {player_coord_id}")
+        
+        result = subprocess.run(
+            [script_path, player_id, str(player_coord_id)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=config.RESTORE_BACKUP_WORKDIR
+        )
+        
+        logger.debug(f"Script return code: {result.returncode}")
+        logger.debug(f"Script stdout: {result.stdout}")
+        logger.debug(f"Script stderr: {result.stderr}")
+        
+        if result.returncode == 0:
+            return jsonify({
+                'success': True,
+                'message': 'Backup restaurado com sucesso!',
+                'output': result.stdout
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao restaurar backup',
+                'error': result.stderr,
+                'stdout': result.stdout
+            }), 500
+            
+    except subprocess.TimeoutExpired:
+        logger.error("Timeout ao executar script")
+        return jsonify({
+            'success': False,
+            'message': 'Timeout ao executar script de restauração'
+        }), 500
+    except Exception as e:
+        logger.exception("Erro inesperado ao restaurar backup")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao executar restauração: {str(e)}'
+        }), 500
+
+@app.route('/api/players/<player_id>/teleport', methods=['POST'])
+@login_required
+def api_teleport_player(player_id):
+    """API para teleportar jogador para uma posição"""
+    import subprocess
+    import os
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        data = request.get_json()
+        coord_x = data.get('coord_x')
+        coord_y = data.get('coord_y')
+        coord_z = data.get('coord_z', 0)
+        
+        logger.debug(f"Teleport request: player_id={player_id}, x={coord_x}, y={coord_y}, z={coord_z}")
+        
+        if coord_x is None or coord_y is None:
+            return jsonify({'success': False, 'message': 'Coordenadas não fornecidas'}), 400
+        
+        script_path = config.TELEPORT_SCRIPT
+        
+        if not os.path.exists(script_path):
+            logger.error(f"Script não encontrado: {script_path}")
+            return jsonify({
+                'success': False,
+                'message': f'Script de teleporte não encontrado'
+            }), 500
+        
+        if not os.access(script_path, os.X_OK):
+            logger.error(f"Script sem permissão: {script_path}")
+            return jsonify({
+                'success': False,
+                'message': 'Script sem permissão de execução'
+            }), 500
+        
+        logger.info(f"Executando teleporte: {player_id} -> ({coord_x}, {coord_y}, {coord_z})")
+        
+        # Nota: O script espera: PlayerId CoordX CoordZ CoordY
+        result = subprocess.run(
+            [script_path, player_id, str(coord_x), str(coord_z), str(coord_y)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=config.TELEPORT_WORKDIR
+        )
+        
+        logger.debug(f"Script return code: {result.returncode}")
+        logger.debug(f"Script stdout: {result.stdout}")
+        logger.debug(f"Script stderr: {result.stderr}")
+        
+        if result.returncode == 0:
+            return jsonify({
+                'success': True,
+                'message': 'Jogador teleportado com sucesso!',
+                'output': result.stdout
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao teleportar jogador',
+                'error': result.stderr,
+                'stdout': result.stdout
+            }), 500
+            
+    except subprocess.TimeoutExpired:
+        logger.error("Timeout ao executar script")
+        return jsonify({
+            'success': False,
+            'message': 'Timeout ao executar script de teleporte'
+        }), 500
+    except Exception as e:
+        logger.exception("Erro inesperado ao teleportar")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao executar teleporte: {str(e)}'
+        }), 500
 
 @app.route('/api/events/kills')
 @login_required

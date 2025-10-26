@@ -154,23 +154,21 @@ def get_players_last_position() -> List[Dict]:
         return [dict(row) for row in cursor.fetchall()]
 
 def get_player_trail(player_id: str, limit: int = 100) -> List[Dict]:
-    """Retorna o histórico de movimento de um jogador"""
+    """Retorna o histórico de movimento de um jogador com flag de backup"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT CoordX, CoordY, CoordZ, Data
-            FROM players_coord
-            WHERE PlayerID = ?
-            ORDER BY Data DESC
+            SELECT pc.PlayerCoordId, pc.CoordX, pc.CoordY, pc.CoordZ, pc.Data,
+                   CASE WHEN pcb.PlayerCoordId IS NOT NULL THEN 1 ELSE 0 END as HasBackup
+            FROM players_coord pc
+            LEFT JOIN (
+                SELECT DISTINCT PlayerCoordId FROM players_coord_backup
+            ) pcb ON pc.PlayerCoordId = pcb.PlayerCoordId
+            WHERE pc.PlayerID = ?
+            ORDER BY pc.Data DESC
             LIMIT ?
         """, (player_id, limit))
         results = [dict(row) for row in cursor.fetchall()]
-        # Mesma correção: CoordZ do banco é CoordY do DayZ
-        for row in results:
-            temp_y = row['CoordY']  # Sul-Norte
-            temp_z = row['CoordZ']  # Altitude
-            row['CoordY'] = temp_y
-            row['CoordZ'] = temp_z
         return results
 
 def get_online_players_positions() -> List[Dict]:
@@ -268,3 +266,30 @@ def parse_position(pos_string: str):
     except:
         return None
     return None
+
+def check_backup_exists(player_id: str, player_coord_id: int) -> bool:
+    """Verifica se existe backup para o PlayerCoordId"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) as count
+            FROM players_coord_backup pcb
+            INNER JOIN players_coord pc ON pcb.PlayerCoordId = pc.PlayerCoordId
+            WHERE pc.PlayerID = ? AND pcb.PlayerCoordId = ?
+        """, (player_id, player_coord_id))
+        result = cursor.fetchone()
+        return result['count'] > 0 if result else False
+
+def get_backup_info(player_coord_id: int) -> Dict:
+    """Retorna informações sobre o backup"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT pcb.TimeStamp, pc.CoordX, pc.CoordY, pc.CoordZ, pc.Data as CoordDate
+            FROM players_coord_backup pcb
+            INNER JOIN players_coord pc ON pcb.PlayerCoordId = pc.PlayerCoordId
+            WHERE pcb.PlayerCoordId = ?
+            LIMIT 1
+        """, (player_coord_id,))
+        result = cursor.fetchone()
+        return dict(result) if result else None

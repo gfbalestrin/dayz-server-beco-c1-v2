@@ -265,3 +265,24 @@
     color: #4fc3f7;
     font-weight: bold;
 }
+
+/* Pontos com backup clicáveis */
+.leaflet-interactive[style*="cursor: pointer"] {
+    cursor: pointer !important;
+}
+
+/* Modal de restauração */
+#restoreBackupModal .alert-warning {
+    border-left: 4px solid #ffc107;
+}
+
+#backupInfo p {
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+#backupInfo strong {
+    color: #495057;
+    min-width: 140px;
+    display: inline-block;
+}

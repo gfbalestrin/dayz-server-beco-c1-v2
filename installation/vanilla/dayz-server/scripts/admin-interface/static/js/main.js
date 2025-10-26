@@ -107,11 +107,39 @@ function showLoading(elementId) {
 }
 
 // Função para mostrar toast/notificação
-function showToast(message, type = 'info') {
+function showToast(title, message, type = 'info') {
+    // Se chamado com 2 parâmetros (compatibilidade com código antigo)
+    if (arguments.length === 2 && typeof arguments[1] === 'string') {
+        message = title;
+        type = arguments[1];
+        title = '';
+    }
+    
+    const bgClass = {
+        'success': 'bg-success',
+        'error': 'bg-danger',
+        'warning': 'bg-warning',
+        'info': 'bg-info',
+        'danger': 'bg-danger'
+    }[type] || 'bg-info';
+    
+    const icon = {
+        'success': 'fa-check-circle',
+        'error': 'fa-exclamation-circle',
+        'warning': 'fa-exclamation-triangle',
+        'info': 'fa-info-circle',
+        'danger': 'fa-exclamation-circle'
+    }[type] || 'fa-info-circle';
+    
+    const titleHtml = title ? `<strong>${title}:</strong> ` : '';
+    
     const toast = $(`
-        <div class="toast align-items-center text-white bg-${type} border-0" role="alert">
+        <div class="toast align-items-center text-white ${bgClass} border-0" role="alert">
             <div class="d-flex">
-                <div class="toast-body">${message}</div>
+                <div class="toast-body">
+                    <i class="fas ${icon} me-2"></i>
+                    ${titleHtml}${message}
+                </div>
                 <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
             </div>
         </div>
@@ -119,11 +147,14 @@ function showToast(message, type = 'info') {
     
     const toastContainer = $('.toast-container');
     if (toastContainer.length === 0) {
-        $('body').append('<div class="toast-container position-fixed bottom-0 end-0 p-3"></div>');
+        $('body').append('<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 9999;"></div>');
     }
     
     toast.appendTo('.toast-container');
-    const bsToast = new bootstrap.Toast(toast[0]);
+    const bsToast = new bootstrap.Toast(toast[0], {
+        autohide: true,
+        delay: 5000
+    });
     bsToast.show();
     
     toast.on('hidden.bs.toast', function() {

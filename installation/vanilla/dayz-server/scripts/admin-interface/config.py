@@ -30,3 +30,11 @@ if not os.path.exists(DB_LOGS):
 
 # Configurações de paginação
 RESULTS_PER_PAGE = 100
+
+# Caminho para script de restauração de backup
+RESTORE_BACKUP_SCRIPT = '/home/dayzadmin/servers/dayz-server/scripts/player_restore_backup.sh'
+RESTORE_BACKUP_WORKDIR = '/home/dayzadmin/servers/dayz-server/scripts'
+
+# Caminho para script de teleporte
+TELEPORT_SCRIPT = '/home/dayzadmin/servers/dayz-server/scripts/player_replace_position.sh'
+TELEPORT_WORKDIR = '/home/dayzadmin/servers/dayz-server/scripts'
