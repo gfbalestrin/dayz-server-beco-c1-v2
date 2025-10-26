@@ -1004,8 +1004,8 @@ class CustomMission: MissionServer
 			}
 			if (channel == 1 && playerName == "" && text.Contains("O servidor vai ser reiniciado em 1 minutos"))
 			{
-				AppendExternalAction("{\"action\":\"event_restarting\"}");
-				WriteToLog("Servidor reiniciando...", LogFile.INIT, false, LogType.INFO);
+				//AppendExternalAction("{\"action\":\"event_restarting\"}");
+				//WriteToLog("Servidor reiniciando...", LogFile.INIT, false, LogType.INFO);
 			}
 			if (channel == 1 && playerName == "" && text.Contains("O servidor vai ser reiniciado em 5 minutos"))
 			{	
@@ -1144,7 +1144,6 @@ class CustomMission: MissionServer
 		if (m_AdminCheckTimer60 >= m_AdminCheckCooldown60)
 		{
 			m_AdminCheckTimer60 = 0.0;
-			TrackVehiclePositions();
 			ListActivePlayers();
 			SendPlayersPositions();
 			SendVehiclesPositions();
@@ -1263,32 +1262,7 @@ class CustomMission: MissionServer
 		WriteToLog("Total de veículos em rastreamento: " + m_TrackedVehicles.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
 	}
 
-	// Rastreia posições dos veículos
-	void TrackVehiclePositions()
-	{
-		// Verifica se o array foi inicializado
-		if (!m_TrackedVehicles)
-		{
-			WriteToLog("[TRACKING] Array m_TrackedVehicles não foi inicializado ainda, ignorando rastreamento...", LogFile.INIT, false, LogType.DEBUG);
-			return;
-		}
-
-		WriteToLog("[TRACKING] Atualização de posições dos veículos... " + m_TrackedVehicles.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
-
-		foreach (CarScript vehicle : m_TrackedVehicles)
-		{
-			if (vehicle)
-			{
-				vector pos = vehicle.GetPosition();
-				WriteToLog("[POSIÇÃO] " + vehicle.GetDisplayName() + " em " + pos.ToString(), LogFile.INIT, false, LogType.DEBUG);
-			}
-			else
-			{
-				WriteToLog("[REMOVER] Veículo inválido ou destruído.", LogFile.INIT, false, LogType.DEBUG);
-			}
-		}
-	}
-
+	
 	// Envia posições de todos os jogadores ativos via ExternalAction
 	void SendPlayersPositions()
 	{

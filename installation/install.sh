@@ -511,14 +511,24 @@ else
 cat <<EOF > "$DayzFolder/scripts/update.sh"
 #!/bin/bash
 
-source ./config.sh
-CurrentDate=\$(date "+%d/%m/%Y %H:%M:%S")
-ScriptName=\$(basename "\$0")
 set -euo pipefail
 
 echo "[INFO] Iniciando update do servidor DayZ..."
 
+cd "$DayzFolder/scripts"
+
+# Limpa logs de banco antigos (se o script existir)
+if [ -f "$DayzFolder/scripts/clear_databases.sh" ]; then
+    echo "[INFO] Limpar logs de banco antigos..."
+    cd "$DayzFolder/scripts"
+    ./clear_databases.sh
+fi
+
+source ./config.sh
+CurrentDate=\$(date "+%d/%m/%Y %H:%M:%S")
+ScriptName=\$(basename "\$0")
 SEND_DISCORD_WEBHOOK "Servidor reiniciando..." "\$DiscordWebhookLogs" "\$CurrentDate" "\$ScriptName"
+cd -
 
 # Atualiza o servidor via SteamCMD
 echo "[INFO] Atualizando servidor via SteamCMD..."
@@ -565,14 +575,6 @@ echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_to_send.txt
 echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_private_to_send.txt
 echo > $DayzFolder/profiles/dayz-server.log
 echo > $DayzFolder/profiles/dayz-server.err
-
-# Cria diretórios de posições para hoje e amanhã
-echo "[INFO] Criando diretórios de posições..."
-TODAY_DATE=\$(date "+%Y-%m-%d")
-TOMORROW_DATE=\$(date -d "+1 day" "+%Y-%m-%d")
-mkdir -p "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/\$TODAY_DATE"
-mkdir -p "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/\$TOMORROW_DATE"
-chown -R "$LinuxUserName:$LinuxUserName" "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/"
 
 echo "[INFO] Update concluído com sucesso."
 EOF
