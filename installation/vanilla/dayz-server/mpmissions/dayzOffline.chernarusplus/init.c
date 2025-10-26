@@ -1056,7 +1056,7 @@ class CustomMission: MissionServer
 	{
 		super.OnUpdate(timeslice);
 		m_AdminCheckTimer10 += timeslice;
-		m_PositionTrackTimer60 += timeslice;
+		m_AdminCheckTimer60 += timeslice;
 
 		if (m_AdminCheckTimer10 >= m_AdminCheckCooldown10)
 		{
@@ -1136,9 +1136,9 @@ class CustomMission: MissionServer
 		}
 
 		// Timer de 60 segundos para envio de posições
-		if (m_PositionTrackTimer60 >= m_PositionTrackCooldown60)
+		if (m_AdminCheckTimer60 >= m_AdminCheckCooldown60)
 		{
-			m_PositionTrackTimer60 = 0.0;
+			m_AdminCheckTimer60 = 0.0;
 			TrackVehiclePositions();
 			ListActivePlayers();
 			SendPlayersPositions();
