@@ -1,0 +1,217 @@
+/* Estilos customizados para DayZ Admin Interface */
+
+/* Sidebar customização */
+.sidebar {
+    min-height: calc(100vh - 56px);
+    background-color: #343a40;
+    color: white;
+    padding-top: 20px;
+}
+
+.sidebar .nav-link {
+    color: rgba(255,255,255,0.8);
+    padding: 0.75rem 1rem;
+    transition: all 0.2s;
+}
+
+.sidebar .nav-link:hover {
+    color: white;
+    background-color: rgba(255,255,255,0.1);
+    border-radius: 5px;
+}
+
+.sidebar .nav-link.active {
+    color: white;
+    background-color: #0d6efd;
+    border-radius: 5px;
+}
+
+/* Cards com borda colorida */
+.stat-card {
+    border-left: 4px solid #0d6efd;
+    transition: transform 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Tabelas customizadas */
+.table {
+    font-size: 0.9rem;
+}
+
+.table thead th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Badges customizados */
+.badge {
+    font-size: 0.85em;
+    padding: 0.4em 0.6em;
+}
+
+/* Navbar customizada */
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+/* Breadcrumb customizado */
+.breadcrumb-item a {
+    text-decoration: none;
+}
+
+/* Alertas customizados */
+.alert {
+    border-radius: 8px;
+    border: none;
+}
+
+/* Botões customizados */
+.btn {
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Login card animations */
+.login-card {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    padding: 40px;
+    max-width: 400px;
+    width: 100%;
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Cards responsivos */
+.card {
+    border-radius: 10px;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+}
+
+/* DataTables customização */
+.dataTables_wrapper {
+    padding: 20px 0;
+}
+
+.dataTables_filter input {
+    border-radius: 5px;
+    border: 1px solid #ced4da;
+    padding: 5px 10px;
+}
+
+.dataTables_length select {
+    border-radius: 5px;
+    border: 1px solid #ced4da;
+    padding: 5px 10px;
+}
+
+/* Loading spinner */
+.loading {
+    text-align: center;
+    padding: 40px;
+}
+
+.loading i {
+    font-size: 3rem;
+    color: #0d6efd;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .sidebar {
+        min-height: auto;
+    }
+    
+    .main-content {
+        padding: 10px;
+    }
+    
+    .table {
+        font-size: 0.8rem;
+    }
+}
+
+/* Code blocks */
+code {
+    background-color: #f8f9fa;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.9em;
+    color: #e83e8c;
+}
+
+/* Scrollbar customizado */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Modal customizado */
+.modal-content {
+    border-radius: 10px;
+    border: none;
+}
+
+.modal-header {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+}
+
+/* Estatísticas no dashboard */
+.stat-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #0d6efd;
+}

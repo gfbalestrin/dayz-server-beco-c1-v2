@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - DayZ Admin Interface{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Dashboard</h1>
+</div>
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="card stat-card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-users text-primary me-2"></i>Jogadores
+                </h5>
+                <p class="card-text">
+                    <h3>{{ players|length }}</h3>
+                    <small class="text-muted">Total de jogadores registrados</small>
+                </p>
+                <a href="{{ url_for('players') }}" class="btn btn-sm btn-outline-primary">
+                    Ver todos
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-clipboard-list text-success me-2"></i>Logs Admin
+                </h5>
+                <p class="card-text">
+                    <h3>{{ logs_adm|length }}</h3>
+                    <small class="text-muted">Últimos logs administrativos</small>
+                </p>
+                <a href="{{ url_for('logs_adm') }}" class="btn btn-sm btn-outline-success">
+                    Ver logs
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-file-alt text-info me-2"></i>Logs Custom
+                </h5>
+                <p class="card-text">
+                    <h3>{{ logs_custom|length }}</h3>
+                    <small class="text-muted">Últimos logs customizados</small>
+                </p>
+                <a href="{{ url_for('logs_custom') }}" class="btn btn-sm btn-outline-info">
+                    Ver logs
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-car text-warning me-2"></i>Veículos
+                </h5>
+                <p class="card-text">
+                    <h3>{{ vehicles|length }}</h3>
+                    <small class="text-muted">Veículos rastreados</small>
+                </p>
+                <a href="{{ url_for('vehicles') }}" class="btn btn-sm btn-outline-warning">
+                    Ver veículos
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>Informações do Sistema
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Recursos Disponíveis</h6>
+                        <ul>
+                            <li>Visualização completa de jogadores</li>
+                            <li>Rastreamento de coordenadas dos jogadores</li>
+                            <li>Histórico de coordenadas com backups</li>
+                            <li>Logs administrativos em tempo real</li>
+                            <li>Logs customizados do servidor</li>
+                            <li>Tracking de veículos</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Filtros e Busca</h6>
+                        <ul>
+                            <li>Busca avançada em todas as tabelas</li>
+                            <li>Filtros por data e período</li>
+                            <li>Filtros por nível de log</li>
+                            <li>Ordenação por qualquer coluna</li>
+                            <li>Paginação automática</li>
+                            <li>Exportação de dados</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
