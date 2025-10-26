@@ -154,7 +154,7 @@ copy_files() {
             )
             ;;
         "halloween")
-            source_dir="$REPO_DIR/halloweenOffline.ChernarusPlus"
+            source_dir="$REPO_DIR/halloweenOffline.chernarusPlus"
             files_to_copy=(
                 "db/events.xml"
                 "db/types.xml"
@@ -164,7 +164,7 @@ copy_files() {
             )
             ;;
         "valentines")
-            source_dir="$REPO_DIR/valentinesOffline.ChernarusPlus"
+            source_dir="$REPO_DIR/valentinesOffline.chernarusPlus"
             files_to_copy=(
                 "db/types.xml"
             )

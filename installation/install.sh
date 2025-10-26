@@ -393,10 +393,10 @@ confirm_step "Criação do serviço systemd para inicialização automática"
 DayzServerServiceFile="/etc/systemd/system/dayz-server.service"
 echo "Configurando serviço no systemd $DayzServerServiceFile ..."
 sleep $DELAY
+mkdir -p $DayzFolder/profiles
 echo > $DayzFolder/profiles/dayz-server.log
 echo > $DayzFolder/profiles/dayz-server.err
-chown "$LinuxUserName:$LinuxUserName" $DayzFolder/profiles/dayz-server.log
-chown "$LinuxUserName:$LinuxUserName" "$DayzFolder/profiles/dayz-server.err"
+chown -R "$LinuxUserName:$LinuxUserName" $DayzFolder/profiles
 
 cat <<EOF > "$DayzServerServiceFile"
 [Unit]
@@ -698,7 +698,7 @@ sleep 10
 
 confirm_step "Instalação do sistema de logs"
 
-source ./install_log_admin.sh
+source ./install_monitor.sh
 
 echo ""
 echo "════════════════════════════════════════════════════════════════"
