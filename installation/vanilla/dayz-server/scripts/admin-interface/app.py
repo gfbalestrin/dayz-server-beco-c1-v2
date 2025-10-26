@@ -616,6 +616,93 @@ def api_spawn_vehicle():
             'message': f'Erro ao spawnar veículo: {str(e)}'
         }), 500
 
+@app.route('/api/spawn/item-at-coords', methods=['POST'])
+@login_required
+def api_spawn_item_at_coords():
+    """Spawnar item em coordenadas específicas usando comando createitem"""
+    import fcntl
+    import os
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    data = request.get_json()
+    item_type = data.get('item_type')
+    quantity = data.get('quantity', 1)
+    coord_x = data.get('coord_x')
+    coord_y = data.get('coord_y')
+    
+    if not all([item_type, coord_x is not None, coord_y is not None]):
+        return jsonify({'success': False, 'message': 'Dados incompletos'}), 400
+    
+    # Formato: SYSTEM createitem item_type quantity coordX coordY
+    command_line = f"SYSTEM createitem {item_type} {quantity} {coord_x} {coord_y}\n"
+    
+    try:
+        with open(config.COMMANDS_FILE, 'a') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.write(command_line)
+                f.flush()
+                os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        
+        logger.info(f"Spawn item em coordenadas: {coord_x}, {coord_y}")
+        return jsonify({
+            'success': True,
+            'message': f'Item {item_type} criado nas coordenadas!'
+        })
+    except Exception as e:
+        logger.exception("Erro ao spawnar item em coordenadas")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao spawnar item: {str(e)}'
+        }), 500
+
+@app.route('/api/spawn/vehicle-at-coords', methods=['POST'])
+@login_required
+def api_spawn_vehicle_at_coords():
+    """Spawnar veículo em coordenadas específicas usando comando createvehicle"""
+    import fcntl
+    import os
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    data = request.get_json()
+    vehicle_type = data.get('vehicle_type')
+    coord_x = data.get('coord_x')
+    coord_y = data.get('coord_y')
+    
+    if not all([vehicle_type, coord_x is not None, coord_y is not None]):
+        return jsonify({'success': False, 'message': 'Dados incompletos'}), 400
+    
+    # Formato: SYSTEM createvehicle vehicle_type coordX coordY
+    command_line = f"SYSTEM createvehicle {vehicle_type} {coord_x} {coord_y}\n"
+    
+    try:
+        with open(config.COMMANDS_FILE, 'a') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.write(command_line)
+                f.flush()
+                os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        
+        logger.info(f"Spawn veículo em coordenadas: {coord_x}, {coord_y}")
+        return jsonify({
+            'success': True,
+            'message': f'Veículo {vehicle_type} criado nas coordenadas!'
+        })
+    except Exception as e:
+        logger.exception("Erro ao spawnar veículo em coordenadas")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao spawnar veículo: {str(e)}'
+        }), 500
+
 @app.errorhandler(404)
 def not_found(e):
     return render_template('error.html', message='Página não encontrada'), 404

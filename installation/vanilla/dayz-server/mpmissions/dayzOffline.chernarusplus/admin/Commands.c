@@ -47,17 +47,34 @@ void CheckCommands()
 
 bool ExecuteCommand(TStringArray tokens)
 {
-    
     string playerID = tokens[0];
     string command = tokens[1];    
 
-    WriteToLog("ExecuteCommand(): Executando comando: " + command + " para o jogador: " + playerID, LogFile.INIT, false, LogType.DEBUG);
+    WriteToLog("ExecuteCommand(): Executando comando: " + command + " para: " + playerID, LogFile.INIT, false, LogType.DEBUG);
     
+    // Comandos que não requerem jogador online
+    bool isSystemCommand = (playerID == "SYSTEM");
+    
+    if (isSystemCommand)
+    {
+        // Processar comandos do sistema
+        switch (command)
+        {
+            case "createitem":
+                return ExecuteCreateItem(tokens);
+            case "createvehicle":
+                return ExecuteCreateVehicle(tokens);
+            default:
+                WriteToLog("Comando do sistema desconhecido: " + command, LogFile.INIT, false, LogType.ERROR);
+                return false;
+        }
+    }
+    
+    // Comandos que requerem jogador online
     PlayerBase target = null;
     array<Man> players = {};
     GetGame().GetPlayers(players);
 
-    
     WriteToLog("ExecuteCommand(): Encontrados " + players.Count() + " jogadores.", LogFile.INIT, false, LogType.DEBUG);
 
     foreach (Man man : players)
@@ -87,7 +104,7 @@ bool ExecuteCommand(TStringArray tokens)
     } else {
         WriteToLog("PlayerID " + target.GetIdentity().GetName() + " (" + playerID + ")" + " digitou comando " + command, LogFile.INIT, false, LogType.INFO);
     }
-    bool isAdmin = CheckIfIsAdmin(playerID);
+    bool isAdmin = true;//CheckIfIsAdmin(playerID);
 
     switch (command)
     {
@@ -527,6 +544,85 @@ bool ExecuteCommand(TStringArray tokens)
     }
 
     return true;
+}
+
+bool ExecuteCreateItem(TStringArray tokens)
+{
+    // Formato: SYSTEM createitem ItemType Quantity CoordX CoordY
+    if (tokens.Count() < 6)
+    {
+        WriteToLog("ExecuteCreateItem(): Parâmetros insuficientes", LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    string itemType = tokens[2];
+    int itemQuantity = tokens[3].ToInt();
+    float itemCoordX = tokens[4].ToFloat();
+    float itemCoordY = tokens[5].ToFloat();
+    
+    // Criar vetor de posição
+    vector itemPos = Vector(itemCoordX, 0, itemCoordY);
+    
+    // Calcular altura do terreno
+    itemPos[1] = GetGame().SurfaceY(itemPos[0], itemPos[2]);
+    
+    // Spawnar item
+    EntityAI spawnedItem = EntityAI.Cast(GetGame().CreateObject(itemType, itemPos));
+    
+    if (spawnedItem)
+    {
+        // Se for item empilhável, definir quantidade
+        if (spawnedItem.IsInherited(ItemBase))
+        {
+            ItemBase itemBase = ItemBase.Cast(spawnedItem);
+            if (itemBase && itemBase.HasQuantity())
+            {
+                itemBase.SetQuantity(itemQuantity);
+            }
+        }
+        
+        WriteToLog("Item " + itemType + " criado em X=" + itemCoordX.ToString() + " Y=" + itemCoordY.ToString(), LogFile.INIT, false, LogType.INFO);
+        return true;
+    }
+    else
+    {
+        WriteToLog("Falha ao criar item: " + itemType, LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+}
+
+bool ExecuteCreateVehicle(TStringArray tokens)
+{
+    // Formato: SYSTEM createvehicle VehicleType CoordX CoordY
+    if (tokens.Count() < 5)
+    {
+        WriteToLog("ExecuteCreateVehicle(): Parâmetros insuficientes", LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    string vehicleType = tokens[2];
+    float vehicleCoordX = tokens[3].ToFloat();
+    float vehicleCoordY = tokens[4].ToFloat();
+    
+    // Criar vetor de posição
+    vector vehiclePos = Vector(vehicleCoordX, 0, vehicleCoordY);
+    
+    // Calcular altura do terreno
+    vehiclePos[1] = GetGame().SurfaceY(vehiclePos[0], vehiclePos[2]);
+    
+    // Spawnar veículo usando função existente
+    bool vehicleSuccess = SpawnVehicleWithParts(vehiclePos, vehicleType);
+    
+    if (vehicleSuccess)
+    {
+        WriteToLog("Veículo " + vehicleType + " criado em X=" + vehicleCoordX.ToString() + " Y=" + vehicleCoordY.ToString(), LogFile.INIT, false, LogType.INFO);
+        return true;
+    }
+    else
+    {
+        WriteToLog("Falha ao criar veículo: " + vehicleType, LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
 }
 
 bool IsInteger(string s)

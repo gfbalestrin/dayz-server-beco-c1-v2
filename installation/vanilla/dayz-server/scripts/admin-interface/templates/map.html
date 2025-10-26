@@ -34,6 +34,58 @@
             <button type="button" class="btn btn-outline-primary" id="btnModeTeleport">
                 <i class="fas fa-map-marker-alt me-1"></i>Modo Teleporte
             </button>
+            <button type="button" class="btn btn-outline-success" id="btnModeSpawnItem">
+                <i class="fas fa-box me-1"></i>Modo Spawn Item
+            </button>
+            <button type="button" class="btn btn-outline-warning" id="btnModeSpawnVehicle">
+                <i class="fas fa-car me-1"></i>Modo Spawn Veículo
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Controles de Spawn Item -->
+<div class="row mb-3" id="spawnItemControls" style="display: none;">
+    <div class="col-md-12">
+        <div class="alert alert-success">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Modo Spawn Item Ativo:</strong> Selecione um item e clique no mapa para spawná-lo.
+        </div>
+        <div class="row">
+            <div class="col-md-4">
+                <label>Categoria</label>
+                <select id="spawnItemTypeSelect" class="form-select">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+            <div class="col-md-7">
+                <label>Item/Arma</label>
+                <select id="spawnItemSelect" class="form-select">
+                    <option value="">Carregando...</option>
+                </select>
+            </div>
+            <div class="col-md-1">
+                <label>Qtd</label>
+                <input type="number" id="spawnItemQuantity" class="form-control" value="1" min="1" max="99">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Controles de Spawn Veículo -->
+<div class="row mb-3" id="spawnVehicleControls" style="display: none;">
+    <div class="col-md-12">
+        <div class="alert alert-warning">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Modo Spawn Veículo Ativo:</strong> Selecione um veículo e clique no mapa para spawná-lo.
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <label>Veículo</label>
+                <select id="spawnVehicleSelect" class="form-select">
+                    <option value="">Selecione...</option>
+                </select>
+            </div>
         </div>
     </div>
 </div>
