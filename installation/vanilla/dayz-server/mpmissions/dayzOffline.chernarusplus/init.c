@@ -53,6 +53,8 @@ class CustomMission: MissionServer
 	ref array<string> FixedMessages;
 	float m_AdminCheckCooldown10 = 10.0;
 	float m_AdminCheckTimer10 = 0.0;
+	float m_PositionTrackCooldown60 = 60.0;
+	float m_PositionTrackTimer60 = 0.0;
 
 	void CustomMission()
 	{
@@ -1054,6 +1056,7 @@ class CustomMission: MissionServer
 	{
 		super.OnUpdate(timeslice);
 		m_AdminCheckTimer10 += timeslice;
+		m_PositionTrackTimer60 += timeslice;
 
 		if (m_AdminCheckTimer10 >= m_AdminCheckCooldown10)
 		{
@@ -1086,10 +1089,6 @@ class CustomMission: MissionServer
 				string playerId = identity.GetId();
 				string playerName = identity.GetName();		
 				string steamId = identity.GetPlainId();
-				
-				// Salva posição do jogador
-				vector playerPos = player.GetPosition();
-				SavePlayerPosition(playerId, playerName, playerPos);
 				
 				// Mensagens públicas
 				if (msgs)
@@ -1136,6 +1135,13 @@ class CustomMission: MissionServer
 				}
 			}
 
+		}
+
+		// Timer de 60 segundos para envio de posições
+		if (m_PositionTrackTimer60 >= m_PositionTrackCooldown60)
+		{
+			m_PositionTrackTimer60 = 0.0;
+			SendPlayersPositions();
 		}
 	}
 	
@@ -1275,6 +1281,56 @@ class CustomMission: MissionServer
 				WriteToLog("[REMOVER] Veículo inválido ou destruído.", LogFile.INIT, false, LogType.DEBUG);
 			}
 		}
+	}
+
+	// Envia posições de todos os jogadores ativos via ExternalAction
+	void SendPlayersPositions()
+	{
+		array<Man> players = new array<Man>;
+		GetGame().GetPlayers(players);
+
+		if (players.Count() == 0)
+			return;
+
+		string playersJson = "";
+
+		foreach (Man man : players)
+		{
+			PlayerBase player = PlayerBase.Cast(man);
+			if (!player)
+				continue;
+
+			PlayerIdentity identity = player.GetIdentity();
+			if (!identity)
+				continue;
+
+			string playerId = identity.GetId();
+			string playerName = identity.GetName();
+			vector position = player.GetPosition();
+
+			// Sanitiza o nome do jogador para uso seguro em JSON
+			string safeName = playerName;
+			TStringArray unsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
+			foreach (string ch : unsafeChars)
+			{
+				safeName.Replace(ch, "-");
+			}
+			safeName.Replace("\n", "");
+			safeName.Replace("\r", "");
+			safeName.Replace("\t", "");
+			if (safeName.Length() > 32)
+				safeName = safeName.Substring(0, 32);
+
+			if (playersJson != "")
+				playersJson += ",";
+			
+			playersJson += "{\"player_id\":\"" + playerId + "\",\"player_name\":\"" + safeName + "\",\"x\":" + position[0].ToString() + ",\"y\":" + position[1].ToString() + ",\"z\":" + position[2].ToString() + "}";
+		}
+
+		string jsonAction = "{\"action\":\"players_positions\",\"players\":[" + playersJson + "]}";
+		AppendExternalAction(jsonAction);
+		
+		WriteToLog("SendPlayersPositions(): Posições de " + players.Count().ToString() + " jogadores enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
 	}
 };
 

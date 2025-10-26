@@ -247,6 +247,26 @@ tail -F "$COMMAND_FILE" | while read -r line; do
             INSERT_CUSTOM_LOG "Evento de aviso de tempo para reiniciar o servidor!" "INFO" "$ScriptName"
             SEND_DISCORD_WEBHOOK "$Message" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             ;;
+        players_positions)
+            echo ">> Recebendo posições dos jogadores"
+            INSERT_CUSTOM_LOG "Processando posições dos jogadores" "INFO" "$ScriptName"
+            
+            # Obtém o array de jogadores do JSON
+            players=$(echo "$line" | jq -c '.players[]')
+            
+            # Itera sobre cada jogador no array
+            while IFS= read -r player_data; do
+                player_id=$(echo "$player_data" | jq -r '.player_id')
+                coord_x=$(echo "$player_data" | jq -r '.x')
+                coord_z=$(echo "$player_data" | jq -r '.z')
+                coord_y=$(echo "$player_data" | jq -r '.y')
+                
+                # Insere a posição no banco de dados
+                INSERT_PLAYER_POSITION "$player_id" "$coord_x" "$coord_z" "$coord_y"
+            done <<< "$players"
+            
+            echo ">> Posições processadas com sucesso"
+            ;;
         *)
             echo ">> Ação desconhecida: $action"
             ;;

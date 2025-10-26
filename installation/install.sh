@@ -498,12 +498,12 @@ echo > $DayzFolder/profiles/dayz-server.log
 echo > $DayzFolder/profiles/dayz-server.err
 
 # Cria diretórios de posições para hoje e amanhã
-echo "[INFO] Criando diretórios de posições..."
-TODAY_DATE=\$(date "+%Y-%m-%d")
-TOMORROW_DATE=\$(date -d "+1 day" "+%Y-%m-%d")
-mkdir -p "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/\$TODAY_DATE"
-mkdir -p "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/\$TOMORROW_DATE"
-chown -R "$LinuxUserName:$LinuxUserName" "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/"
+#echo "[INFO] Criando diretórios de posições..."
+#TODAY_DATE=\$(date "+%Y-%m-%d")
+#TOMORROW_DATE=\$(date -d "+1 day" "+%Y-%m-%d")
+#mkdir -p "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/\$TODAY_DATE"
+#mkdir -p "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/\$TOMORROW_DATE"
+#chown -R "$LinuxUserName:$LinuxUserName" "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/"
 
 echo "[INFO] Update concluído com sucesso."
 EOF

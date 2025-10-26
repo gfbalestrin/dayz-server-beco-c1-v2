@@ -53,7 +53,7 @@ LOG_ERROR() {
 }
 
 LOG_DEBUG() {
-    INSERT_CUSTOM_LOG "$1" "DEBUG" "economy_update.sh"
+    INSERT_CUSTOM_LOG "$1" "DEBUG" "economy_update.sh" >&2
 }
 
 # ============================================================================
@@ -144,6 +144,8 @@ copy_files() {
     local source_dir=""
     local files_to_copy=()
     
+    LOG_DEBUG "copy_files chamada com evento: $event"
+    
     case "$event" in
         "christmas")
             source_dir="$REPO_DIR/ChristmasOffline.ChernarusPlus"
@@ -152,9 +154,11 @@ copy_files() {
                 "db/types.xml"
                 "cfgrandompresets.xml"
             )
+            LOG_DEBUG "Christmas - source_dir: $source_dir"
+            LOG_DEBUG "Christmas - files_to_copy: ${files_to_copy[@]}"
             ;;
         "halloween")
-            source_dir="$REPO_DIR/halloweenOffline.chernarusPlus"
+            source_dir="$REPO_DIR/halloweenOffline.chernarusplus"
             files_to_copy=(
                 "db/events.xml"
                 "db/types.xml"
@@ -162,18 +166,24 @@ copy_files() {
                 "cfgeffectarea.json"
                 "cfgspawnabletypes.xml"
             )
+            LOG_DEBUG "Halloween - source_dir: $source_dir"
+            LOG_DEBUG "Halloween - files_to_copy: ${files_to_copy[@]}"
             ;;
         "valentines")
-            source_dir="$REPO_DIR/valentinesOffline.chernarusPlus"
+            source_dir="$REPO_DIR/valentinesOffline.chernarusplus"
             files_to_copy=(
                 "db/types.xml"
             )
+            LOG_DEBUG "Valentines - source_dir: $source_dir"
+            LOG_DEBUG "Valentines - files_to_copy: ${files_to_copy[@]}"
             ;;
         "payday")
             source_dir="$REPO_DIR/PaydayOffline.ChernarusPlus"
             files_to_copy=(
                 "db/types.xml"
             )
+            LOG_DEBUG "Payday - source_dir: $source_dir"
+            LOG_DEBUG "Payday - files_to_copy: ${files_to_copy[@]}"
             ;;
         "default")
             source_dir="$REPO_DIR/dayzOffline.chernarusplus"
@@ -222,6 +232,8 @@ copy_files() {
                 "mapgrouppos.xml"
                 "mapgroupproto.xml"
             )
+            LOG_DEBUG "Default - source_dir: $source_dir"
+            LOG_DEBUG "Default - total de arquivos: ${#files_to_copy[@]}"
             ;;
         *)
             LOG_ERROR "Evento desconhecido: $event"
@@ -229,14 +241,23 @@ copy_files() {
             ;;
     esac
     
+    LOG_DEBUG "Verificando se source_dir existe: $source_dir"
     if [ ! -d "$source_dir" ]; then
         LOG_ERROR "Diretório de origem não encontrado: $source_dir"
+        LOG_DEBUG "Listando conteúdo de REPO_DIR: $REPO_DIR"
+        if [ -d "$REPO_DIR" ]; then
+            LOG_DEBUG "Diretórios disponíveis em REPO_DIR:"
+            ls -la "$REPO_DIR" 2>/dev/null || echo "Não foi possível listar REPO_DIR"
+        else
+            LOG_ERROR "REPO_DIR não existe: $REPO_DIR"
+        fi
         return 1
     fi
     
     LOG_INFO "Copiando arquivos para evento: $event"
     LOG_DEBUG "Origem: $source_dir"
     LOG_DEBUG "Destino: $DEST_DIR"
+    LOG_DEBUG "Total de arquivos a copiar: ${#files_to_copy[@]}"
     
     local files_copied=0
     local files_failed=0
@@ -246,7 +267,13 @@ copy_files() {
         local dest_file="$DEST_DIR/$file"
         local dest_dir=$(dirname "$dest_file")
         
+        LOG_DEBUG "Processando arquivo: $file"
+        LOG_DEBUG "  source_file: $source_file"
+        LOG_DEBUG "  dest_file: $dest_file"
+        LOG_DEBUG "  dest_dir: $dest_dir"
+        
         if [ -f "$source_file" ]; then
+            LOG_DEBUG "  Arquivo encontrado: $source_file"
             # Criar diretório de destino se não existir
             mkdir -p "$dest_dir"
             
@@ -277,10 +304,24 @@ copy_files() {
                 else
                     files_failed=$((files_failed + 1))
                     LOG_ERROR "Falha ao copiar: $file"
+                    LOG_ERROR "  Erro ao copiar de: $source_file"
+                    LOG_ERROR "  Para: $dest_file"
+                    # Tentar copiar novamente e capturar a mensagem de erro
+                    cp "$source_file" "$dest_file" 2>&1 | while read line; do
+                        LOG_ERROR "  Erro do cp: $line"
+                    done
                 fi
             fi
         else
             LOG_ERROR "Arquivo não encontrado: $source_file"
+            LOG_DEBUG "  Verificando se o diretório pai existe..."
+            local parent_dir=$(dirname "$source_file")
+            if [ -d "$parent_dir" ]; then
+                LOG_DEBUG "  Diretório pai existe, listando conteúdo:"
+                ls -la "$parent_dir" 2>/dev/null || echo "Não foi possível listar"
+            else
+                LOG_ERROR "  Diretório pai não existe: $parent_dir"
+            fi
             files_failed=$((files_failed + 1))
         fi
     done

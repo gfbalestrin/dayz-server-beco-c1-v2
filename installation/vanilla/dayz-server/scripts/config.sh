@@ -496,6 +496,51 @@ DELETE_PLAYER_DAMAGE() {
     return 1
 }
 
+INSERT_PLAYER_POSITION() {
+    local PlayerID="$1"
+    local CoordX="$2"
+    local CoordZ="$3"
+    local CoordY="$4"
+    
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+
+    if [[ -z "$PlayerID" ]]; then
+        echo "Error: PlayerID is required."
+        return 1
+    fi
+
+    local EscapedPlayerID
+
+    # Escapar aspas simples
+    EscapedPlayerID=$(echo "$PlayerID" | sed "s/'/''/g")
+
+    while (( attempt <= max_retries )); do
+        sqlite3 "$AppFolder/$AppPlayerBecoC1DbFile" <<EOF
+INSERT INTO players_coord (PlayerID, CoordX, CoordZ, CoordY, Data)
+VALUES (
+    '$EscapedPlayerID',
+    '$CoordX',
+    '$CoordZ',
+    '$CoordY',
+    datetime('now', 'localtime')
+);
+EOF
+
+        if [[ $? -eq 0 ]]; then
+            return 0
+        else
+            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
+            sleep "$retry_delay"
+            attempt=$((attempt + 1))
+        fi
+    done
+
+    echo "Failed to insert after $max_retries attempts."
+    return 1
+}
+
 GET_DAYZ_PLAYER_POSITION(){
     local PlayerID="$1"
     local player=$(sqlite3 "$DayzServerFolder/$DayzPlayerDbFile" "SELECT hex(Data) FROM Players where UID = '$PlayerId';")    
