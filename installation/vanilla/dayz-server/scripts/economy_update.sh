@@ -6,6 +6,8 @@
 # Carrega as variáveis
 source ./config.sh
 
+ScriptName=$(basename "$0")
+
 # ============================================================================
 # CONFIGURAÇÕES DE DATAS DOS EVENTOS
 # ============================================================================
@@ -399,6 +401,8 @@ main() {
     fi
     
     LOG_INFO "Atualização de economia concluída com sucesso para evento: $selected_event"
+    CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
+    SEND_DISCORD_WEBHOOK "✅ Evento aplicado: $selected_event" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
     echo "✅ Evento aplicado: $selected_event"
 }
 
