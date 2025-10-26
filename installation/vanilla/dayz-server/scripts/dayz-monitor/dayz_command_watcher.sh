@@ -230,14 +230,15 @@ tail -F "$COMMAND_FILE" | while read -r line; do
             CurrentTime=$(echo "$line" | jq -r '.current_time')
             echo "Evento de servidor reiniciado!" 
             INSERT_CUSTOM_LOG "Evento de início do servidor!" "INFO" "$ScriptName"
-            Content="Servidor iniciado e liberado para jogadores!"
-            SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+            
             if [[ "$DayzDeathmatch" -eq "1" ]]; then
+                Content="Servidor iniciado e liberado para jogadores!"
+                SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
                 Content="Mapa atual: $CurrentMap, Horário: $CurrentTime"
                 SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"   
             else
-                Content="Horário: $CurrentTime"
-                SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"   
+                Content="Servidor iniciado e liberado para jogadores! Horário: $CurrentTime"
+                SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             fi
 
             "$AppFolder/$AppScriptUpdatePlayersOnlineFile" "RESET"  

@@ -51,10 +51,7 @@ class CustomMission: MissionServer
 {
 	ref array<ref ActivePlayer> ActivePlayers;  // Lista de jogadores ativos/conectados
 	ref array<string> FixedMessages;
-	float m_AdminCheckCooldown10 = 10.0;
-	float m_AdminCheckTimer10 = 0.0;
-	float m_PositionTrackCooldown60 = 60.0;
-	float m_PositionTrackTimer60 = 0.0;
+	float m_AdminCheckCooldown10 = 10.0;p
 
 	void CustomMission()
 	{
@@ -1366,7 +1363,7 @@ class CustomMission: MissionServer
 		}
 
 		string jsonAction = "{\"action\":\"vehicles_positions\",\"vehicles\":[" + vehiclesJson + "]}";
-		AppendExternalAction(jsonAction);
+		AppendExternalAction(jsonAction, false);
 		
 		WriteToLog("SendVehiclesPositions(): Posições de " + m_TrackedVehicles.Count().ToString() + " veículos enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
 	}

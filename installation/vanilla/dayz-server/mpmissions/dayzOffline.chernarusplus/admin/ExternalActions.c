@@ -1,4 +1,4 @@
-void AppendExternalAction(string message)
+void AppendExternalAction(string message, bool printMsg = true)
 {
     string path = ExternalActionsFile;
 
@@ -12,7 +12,9 @@ void AppendExternalAction(string message)
     if (file != 0) {
         FPrintln(file, message);
         CloseFile(file);
-        WriteToLog("AppendExternalAction() Mensagem adicionada: " + message, LogFile.INIT, false, LogType.DEBUG);
+        if (printMsg) {
+            WriteToLog("AppendExternalAction() Mensagem adicionada: " + message, LogFile.INIT, false, LogType.DEBUG);
+        }        
     } else {
         WriteToLog("AppendExternalAction() Erro ao abrir o arquivo para append: " + path, LogFile.INIT, false, LogType.ERROR);
     }
