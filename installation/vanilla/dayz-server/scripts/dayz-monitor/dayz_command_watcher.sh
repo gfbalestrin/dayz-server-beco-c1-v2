@@ -216,7 +216,12 @@ tail -F "$COMMAND_FILE" | while read -r line; do
             NextMap=$(echo "$line" | jq -r '.next_map')
             echo "Evento de servidor reiniciando!" 
             INSERT_CUSTOM_LOG "Evento de restart do servidor!" "INFO" "$ScriptName"
-            Content="Servidor reiniciando... (Próximo mapa: $NextMap)"
+            if [[ "$DayzDeathmatch" -eq "1" ]]; then
+                Content="Servidor reiniciando... (Próximo mapa: $NextMap)"
+            else
+                Content="Servidor reiniciando..."
+            fi
+            
             SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             "$AppFolder/$AppScriptUpdatePlayersOnlineFile" "RESET"     
             ;;
@@ -227,11 +232,19 @@ tail -F "$COMMAND_FILE" | while read -r line; do
             INSERT_CUSTOM_LOG "Evento de início do servidor!" "INFO" "$ScriptName"
             Content="Servidor iniciado e liberado para jogadores!"
             SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
-            Content="Mapa atual: $CurrentMap, Horário: $CurrentTime"
-            SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"   
+            if [[ "$DayzDeathmatch" -eq "1" ]]; then
+                Content="Mapa atual: $CurrentMap, Horário: $CurrentTime"
+                SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"   
+            else
+                Content="Horário: $CurrentTime"
+                SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"   
+            fi
+
             "$AppFolder/$AppScriptUpdatePlayersOnlineFile" "RESET"  
-            # Gerar estatísticas
-            "$AppFolder/$AppScriptUpdateGeneralKillfeed"         
+            if [[ "$DayzDeathmatch" -eq "1" ]]; then
+                # Gerar estatísticas
+                "$AppFolder/$AppScriptUpdateGeneralKillfeed"         
+            fi
             ;;
         event_minutes_to_restart)     
             CurrentMap=$(echo "$line" | jq -r '.current_map')
@@ -246,7 +259,7 @@ tail -F "$COMMAND_FILE" | while read -r line; do
         send_log_discord)     
             Message=$(echo "$line" | jq -r '.message')
             echo "Evento de envio de mensagem ao discord!" 
-            INSERT_CUSTOM_LOG "Evento de aviso de tempo para reiniciar o servidor!" "INFO" "$ScriptName"
+            INSERT_CUSTOM_LOG "Evento de envio de mensagem!" "INFO" "$ScriptName"
             SEND_DISCORD_WEBHOOK "$Message" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             ;;
         players_positions)
@@ -341,7 +354,7 @@ EOF
                 VehicleTrackingId=$(INSERT_VEHICLE_POSITION "$vehicle_id" "$vehicle_name" "$coord_x" "$coord_z" "$coord_y")
                 
                 if [ $? -eq 0 ] && [ -n "$VehicleTrackingId" ]; then
-                    echo ">> Posição do veículo $vehicle_name (ID: $vehicle_id) armazenada com sucesso (TrackingID: $VehicleTrackingId)"
+                    #echo ">> Posição do veículo $vehicle_name (ID: $vehicle_id) armazenada com sucesso (TrackingID: $VehicleTrackingId)"
                     INSERT_CUSTOM_LOG "Veículo rastreado: $vehicle_name (ID: $vehicle_id) | Posição: X=$coord_x, Z=$coord_z, Y=$coord_y" "INFO" "$ScriptName"
                 else
                     echo ">> Erro ao armazenar posição do veículo $vehicle_name"

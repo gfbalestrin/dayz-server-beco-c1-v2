@@ -1251,7 +1251,7 @@ class CustomMission: MissionServer
 			if (vehicle)
 			{
 				m_TrackedVehicles.Insert(vehicle);
-				WriteToLog("[TRACKING] Veículo adicionado: " + vehicle.GetDisplayName(), LogFile.INIT, false, LogType.DEBUG);
+				//WriteToLog("[TRACKING] Veículo adicionado: " + vehicle.GetDisplayName(), LogFile.INIT, false, LogType.DEBUG);
 			}
 		}
 
