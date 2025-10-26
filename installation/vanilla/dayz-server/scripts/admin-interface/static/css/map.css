@@ -1,0 +1,212 @@
+/* Estilos para a página do mapa */
+
+.map-container {
+    height: 75vh;
+    min-height: 600px;
+    width: 100%;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    position: relative;
+}
+
+/* Leaflet customização */
+.leaflet-container {
+    height: 100%;
+    width: 100%;
+    background-color: #1a1a1a;
+}
+
+.leaflet-popup-content-wrapper {
+    border-radius: 8px;
+}
+
+.leaflet-popup-content {
+    margin: 15px;
+}
+
+.leaflet-control {
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* Controles customizados */
+.map-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+    background: white;
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+/* Marcadores customizados */
+.player-marker {
+    background-color: #ff0000;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    width: 10px;
+    height: 10px;
+}
+
+.player-marker.offline {
+    opacity: 0.5;
+}
+
+/* Popup customizado */
+.player-popup {
+    margin: 0;
+}
+
+.player-popup strong {
+    display: block;
+    margin-bottom: 5px;
+    color: #0d6efd;
+    font-size: 1.1em;
+}
+
+.player-popup .info-row {
+    padding: 5px 0;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.player-popup .info-row:last-child {
+    border-bottom: none;
+}
+
+.player-popup .info-label {
+    font-weight: 600;
+    color: #666;
+    font-size: 0.9em;
+}
+
+.player-popup .info-value {
+    color: #333;
+}
+
+/* Trails */
+.trail-line {
+    stroke-width: 2;
+    fill: none;
+}
+
+.trail-point {
+    fill: #fff;
+    stroke: #333;
+    stroke-width: 2;
+}
+
+/* Loading indicator */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    border-radius: 10px;
+}
+
+.loading-spinner {
+    color: white;
+    font-size: 3rem;
+}
+
+/* Responsivo */
+@media (max-width: 768px) {
+    .map-container {
+        height: 60vh;
+        min-height: 400px;
+    }
+    
+    .btn-group {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    
+    .btn-group .btn {
+        flex: 1;
+    }
+}
+
+/* Controles de zoom */
+.leaflet-control-zoom {
+    border-radius: 8px;
+}
+
+.leaflet-control-zoom a {
+    border-radius: 8px;
+    color: #333;
+}
+
+.leaflet-control-zoom a:hover {
+    background-color: #f4f4f4;
+}
+
+/* Legenda */
+.map-legend {
+    position: absolute;
+    bottom: 30px;
+    right: 10px;
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    z-index: 1000;
+    min-width: 200px;
+}
+
+.map-legend h6 {
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+.map-legend-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.map-legend-color {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    margin-right: 10px;
+    border: 2px solid #333;
+}
+
+/* Status indicator */
+.status-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 5px;
+}
+
+.status-indicator.online {
+    background-color: #28a745;
+}
+
+.status-indicator.offline {
+    background-color: #dc3545;
+}
+
+/* Badge no mapa */
+.map-badge {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    padding: 8px 15px;
+    border-radius: 8px;
+    font-size: 0.9em;
+    z-index: 1000;
+}

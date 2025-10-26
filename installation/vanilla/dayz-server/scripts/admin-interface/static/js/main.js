@@ -132,14 +132,15 @@ function showToast(message, type = 'info') {
 }
 
 // Atualização automática de dados (opcional)
-let autoRefreshInterval = null;
+// NOTE: autoRefreshInterval is now defined in map.js to avoid conflicts
+let globalAutoRefreshInterval = null;
 
 function startAutoRefresh(url, interval = 60000) {
-    if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
+    if (globalAutoRefreshInterval) {
+        clearInterval(globalAutoRefreshInterval);
     }
     
-    autoRefreshInterval = setInterval(function() {
+    globalAutoRefreshInterval = setInterval(function() {
         $.get(url, function(data) {
             // Implementar atualização de dados
             console.log('Atualizando dados...');
@@ -148,9 +149,9 @@ function startAutoRefresh(url, interval = 60000) {
 }
 
 function stopAutoRefresh() {
-    if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
-        autoRefreshInterval = null;
+    if (globalAutoRefreshInterval) {
+        clearInterval(globalAutoRefreshInterval);
+        globalAutoRefreshInterval = null;
     }
 }
 

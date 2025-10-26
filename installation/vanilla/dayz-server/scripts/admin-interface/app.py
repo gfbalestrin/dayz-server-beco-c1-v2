@@ -7,8 +7,11 @@ import config
 from database import (
     get_all_players, get_player_coords, get_player_coords_backup,
     get_logs_adm, get_logs_custom, get_vehicles_tracking,
-    get_player_by_id, search_players
+    get_player_by_id, search_players, get_players_last_position,
+    get_player_trail, get_online_players_positions,
+    get_players_positions_by_timerange, dayz_to_pixel
 )
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
@@ -103,6 +106,95 @@ def vehicles():
     """Tracking de veículos"""
     vehicles = get_vehicles_tracking()
     return render_template('vehicles.html', vehicles=vehicles)
+
+@app.route('/map')
+@login_required
+def map_view():
+    """Visualização do mapa"""
+    players_list = get_all_players()
+    return render_template('map.html', players=players_list)
+
+@app.route('/api/players/positions')
+@login_required
+def api_positions():
+    """API com posições atuais de todos os jogadores"""
+    positions = get_players_last_position()
+    
+    # Converter para formato esperado pelo frontend
+    result = {
+        'timestamp': datetime.now().isoformat(),
+        'players': []
+    }
+    
+    for pos in positions:
+        # TESTE: CoordY do banco é a coordenada Norte-Sul
+        # Mas pode estar invertido (Norte no topo ou embaixo da imagem)
+        # Vamos testar com inversão
+        pixel_coords = dayz_to_pixel(pos['CoordX'], pos['CoordY'])
+        result['players'].append({
+            'player_id': pos['PlayerID'],
+            'player_name': pos['PlayerName'] or 'Sem nome',
+            'steam_name': pos['SteamName'] or 'Sem steam name',
+            'coord_x': pos['CoordX'],
+            'coord_y': pos['CoordY'],  # Essa é Sul-Norte
+            'coord_z': pos['CoordZ'],  # Essa é Altitude
+            'pixel_coords': pixel_coords,
+            'last_update': pos['Data'] or '',
+            'is_online': False
+        })
+    
+    return jsonify(result)
+
+@app.route('/api/players/<player_id>/trail')
+@login_required
+def api_player_trail(player_id):
+    """API com trail de um jogador específico"""
+    limit = request.args.get('limit', 100, type=int)
+    trail = get_player_trail(player_id, limit)
+    
+    result = {
+        'player_id': player_id,
+        'trail': []
+    }
+    
+    for point in trail:
+        pixel_coords = dayz_to_pixel(point['CoordX'], point['CoordY'])
+        result['trail'].append({
+            'coord_x': point['CoordX'],
+            'coord_y': point['CoordY'],
+            'coord_z': point['CoordZ'],
+            'pixel_coords': pixel_coords,
+            'timestamp': point['Data'] or ''
+        })
+    
+    return jsonify(result)
+
+@app.route('/api/players/online/positions')
+@login_required
+def api_online_positions():
+    """API com posições apenas de jogadores online"""
+    positions = get_online_players_positions()
+    
+    result = {
+        'timestamp': datetime.now().isoformat(),
+        'players': []
+    }
+    
+    for pos in positions:
+        pixel_coords = dayz_to_pixel(pos['CoordX'], pos['CoordY'])
+        result['players'].append({
+            'player_id': pos['PlayerID'],
+            'player_name': pos['PlayerName'] or 'Sem nome',
+            'steam_name': pos['SteamName'] or 'Sem steam name',
+            'coord_x': pos['CoordX'],
+            'coord_y': pos['CoordY'],
+            'coord_z': pos['CoordZ'],
+            'pixel_coords': pixel_coords,
+            'last_update': pos['Data'] or '',
+            'is_online': True
+        })
+    
+    return jsonify(result)
 
 @app.route('/api/players/search')
 @login_required

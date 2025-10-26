@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Mapa do Servidor - DayZ Admin Interface{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/map.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="fas fa-map me-2"></i>Mapa do Servidor
+    </h1>
+    <div class="btn-group" role="group">
+        <button type="button" class="btn btn-primary" id="refreshBtn">
+            <i class="fas fa-sync-alt me-1"></i>Atualizar
+        </button>
+        <button type="button" class="btn btn-secondary" id="toggleTrailsBtn">
+            <i class="fas fa-route me-1"></i>Mostrar Trails
+        </button>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="onlineOnlyCheck">
+                            <label class="form-check-label" for="onlineOnlyCheck">
+                                Apenas Online
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="playerFilter">Filtrar Jogador:</label>
+                        <select class="form-select" id="playerFilter">
+                            <option value="">Todos</option>
+                            {% for player in players %}
+                            <option value="{{ player.PlayerID }}">{{ player.PlayerName or player.PlayerID }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="autoRefreshCheck">Auto-Refresh:</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="autoRefreshCheck" checked>
+                            <label class="form-check-label" for="autoRefreshCheck">Ligado</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Última Atualização:</label>
+                        <p id="lastUpdate" class="mb-0 text-muted">--</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div id="map" class="map-container" data-map-image="{{ url_for('static', filename='img/chernarus.jpeg') }}"></div>
+    </div>
+</div>
+
+<!-- Info Modal -->
+<div class="modal fade" id="playerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-user me-2"></i>Informações do Jogador
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="playerModalBody">
+                <!-- Conteúdo será preenchido via JS -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary" id="viewTrailBtn">Ver Trail</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='js/map.js') }}"></script>
+{% endblock %}

@@ -66,6 +66,11 @@
                                 <i class="fas fa-car me-2"></i>Veículos
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'map_view' %}active{% endif %}" href="{{ url_for('map_view') }}">
+                                <i class="fas fa-map me-2"></i>Mapa
+                            </a>
+                        </li>
                     </ul>
                 </div>
             </nav>

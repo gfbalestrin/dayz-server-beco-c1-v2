@@ -117,3 +117,100 @@ def get_player_by_id(player_id: str) -> Optional[Dict]:
         """, (player_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
+
+def get_players_last_position() -> List[Dict]:
+    """Retorna a última posição de cada jogador"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT p.PlayerID, p.PlayerName, p.SteamID, p.SteamName,
+                   pc.CoordX, pc.CoordY, pc.CoordZ, pc.Data, pc.PlayerCoordId
+            FROM players_database p
+            INNER JOIN (
+                SELECT PlayerID, MAX(Data) as MaxData
+                FROM players_coord
+                GROUP BY PlayerID
+            ) latest ON p.PlayerID = latest.PlayerID
+            INNER JOIN players_coord pc ON pc.PlayerID = latest.PlayerID AND pc.Data = latest.MaxData
+            ORDER BY p.PlayerName
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_player_trail(player_id: str, limit: int = 100) -> List[Dict]:
+    """Retorna o histórico de movimento de um jogador"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT CoordX, CoordY, CoordZ, Data
+            FROM players_coord
+            WHERE PlayerID = ?
+            ORDER BY Data DESC
+            LIMIT ?
+        """, (player_id, limit))
+        results = [dict(row) for row in cursor.fetchall()]
+        # Mesma correção: CoordZ do banco é CoordY do DayZ
+        for row in results:
+            temp_y = row['CoordZ']  # Sul-Norte
+            temp_z = row['CoordY']  # Altitude
+            row['CoordY'] = temp_y
+            row['CoordZ'] = temp_z
+        return results
+
+def get_online_players_positions() -> List[Dict]:
+    """Retorna posições de jogadores online"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT p.PlayerID, p.PlayerName, p.SteamID, p.SteamName,
+                   pc.CoordX, pc.CoordY, pc.CoordZ, pc.Data, pc.PlayerCoordId,
+                   1 as IsOnline
+            FROM players_online po
+            INNER JOIN players_database p ON po.PlayerID = p.PlayerID
+            INNER JOIN (
+                SELECT PlayerID, MAX(Data) as MaxData
+                FROM players_coord
+                GROUP BY PlayerID
+            ) latest ON p.PlayerID = latest.PlayerID
+            INNER JOIN players_coord pc ON pc.PlayerID = latest.PlayerID AND pc.Data = latest.MaxData
+            ORDER BY p.PlayerName
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_players_positions_by_timerange(start_date: str, end_date: str) -> List[Dict]:
+    """Retorna posições de jogadores em um período específico"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT p.PlayerID, p.PlayerName, p.SteamID, p.SteamName,
+                   pc.CoordX, pc.CoordY, pc.CoordZ, pc.Data, pc.PlayerCoordId
+            FROM players_coord pc
+            INNER JOIN players_database p ON pc.PlayerID = p.PlayerID
+            WHERE pc.Data BETWEEN ? AND ?
+            ORDER BY pc.Data DESC
+        """, (start_date, end_date))
+        return [dict(row) for row in cursor.fetchall()]
+
+def dayz_to_pixel(coord_x: float, coord_y: float) -> List[float]:
+    """
+    Converte coordenadas DayZ para pixels no mapa
+    Chernarus: 15360m × 15360m = 4096px × 4096px
+    
+    No DayZ (SEU banco):
+    - CoordX: Leste-Oeste (horizontal, 0 a 15360)
+    - CoordY: Sul-Norte (vertical no mapa, 0 a 15360)  
+    - CoordZ: Altitude (ignorada)
+    
+    Como CoordY=13309.9 (87% norte) aparece mais ao SUL,
+    significa que NÃO precisamos inverter! CoordY alto = sul na imagem
+    Ou seja: Sul está no TOPO da imagem!
+    """
+    # CoordX para pixel X (horizontal: Oeste-Leste)
+    pixel_x = (coord_x / 15360.0) * 4096
+    
+    # CoordY para pixel Y (vertical: Sul-Norte)
+    # SEM inverter: CoordY alto (norte) → pixel_y alto (sul na imagem)
+    # Isso significa Sul está no TOPO da imagem chernarus.jpeg
+    pixel_y = (coord_y / 15360.0) * 4096
+    
+    # Leaflet CRS.Simple: [y, x] onde y=0 é o topo da imagem
+    return [pixel_y, pixel_x]
