@@ -69,3 +69,124 @@ void ResetLog(string logfile = "init.log")
     }
 }
 
+string GetCurrentTimestamp()
+{
+	int year, month, day, hour, minute;
+	GetGame().GetWorld().GetDate(year, month, day, hour, minute);
+	
+	string yearStr = year.ToString();
+	string monthStr = month < 10 ? ("0" + month.ToString()) : month.ToString();
+	string dayStr = day < 10 ? ("0" + day.ToString()) : day.ToString();
+	string hourStr = hour < 10 ? ("0" + hour.ToString()) : hour.ToString();
+	string minuteStr = minute < 10 ? ("0" + minute.ToString()) : minute.ToString();
+	
+	return yearStr + "-" + monthStr + "-" + dayStr + " " + hourStr + ":" + minuteStr + ":00";
+}
+
+void EnsurePositionsFolderExists()
+{
+	// Cria um arquivo temporário para verificar se a pasta existe
+	string testFile = PlayerPositionsFolder + "test.txt";
+	FileHandle handle = OpenFile(testFile, FileMode.READ);
+	
+	if (!handle)
+	{
+		// Pasta não existe, tenta criar o arquivo de teste
+		handle = OpenFile(testFile, FileMode.WRITE);
+		if (handle)
+		{
+			CloseFile(handle);
+			// Remove o arquivo de teste
+			DeleteFile(testFile);
+			WriteToLog("Pasta de posições criada: " + PlayerPositionsFolder, LogFile.INIT, false, LogType.INFO);
+		}
+		else
+		{
+			WriteToLog("Erro ao criar pasta de posições: " + PlayerPositionsFolder, LogFile.INIT, false, LogType.ERROR);
+		}
+	}
+	else
+	{
+		CloseFile(handle);
+		DeleteFile(testFile);
+	}
+}
+
+void SavePlayerPosition(string playerId, string playerName, vector position)
+{
+	if (playerId == "" || playerName == "")
+		return;
+	
+	string fileName = PlayerPositionsFolder + playerId + ".json";
+	string jsonContent = "";
+	
+	// Tenta ler o arquivo existente
+	FileHandle readHandle = OpenFile(fileName, FileMode.READ);
+	if (readHandle)
+	{
+		string line;
+		while (FGets(readHandle, line) > 0)
+		{
+			jsonContent += line;
+		}
+		CloseFile(readHandle);
+	}
+	
+	// Se o arquivo não existe ou está vazio, cria estrutura inicial
+	if (jsonContent == "")
+	{
+		jsonContent = "{\"playerId\":\"" + playerId + "\",\"playerName\":\"" + playerName + "\",\"positions\":[]}";
+	}
+	
+	// Adiciona a nova posição
+	string timestamp = GetCurrentTimestamp();
+	string newPosition = "{\"x\":" + position[0].ToString() + ",\"y\":" + position[1].ToString() + ",\"z\":" + position[2].ToString() + ",\"timestamp\":\"" + timestamp + "\"}";
+	
+	// Substitui o array de posições
+	int positionsStart = jsonContent.IndexOf("\"positions\":[");
+	int positionsEnd = jsonContent.IndexOf("]}");
+	
+	if (positionsStart != -1 && positionsEnd != -1)
+	{
+		int startIndex = positionsStart + 13; // Length of "\"positions\":["
+		string before = jsonContent.Substring(0, startIndex);
+		string after = jsonContent.Substring(positionsEnd);
+		
+		// Adiciona vírgula se já existem posições
+		if (startIndex < positionsEnd)
+		{
+			string existing = jsonContent.Substring(startIndex, positionsEnd - startIndex).Trim();
+			if (existing != "")
+			{
+				jsonContent = before + existing + "," + newPosition + after;
+			}
+			else
+			{
+				jsonContent = before + newPosition + after;
+			}
+		}
+		else
+		{
+			jsonContent = before + newPosition + after;
+		}
+	}
+	else
+	{
+		// Formato inesperado, reescreve o arquivo
+		jsonContent = "{\"playerId\":\"" + playerId + "\",\"playerName\":\"" + playerName + "\",\"positions\":[" + newPosition + "]}";
+	}
+	
+	// Salva o arquivo
+	FileHandle writeHandle = OpenFile(fileName, FileMode.WRITE);
+	if (writeHandle)
+	{
+		FPrintln(writeHandle, jsonContent);
+		CloseFile(writeHandle);
+		WriteToLog("Posição salva para jogador: " + playerName + " (" + playerId + ")", LogFile.INIT, false, LogType.DEBUG);
+	}
+	else
+	{
+		WriteToLog("Erro ao salvar posição do jogador: " + playerName, LogFile.INIT, false, LogType.ERROR);
+	}
+}
+

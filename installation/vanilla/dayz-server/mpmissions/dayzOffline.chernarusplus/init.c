@@ -1087,6 +1087,10 @@ class CustomMission: MissionServer
 				string playerName = identity.GetName();		
 				string steamId = identity.GetPlainId();
 				
+				// Salva posição do jogador
+				vector playerPos = player.GetPosition();
+				SavePlayerPosition(playerId, playerName, playerPos);
+				
 				// Mensagens públicas
 				if (msgs)
 				{

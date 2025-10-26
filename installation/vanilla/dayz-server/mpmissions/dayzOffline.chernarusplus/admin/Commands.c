@@ -87,7 +87,7 @@ bool ExecuteCommand(TStringArray tokens)
     } else {
         WriteToLog("PlayerID " + target.GetIdentity().GetName() + " (" + playerID + ")" + " digitou comando " + command, LogFile.INIT, false, LogType.INFO);
     }
-    bool isAdmin = true;//CheckIfIsAdmin(playerID);
+    bool isAdmin = CheckIfIsAdmin(playerID);
 
     switch (command)
     {
