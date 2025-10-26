@@ -1069,9 +1069,7 @@ class CustomMission: MissionServer
 			// Detecta e desconecta jogadores ghost automaticamente (aparentemente resolvido e não é necessário mais)
 			//DetectAndDisconnectGhosts();
 
-			TrackVehiclePositions();
-
-			ListActivePlayers();
+			
 
 			array<Man> players = new array<Man>;
 			GetGame().GetPlayers(players);
@@ -1141,6 +1139,8 @@ class CustomMission: MissionServer
 		if (m_PositionTrackTimer60 >= m_PositionTrackCooldown60)
 		{
 			m_PositionTrackTimer60 = 0.0;
+			TrackVehiclePositions();
+			ListActivePlayers();
 			SendPlayersPositions();
 		}
 	}
