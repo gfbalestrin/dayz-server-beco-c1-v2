@@ -3,6 +3,7 @@
         "ServerFolder": "/home/dayzadmin/servers/dayz-server",
         "LogAdmFile": "profiles/DayZServer.ADM",
         "LogRPTFile": "profiles/DayZServer_current.RPT",
+        "MapFolder": "mpmissions/dayzOffline.chernarusplus",
         "PlayerDbFile": "mpmissions/dayzOffline.chernarusplus/storage_1/players.db",
         "AdminIdsFile": "mpmissions/dayzOffline.chernarusplus/admin/files/admin_ids.txt",
         "AdminCmdsFile": "mpmissions/dayzOffline.chernarusplus/admin/files/commands_to_execute.txt",
@@ -13,36 +14,7 @@
         "MessagesXmlFile": "mpmissions/dayzOffline.chernarusplus/db/messages.xml",
         "Deathmatch": "0",
         "WipeOnRestart": "0",
-        "CloseTestPassword": "",
-        "EconomyFiles": {
-            "Repository": "https://github.com/BohemiaInteractive/DayZ-Central-Economy.git",
-            "Local": "mpmissions/dayzOffline.chernarusplus/default_economy",
-            "Events": [
-            {
-                "Name": "dayzOffline.chernarusplus",
-                "Default": "1",
-                "Date": "01/01-30/11",
-                "ReplaceFolders":[
-                    "db",
-                    "env"
-                ],
-                "IgnoreFiles": [
-                    "init.c"
-                ]
-            },
-            {
-                "Name": "ChristmasOffline.ChernarusPlus",
-                "Default": "0",
-                "Date": "01/12-31/12",
-                "ReplaceFolders":[
-                    "db",
-                    "env"
-                ],
-                "IgnoreFiles": [
-                    "init.c"
-                ]
-            }
-        ]}
+        "CloseTestPassword": ""
     },
     "App": {
         "Folder": "/home/dayzadmin/servers/dayz-server/scripts",

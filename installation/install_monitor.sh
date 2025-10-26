@@ -89,6 +89,7 @@ cp "$SCRIPT_DIR/vanilla/dayz-server/scripts/extrai_players_stats.sh" "$DayzFolde
 cp "$SCRIPT_DIR/vanilla/dayz-server/scripts/atualiza_players_online.sh" "$DayzFolder/scripts/"
 cp "$SCRIPT_DIR/vanilla/dayz-server/scripts/monta_killfeed_geral.sh" "$DayzFolder/scripts/"
 cp "$SCRIPT_DIR/vanilla/dayz-server/scripts/captura_dano_player.sh" "$DayzFolder/scripts/"
+cp "$SCRIPT_DIR/vanilla/dayz-server/scripts/economy_update.sh" "$DayzFolder/scripts/"
 
 # Ajuste: Aplica permissão de execução apenas nos scripts que existem (evita erro do shell com glob)
 chmod +x -R "$DayzFolder/scripts/"
