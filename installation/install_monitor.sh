@@ -205,6 +205,11 @@ for file in "${files_to_check[@]}"; do
     fi
 done
 
+chmod +x $MonitorScriptsDir/dayz_supervisor.sh
+chmod +x $MonitorScriptsDir/dayz_command_watcher.sh
+chmod +x $MonitorScriptsDir/dayz_log_monitor.sh
+chown -R "$LinuxUserName:$LinuxUserName" $MonitorScriptsDir
+
 # Verifica se o serviço está habilitado
 if systemctl is-enabled dayz-monitor.service &>/dev/null; then
     success "✓ Serviço dayz-monitor está habilitado"
