@@ -329,10 +329,10 @@ def api_restore_backup(player_id):
 @app.route('/api/players/<player_id>/teleport', methods=['POST'])
 @login_required
 def api_teleport_player(player_id):
-    """API para teleportar jogador para uma posição"""
-    import subprocess
-    import os
+    """API para teleportar jogador para uma posição usando sistema de comandos DayZ"""
     import logging
+    import fcntl
+    import os
     
     logger = logging.getLogger(__name__)
     
@@ -347,57 +347,47 @@ def api_teleport_player(player_id):
         if coord_x is None or coord_y is None:
             return jsonify({'success': False, 'message': 'Coordenadas não fornecidas'}), 400
         
-        script_path = config.TELEPORT_SCRIPT
+        # Caminho do arquivo de comandos
+        commands_file = config.COMMANDS_FILE
         
-        if not os.path.exists(script_path):
-            logger.error(f"Script não encontrado: {script_path}")
+        if not os.path.exists(commands_file):
+            logger.error(f"Arquivo de comandos não encontrado: {commands_file}")
             return jsonify({
                 'success': False,
-                'message': f'Script de teleporte não encontrado'
+                'message': 'Arquivo de comandos não encontrado'
             }), 500
         
-        if not os.access(script_path, os.X_OK):
-            logger.error(f"Script sem permissão: {script_path}")
-            return jsonify({
-                'success': False,
-                'message': 'Script sem permissão de execução'
-            }), 500
+        # Formato: PlayerID teleport CoordX CoordZ CoordY
+        command_line = f"{player_id} teleport {coord_x} {coord_z} {coord_y}\n"
         
-        logger.info(f"Executando teleporte: {player_id} -> ({coord_x}, {coord_y}, {coord_z})")
+        logger.info(f"Adicionando comando de teleporte: {command_line.strip()}")
         
-        # Nota: O script espera: PlayerId CoordX CoordZ CoordY
-        result = subprocess.run(
-            [script_path, player_id, str(coord_x), str(coord_z), str(coord_y)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            cwd=config.TELEPORT_WORKDIR
-        )
-        
-        logger.debug(f"Script return code: {result.returncode}")
-        logger.debug(f"Script stdout: {result.stdout}")
-        logger.debug(f"Script stderr: {result.stderr}")
-        
-        if result.returncode == 0:
+        # Usar file lock para evitar concorrência
+        try:
+            with open(commands_file, 'a') as f:
+                # Adquirir lock exclusivo
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.write(command_line)
+                    f.flush()
+                    os.fsync(f.fileno())
+                finally:
+                    # Liberar lock
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            
+            logger.info("Comando de teleporte adicionado com sucesso")
             return jsonify({
                 'success': True,
-                'message': 'Jogador teleportado com sucesso!',
-                'output': result.stdout
+                'message': 'Comando de teleporte enviado! O jogador será teleportado em instantes.'
             })
-        else:
+            
+        except IOError as e:
+            logger.error(f"Erro ao escrever no arquivo de comandos: {e}")
             return jsonify({
                 'success': False,
-                'message': 'Erro ao teleportar jogador',
-                'error': result.stderr,
-                'stdout': result.stdout
+                'message': f'Erro ao escrever comando: {str(e)}'
             }), 500
             
-    except subprocess.TimeoutExpired:
-        logger.error("Timeout ao executar script")
-        return jsonify({
-            'success': False,
-            'message': 'Timeout ao executar script de teleporte'
-        }), 500
     except Exception as e:
         logger.exception("Erro inesperado ao teleportar")
         return jsonify({

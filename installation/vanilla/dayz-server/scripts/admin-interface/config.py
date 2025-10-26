@@ -35,6 +35,5 @@ RESULTS_PER_PAGE = 100
 RESTORE_BACKUP_SCRIPT = '/home/dayzadmin/servers/dayz-server/scripts/player_restore_backup.sh'
 RESTORE_BACKUP_WORKDIR = '/home/dayzadmin/servers/dayz-server/scripts'
 
-# Caminho para script de teleporte
-TELEPORT_SCRIPT = '/home/dayzadmin/servers/dayz-server/scripts/player_replace_position.sh'
-TELEPORT_WORKDIR = '/home/dayzadmin/servers/dayz-server/scripts'
+# Arquivo de comandos do DayZ
+COMMANDS_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/commands_to_execute.txt'
