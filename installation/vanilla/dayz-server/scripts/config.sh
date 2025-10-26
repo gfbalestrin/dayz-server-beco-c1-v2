@@ -508,6 +508,7 @@ INSERT_PLAYER_POSITION() {
 
     if [[ -z "$PlayerID" ]]; then
         echo "Error: PlayerID is required."
+        echo ""
         return 1
     fi
 
@@ -517,7 +518,7 @@ INSERT_PLAYER_POSITION() {
     EscapedPlayerID=$(echo "$PlayerID" | sed "s/'/''/g")
 
     while (( attempt <= max_retries )); do
-        sqlite3 "$AppFolder/$AppPlayerBecoC1DbFile" <<EOF
+        local PlayerCoordId=$(sqlite3 "$AppFolder/$AppPlayerBecoC1DbFile" <<EOF
 INSERT INTO players_coord (PlayerID, CoordX, CoordZ, CoordY, Data)
 VALUES (
     '$EscapedPlayerID',
@@ -526,9 +527,12 @@ VALUES (
     '$CoordY',
     datetime('now', 'localtime')
 );
+SELECT last_insert_rowid();
 EOF
+)
 
         if [[ $? -eq 0 ]]; then
+            echo "$PlayerCoordId"
             return 0
         else
             echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
@@ -538,6 +542,7 @@ EOF
     done
 
     echo "Failed to insert after $max_retries attempts."
+    echo ""
     return 1
 }
 

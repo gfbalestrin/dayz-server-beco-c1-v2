@@ -1324,7 +1324,7 @@ class CustomMission: MissionServer
 			if (playersJson != "")
 				playersJson += ",";
 			
-			playersJson += "{\"player_id\":\"" + playerId + "\",\"player_name\":\"" + safeName + "\",\"x\":" + position[0].ToString() + ",\"y\":" + position[1].ToString() + ",\"z\":" + position[2].ToString() + "}";
+			playersJson += "{\"player_id\":\"" + playerId + "\",\"player_name\":\"" + safeName + "\",\"x\":" + position[0].ToString() + ",\"z\":" + position[1].ToString() + ",\"y\":" + position[2].ToString() + "}";
 		}
 
 		string jsonAction = "{\"action\":\"players_positions\",\"players\":[" + playersJson + "]}";

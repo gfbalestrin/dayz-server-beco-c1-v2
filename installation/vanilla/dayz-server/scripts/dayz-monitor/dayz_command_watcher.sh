@@ -10,6 +10,8 @@ source ./config.sh
 ScriptName=$(basename "$0")
 
 COMMAND_FILE="$DayzServerFolder/$DayzActionsToExecuteFile"
+DB_FILENAME="$DayzServerFolder/$DayzPlayerDbFile"
+PLAYERS_BECO_C1_DB="$AppFolder/$AppPlayerBecoC1DbFile"
 
 echo "Monitorando comandos do DayZ em $COMMAND_FILE..."
 INSERT_CUSTOM_LOG "Monitorando arquivo: $COMMAND_FILE" "INFO" "$ScriptName"
@@ -261,11 +263,61 @@ tail -F "$COMMAND_FILE" | while read -r line; do
                 coord_z=$(echo "$player_data" | jq -r '.z')
                 coord_y=$(echo "$player_data" | jq -r '.y')
                 
-                # Insere a posição no banco de dados
-                INSERT_PLAYER_POSITION "$player_id" "$coord_x" "$coord_z" "$coord_y"
+                # Insere a posição no banco de dados e captura o ID gerado
+                PlayerCoordId=$(INSERT_PLAYER_POSITION "$player_id" "$coord_x" "$coord_z" "$coord_y")
+                
+                if [ $? -eq 0 ] && [ -n "$PlayerCoordId" ]; then
+                    echo ">> Posições armazenadas com sucesso (ID: $PlayerCoordId)"
+                    
+                    # Tenta realizar backup completo do personagem
+                    echo ">> Tentando realizar backup do personagem..."
+                    
+                    # Busca o blob Data do player do banco DayZ
+                    backup=$(sqlite3 "$DB_FILENAME" "SELECT hex(Data) FROM Players where UID = '$player_id';")
+                    
+                    if [ -n "$backup" ] && [ "$backup" != "" ]; then
+                        # Se backup existe, tenta inserir na tabela players_coord_backup
+                        MAX_ATTEMPTS=5
+                        ATTEMPT=1
+                        backup_success=false
+                        
+                        while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+                            echo "Tentativa $ATTEMPT de $MAX_ATTEMPTS para backup..."
+                            
+                            sqlite3 "$PLAYERS_BECO_C1_DB" <<EOF
+PRAGMA foreign_keys = ON;
+INSERT INTO players_coord_backup (PlayerCoordId, Backup, TimeStamp)
+VALUES (
+    $PlayerCoordId,
+    X'$(echo -n "$backup" | xxd -p | tr -d '\n')',
+    datetime('now', 'localtime')
+);
+EOF
+
+                            if [ $? -eq 0 ]; then
+                                INSERT_CUSTOM_LOG "Backup do personagem realizado com sucesso." "INFO" "$ScriptName"
+                                backup_success=true
+                                break
+                            else
+                                echo "Falha na tentativa $ATTEMPT. Aguardando para tentar novamente..."
+                                sleep $((ATTEMPT * 2))
+                                ((ATTEMPT++))
+                            fi
+                        done
+                        
+                        if [ "$backup_success" = false ]; then
+                            INSERT_CUSTOM_LOG "Erro: não foi possível inserir backup após $MAX_ATTEMPTS tentativas (coordenadas já salvas)." "ERROR" "$ScriptName"
+                        fi
+                    else
+                        echo "Player Data está em branco. Backup ignorado."
+                        INSERT_CUSTOM_LOG "Backup ignorado - dados do player não disponíveis" "INFO" "$ScriptName"
+                    fi
+                else
+                    INSERT_CUSTOM_LOG "Erro: não foi possível salvar coordenadas do jogador $player_id" "ERROR" "$ScriptName"
+                fi
+
             done <<< "$players"
             
-            echo ">> Posições processadas com sucesso"
             ;;
         *)
             echo ">> Ação desconhecida: $action"
