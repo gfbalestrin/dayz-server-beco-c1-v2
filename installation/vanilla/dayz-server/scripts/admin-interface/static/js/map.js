@@ -6,15 +6,26 @@
 let map;
 let playerMarkers = {};
 let playerTrails = {};
+let vehicleMarkers = {};
 let currentFilter = null;
 let autoRefreshInterval = null;
 let showTrails = false;
+let showVehicles = false;
 
 // Cor padrão do Leaflet
 const iconColors = [
     'red', 'blue', 'green', 'orange', 'purple', 'pink', 
     'yellow', 'brown', 'darkred', 'darkblue', 'darkgreen'
 ];
+
+// Ícone customizado para veículos
+function createVehicleIcon() {
+    return L.divIcon({
+        className: 'vehicle-marker',
+        html: `<div style="background-color: #28a745; border: 2px solid white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><i class="fas fa-car" style="color: white; font-size: 12px;"></i></div>`,
+        iconSize: [20, 20]
+    });
+}
 
 // Inicializar o mapa quando o documento estiver pronto
 $(document).ready(function() {
@@ -27,6 +38,7 @@ $(document).ready(function() {
     $('#onlineOnlyCheck').on('change', filterPlayers);
     $('#playerFilter').on('change', filterPlayers);
     $('#toggleTrailsBtn').on('click', toggleTrails);
+    $('#toggleVehiclesBtn').on('click', toggleVehiclesDisplay);
     
     // Auto-refresh inicial
     toggleAutoRefresh();
@@ -278,7 +290,10 @@ function filterPlayers() {
  */
 function toggleAutoRefresh() {
     if ($('#autoRefreshCheck').is(':checked')) {
-        autoRefreshInterval = setInterval(loadPositions, 10000); // 10 segundos
+        autoRefreshInterval = setInterval(function() {
+            loadPositions();
+            if (showVehicles) loadVehicles();
+        }, 10000); // 10 segundos
         console.log('Auto-refresh ligado');
     } else {
         if (autoRefreshInterval) {
@@ -286,6 +301,88 @@ function toggleAutoRefresh() {
             autoRefreshInterval = null;
         }
         console.log('Auto-refresh desligado');
+    }
+}
+
+/**
+ * Carregar posições de veículos
+ */
+function loadVehicles() {
+    $.get('/api/vehicles/positions')
+        .done(function(data) {
+            updateVehicles(data);
+        })
+        .fail(function() {
+            console.error('Erro ao carregar veículos');
+        });
+}
+
+/**
+ * Atualizar veículos no mapa
+ */
+function updateVehicles(data) {
+    // Limpar veículos antigos
+    Object.keys(vehicleMarkers).forEach(function(key) {
+        map.removeLayer(vehicleMarkers[key]);
+    });
+    vehicleMarkers = {};
+    
+    if (!showVehicles) {
+        return;
+    }
+    
+    // Adicionar veículos
+    data.vehicles.forEach(function(vehicle) {
+        const vehicleId = vehicle.vehicle_id;
+        const lat = vehicle.pixel_coords[0];
+        const lng = vehicle.pixel_coords[1];
+        
+        const marker = L.marker([lat, lng], {
+            icon: createVehicleIcon(),
+            opacity: 1.0
+        }).addTo(map);
+        
+        const popupContent = `
+            <div class="player-popup">
+                <strong><i class="fas fa-car me-2"></i>${vehicle.vehicle_name}</strong>
+                <div class="info-row">
+                    <span class="info-label">ID:</span>
+                    <span class="info-value">${vehicle.vehicle_id}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Coords:</span>
+                    <span class="info-value">X: ${vehicle.coord_x.toFixed(2)}, Y: ${vehicle.coord_y.toFixed(2)} (altura: ${vehicle.coord_z ? vehicle.coord_z.toFixed(2) : 'N/A'})</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Atualizado:</span>
+                    <span class="info-value">${vehicle.last_update || 'Desconhecido'}</span>
+                </div>
+            </div>
+        `;
+        
+        marker.bindPopup(popupContent);
+        vehicleMarkers[vehicleId] = marker;
+    });
+    
+    console.log(`Veículos atualizados: ${data.vehicles.length} veículos`);
+}
+
+/**
+ * Toggle mostrar veículos
+ */
+function toggleVehiclesDisplay() {
+    showVehicles = !showVehicles;
+    
+    if (showVehicles) {
+        $('#toggleVehiclesBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar Veículos');
+        loadVehicles();
+    } else {
+        $('#toggleVehiclesBtn').html('<i class="fas fa-car me-1"></i>Mostrar Veículos');
+        // Remover todos os veículos
+        Object.keys(vehicleMarkers).forEach(function(key) {
+            map.removeLayer(vehicleMarkers[key]);
+        });
+        vehicleMarkers = {};
     }
 }
 

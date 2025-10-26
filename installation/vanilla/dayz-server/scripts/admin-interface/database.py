@@ -94,6 +94,23 @@ def get_vehicles_tracking(limit: int = 1000) -> List[Dict]:
         """, (limit,))
         return [dict(row) for row in cursor.fetchall()]
 
+def get_vehicles_last_position() -> List[Dict]:
+    """Retorna a última posição de cada veículo"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT VehicleId, VehicleName,
+                   PositionX, PositionY, PositionZ, TimeStamp, IdVehicleTracking
+            FROM vehicles_tracking v1
+            WHERE TimeStamp = (
+                SELECT MAX(TimeStamp)
+                FROM vehicles_tracking v2
+                WHERE v2.VehicleId = v1.VehicleId
+            )
+            ORDER BY VehicleName
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
 def search_players(query: str) -> List[Dict]:
     """Busca jogadores por nome ou ID"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:
@@ -150,8 +167,8 @@ def get_player_trail(player_id: str, limit: int = 100) -> List[Dict]:
         results = [dict(row) for row in cursor.fetchall()]
         # Mesma correção: CoordZ do banco é CoordY do DayZ
         for row in results:
-            temp_y = row['CoordZ']  # Sul-Norte
-            temp_z = row['CoordY']  # Altitude
+            temp_y = row['CoordY']  # Sul-Norte
+            temp_z = row['CoordZ']  # Altitude
             row['CoordY'] = temp_y
             row['CoordZ'] = temp_z
         return results
