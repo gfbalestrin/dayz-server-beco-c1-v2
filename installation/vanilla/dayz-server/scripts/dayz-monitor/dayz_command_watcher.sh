@@ -319,6 +319,40 @@ EOF
             done <<< "$players"
             
             ;;
+        vehicles_positions)
+            echo ">> Recebendo posições dos veículos"
+            INSERT_CUSTOM_LOG "Processando posições dos veículos" "INFO" "$ScriptName"
+            
+            # Obtém o array de veículos do JSON
+            vehicles=$(echo "$line" | jq -c '.vehicles[]')
+            
+            # Conta quantos veículos foram recebidos
+            vehicle_count=$(echo "$line" | jq '.vehicles | length')
+            
+            # Itera sobre cada veículo no array
+            while IFS= read -r vehicle_data; do
+                vehicle_id=$(echo "$vehicle_data" | jq -r '.vehicle_id')
+                vehicle_name=$(echo "$vehicle_data" | jq -r '.vehicle_name')
+                coord_x=$(echo "$vehicle_data" | jq -r '.x')
+                coord_z=$(echo "$vehicle_data" | jq -r '.z')
+                coord_y=$(echo "$vehicle_data" | jq -r '.y')
+                
+                # Insere a posição do veículo no banco de dados
+                VehicleTrackingId=$(INSERT_VEHICLE_POSITION "$vehicle_id" "$vehicle_name" "$coord_x" "$coord_z" "$coord_y")
+                
+                if [ $? -eq 0 ] && [ -n "$VehicleTrackingId" ]; then
+                    echo ">> Posição do veículo $vehicle_name (ID: $vehicle_id) armazenada com sucesso (TrackingID: $VehicleTrackingId)"
+                    INSERT_CUSTOM_LOG "Veículo rastreado: $vehicle_name (ID: $vehicle_id) | Posição: X=$coord_x, Z=$coord_z, Y=$coord_y" "INFO" "$ScriptName"
+                else
+                    echo ">> Erro ao armazenar posição do veículo $vehicle_name"
+                    INSERT_CUSTOM_LOG "Erro ao rastrear veículo: $vehicle_name (ID: $vehicle_id)" "ERROR" "$ScriptName"
+                fi
+                
+            done <<< "$vehicles"
+            
+            echo ">> $vehicle_count veículos processados"
+            INSERT_CUSTOM_LOG "Total de $vehicle_count veículos rastreados" "INFO" "$ScriptName"
+            ;;
         *)
             echo ">> Ação desconhecida: $action"
             ;;

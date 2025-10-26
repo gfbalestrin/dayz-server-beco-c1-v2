@@ -546,6 +546,60 @@ EOF
     return 1
 }
 
+INSERT_VEHICLE_POSITION() {
+    local VehicleId="$1"
+    local VehicleName="$2"
+    local CoordX="$3"
+    local CoordZ="$4"
+    local CoordY="$5"
+    
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+
+    if [[ -z "$VehicleId" ]]; then
+        echo "Error: VehicleId is required."
+        echo ""
+        return 1
+    fi
+
+    local EscapedVehicleId
+    local EscapedVehicleName
+
+    # Escapar aspas simples
+    EscapedVehicleId=$(echo "$VehicleId" | sed "s/'/''/g")
+    EscapedVehicleName=$(echo "$VehicleName" | sed "s/'/''/g")
+
+    while (( attempt <= max_retries )); do
+        local VehicleTrackingId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+INSERT INTO vehicles_tracking (VehicleId, VehicleName, PositionX, PositionZ, PositionY, TimeStamp)
+VALUES (
+    '$EscapedVehicleId',
+    '$EscapedVehicleName',
+    '$CoordX',
+    '$CoordZ',
+    '$CoordY',
+    datetime('now', 'localtime')
+);
+SELECT last_insert_rowid();
+EOF
+)
+
+        if [[ $? -eq 0 ]]; then
+            echo "$VehicleTrackingId"
+            return 0
+        else
+            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
+            sleep "$retry_delay"
+            attempt=$((attempt + 1))
+        fi
+    done
+
+    echo "Failed to insert after $max_retries attempts."
+    echo ""
+    return 1
+}
+
 GET_DAYZ_PLAYER_POSITION(){
     local PlayerID="$1"
     local player=$(sqlite3 "$DayzServerFolder/$DayzPlayerDbFile" "SELECT hex(Data) FROM Players where UID = '$PlayerId';")    

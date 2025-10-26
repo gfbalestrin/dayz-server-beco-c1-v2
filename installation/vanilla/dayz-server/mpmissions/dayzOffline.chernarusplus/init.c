@@ -1142,6 +1142,7 @@ class CustomMission: MissionServer
 			TrackVehiclePositions();
 			ListActivePlayers();
 			SendPlayersPositions();
+			SendVehiclesPositions();
 		}
 	}
 	
@@ -1331,6 +1332,50 @@ class CustomMission: MissionServer
 		AppendExternalAction(jsonAction);
 		
 		WriteToLog("SendPlayersPositions(): Posições de " + players.Count().ToString() + " jogadores enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
+	}
+
+	// Envia posições de todos os veículos rastreados via ExternalAction
+	void SendVehiclesPositions()
+	{
+		if (!m_TrackedVehicles || m_TrackedVehicles.Count() == 0)
+			return;
+
+		string vehiclesJson = "";
+
+		foreach (CarScript vehicle : m_TrackedVehicles)
+		{
+			if (!vehicle)
+				continue;
+
+			vector position = vehicle.GetPosition();
+			string vehicleName = vehicle.GetDisplayName();
+			string vehicleId = vehicle.GetNetworkID();
+			
+			// Sanitiza o nome do veículo
+			string safeName = vehicleName;
+			TStringArray unsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
+			foreach (string ch : unsafeChars)
+			{
+				safeName.Replace(ch, "-");
+			}
+			
+			// Sanitiza o ID do veículo
+			string safeId = vehicleId;
+			foreach (string ch : unsafeChars)
+			{
+				safeId.Replace(ch, "-");
+			}
+			
+			if (vehiclesJson != "")
+				vehiclesJson += ",";
+			
+			vehiclesJson += "{\"vehicle_id\":\"" + safeId + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + position[0].ToString() + ",\"z\":" + position[1].ToString() + ",\"y\":" + position[2].ToString() + "}";
+		}
+
+		string jsonAction = "{\"action\":\"vehicles_positions\",\"vehicles\":[" + vehiclesJson + "]}";
+		AppendExternalAction(jsonAction);
+		
+		WriteToLog("SendVehiclesPositions(): Posições de " + m_TrackedVehicles.Count().ToString() + " veículos enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
 	}
 };
 
