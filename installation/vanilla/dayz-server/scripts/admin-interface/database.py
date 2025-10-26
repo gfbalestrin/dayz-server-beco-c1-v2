@@ -231,3 +231,40 @@ def dayz_to_pixel(coord_x: float, coord_y: float) -> List[float]:
     
     # Leaflet CRS.Simple: [y, x] onde y=0 é o topo da imagem
     return [pixel_y, pixel_x]
+
+def get_recent_kills(limit: int = 100) -> List[Dict]:
+    """Retorna kills recentes com posições"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                k.Id,
+                k.PlayerIDKiller,
+                k.PlayerIDKilled,
+                k.Weapon,
+                k.DistanceMeter,
+                k.Data,
+                k.PosKiller,
+                k.PosKilled,
+                killer.PlayerName as KillerName,
+                victim.PlayerName as VictimName
+            FROM players_killfeed k
+            LEFT JOIN players_database killer ON k.PlayerIDKiller = killer.PlayerID
+            LEFT JOIN players_database victim ON k.PlayerIDKilled = victim.PlayerID
+            ORDER BY k.Data DESC
+            LIMIT ?
+        """, (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
+def parse_position(pos_string: str):
+    """Parse string de posição '<X, Y, Z>' para tupla"""
+    if not pos_string:
+        return None
+    try:
+        # Remove < > e split por vírgula
+        coords = pos_string.strip('<>').split(',')
+        if len(coords) == 3:
+            return (float(coords[0]), float(coords[1]), float(coords[2]))
+    except:
+        return None
+    return None

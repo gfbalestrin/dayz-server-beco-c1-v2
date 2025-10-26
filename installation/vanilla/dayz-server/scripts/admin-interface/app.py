@@ -10,7 +10,7 @@ from database import (
     get_player_by_id, search_players, get_players_last_position,
     get_player_trail, get_online_players_positions,
     get_players_positions_by_timerange, dayz_to_pixel,
-    get_vehicles_last_position
+    get_vehicles_last_position, get_recent_kills, parse_position
 )
 from datetime import datetime
 
@@ -236,6 +236,53 @@ def api_search_players():
     
     results = search_players(query)
     return jsonify(results)
+
+@app.route('/api/events/kills')
+@login_required
+def api_kills():
+    """API com eventos de kills recentes"""
+    limit = request.args.get('limit', 100, type=int)
+    kills = get_recent_kills(limit)
+    
+    result = {
+        'timestamp': datetime.now().isoformat(),
+        'events': []
+    }
+    
+    for kill in kills:
+        # Parse posições
+        pos_killer = parse_position(kill['PosKiller'])
+        pos_killed = parse_position(kill['PosKilled'])
+        
+        if pos_killer and pos_killed:
+            # Converter para pixels
+            pixel_killer = dayz_to_pixel(pos_killer[0], pos_killer[1])
+            pixel_killed = dayz_to_pixel(pos_killed[0], pos_killed[1])
+            
+            result['events'].append({
+                'id': kill['Id'],
+                'killer_id': kill['PlayerIDKiller'],
+                'killer_name': kill['KillerName'] or 'Desconhecido',
+                'victim_id': kill['PlayerIDKilled'],
+                'victim_name': kill['VictimName'] or 'Desconhecido',
+                'weapon': kill['Weapon'] or 'Desconhecido',
+                'distance': kill['DistanceMeter'] or 0,
+                'timestamp': kill['Data'],
+                'killer_pos': {
+                    'x': pos_killer[0],
+                    'y': pos_killer[1],
+                    'z': pos_killer[2],
+                    'pixel_coords': pixel_killer
+                },
+                'victim_pos': {
+                    'x': pos_killed[0],
+                    'y': pos_killed[1],
+                    'z': pos_killed[2],
+                    'pixel_coords': pixel_killed
+                }
+            })
+    
+    return jsonify(result)
 
 @app.errorhandler(404)
 def not_found(e):

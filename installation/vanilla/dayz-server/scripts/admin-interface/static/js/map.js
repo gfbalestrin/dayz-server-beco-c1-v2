@@ -7,10 +7,12 @@ let map;
 let playerMarkers = {};
 let playerTrails = {};
 let vehicleMarkers = {};
+let killMarkers = [];
 let currentFilter = null;
 let autoRefreshInterval = null;
 let showTrails = false;
 let showVehicles = false;
+let showKills = false;
 
 // Cor padrão do Leaflet
 const iconColors = [
@@ -39,6 +41,7 @@ $(document).ready(function() {
     $('#playerFilter').on('change', filterPlayers);
     $('#toggleTrailsBtn').on('click', toggleTrails);
     $('#toggleVehiclesBtn').on('click', toggleVehiclesDisplay);
+    $('#toggleKillsBtn').on('click', toggleKills);
     
     // Auto-refresh inicial
     toggleAutoRefresh();
@@ -113,8 +116,23 @@ function getPlayerColor(playerId) {
 function createMarkerIcon(color) {
     return L.divIcon({
         className: 'player-marker',
-        html: `<div style="background-color: ${color}; border: 2px solid white; width: 12px; height: 12px; border-radius: 50%;"></div>`,
-        iconSize: [12, 12]
+        html: `<div style="background-color: ${color}; border: 2px solid white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                 <i class="fas fa-user" style="color: white; font-size: 14px;"></i>
+               </div>`,
+        iconSize: [24, 24]
+    });
+}
+
+/**
+ * Criar ícone de kill
+ */
+function createKillIcon() {
+    return L.divIcon({
+        className: 'kill-marker',
+        html: `<div style="background-color: #dc3545; border: 2px solid white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                 <i class="fas fa-skull-crossbones" style="color: white; font-size: 10px;"></i>
+               </div>`,
+        iconSize: [20, 20]
     });
 }
 
@@ -406,3 +424,100 @@ $(window).on('beforeunload', function() {
         clearInterval(autoRefreshInterval);
     }
 });
+
+/**
+ * Carregar eventos de kill
+ */
+function loadKills() {
+    $.get('/api/events/kills', { limit: 50 })
+        .done(function(data) {
+            updateKills(data);
+        })
+        .fail(function() {
+            console.error('Erro ao carregar kills');
+        });
+}
+
+/**
+ * Atualizar kills no mapa
+ */
+function updateKills(data) {
+    // Limpar kills antigos
+    killMarkers.forEach(item => {
+        map.removeLayer(item.marker);
+        if (item.line) map.removeLayer(item.line);
+    });
+    killMarkers = [];
+    
+    if (!showKills) return;
+    
+    data.events.forEach(function(event) {
+        // Marcador na posição da vítima
+        const marker = L.marker(
+            [event.victim_pos.pixel_coords[0], event.victim_pos.pixel_coords[1]],
+            { icon: createKillIcon() }
+        ).addTo(map);
+        
+        // Popup com informações
+        const popupContent = `
+            <div class="event-popup">
+                <strong>💀 Kill Event</strong>
+                <div class="info-row">
+                    <span class="info-label">Killer:</span>
+                    <span class="info-value">${event.killer_name}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Victim:</span>
+                    <span class="info-value">${event.victim_name}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Weapon:</span>
+                    <span class="info-value">${event.weapon}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Distance:</span>
+                    <span class="info-value">${event.distance.toFixed(0)}m</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Time:</span>
+                    <span class="info-value">${event.timestamp}</span>
+                </div>
+            </div>
+        `;
+        marker.bindPopup(popupContent);
+        
+        // Linha conectando killer e victim
+        const line = L.polyline([
+            [event.killer_pos.pixel_coords[0], event.killer_pos.pixel_coords[1]],
+            [event.victim_pos.pixel_coords[0], event.victim_pos.pixel_coords[1]]
+        ], {
+            color: '#dc3545',
+            weight: 2,
+            opacity: 0.6,
+            dashArray: '5, 10'
+        }).addTo(map);
+        
+        killMarkers.push({ marker, line });
+    });
+    
+    console.log(`Kills carregados: ${data.events.length}`);
+}
+
+/**
+ * Toggle mostrar kills
+ */
+function toggleKills() {
+    showKills = !showKills;
+    
+    if (showKills) {
+        $('#toggleKillsBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar Kills');
+        loadKills();
+    } else {
+        $('#toggleKillsBtn').html('<i class="fas fa-skull-crossbones me-1"></i>Mostrar Kills');
+        killMarkers.forEach(item => {
+            map.removeLayer(item.marker);
+            if (item.line) map.removeLayer(item.line);
+        });
+        killMarkers = [];
+    }
+}
