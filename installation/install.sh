@@ -511,9 +511,14 @@ else
 cat <<EOF > "$DayzFolder/scripts/update.sh"
 #!/bin/bash
 
+source ./config.sh
+CurrentDate=\$(date "+%d/%m/%Y %H:%M:%S")
+ScriptName=\$(basename "\$0")
 set -euo pipefail
 
 echo "[INFO] Iniciando update do servidor DayZ..."
+
+SEND_DISCORD_WEBHOOK "Servidor reiniciando..." "\$DiscordWebhookLogs" "\$CurrentDate" "\$ScriptName"
 
 # Atualiza o servidor via SteamCMD
 echo "[INFO] Atualizando servidor via SteamCMD..."
@@ -583,15 +588,6 @@ CURRENT_DATE=\$(date "+%Y-%m-%d_%H-%M-%S")
 PLAYER_DB="/home/$LinuxUserName/servers/dayz-server/mpmissions/$DayzMpmission/storage_1/players.db"
 BACKUP_DIR="/home/$LinuxUserName/servers/dayz-server/mpmissions/$DayzMpmission/storage_1/backup_custom"
 BACKUP_FILE="\$BACKUP_DIR/players.db_\$CURRENT_DATE"
-
-# Cria diretórios de posições para hoje e amanhã
-echo "[INFO] Garantindo diretórios de posições..."
-TODAY_DATE=\$(date "+%Y-%m-%d")
-TOMORROW_DATE=\$(date -d "+1 day" "+%Y-%m-%d")
-POSITIONS_BASE_DIR="/home/$LinuxUserName/servers/dayz-server/mpmissions/$DayzMpmission/admin/positions"
-mkdir -p "\$POSITIONS_BASE_DIR/\$TODAY_DATE"
-mkdir -p "\$POSITIONS_BASE_DIR/\$TOMORROW_DATE"
-chown -R "$LinuxUserName:$LinuxUserName" "\$POSITIONS_BASE_DIR"
 
 echo "Fazendo backup do banco de players..."
 

@@ -51,7 +51,7 @@ class CustomMission: MissionServer
 {
 	ref array<ref ActivePlayer> ActivePlayers;  // Lista de jogadores ativos/conectados
 	ref array<string> FixedMessages;
-	float m_AdminCheckCooldown10 = 10.0;p
+	float m_AdminCheckCooldown10 = 10.0;
 
 	void CustomMission()
 	{
