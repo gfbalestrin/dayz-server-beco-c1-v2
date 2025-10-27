@@ -7,6 +7,14 @@
     <h1 class="h2">
         <i class="fas fa-users me-2"></i>Jogadores
     </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="badge bg-success me-2">
+            <i class="fas fa-circle"></i> <span id="onlineCount">0</span> Online
+        </div>
+        <div class="badge bg-secondary">
+            <span id="totalCount">0</span> Total
+        </div>
+    </div>
 </div>
 
 <div class="card">
@@ -14,45 +22,45 @@
         <table id="playersTable" class="table table-striped table-hover">
             <thead>
                 <tr>
-                    <th>ID</th>
+                    <th>Status</th>
+                    <th>Player ID</th>
                     <th>Nome</th>
-                    <th>Steam ID</th>
                     <th>Steam Name</th>
+                    <th>Data/Tempo</th>
+                    <th>Localização</th>
                     <th>Ações</th>
                 </tr>
             </thead>
-            <tbody>
-                {% for player in players %}
+            <tbody id="playersTableBody">
                 <tr>
-                    <td><code>{{ player.PlayerID }}</code></td>
-                    <td>{{ player.PlayerName or '-' }}</td>
-                    <td><code>{{ player.SteamID or '-' }}</code></td>
-                    <td>{{ player.SteamName or '-' }}</td>
-                    <td>
-                        <a href="{{ url_for('player_coords', player_id=player.PlayerID) }}" 
-                           class="btn btn-sm btn-outline-primary">
-                            <i class="fas fa-map-marker-alt me-1"></i>Coordenadas
-                        </a>
+                    <td colspan="7" class="text-center">
+                        <i class="fas fa-spinner fa-spin"></i> Carregando...
                     </td>
                 </tr>
-                {% endfor %}
             </tbody>
         </table>
+    </div>
+</div>
+
+<!-- Modal para copiar Player ID -->
+<div class="modal fade" id="copyPlayerIdModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center">
+                <h5>Player ID</h5>
+                <p class="mb-0"><code id="playerIdToCopy"></code></p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-primary" id="copyPlayerIdBtn">
+                    <i class="fas fa-copy me-2"></i>Copiar
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script>
-    $(document).ready(function() {
-        $('#playersTable').DataTable({
-            language: {
-                url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/pt-BR.json'
-            },
-            order: [[1, 'asc']],
-            pageLength: 25,
-            responsive: true
-        });
-    });
-</script>
+<script src="{{ url_for('static', filename='js/players.js') }}"></script>
 {% endblock %}

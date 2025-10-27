@@ -318,6 +318,29 @@ def get_online_players() -> List[Dict]:
         """)
         return [dict(row) for row in cursor.fetchall()]
 
+def get_all_players_with_status() -> List[Dict]:
+    """Retorna todos os jogadores com status online e últimas coordenadas"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                pd.*,
+                po.DataConnect,
+                CASE WHEN po.PlayerID IS NOT NULL THEN 1 ELSE 0 END as IsOnline,
+                pc.CoordX, 
+                pc.CoordY, 
+                pc.Data as LastCoordDate
+            FROM players_database pd
+            LEFT JOIN players_online po ON pd.PlayerID = po.PlayerID
+            LEFT JOIN (
+                SELECT PlayerID, CoordX, CoordY, Data,
+                       ROW_NUMBER() OVER (PARTITION BY PlayerID ORDER BY Data DESC) as rn
+                FROM players_coord
+            ) pc ON pd.PlayerID = pc.PlayerID AND pc.rn = 1
+            ORDER BY IsOnline DESC, pd.PlayerName ASC
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
 def get_weapons(search: str = None, limit: int = 50) -> List[Dict]:
     """Retorna lista de armas com filtro opcional"""
     with DatabaseConnection(config.DB_ITEMS) as conn:

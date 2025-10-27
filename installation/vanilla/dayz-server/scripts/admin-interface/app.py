@@ -12,6 +12,7 @@ from database import (
     get_players_positions_by_timerange, dayz_to_pixel,
     get_vehicles_last_position, get_recent_kills, parse_position,
     check_backup_exists, get_backup_info, get_online_players,
+    get_all_players_with_status,
     get_weapons, get_weapons_with_calibers, get_all_calibers, get_items, get_item_types,
     get_explosives, get_ammunitions, get_calibers,
     get_magazines, get_attachments, get_attachment_types,
@@ -86,7 +87,7 @@ def index():
 @login_required
 def players():
     """Lista de jogadores"""
-    players_list = get_all_players()
+    players_list = get_all_players_with_status()
     return render_template('players.html', players=players_list)
 
 @app.route('/player/<player_id>/coords')
@@ -466,17 +467,18 @@ def api_kills():
     
     return jsonify(result)
 
-@app.route('/players-manage')
-@login_required
-def players_manage():
-    """Página de gerenciamento de jogadores"""
-    return render_template('players_manage.html')
-
 @app.route('/api/players/online')
 @login_required
 def api_online_players():
     """API com jogadores online e suas informações"""
     players = get_online_players()
+    return jsonify({'players': players})
+
+@app.route('/api/players/all-with-status')
+@login_required
+def api_all_players_with_status():
+    """API com todos os jogadores e seus status para atualização automática"""
+    players = get_all_players_with_status()
     return jsonify({'players': players})
 
 @app.route('/api/players/<player_id>/action', methods=['POST'])
