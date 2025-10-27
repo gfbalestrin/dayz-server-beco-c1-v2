@@ -104,6 +104,35 @@ class CustomMission: MissionServer
 		string steamId = identity.GetPlainId();
 		string playerName = identity.GetName();
 		string playerId = identity.GetId();
+		
+		// ============================================================================
+		// DETECÇÃO DE DUPLICAÇÃO FÍSICA: Verifica se já existe outro personagem no mundo
+		// ============================================================================
+		if (player)
+		{
+			Man existingManInWorld = FindPlayerManInWorld(playerId);
+			
+			// Se já existe um personagem no mundo E é diferente do que está sendo adicionado = DUPLICAÇÃO!
+			if (existingManInWorld && existingManInWorld != player)
+			{
+				PlayerBase ghostPB = PlayerBase.Cast(existingManInWorld);
+				if (ghostPB)
+				{
+					vector ghostPos = ghostPB.GetPosition();
+					string ghostSteamId = ghostPB.GetIdentity().GetPlainId();
+					
+					WriteToLog("AddOrUpdateActivePlayer(): DUPLICAÇÃO DETECTADA! Deletando personagem ghost: " + playerName + " | Pos: " + ghostPos.ToString() + " | SteamID: " + ghostSteamId, LogFile.INIT, false, LogType.INFO);
+					
+					// Força desconexão do ghost primeiro
+					GetGame().DisconnectPlayer(ghostPB.GetIdentity(), playerId);
+					
+					// Deletar fisicamente o ghost do mundo (garante remoção imediata)
+					GetGame().ObjectDelete(existingManInWorld);
+					
+					WriteToLog("AddOrUpdateActivePlayer(): Ghost deletado fisicamente do mundo com sucesso", LogFile.INIT, false, LogType.INFO);
+				}
+			}
+		}
 
 		// Verifica se existe algum player na lista com o mesmo steamId OU playerId
 		ActivePlayer foundBySteamId = null;
@@ -337,6 +366,23 @@ class CustomMission: MissionServer
 			}
 		}
 		return false;
+	}
+	
+	// Busca um personagem no mundo pelo PlayerID e retorna o objeto Man
+	Man FindPlayerManInWorld(string playerId)
+	{
+		array<Man> players = new array<Man>();
+		GetGame().GetPlayers(players);
+		
+		foreach (Man man : players)
+		{
+			PlayerBase pb = PlayerBase.Cast(man);
+			if (pb && pb.GetIdentity() && pb.GetIdentity().GetId() == playerId)
+			{
+				return man;
+			}
+		}
+		return null;
 	}
 	
 	// Limpa jogadores inválidos do array ActivePlayers e força desconexão de ghosts
