@@ -237,30 +237,26 @@ function updatePositions(data) {
             opacity: player.is_online ? 1.0 : 0.9
         }).addTo(map);
         
-        // Adicionar popup
-        const popupContent = `
-            <div class="player-popup">
-                <strong>${player.player_name}</strong>
-                <div class="info-row">
-                    <span class="info-label">Steam:</span>
-                    <span class="info-value">${player.steam_name}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Coords:</span>
-                    <span class="info-value">X: ${player.coord_x.toFixed(2)}, Y: ${player.coord_y.toFixed(2)} (altura: ${player.coord_z ? player.coord_z.toFixed(2) : 'N/A'})</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Atualizado:</span>
-                    <span class="info-value">${player.last_update || 'Desconhecido'}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Status:</span>
-                    <span class="info-value">${player.is_online ? '<span class="status-indicator online"></span>Online' : '<span class="status-indicator offline"></span>Offline'}</span>
-                </div>
-            </div>
+        // Formatar conteúdo do tooltip seguindo padrão dos trails
+        const tooltipContent = `
+            <strong>👤 ${player.player_name}${player.steam_name ? ` (${player.steam_name})` : ''}</strong><br>
+            ${player.is_online ? '🟢 <span class="value">Online</span>' : '🔴 <span class="value">Offline</span>'}<br>
+            📍 Coords: <span class="value">X=${player.coord_x.toFixed(1)}, Y=${player.coord_y.toFixed(1)}</span><br>
+            ${player.coord_z ? `📏 Altura: <span class="value">${player.coord_z.toFixed(1)}m</span><br>` : ''}
+            ⏰ Atualizado: <span class="value">${player.last_update || 'Desconhecido'}</span>
         `;
         
-        marker.bindPopup(popupContent);
+        // Direção dinâmica baseada na posição Y (valores altos = norte)
+        const tooltipDirection = lat > 3000 ? 'bottom' : 'top';
+        
+        // Adicionar tooltip (aparece ao passar o mouse)
+        marker.bindTooltip(tooltipContent, {
+            permanent: false,
+            direction: tooltipDirection,
+            className: 'trail-tooltip'
+        });
+        
+        // Clique continua carregando o trail
         marker.on('click', function() {
             loadPlayerTrail(playerId);
         });
