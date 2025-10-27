@@ -280,6 +280,18 @@ def check_backup_exists(player_id: str, player_coord_id: int) -> bool:
         result = cursor.fetchone()
         return result['count'] > 0 if result else False
 
+def check_backup_exists_any_player(player_coord_id: int) -> bool:
+    """Verifica se existe backup para o PlayerCoordId (qualquer jogador - para clonagem)"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) as count
+            FROM players_coord_backup
+            WHERE PlayerCoordId = ?
+        """, (player_coord_id,))
+        result = cursor.fetchone()
+        return result['count'] > 0 if result else False
+
 def get_backup_info(player_coord_id: int) -> Dict:
     """Retorna informações sobre o backup"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:

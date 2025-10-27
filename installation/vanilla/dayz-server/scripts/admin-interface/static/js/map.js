@@ -737,6 +737,13 @@ function executeRestoreBackup() {
         return;
     }
     
+    // Verificar se jogador está online
+    const playerData = playersData[playerId];
+    if (playerData && playerData.isOnline) {
+        showToast('Erro', 'Não é possível restaurar backup de jogador online. Aguarde o jogador desconectar.', 'error');
+        return;
+    }
+    
     // Desabilitar botão e mostrar loading
     $('#confirmRestoreBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Restaurando...');
     
@@ -925,17 +932,28 @@ function showCloneCharacterModal(playerId, point, pointNumber) {
     const dropdown = $('#cloneCharacterDropdown');
     dropdown.html('<option value="">Carregando jogadores...</option>');
     
-    // Buscar jogadores online
-    $.get('/api/players/online/positions')
+    // Buscar TODOS os jogadores para filtrar apenas offline
+    $.get('/api/players/positions')
         .done(function(data) {
-            dropdown.html('<option value="">Selecione um jogador</option>');
+            const offlineCount = data.players.filter(p => !p.is_online).length;
             
-            data.players.forEach(function(player) {
-                const option = $('<option></option>');
-                option.val(player.player_id);
-                option.text(`${player.player_name}${player.steam_name ? ' (' + player.steam_name + ')' : ''}`);
-                dropdown.append(option);
-            });
+            if (offlineCount === 0) {
+                dropdown.html('<option value="">Nenhum jogador offline disponível</option>');
+                $('#confirmCloneCharacterBtn').prop('disabled', true);
+            } else {
+                dropdown.html('<option value="">Selecione um jogador</option>');
+                $('#confirmCloneCharacterBtn').prop('disabled', false);
+                
+                // Adicionar apenas jogadores offline E diferentes do jogador de origem
+                data.players.forEach(function(player) {
+                    if (!player.is_online && player.player_id !== playerId) {
+                        const option = $('<option></option>');
+                        option.val(player.player_id);
+                        option.text(`${player.player_name}${player.steam_name ? ' (' + player.steam_name + ')' : ''}`);
+                        dropdown.append(option);
+                    }
+                });
+            }
         })
         .fail(function() {
             dropdown.html('<option value="">Erro ao carregar jogadores</option>');
@@ -964,6 +982,31 @@ function executeCloneCharacter() {
         return;
     }
     
+    // Validação adicional via API antes de clonar (caso status tenha mudado)
+    $('#confirmCloneCharacterBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Verificando...');
+    
+    $.get('/api/players/online/positions')
+        .done(function(data) {
+            const onlineIds = data.players.map(p => p.player_id);
+            if (onlineIds.includes(targetPlayerId)) {
+                showToast('Erro', 'Jogador de destino está online. Aguarde desconectar.', 'error');
+                $('#confirmCloneCharacterBtn').prop('disabled', false).html('<i class="fas fa-clone me-1"></i>Clonar');
+                return;
+            }
+            
+            // Se passou pela validação, continuar com clonagem
+            proceedWithClone(targetPlayerId, playerCoordId);
+        })
+        .fail(function() {
+            showToast('Erro', 'Não foi possível verificar status do jogador', 'error');
+            $('#confirmCloneCharacterBtn').prop('disabled', false).html('<i class="fas fa-clone me-1"></i>Clonar');
+        });
+}
+
+/**
+ * Proceder com clonagem após validação
+ */
+function proceedWithClone(targetPlayerId, playerCoordId) {
     // Desabilitar botão e mostrar loading
     $('#confirmCloneCharacterBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Clonando...');
     

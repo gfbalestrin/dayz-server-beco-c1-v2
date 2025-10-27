@@ -11,7 +11,7 @@ from database import (
     get_player_trail, get_online_players_positions,
     get_players_positions_by_timerange, dayz_to_pixel,
     get_vehicles_last_position, get_recent_kills, parse_position,
-    check_backup_exists, get_backup_info, get_online_players,
+    check_backup_exists, check_backup_exists_any_player, get_backup_info, get_online_players,
     get_all_players_with_status,
     get_weapons, get_weapons_with_calibers, get_all_calibers, get_items, get_item_types,
     get_explosives, get_ammunitions, get_calibers,
@@ -276,6 +276,17 @@ def api_restore_backup(player_id):
     logger = logging.getLogger(__name__)
     
     try:
+        # Verificar se jogador está online
+        online_players = get_online_players()
+        online_ids = [p['PlayerID'] for p in online_players]
+        
+        if player_id in online_ids:
+            logger.warning(f"Tentativa de restaurar/clonar para jogador online: {player_id}")
+            return jsonify({
+                'success': False,
+                'message': 'Não é possível restaurar/clonar para jogador online. Aguarde o jogador desconectar.'
+            }), 400
+        
         data = request.get_json()
         player_coord_id = data.get('player_coord_id')
         
@@ -284,10 +295,10 @@ def api_restore_backup(player_id):
         if not player_coord_id:
             return jsonify({'success': False, 'message': 'PlayerCoordId não fornecido'}), 400
         
-        # Validar se o backup existe
-        backup_exists = check_backup_exists(player_id, player_coord_id)
+        # Validar se o backup existe (sem verificar dono, pois pode ser clonagem)
+        backup_exists = check_backup_exists_any_player(player_coord_id)
         if not backup_exists:
-            logger.warning(f"Backup não encontrado: player_id={player_id}, coord_id={player_coord_id}")
+            logger.warning(f"Backup não encontrado: coord_id={player_coord_id}")
             return jsonify({'success': False, 'message': 'Backup não encontrado'}), 404
         
         # Executar script de restauração
