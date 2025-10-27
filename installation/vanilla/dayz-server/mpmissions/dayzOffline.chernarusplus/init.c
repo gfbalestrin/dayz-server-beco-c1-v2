@@ -108,6 +108,8 @@ class CustomMission: MissionServer
 		// Verifica se existe algum player na lista com o mesmo steamId OU playerId
 		ActivePlayer foundBySteamId = null;
 		ActivePlayer foundByPlayerId = null;
+		int foundBySteamIdIndex = -1;
+		int foundByPlayerIdIndex = -1;
 
 		for (int i = 0; i < ActivePlayers.Count(); i++)
 		{
@@ -116,10 +118,12 @@ class CustomMission: MissionServer
 
 			if (actPlayer.IsSamePlayer(steamId)) {
 				foundBySteamId = actPlayer;
+				foundBySteamIdIndex = i;
 			}
 
 			if (actPlayer.IsSamePlayerById(playerId)) {
 				foundByPlayerId = actPlayer;
+				foundByPlayerIdIndex = i;
 			}
 
 			// Se já encontrou ambos, pode parar
@@ -130,7 +134,12 @@ class CustomMission: MissionServer
 		if (foundBySteamId || foundByPlayerId)
 		{
 			ActivePlayer existingPlayer = foundBySteamId;
-			if (!existingPlayer) existingPlayer = foundByPlayerId;
+			int existingPlayerIndex = foundBySteamIdIndex;
+			if (!existingPlayer) 
+			{
+				existingPlayer = foundByPlayerId;
+				existingPlayerIndex = foundByPlayerIdIndex;
+			}
 
 			// Garante que playerId e steamId não são inconsistentes
 			if (foundBySteamId && foundByPlayerId && foundBySteamId != foundByPlayerId)
@@ -139,15 +148,46 @@ class CustomMission: MissionServer
 				return;
 			}
 
-			// Atualiza o objeto Man se fornecido
-			if (player)
+			// ANTES DE ATUALIZAR: Verifica se o jogador existente é um GHOST
+			bool existingPlayerIsGhost = false;
+			if (existingPlayer && existingPlayer.HasIdentity())
 			{
-				existingPlayer.SetPlayer(player);
-				WriteToLog("AddOrUpdateActivePlayer(): Player atualizado para " + playerName + " (" + playerId + ")", LogFile.INIT, false, LogType.DEBUG);
+				string existingPlayerId = existingPlayer.GetPlayerId();
+				
+				// Verifica se está em ActivePlayers mas não no mundo
+				if (!IsPlayerActiveInWorld(existingPlayerId))
+				{
+					existingPlayerIsGhost = true;
+					WriteToLog("AddOrUpdateActivePlayer(): Ghost detectado para SteamID " + steamId + " (PlayerID: " + existingPlayerId + "). Forçando desconexão...", LogFile.INIT, false, LogType.INFO);
+					
+					// Força desconexão do ghost
+					ForceDisconnectGhost(existingPlayer);
+					
+					// Remove o ghost da lista
+					ActivePlayers.Remove(existingPlayerIndex);
+					WriteToLog("AddOrUpdateActivePlayer(): Ghost removido da lista após desconexão", LogFile.INIT, false, LogType.INFO);
+				}
+			}
+			
+			// Se era um ghost, adiciona o novo jogador normalmente
+			if (existingPlayerIsGhost)
+			{
+				ActivePlayer newPlayer = new ActivePlayer(identity, player);
+				ActivePlayers.Insert(newPlayer);
+				WriteToLog("AddOrUpdateActivePlayer(): Jogador adicionado após remoção de ghost: " + playerName + " (PlayerID: " + playerId + ", SteamID: " + steamId + ")", LogFile.INIT, false, LogType.INFO);
 			}
 			else
 			{
-				WriteToLog("AddOrUpdateActivePlayer(): Jogador já está na lista: " + playerName + " (" + playerId + ")", LogFile.INIT, false, LogType.DEBUG);
+				// Atualiza o objeto Man se fornecido
+				if (player)
+				{
+					existingPlayer.SetPlayer(player);
+					WriteToLog("AddOrUpdateActivePlayer(): Player atualizado para " + playerName + " (" + playerId + ")", LogFile.INIT, false, LogType.DEBUG);
+				}
+				else
+				{
+					WriteToLog("AddOrUpdateActivePlayer(): Jogador já está na lista: " + playerName + " (" + playerId + ")", LogFile.INIT, false, LogType.DEBUG);
+				}
 			}
 			return;
 		}
@@ -264,23 +304,91 @@ class CustomMission: MissionServer
 		}
 	}
 	
-	// Limpa jogadores inválidos do array ActivePlayers
+	// Força desconexão de um jogador ghost
+	void ForceDisconnectGhost(ActivePlayer ghostPlayer)
+	{
+		if (!ghostPlayer || !ghostPlayer.HasIdentity()) 
+		{
+			WriteToLog("ForceDisconnectGhost(): GhostPlayer inválido", LogFile.INIT, false, LogType.DEBUG);
+			return;
+		}
+		
+		PlayerIdentity identity = ghostPlayer.GetIdentity();
+		string ghostName = ghostPlayer.GetPlayerName();
+		string ghostSteamId = ghostPlayer.GetSteamId();
+		string ghostPlayerId = ghostPlayer.GetPlayerId();
+		
+		WriteToLog("ForceDisconnectGhost(): Forçando desconexão de ghost: " + ghostName + " (SteamID: " + ghostSteamId + ", PlayerID: " + ghostPlayerId + ")", LogFile.INIT, false, LogType.INFO);
+		GetGame().DisconnectPlayer(identity, ghostPlayerId);
+	}
+	
+	// Verifica se um jogador está ativo no mundo (existe em GetPlayers())
+	bool IsPlayerActiveInWorld(string playerId)
+	{
+		array<Man> players = new array<Man>();
+		GetGame().GetPlayers(players);
+		
+		foreach (Man man : players)
+		{
+			PlayerBase player = PlayerBase.Cast(man);
+			if (player && player.GetIdentity() && player.GetIdentity().GetId() == playerId)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	// Limpa jogadores inválidos do array ActivePlayers e força desconexão de ghosts
 	void CleanupInvalidActivePlayers()
 	{
+		// Pega lista de jogadores ativos no mundo
+		array<Man> activeWorldPlayers = new array<Man>();
+		GetGame().GetPlayers(activeWorldPlayers);
+		
+		ref set<string> validPlayerIds = new set<string>();
+		foreach (Man man : activeWorldPlayers)
+		{
+			PlayerBase player = PlayerBase.Cast(man);
+			if (player && player.GetIdentity())
+			{
+				validPlayerIds.Insert(player.GetIdentity().GetId());
+			}
+		}
+		
 		int removedCount = 0;
+		int disconnectedCount = 0;
+		
 		for (int i = ActivePlayers.Count() - 1; i >= 0; i--)
 		{
 			ActivePlayer player = ActivePlayers.Get(i);
+			
 			if (!player || !player.HasIdentity())
 			{
+				// Jogador sem Identity - remove
 				ActivePlayers.Remove(i);
 				removedCount++;
+			}
+			else
+			{
+				string playerId = player.GetPlayerId();
+				
+				// Verifica se jogador está em ActivePlayers mas NÃO está no mundo (GHOST!)
+				if (validPlayerIds.Find(playerId) == -1)
+				{
+					// É um ghost! Força desconexão
+					ForceDisconnectGhost(player);
+					ActivePlayers.Remove(i);
+					disconnectedCount++;
+					removedCount++;
+					WriteToLog("CleanupInvalidActivePlayers(): Ghost desconectado e removido - " + player.GetPlayerName() + " (ID: " + playerId + ")", LogFile.INIT, false, LogType.INFO);
+				}
 			}
 		}
 		
 		if (removedCount > 0)
 		{
-			WriteToLog("CleanupInvalidActivePlayers(): Removidos " + removedCount + " jogadores inválidos do array ActivePlayers", LogFile.INIT, false, LogType.INFO);
+			WriteToLog("CleanupInvalidActivePlayers(): Removidos " + removedCount + " jogadores inválidos (" + disconnectedCount + " foram desconectados por serem ghosts)", LogFile.INIT, false, LogType.INFO);
 		}
 	}
 	
@@ -1355,3 +1463,4 @@ Mission CreateCustomMission(string path)
 {
 	return new CustomMission();
 }
+

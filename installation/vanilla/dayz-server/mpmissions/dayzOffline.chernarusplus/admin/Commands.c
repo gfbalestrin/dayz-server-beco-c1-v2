@@ -288,8 +288,14 @@ bool ExecuteCommand(TStringArray tokens)
 
         case "kick":            
             PlayerIdentity identity = target.GetIdentity();
+            string kickedPlayerName = target.GetIdentity().GetName();
+            string kickedPlayerId = target.GetIdentity().GetId();
+            string kickedSteamId = target.GetIdentity().GetPlainId();
+            
+            WriteToLog("ExecuteCommand(): !kick - Desconectando jogador: " + kickedPlayerName + " (PlayerID: " + kickedPlayerId + ", SteamID: " + kickedSteamId + ")", LogFile.INIT, false, LogType.INFO);
             target.MessageStatus("Seu jogador está bugado. Realizando ajuste...");
-            GetGame().DisconnectPlayer(identity);
+            GetGame().DisconnectPlayer(identity, kickedPlayerId);
+            WriteToLog("ExecuteCommand(): !kick - Jogador desconectado com sucesso. Limpeza automática será realizada no próximo ciclo.", LogFile.INIT, false, LogType.INFO);
             break;
 
         case "desbug":
