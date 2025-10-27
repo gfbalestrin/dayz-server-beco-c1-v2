@@ -20,6 +20,14 @@ bool SpawnVehicleWithParts(vector pos, string vehicleType)
     if (!vehicle)        
         return false;
 
+    // Adiciona veículo ao rastreamento
+    CarScript vehicleScript = CarScript.Cast(vehicle);
+    if (vehicleScript && m_TrackedVehicles)
+    {
+        m_TrackedVehicles.Insert(vehicleScript);
+        WriteToLog("SpawnVehicleWithParts(): Veículo adicionado ao rastreamento: " + vehicleType, LogFile.INIT, false, LogType.DEBUG);
+    }
+
     vehicle.SetOrientation("0 0 0");
     vehicle.Fill(CarFluid.FUEL, 1000.0);
     vehicle.Fill(CarFluid.OIL, 1000.0);
