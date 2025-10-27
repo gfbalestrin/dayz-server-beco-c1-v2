@@ -96,7 +96,38 @@ bool SpawnVehicleWithParts(vector pos, string vehicleType)
                 "HeadlightH7"
             };
             break;
-
+        case "CivilianSedan_Black":
+            battery = "CarBattery";
+            plug = "SparkPlug";
+            wheel = "CivSedanWheel";
+            parts = {
+                "CivSedanDoors_Driver_Black",
+                "CivSedanDoors_CoDriver_Black",
+                "CivSedanDoors_BackLeft_Black",
+                "CivSedanDoors_BackRight_Black",
+                "CivSedanHood_Black",
+                "CivSedanTrunk_Black",
+                "CarRadiator",
+                "HeadlightH7",
+                "HeadlightH7"
+            };
+            break;
+        case "CivilianSedan_Wine":
+            battery = "CarBattery";
+            plug = "SparkPlug";
+            wheel = "CivSedanWheel";
+            parts = {
+                "CivSedanDoors_Driver_Wine",
+                "CivSedanDoors_CoDriver_Wine",
+                "CivSedanDoors_BackLeft_Wine",
+                "CivSedanDoors_BackRight_Wine",
+                "CivSedanHood_Wine",
+                "CivSedanTrunk_Wine",
+                "CarRadiator",
+                "HeadlightH7",
+                "HeadlightH7"
+            };
+            break;
         case "Sedan_02":
             battery = "CarBattery";
             plug = "SparkPlug";
@@ -155,6 +186,40 @@ bool SpawnVehicleWithParts(vector pos, string vehicleType)
                 "Truck_01_Door_1_1",
                 "Truck_01_Door_2_1",
                 "Truck_01_Hood",
+                "Truck_01_WheelDouble",
+                "Truck_01_WheelDouble",
+                "Truck_01_WheelDouble",
+                "Truck_01_WheelDouble",
+                "HeadlightH7",
+                "HeadlightH7"
+            };
+            break;
+        case "Truck_01_Covered_Blue":
+            battery = "TruckBattery";
+            plug = "GlowPlug";
+            wheel = "Truck_01_Wheel";
+            wheels = 6;
+            parts = {
+                "Truck_01_Door_1_1_Blue",
+                "Truck_01_Door_2_1_Blue",
+                "Truck_01_Hood_Blue",
+                "Truck_01_WheelDouble",
+                "Truck_01_WheelDouble",
+                "Truck_01_WheelDouble",
+                "Truck_01_WheelDouble",
+                "HeadlightH7",
+                "HeadlightH7"
+            };
+            break;
+        case "Truck_01_Covered_Orange":
+            battery = "TruckBattery";
+            plug = "GlowPlug";
+            wheel = "Truck_01_Wheel";
+            wheels = 6;
+            parts = {
+                "Truck_01_Door_1_1_Orange",
+                "Truck_01_Door_2_1_Orange",
+                "Truck_01_Hood_Orange",
                 "Truck_01_WheelDouble",
                 "Truck_01_WheelDouble",
                 "Truck_01_WheelDouble",
