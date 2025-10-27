@@ -227,6 +227,34 @@
     }
 }
 
+/* Animação para marcador do jogador (última posição) */
+.player-marker-pulse {
+    animation: playerPulse 2s ease-in-out infinite;
+}
+
+@keyframes playerPulse {
+    0%, 100% { 
+        opacity: 1;
+    }
+    50% { 
+        opacity: 0.7;
+    }
+}
+
+/* Adicionar animação no div interno via pseudo-elemento */
+.player-marker-pulse > div {
+    animation: markerGlow 2s ease-in-out infinite;
+}
+
+@keyframes markerGlow {
+    0%, 100% { 
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+    }
+    50% { 
+        box-shadow: 0 0 15px 5px rgba(255, 255, 255, 0.5);
+    }
+}
+
 .event-popup {
     min-width: 200px;
 }

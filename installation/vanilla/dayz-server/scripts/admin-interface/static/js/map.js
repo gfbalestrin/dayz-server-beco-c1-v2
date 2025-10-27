@@ -24,10 +24,10 @@ let trailDateFilter = {
 };
 // Variáveis removidas - funcionalidades de spawn movidas para spawning.html
 
-// Cor padrão do Leaflet - cores mais vibrantes
+// Cor padrão do Leaflet - cores escuras para melhor visibilidade
 const iconColors = [
-    '#ff0000', '#0066ff', '#00cc00', '#ff6600', '#9900ff', '#ff0099',
-    '#ffcc00', '#00cccc', '#cc0000', '#0000cc', '#009900'
+    '#cc0000', '#0044cc', '#008800', '#cc4400', '#6600cc', '#cc0066',
+    '#cc9900', '#008899', '#990000', '#000099', '#006600'
 ];
 
 // Ícone customizado para veículos
@@ -147,7 +147,7 @@ function getPlayerColor(playerId) {
  */
 function createMarkerIcon(color) {
     return L.divIcon({
-        className: 'player-marker',
+        className: 'player-marker player-marker-pulse',
         html: `<div style="background-color: ${color}; border: 2px solid white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
                  <i class="fas fa-user" style="color: white; font-size: 14px;"></i>
                </div>`,
@@ -556,7 +556,11 @@ function toggleAutoRefresh() {
             if (showVehicles) {
                 loadVehicles();
             }
-        }, 10000); // 10 segundos
+            // Recarregar trails se estiverem ativos
+            if (showTrails) {
+                Object.keys(playerMarkers).forEach(loadPlayerTrail);
+            }
+        }, 60000); // 60 segundos (1 minuto - alinhado com frequência de salvamento das coordenadas)
         console.log('Auto-refresh ligado');
     } else {
         if (autoRefreshInterval) {
