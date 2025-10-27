@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}Gerenciar Itens{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/items_manage.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-database me-2"></i>Gerenciar Banco de Dados de Itens</h2>
+    </div>
+
+    <ul class="nav nav-tabs mb-4" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" data-bs-toggle="tab" href="#weapons-tab">
+                <i class="fas fa-crosshairs me-2"></i>Armas
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#items-tab">
+                <i class="fas fa-box me-2"></i>Itens
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#explosives-tab">
+                <i class="fas fa-bomb me-2"></i>Explosivos
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#ammo-tab">
+                <i class="fas fa-bullet me-2"></i>Munições
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#magazines-tab">
+                <i class="fas fa-magazine me-2"></i>Magazines
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#attachments-tab">
+                <i class="fas fa-paperclip me-2"></i>Attachments
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#calibers-tab">
+                <i class="fas fa-ruler me-2"></i>Calibers
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#types-tab">
+                <i class="fas fa-tags me-2"></i>Tipos de Item
+            </a>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- Aba de Armas -->
+        <div id="weapons-tab" class="tab-pane fade show active">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <button class="btn btn-success" id="btnAddWeapon">
+                        <i class="fas fa-plus me-2"></i>Nova Arma
+                    </button>
+                </div>
+                <div class="col-md-6">
+                    <input type="text" id="weaponSearchInput" class="form-control" placeholder="Buscar arma...">
+                </div>
+            </div>
+            
+            <div id="weaponsGrid" class="weapons-grid">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Outras abas seguirão a mesma estrutura -->
+        <div id="items-tab" class="tab-pane fade">
+            <div class="alert alert-info">
+                Em desenvolvimento - Estrutura similar à aba de Armas
+            </div>
+        </div>
+
+        <div id="explosives-tab" class="tab-pane fade">
+            <div class="alert alert-info">
+                Em desenvolvimento - Estrutura similar à aba de Armas
+            </div>
+        </div>
+
+        <div id="ammo-tab" class="tab-pane fade">
+            <div class="alert alert-info">
+                Em desenvolvimento - Estrutura similar à aba de Armas
+            </div>
+        </div>
+
+        <div id="magazines-tab" class="tab-pane fade">
+            <div class="alert alert-info">
+                Em desenvolvimento - Estrutura similar à aba de Armas
+            </div>
+        </div>
+
+        <div id="attachments-tab" class="tab-pane fade">
+            <div class="alert alert-info">
+                Em desenvolvimento - Estrutura similar à aba de Armas
+            </div>
+        </div>
+
+        <div id="calibers-tab" class="tab-pane fade">
+            <div class="alert alert-info">
+                Em desenvolvimento - Estrutura similar à aba de Armas
+            </div>
+        </div>
+
+        <div id="types-tab" class="tab-pane fade">
+            <div class="alert alert-info">
+                Em desenvolvimento - Estrutura similar à aba de Armas
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Arma -->
+<div class="modal fade" id="weaponModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Arma</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="weaponForm">
+                    <input type="hidden" id="weaponId">
+                    
+                    <!-- Campos básicos -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Nome</label>
+                            <input type="text" class="form-control" id="weaponName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Name Type (Classe DayZ)</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="weaponNameType" required>
+                                <button class="btn btn-outline-secondary" type="button" id="btnValidateType">
+                                    <i class="fas fa-check"></i> Validar
+                                </button>
+                            </div>
+                            <div id="typeValidationFeedback" class="form-text"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-3">
+                            <label>Feed Type</label>
+                            <select class="form-select" id="weaponFeedType" required>
+                                <option value="">Selecione...</option>
+                                <option value="magazine">Magazine</option>
+                                <option value="manual">Manual</option>
+                                <option value="internal">Internal</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label>Width x Height</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="weaponWidth" required min="1">
+                                <span class="input-group-text">x</span>
+                                <input type="number" class="form-control" id="weaponHeight" required min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Slots (auto)</label>
+                            <input type="number" class="form-control" id="weaponSlots" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label>Imagem (URL)</label>
+                            <input type="text" class="form-control" id="weaponImg" required>
+                        </div>
+                    </div>
+                    
+                    <!-- Relacionamentos -->
+                    <h6 class="mt-4">Relacionamentos</h6>
+                    <ul class="nav nav-pills mb-3" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#weaponAmmo">
+                                Munições <span class="badge bg-primary" id="ammoCount">0</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#weaponMags">
+                                Magazines <span class="badge bg-primary" id="magsCount">0</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#weaponAtts">
+                                Attachments <span class="badge bg-primary" id="attsCount">0</span>
+                            </a>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content">
+                        <!-- Munições -->
+                        <div id="weaponAmmo" class="tab-pane fade show active">
+                            <div class="selected-items mb-3" id="selectedAmmo">
+                                <h6>Selecionados:</h6>
+                                <div class="selected-items-grid"></div>
+                            </div>
+                            <input type="text" class="form-control mb-2" id="ammoSearchInput" placeholder="Buscar munição...">
+                            <div id="ammoGrid" class="relationship-grid"></div>
+                        </div>
+                        
+                        <!-- Magazines -->
+                        <div id="weaponMags" class="tab-pane fade">
+                            <div class="selected-items mb-3" id="selectedMags">
+                                <h6>Selecionados:</h6>
+                                <div class="selected-items-grid"></div>
+                            </div>
+                            <input type="text" class="form-control mb-2" id="magsSearchInput" placeholder="Buscar magazine...">
+                            <div id="magsGrid" class="relationship-grid"></div>
+                        </div>
+                        
+                        <!-- Attachments -->
+                        <div id="weaponAtts" class="tab-pane fade">
+                            <div class="selected-items mb-3" id="selectedAtts">
+                                <h6>Selecionados:</h6>
+                                <div class="selected-items-grid"></div>
+                            </div>
+                            <input type="text" class="form-control mb-2" id="attsSearchInput" placeholder="Buscar attachment...">
+                            <div id="attsGrid" class="relationship-grid"></div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveWeapon">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir este item?</p>
+                <p class="text-danger"><strong>Esta ação não pode ser desfeita!</strong></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="btnConfirmDelete">Excluir</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="{{ url_for('static', filename='js/items_manage.js') }}"></script>
+{% endblock %}
+
+

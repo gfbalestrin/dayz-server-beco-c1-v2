@@ -81,6 +81,11 @@
                                 <i class="fas fa-map me-2"></i>Mapa
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'items_manage' %}active{% endif %}" href="{{ url_for('items_manage') }}">
+                                <i class="fas fa-database me-2"></i>Gerenciar Itens DB
+                            </a>
+                        </li>
                     </ul>
                 </div>
             </nav>

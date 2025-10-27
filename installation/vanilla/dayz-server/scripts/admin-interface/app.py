@@ -15,7 +15,19 @@ from database import (
     get_weapons, get_items, get_item_types,
     get_explosives, get_ammunitions, get_calibers,
     get_magazines, get_attachments, get_attachment_types,
-    get_weapon_compatible_items
+    get_weapon_compatible_items,
+    # CRUD Functions
+    get_weapon_by_id, create_weapon, update_weapon, delete_weapon,
+    get_weapon_relationships, update_weapon_relationships,
+    get_caliber_by_id, create_caliber, update_caliber, delete_caliber,
+    get_ammunition_by_id, create_ammunition, update_ammunition, delete_ammunition,
+    get_magazine_by_id, create_magazine, update_magazine, delete_magazine,
+    get_attachment_by_id, create_attachment, update_attachment, delete_attachment,
+    get_explosive_by_id, create_explosive, update_explosive, delete_explosive,
+    get_item_type_by_id, create_item_type, update_item_type, delete_item_type,
+    get_item_by_id, create_item, update_item, delete_item,
+    get_item_compatibility, update_item_compatibility,
+    validate_item_type
 )
 from datetime import datetime
 
@@ -807,6 +819,404 @@ def api_spawn_loadout():
             'success': False,
             'message': f'Erro ao spawnar loadout: {str(e)}'
         }), 500
+
+# ============================================================================
+# ROTAS DE GERENCIAMENTO DE ITENS (CRUD)
+# ============================================================================
+
+@app.route('/items-manage')
+@login_required
+def items_manage():
+    """Página de gerenciamento do banco de dados de itens"""
+    return render_template('items_manage.html')
+
+# === WEAPONS ===
+@app.route('/api/manage/weapons', methods=['GET'])
+@login_required
+def api_manage_weapons_list():
+    weapons = get_weapons(limit=1000)
+    return jsonify({'weapons': weapons})
+
+@app.route('/api/manage/weapons/<int:weapon_id>', methods=['GET'])
+@login_required
+def api_manage_weapon_detail(weapon_id):
+    weapon = get_weapon_by_id(weapon_id)
+    if not weapon:
+        return jsonify({'error': 'Arma não encontrada'}), 404
+    relationships = get_weapon_relationships(weapon_id)
+    return jsonify({'weapon': weapon, 'relationships': relationships})
+
+@app.route('/api/manage/weapons', methods=['POST'])
+@login_required
+def api_manage_weapon_create():
+    data = request.get_json()
+    try:
+        weapon_id = create_weapon(data)
+        return jsonify({'success': True, 'id': weapon_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/weapons/<int:weapon_id>', methods=['PUT'])
+@login_required
+def api_manage_weapon_update(weapon_id):
+    data = request.get_json()
+    try:
+        success = update_weapon(weapon_id, data)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/weapons/<int:weapon_id>', methods=['DELETE'])
+@login_required
+def api_manage_weapon_delete(weapon_id):
+    try:
+        success = delete_weapon(weapon_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/weapons/<int:weapon_id>/relationships', methods=['PUT'])
+@login_required
+def api_manage_weapon_relationships_update(weapon_id):
+    data = request.get_json()
+    try:
+        update_weapon_relationships(
+            weapon_id,
+            data.get('ammunitions', []),
+            data.get('magazines', []),
+            data.get('attachments', [])
+        )
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+# === CALIBERS ===
+@app.route('/api/manage/calibers', methods=['GET'])
+@login_required
+def api_manage_calibers_list():
+    calibers = get_calibers()
+    return jsonify({'calibers': calibers})
+
+@app.route('/api/manage/calibers/<int:caliber_id>', methods=['GET'])
+@login_required
+def api_manage_caliber_detail(caliber_id):
+    caliber = get_caliber_by_id(caliber_id)
+    if not caliber:
+        return jsonify({'error': 'Calibre não encontrado'}), 404
+    return jsonify({'caliber': caliber})
+
+@app.route('/api/manage/calibers', methods=['POST'])
+@login_required
+def api_manage_caliber_create():
+    data = request.get_json()
+    try:
+        caliber_id = create_caliber(data)
+        return jsonify({'success': True, 'id': caliber_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/calibers/<int:caliber_id>', methods=['PUT'])
+@login_required
+def api_manage_caliber_update(caliber_id):
+    data = request.get_json()
+    try:
+        success = update_caliber(caliber_id, data)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/calibers/<int:caliber_id>', methods=['DELETE'])
+@login_required
+def api_manage_caliber_delete(caliber_id):
+    try:
+        success = delete_caliber(caliber_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+# === AMMUNITIONS ===
+@app.route('/api/manage/ammunitions', methods=['GET'])
+@login_required
+def api_manage_ammunitions_list():
+    ammunitions = get_ammunitions(limit=1000)
+    return jsonify({'ammunitions': ammunitions})
+
+@app.route('/api/manage/ammunitions/<int:ammo_id>', methods=['GET'])
+@login_required
+def api_manage_ammunition_detail(ammo_id):
+    ammunition = get_ammunition_by_id(ammo_id)
+    if not ammunition:
+        return jsonify({'error': 'Munição não encontrada'}), 404
+    return jsonify({'ammunition': ammunition})
+
+@app.route('/api/manage/ammunitions', methods=['POST'])
+@login_required
+def api_manage_ammunition_create():
+    data = request.get_json()
+    try:
+        ammo_id = create_ammunition(data)
+        return jsonify({'success': True, 'id': ammo_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/ammunitions/<int:ammo_id>', methods=['PUT'])
+@login_required
+def api_manage_ammunition_update(ammo_id):
+    data = request.get_json()
+    try:
+        success = update_ammunition(ammo_id, data)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/ammunitions/<int:ammo_id>', methods=['DELETE'])
+@login_required
+def api_manage_ammunition_delete(ammo_id):
+    try:
+        success = delete_ammunition(ammo_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+# === MAGAZINES ===
+@app.route('/api/manage/magazines', methods=['GET'])
+@login_required
+def api_manage_magazines_list():
+    magazines = get_magazines(limit=1000)
+    return jsonify({'magazines': magazines})
+
+@app.route('/api/manage/magazines/<int:mag_id>', methods=['GET'])
+@login_required
+def api_manage_magazine_detail(mag_id):
+    magazine = get_magazine_by_id(mag_id)
+    if not magazine:
+        return jsonify({'error': 'Magazine não encontrado'}), 404
+    return jsonify({'magazine': magazine})
+
+@app.route('/api/manage/magazines', methods=['POST'])
+@login_required
+def api_manage_magazine_create():
+    data = request.get_json()
+    try:
+        mag_id = create_magazine(data)
+        return jsonify({'success': True, 'id': mag_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/magazines/<int:mag_id>', methods=['PUT'])
+@login_required
+def api_manage_magazine_update(mag_id):
+    data = request.get_json()
+    try:
+        success = update_magazine(mag_id, data)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/magazines/<int:mag_id>', methods=['DELETE'])
+@login_required
+def api_manage_magazine_delete(mag_id):
+    try:
+        success = delete_magazine(mag_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+# === ATTACHMENTS ===
+@app.route('/api/manage/attachments', methods=['GET'])
+@login_required
+def api_manage_attachments_list():
+    attachments = get_attachments(limit=1000)
+    return jsonify({'attachments': attachments})
+
+@app.route('/api/manage/attachments/<int:att_id>', methods=['GET'])
+@login_required
+def api_manage_attachment_detail(att_id):
+    attachment = get_attachment_by_id(att_id)
+    if not attachment:
+        return jsonify({'error': 'Attachment não encontrado'}), 404
+    return jsonify({'attachment': attachment})
+
+@app.route('/api/manage/attachments', methods=['POST'])
+@login_required
+def api_manage_attachment_create():
+    data = request.get_json()
+    try:
+        att_id = create_attachment(data)
+        return jsonify({'success': True, 'id': att_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/attachments/<int:att_id>', methods=['PUT'])
+@login_required
+def api_manage_attachment_update(att_id):
+    data = request.get_json()
+    try:
+        success = update_attachment(att_id, data)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/attachments/<int:att_id>', methods=['DELETE'])
+@login_required
+def api_manage_attachment_delete(att_id):
+    try:
+        success = delete_attachment(att_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+# === EXPLOSIVES ===
+@app.route('/api/manage/explosives', methods=['GET'])
+@login_required
+def api_manage_explosives_list():
+    explosives = get_explosives(limit=1000)
+    return jsonify({'explosives': explosives})
+
+@app.route('/api/manage/explosives/<int:exp_id>', methods=['GET'])
+@login_required
+def api_manage_explosive_detail(exp_id):
+    explosive = get_explosive_by_id(exp_id)
+    if not explosive:
+        return jsonify({'error': 'Explosivo não encontrado'}), 404
+    return jsonify({'explosive': explosive})
+
+@app.route('/api/manage/explosives', methods=['POST'])
+@login_required
+def api_manage_explosive_create():
+    data = request.get_json()
+    try:
+        exp_id = create_explosive(data)
+        return jsonify({'success': True, 'id': exp_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/explosives/<int:exp_id>', methods=['PUT'])
+@login_required
+def api_manage_explosive_update(exp_id):
+    data = request.get_json()
+    try:
+        success = update_explosive(exp_id, data)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/explosives/<int:exp_id>', methods=['DELETE'])
+@login_required
+def api_manage_explosive_delete(exp_id):
+    try:
+        success = delete_explosive(exp_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+# === ITEM_TYPES ===
+@app.route('/api/manage/item-types', methods=['GET'])
+@login_required
+def api_manage_item_types_list():
+    types = get_item_types()
+    return jsonify({'types': types})
+
+@app.route('/api/manage/item-types/<int:type_id>', methods=['GET'])
+@login_required
+def api_manage_item_type_detail(type_id):
+    item_type = get_item_type_by_id(type_id)
+    if not item_type:
+        return jsonify({'error': 'Tipo de item não encontrado'}), 404
+    return jsonify({'type': item_type})
+
+@app.route('/api/manage/item-types', methods=['POST'])
+@login_required
+def api_manage_item_type_create():
+    data = request.get_json()
+    try:
+        type_id = create_item_type(data)
+        return jsonify({'success': True, 'id': type_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/item-types/<int:type_id>', methods=['PUT'])
+@login_required
+def api_manage_item_type_update(type_id):
+    data = request.get_json()
+    try:
+        success = update_item_type(type_id, data)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/item-types/<int:type_id>', methods=['DELETE'])
+@login_required
+def api_manage_item_type_delete(type_id):
+    try:
+        success = delete_item_type(type_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+# === ITEMS ===
+@app.route('/api/manage/items', methods=['GET'])
+@login_required
+def api_manage_items_list():
+    items = get_items(limit=1000)
+    return jsonify({'items': items})
+
+@app.route('/api/manage/items/<int:item_id>', methods=['GET'])
+@login_required
+def api_manage_item_detail(item_id):
+    item = get_item_by_id(item_id)
+    if not item:
+        return jsonify({'error': 'Item não encontrado'}), 404
+    compatibility = get_item_compatibility(item_id)
+    return jsonify({'item': item, 'compatibility': compatibility})
+
+@app.route('/api/manage/items', methods=['POST'])
+@login_required
+def api_manage_item_create():
+    data = request.get_json()
+    try:
+        item_id = create_item(data)
+        return jsonify({'success': True, 'id': item_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/items/<int:item_id>', methods=['PUT'])
+@login_required
+def api_manage_item_update(item_id):
+    data = request.get_json()
+    try:
+        success = update_item(item_id, data)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/items/<int:item_id>', methods=['DELETE'])
+@login_required
+def api_manage_item_delete(item_id):
+    try:
+        success = delete_item(item_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/items/<int:item_id>/compatibility', methods=['PUT'])
+@login_required
+def api_manage_item_compatibility_update(item_id):
+    data = request.get_json()
+    compatible_ids = data.get('compatible_ids', [])
+    try:
+        success = update_item_compatibility(item_id, compatible_ids)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+# === VALIDAÇÃO ===
+@app.route('/api/validate/item-type/<name_type>')
+@login_required
+def api_validate_item_type(name_type):
+    """Valida se o item type existe no types.xml"""
+    is_valid = validate_item_type(name_type)
+    return jsonify({'valid': is_valid})
 
 @app.errorhandler(404)
 def not_found(e):

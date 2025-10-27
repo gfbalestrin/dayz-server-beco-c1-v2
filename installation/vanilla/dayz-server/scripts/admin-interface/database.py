@@ -324,14 +324,14 @@ def get_weapons(search: str = None, limit: int = 50) -> List[Dict]:
         cursor = conn.cursor()
         if search:
             cursor.execute("""
-                SELECT id, name, name_type, img
+                SELECT id, name, name_type, feed_type, slots, width, height, img
                 FROM weapons
                 WHERE name LIKE ? OR name_type LIKE ?
                 LIMIT ?
             """, (f'%{search}%', f'%{search}%', limit))
         else:
             cursor.execute("""
-                SELECT id, name, name_type, img
+                SELECT id, name, name_type, feed_type, slots, width, height, img
                 FROM weapons
                 LIMIT ?
             """, (limit,))
@@ -554,3 +554,434 @@ def get_weapon_compatible_items(weapon_id: int) -> Dict:
             'ammunitions': ammunitions,
             'attachments': attachments
         }
+
+# ============================================================================
+# FUNÇÕES CRUD PARA GERENCIAMENTO DE ITENS
+# ============================================================================
+
+import xml.etree.ElementTree as ET
+
+def get_valid_item_types() -> List[str]:
+    """Retorna lista de tipos válidos do types.xml"""
+    try:
+        tree = ET.parse('/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/db/types.xml')
+        root = tree.getroot()
+        return [type_elem.get('name') for type_elem in root.findall('type')]
+    except Exception as e:
+        print(f"Erro ao ler types.xml: {e}")
+        return []
+
+def validate_item_type(name_type: str) -> bool:
+    """Valida se o name_type existe no types.xml"""
+    valid_types = get_valid_item_types()
+    return name_type in valid_types
+
+# === CRUD WEAPONS ===
+def create_weapon(data: Dict) -> int:
+    """Cria uma nova arma"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO weapons (name, name_type, feed_type, slots, width, height, img)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (data['name'], data['name_type'], data['feed_type'], 
+              data['slots'], data['width'], data['height'], data['img']))
+        conn.commit()
+        return cursor.lastrowid
+
+def update_weapon(weapon_id: int, data: Dict) -> bool:
+    """Atualiza uma arma existente"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE weapons SET name=?, name_type=?, feed_type=?, 
+                   slots=?, width=?, height=?, img=?
+            WHERE id=?
+        """, (data['name'], data['name_type'], data['feed_type'],
+              data['slots'], data['width'], data['height'], data['img'], weapon_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def delete_weapon(weapon_id: int) -> bool:
+    """Exclui uma arma"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM weapons WHERE id=?", (weapon_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def get_weapon_by_id(weapon_id: int) -> Dict:
+    """Retorna uma arma por ID"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM weapons WHERE id=?", (weapon_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+def get_weapon_relationships(weapon_id: int) -> Dict:
+    """Retorna os relacionamentos de uma arma (munições, magazines, attachments)"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        
+        # Munições
+        cursor.execute("""
+            SELECT a.* FROM ammunitions a
+            INNER JOIN weapon_ammunitions wa ON a.id = wa.ammo_id
+            WHERE wa.weapon_id = ?
+        """, (weapon_id,))
+        ammunitions = [dict(row) for row in cursor.fetchall()]
+        
+        # Magazines
+        cursor.execute("""
+            SELECT m.* FROM magazines m
+            INNER JOIN weapon_magazines wm ON m.id = wm.magazine_id
+            WHERE wm.weapon_id = ?
+        """, (weapon_id,))
+        magazines = [dict(row) for row in cursor.fetchall()]
+        
+        # Attachments
+        cursor.execute("""
+            SELECT at.* FROM attachments at
+            INNER JOIN weapon_attachments wat ON at.id = wat.attachment_id
+            WHERE wat.weapon_id = ?
+        """, (weapon_id,))
+        attachments = [dict(row) for row in cursor.fetchall()]
+        
+        return {
+            'ammunitions': ammunitions,
+            'magazines': magazines,
+            'attachments': attachments
+        }
+
+def update_weapon_relationships(weapon_id: int, ammo_ids: List[int], 
+                                magazine_ids: List[int], attachment_ids: List[int]) -> bool:
+    """Atualiza os relacionamentos de uma arma"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        
+        # Remover relacionamentos existentes
+        cursor.execute("DELETE FROM weapon_ammunitions WHERE weapon_id=?", (weapon_id,))
+        cursor.execute("DELETE FROM weapon_magazines WHERE weapon_id=?", (weapon_id,))
+        cursor.execute("DELETE FROM weapon_attachments WHERE weapon_id=?", (weapon_id,))
+        
+        # Inserir novos relacionamentos
+        for ammo_id in ammo_ids:
+            cursor.execute("INSERT INTO weapon_ammunitions (weapon_id, ammo_id) VALUES (?, ?)",
+                         (weapon_id, ammo_id))
+        for mag_id in magazine_ids:
+            cursor.execute("INSERT INTO weapon_magazines (weapon_id, magazine_id) VALUES (?, ?)",
+                         (weapon_id, mag_id))
+        for att_id in attachment_ids:
+            cursor.execute("INSERT INTO weapon_attachments (weapon_id, attachment_id) VALUES (?, ?)",
+                         (weapon_id, att_id))
+        
+        conn.commit()
+        return True
+
+# === CRUD CALIBERS ===
+def create_caliber(data: Dict) -> int:
+    """Cria um novo calibre"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO calibers (name) VALUES (?)", (data['name'],))
+        conn.commit()
+        return cursor.lastrowid
+
+def update_caliber(caliber_id: int, data: Dict) -> bool:
+    """Atualiza um calibre existente"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE calibers SET name=? WHERE id=?", (data['name'], caliber_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def delete_caliber(caliber_id: int) -> bool:
+    """Exclui um calibre"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM calibers WHERE id=?", (caliber_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def get_caliber_by_id(caliber_id: int) -> Dict:
+    """Retorna um calibre por ID"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM calibers WHERE id=?", (caliber_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+# === CRUD AMMUNITIONS ===
+def create_ammunition(data: Dict) -> int:
+    """Cria uma nova munição"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO ammunitions (name, name_type, caliber_id, slots, width, height, img)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (data['name'], data['name_type'], data['caliber_id'], 
+              data['slots'], data['width'], data['height'], data['img']))
+        conn.commit()
+        return cursor.lastrowid
+
+def update_ammunition(ammo_id: int, data: Dict) -> bool:
+    """Atualiza uma munição existente"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE ammunitions SET name=?, name_type=?, caliber_id=?, 
+                   slots=?, width=?, height=?, img=?
+            WHERE id=?
+        """, (data['name'], data['name_type'], data['caliber_id'],
+              data['slots'], data['width'], data['height'], data['img'], ammo_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def delete_ammunition(ammo_id: int) -> bool:
+    """Exclui uma munição"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM ammunitions WHERE id=?", (ammo_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def get_ammunition_by_id(ammo_id: int) -> Dict:
+    """Retorna uma munição por ID"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM ammunitions WHERE id=?", (ammo_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+# === CRUD MAGAZINES ===
+def create_magazine(data: Dict) -> int:
+    """Cria um novo magazine"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO magazines (name, name_type, capacity, slots, width, height, img)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (data['name'], data['name_type'], data.get('capacity'),
+              data['slots'], data['width'], data['height'], data['img']))
+        conn.commit()
+        return cursor.lastrowid
+
+def update_magazine(mag_id: int, data: Dict) -> bool:
+    """Atualiza um magazine existente"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE magazines SET name=?, name_type=?, capacity=?, 
+                   slots=?, width=?, height=?, img=?
+            WHERE id=?
+        """, (data['name'], data['name_type'], data.get('capacity'),
+              data['slots'], data['width'], data['height'], data['img'], mag_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def delete_magazine(mag_id: int) -> bool:
+    """Exclui um magazine"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM magazines WHERE id=?", (mag_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def get_magazine_by_id(mag_id: int) -> Dict:
+    """Retorna um magazine por ID"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM magazines WHERE id=?", (mag_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+# === CRUD ATTACHMENTS ===
+def create_attachment(data: Dict) -> int:
+    """Cria um novo attachment"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO attachments (name, name_type, type, slots, width, height, img, battery)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (data['name'], data['name_type'], data['type'],
+              data['slots'], data['width'], data['height'], data['img'], data.get('battery', 0)))
+        conn.commit()
+        return cursor.lastrowid
+
+def update_attachment(att_id: int, data: Dict) -> bool:
+    """Atualiza um attachment existente"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE attachments SET name=?, name_type=?, type=?, 
+                   slots=?, width=?, height=?, img=?, battery=?
+            WHERE id=?
+        """, (data['name'], data['name_type'], data['type'],
+              data['slots'], data['width'], data['height'], data['img'], data.get('battery', 0), att_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def delete_attachment(att_id: int) -> bool:
+    """Exclui um attachment"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM attachments WHERE id=?", (att_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def get_attachment_by_id(att_id: int) -> Dict:
+    """Retorna um attachment por ID"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM attachments WHERE id=?", (att_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+# === CRUD EXPLOSIVES ===
+def create_explosive(data: Dict) -> int:
+    """Cria um novo explosivo"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO explosives (name, name_type, slots, width, height, img)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (data['name'], data['name_type'], 
+              data['slots'], data['width'], data['height'], data['img']))
+        conn.commit()
+        return cursor.lastrowid
+
+def update_explosive(exp_id: int, data: Dict) -> bool:
+    """Atualiza um explosivo existente"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE explosives SET name=?, name_type=?, 
+                   slots=?, width=?, height=?, img=?
+            WHERE id=?
+        """, (data['name'], data['name_type'],
+              data['slots'], data['width'], data['height'], data['img'], exp_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def delete_explosive(exp_id: int) -> bool:
+    """Exclui um explosivo"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM explosives WHERE id=?", (exp_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def get_explosive_by_id(exp_id: int) -> Dict:
+    """Retorna um explosivo por ID"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM explosives WHERE id=?", (exp_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+# === CRUD ITEM_TYPES ===
+def create_item_type(data: Dict) -> int:
+    """Cria um novo tipo de item"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO item_types (name) VALUES (?)", (data['name'],))
+        conn.commit()
+        return cursor.lastrowid
+
+def update_item_type(type_id: int, data: Dict) -> bool:
+    """Atualiza um tipo de item existente"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE item_types SET name=? WHERE id=?", (data['name'], type_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def delete_item_type(type_id: int) -> bool:
+    """Exclui um tipo de item"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM item_types WHERE id=?", (type_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def get_item_type_by_id(type_id: int) -> Dict:
+    """Retorna um tipo de item por ID"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM item_types WHERE id=?", (type_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+# === CRUD ITEM ===
+def create_item(data: Dict) -> int:
+    """Cria um novo item"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO item (name, name_type, type_id, slots, width, height, img, 
+                            storage_slots, storage_width, storage_height, localization)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (data['name'], data['name_type'], data['type_id'],
+              data['slots'], data['width'], data['height'], data['img'],
+              data.get('storage_slots', 0), data.get('storage_width', 0), 
+              data.get('storage_height', 0), data.get('localization')))
+        conn.commit()
+        return cursor.lastrowid
+
+def update_item(item_id: int, data: Dict) -> bool:
+    """Atualiza um item existente"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE item SET name=?, name_type=?, type_id=?, 
+                   slots=?, width=?, height=?, img=?,
+                   storage_slots=?, storage_width=?, storage_height=?, localization=?
+            WHERE id=?
+        """, (data['name'], data['name_type'], data['type_id'],
+              data['slots'], data['width'], data['height'], data['img'],
+              data.get('storage_slots', 0), data.get('storage_width', 0),
+              data.get('storage_height', 0), data.get('localization'), item_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def delete_item(item_id: int) -> bool:
+    """Exclui um item"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM item WHERE id=?", (item_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def get_item_by_id(item_id: int) -> Dict:
+    """Retorna um item por ID"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM item WHERE id=?", (item_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+def get_item_compatibility(item_id: int) -> List[Dict]:
+    """Retorna itens compatíveis com um item"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT i.* FROM item i
+            INNER JOIN item_compatibility ic ON i.id = ic.child_item_id
+            WHERE ic.parent_item_id = ?
+        """, (item_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+def update_item_compatibility(item_id: int, compatible_ids: List[int]) -> bool:
+    """Atualiza a compatibilidade de itens"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM item_compatibility WHERE parent_item_id=?", (item_id,))
+        
+        for comp_id in compatible_ids:
+            cursor.execute("""
+                INSERT INTO item_compatibility (parent_item_id, child_item_id) 
+                VALUES (?, ?)
+            """, (item_id, comp_id))
+        
+        conn.commit()
+        return True
