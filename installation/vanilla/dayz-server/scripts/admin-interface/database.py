@@ -394,7 +394,7 @@ def get_explosives(search: str = None, limit: int = 50) -> List[Dict]:
     """Retorna lista de explosivos com filtro opcional"""
     with DatabaseConnection(config.DB_ITEMS) as conn:
         cursor = conn.cursor()
-        query = "SELECT id, name, name_type, img FROM explosives WHERE 1=1"
+        query = "SELECT id, name, name_type, slots, width, height, img FROM explosives WHERE 1=1"
         params = []
         
         if search:
@@ -415,7 +415,7 @@ def get_ammunitions(search: str = None, caliber_id: int = None, weapon_id: int =
         if weapon_id:
             # Filtrar apenas munições compatíveis com a arma
             query = """
-                SELECT DISTINCT a.id, a.name, a.name_type, a.caliber_id, a.img
+                SELECT DISTINCT a.id, a.name, a.name_type, a.caliber_id, a.slots, a.width, a.height, a.img
                 FROM ammunitions a
                 INNER JOIN weapon_ammunitions wa ON a.id = wa.ammo_id
                 WHERE wa.weapon_id = ?
@@ -430,7 +430,7 @@ def get_ammunitions(search: str = None, caliber_id: int = None, weapon_id: int =
             params.append(limit)
         else:
             # Query original sem filtro de arma
-            query = "SELECT id, name, name_type, caliber_id, img FROM ammunitions WHERE 1=1"
+            query = "SELECT id, name, name_type, caliber_id, slots, width, height, img FROM ammunitions WHERE 1=1"
             params = []
             
             if caliber_id:
@@ -462,7 +462,7 @@ def get_magazines(search: str = None, weapon_id: int = None, limit: int = 50) ->
         if weapon_id:
             # Filtrar apenas magazines compatíveis com a arma
             query = """
-                SELECT DISTINCT m.id, m.name, m.name_type, m.capacity, m.img
+                SELECT DISTINCT m.id, m.name, m.name_type, m.capacity, m.slots, m.width, m.height, m.img
                 FROM magazines m
                 INNER JOIN weapon_magazines wm ON m.id = wm.magazine_id
                 WHERE wm.weapon_id = ?
@@ -477,7 +477,7 @@ def get_magazines(search: str = None, weapon_id: int = None, limit: int = 50) ->
             params.append(limit)
         else:
             # Query original sem filtro de arma
-            query = "SELECT id, name, name_type, capacity, img FROM magazines WHERE 1=1"
+            query = "SELECT id, name, name_type, capacity, slots, width, height, img FROM magazines WHERE 1=1"
             params = []
             
             if search:
@@ -498,7 +498,7 @@ def get_attachments(search: str = None, type_filter: str = None, weapon_id: int 
         if weapon_id:
             # Filtrar apenas attachments compatíveis com a arma
             query = """
-                SELECT DISTINCT at.id, at.name, at.name_type, at.type, at.img
+                SELECT DISTINCT at.id, at.name, at.name_type, at.type, at.slots, at.width, at.height, at.img
                 FROM attachments at
                 INNER JOIN weapon_attachments wat ON at.id = wat.attachment_id
                 WHERE wat.weapon_id = ?
@@ -517,7 +517,7 @@ def get_attachments(search: str = None, type_filter: str = None, weapon_id: int 
             params.append(limit)
         else:
             # Query original sem filtro de arma
-            query = "SELECT id, name, name_type, type, img FROM attachments WHERE 1=1"
+            query = "SELECT id, name, name_type, type, slots, width, height, img FROM attachments WHERE 1=1"
             params = []
             
             if type_filter:
@@ -1036,5 +1036,58 @@ def update_item_compatibility(item_id: int, parent_ids: List[int], child_ids: Li
                 VALUES (?, ?)
             """, (item_id, child_id))
         
+        conn.commit()
+        return True
+
+# === RELACIONAMENTOS INVERSOS (Magazine e Attachment) ===
+def get_magazine_weapons(magazine_id: int) -> List[Dict]:
+    """Retorna armas relacionadas a um magazine"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT w.* FROM weapons w
+            INNER JOIN weapon_magazines wm ON w.id = wm.weapon_id
+            WHERE wm.magazine_id = ?
+        """, (magazine_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+def update_magazine_weapons(magazine_id: int, weapon_ids: List[int]) -> bool:
+    """Atualiza armas relacionadas a um magazine"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        # Remover relacionamentos existentes
+        cursor.execute("DELETE FROM weapon_magazines WHERE magazine_id=?", (magazine_id,))
+        # Inserir novos relacionamentos
+        for weapon_id in weapon_ids:
+            cursor.execute("""
+                INSERT INTO weapon_magazines (weapon_id, magazine_id)
+                VALUES (?, ?)
+            """, (weapon_id, magazine_id))
+        conn.commit()
+        return True
+
+def get_attachment_weapons(attachment_id: int) -> List[Dict]:
+    """Retorna armas relacionadas a um attachment"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT w.* FROM weapons w
+            INNER JOIN weapon_attachments wa ON w.id = wa.weapon_id
+            WHERE wa.attachment_id = ?
+        """, (attachment_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+def update_attachment_weapons(attachment_id: int, weapon_ids: List[int]) -> bool:
+    """Atualiza armas relacionadas a um attachment"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        # Remover relacionamentos existentes
+        cursor.execute("DELETE FROM weapon_attachments WHERE attachment_id=?", (attachment_id,))
+        # Inserir novos relacionamentos
+        for weapon_id in weapon_ids:
+            cursor.execute("""
+                INSERT INTO weapon_attachments (weapon_id, attachment_id)
+                VALUES (?, ?)
+            """, (weapon_id, attachment_id))
         conn.commit()
         return True

@@ -27,7 +27,9 @@ from database import (
     get_item_type_by_id, create_item_type, update_item_type, delete_item_type,
     get_item_by_id, create_item, update_item, delete_item,
     get_item_compatibility, update_item_compatibility,
-    validate_item_type
+    validate_item_type,
+    get_magazine_weapons, update_magazine_weapons,
+    get_attachment_weapons, update_attachment_weapons
 )
 from datetime import datetime
 
@@ -1229,6 +1231,41 @@ def api_validate_item_type(name_type):
 @app.errorhandler(404)
 def not_found(e):
     return render_template('error.html', message='Página não encontrada'), 404
+
+# === RELACIONAMENTOS INVERSOS ===
+@app.route('/api/manage/magazines/<int:mag_id>/weapons', methods=['GET'])
+@login_required
+def api_manage_magazine_weapons_get(mag_id):
+    weapons = get_magazine_weapons(mag_id)
+    return jsonify({'weapons': weapons})
+
+@app.route('/api/manage/magazines/<int:mag_id>/weapons', methods=['PUT'])
+@login_required
+def api_manage_magazine_weapons_update(mag_id):
+    data = request.get_json()
+    weapon_ids = data.get('weapon_ids', [])
+    try:
+        success = update_magazine_weapons(mag_id, weapon_ids)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/attachments/<int:att_id>/weapons', methods=['GET'])
+@login_required
+def api_manage_attachment_weapons_get(att_id):
+    weapons = get_attachment_weapons(att_id)
+    return jsonify({'weapons': weapons})
+
+@app.route('/api/manage/attachments/<int:att_id>/weapons', methods=['PUT'])
+@login_required
+def api_manage_attachment_weapons_update(att_id):
+    data = request.get_json()
+    weapon_ids = data.get('weapon_ids', [])
+    try:
+        success = update_attachment_weapons(att_id, weapon_ids)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.errorhandler(500)
 def internal_error(e):

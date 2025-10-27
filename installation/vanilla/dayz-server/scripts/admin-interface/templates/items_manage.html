@@ -192,8 +192,20 @@
                         <i class="fas fa-plus me-2"></i>Novo Attachment
                     </button>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-3">
                     <input type="text" id="attachmentSearchInput" class="form-control" placeholder="Buscar attachment...">
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" id="filterAttachmentType">
+                        <option value="">Todos os Tipos</option>
+                        <option value="buttstock">Buttstock</option>
+                        <option value="compensator">Compensator</option>
+                        <option value="flashlight">Flashlight</option>
+                        <option value="ghillie">Ghillie</option>
+                        <option value="scope">Scope</option>
+                        <option value="handguard">Handguard</option>
+                        <option value="suppressor">Suppressor</option>
+                    </select>
                 </div>
             </div>
             <div id="attachmentsGrid" class="weapons-grid"></div>
@@ -503,7 +515,7 @@
 
 <!-- Modal de Edição de Explosivo -->
 <div class="modal fade" id="explosiveModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Editar Explosivo</h5>
@@ -552,7 +564,7 @@
 
 <!-- Modal de Edição de Munição -->
 <div class="modal fade" id="ammunitionModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Editar Munição</h5>
@@ -605,7 +617,7 @@
 
 <!-- Modal de Edição de Magazine -->
 <div class="modal fade" id="magazineModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Editar Magazine</h5>
@@ -658,7 +670,7 @@
 
 <!-- Modal de Edição de Attachment -->
 <div class="modal fade" id="attachmentModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Editar Attachment</h5>
@@ -764,6 +776,241 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="btnSaveItemType">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Explosivo -->
+<div class="modal fade" id="explosiveModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Explosivo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="explosiveForm">
+                    <input type="hidden" id="explosiveId">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Nome</label>
+                            <input type="text" class="form-control" id="explosiveName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Name Type (Classe DayZ)</label>
+                            <input type="text" class="form-control" id="explosiveNameType" required>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-2">
+                            <label>Width x Height</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="explosiveWidth" required min="1">
+                                <span class="input-group-text">x</span>
+                                <input type="number" class="form-control" id="explosiveHeight" required min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Slots (auto)</label>
+                            <input type="number" class="form-control" id="explosiveSlots" readonly>
+                        </div>
+                        <div class="col-md-8">
+                            <label>Imagem (URL)</label>
+                            <input type="text" class="form-control" id="explosiveImg" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveExplosive">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Munição -->
+<div class="modal fade" id="ammunitionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Munição</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="ammunitionForm">
+                    <input type="hidden" id="ammunitionId">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Nome</label>
+                            <input type="text" class="form-control" id="ammunitionName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Name Type (Classe DayZ)</label>
+                            <input type="text" class="form-control" id="ammunitionNameType" required>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-4">
+                            <label>Calibre</label>
+                            <select class="form-select" id="ammunitionCaliberId" required>
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Width x Height</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="ammunitionWidth" required min="1">
+                                <span class="input-group-text">x</span>
+                                <input type="number" class="form-control" id="ammunitionHeight" required min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Slots (auto)</label>
+                            <input type="number" class="form-control" id="ammunitionSlots" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label>Imagem (URL)</label>
+                            <input type="text" class="form-control" id="ammunitionImg" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveAmmunition">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Magazine -->
+<div class="modal fade" id="magazineModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Magazine</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="magazineForm">
+                    <input type="hidden" id="magazineId">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Nome</label>
+                            <input type="text" class="form-control" id="magazineName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Name Type (Classe DayZ)</label>
+                            <input type="text" class="form-control" id="magazineNameType" required>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-3">
+                            <label>Capacidade</label>
+                            <input type="number" class="form-control" id="magazineCapacity" required min="1">
+                        </div>
+                        <div class="col-md-2">
+                            <label>Width x Height</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="magazineWidth" required min="1">
+                                <span class="input-group-text">x</span>
+                                <input type="number" class="form-control" id="magazineHeight" required min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Slots (auto)</label>
+                            <input type="number" class="form-control" id="magazineSlots" readonly>
+                        </div>
+                        <div class="col-md-5">
+                            <label>Imagem (URL)</label>
+                            <input type="text" class="form-control" id="magazineImg" required>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Armas Compatíveis</h6>
+                    <div class="selected-items mb-3" id="selectedMagazineWeapons">
+                        <h6>Selecionadas:</h6>
+                        <div class="selected-items-grid"></div>
+                    </div>
+                    <input type="text" class="form-control mb-2" id="magazineWeaponSearch" placeholder="Buscar arma...">
+                    <div id="magazineWeaponGrid" class="relationship-grid"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveMagazine">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Attachment -->
+<div class="modal fade" id="attachmentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Attachment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="attachmentForm">
+                    <input type="hidden" id="attachmentId">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Nome</label>
+                            <input type="text" class="form-control" id="attachmentName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Name Type (Classe DayZ)</label>
+                            <input type="text" class="form-control" id="attachmentNameType" required>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-3">
+                            <label>Tipo</label>
+                            <select class="form-select" id="attachmentType" required>
+                                <option value="">Selecione...</option>
+                                <option value="buttstock">Buttstock</option>
+                                <option value="compensator">Compensator</option>
+                                <option value="flashlight">Flashlight</option>
+                                <option value="ghillie">Ghillie</option>
+                                <option value="scope">Scope</option>
+                                <option value="handguard">Handguard</option>
+                                <option value="suppressor">Suppressor</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Width x Height</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="attachmentWidth" required min="1">
+                                <span class="input-group-text">x</span>
+                                <input type="number" class="form-control" id="attachmentHeight" required min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Slots (auto)</label>
+                            <input type="number" class="form-control" id="attachmentSlots" readonly>
+                        </div>
+                        <div class="col-md-5">
+                            <label>Imagem (URL)</label>
+                            <input type="text" class="form-control" id="attachmentImg" required>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Armas Compatíveis</h6>
+                    <div class="selected-items mb-3" id="selectedAttachmentWeapons">
+                        <h6>Selecionadas:</h6>
+                        <div class="selected-items-grid"></div>
+                    </div>
+                    <input type="text" class="form-control mb-2" id="attachmentWeaponSearch" placeholder="Buscar arma...">
+                    <div id="attachmentWeaponGrid" class="relationship-grid"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveAttachment">Salvar</button>
             </div>
         </div>
     </div>
