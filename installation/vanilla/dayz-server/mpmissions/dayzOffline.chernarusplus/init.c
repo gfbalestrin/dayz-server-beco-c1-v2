@@ -106,15 +106,30 @@ class CustomMission: MissionServer
 		string playerId = identity.GetId();
 		
 		// ============================================================================
+		// DEBUG: Verifica se player está presente
+		// ============================================================================
+		WriteToLog("AddOrUpdateActivePlayer(): DEBUG - player=" + (player ? "PRESENTE" : "NULL") + " | PlayerName: " + playerName, LogFile.INIT, false, LogType.DEBUG);
+		
+		// Se player é null, tenta buscar manualmente
+		if (!player)
+		{
+			player = FindPlayerManInWorld(playerId);
+			WriteToLog("AddOrUpdateActivePlayer(): DEBUG - Player era null, buscado manualmente: " + (player ? "ENCONTRADO" : "FALHOU"), LogFile.INIT, false, LogType.DEBUG);
+		}
+		
+		// ============================================================================
 		// DETECÇÃO DE DUPLICAÇÃO FÍSICA: Verifica se já existe outro personagem no mundo
 		// ============================================================================
 		if (player)
 		{
 			Man existingManInWorld = FindPlayerManInWorld(playerId);
+			WriteToLog("AddOrUpdateActivePlayer(): DEBUG - FindPlayerManInWorld retornou: " + (existingManInWorld ? "ENCONTRADO" : "NULL"), LogFile.INIT, false, LogType.DEBUG);
 			
 			// Se já existe um personagem no mundo E é diferente do que está sendo adicionado = DUPLICAÇÃO!
 			if (existingManInWorld && existingManInWorld != player)
 			{
+				WriteToLog("AddOrUpdateActivePlayer(): DEBUG - Comparação: existingMan IS DIFFERENT from newPlayer", LogFile.INIT, false, LogType.DEBUG);
+				
 				PlayerBase ghostPB = PlayerBase.Cast(existingManInWorld);
 				if (ghostPB)
 				{
@@ -131,6 +146,10 @@ class CustomMission: MissionServer
 					
 					WriteToLog("AddOrUpdateActivePlayer(): Ghost deletado fisicamente do mundo com sucesso", LogFile.INIT, false, LogType.INFO);
 				}
+			}
+			else if (existingManInWorld == player)
+			{
+				WriteToLog("AddOrUpdateActivePlayer(): DEBUG - Comparação: existingMan IS THE SAME as newPlayer (normal)", LogFile.INIT, false, LogType.DEBUG);
 			}
 		}
 
