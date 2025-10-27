@@ -644,7 +644,11 @@ function toggleVehiclesDisplay() {
         // Remover trails também
         Object.keys(vehicleTrails).forEach(function(key) {
             if (vehicleTrails[key]) {
-                map.removeLayer(vehicleTrails[key]);
+                if (Array.isArray(vehicleTrails[key])) {
+                    vehicleTrails[key].forEach(layer => map.removeLayer(layer));
+                } else {
+                    map.removeLayer(vehicleTrails[key]);
+                }
             }
         });
         vehicleTrails = {};
@@ -781,7 +785,11 @@ function toggleVehicleTrailsDisplay() {
         // Remover trails
         Object.keys(vehicleTrails).forEach(function(key) {
             if (vehicleTrails[key]) {
-                map.removeLayer(vehicleTrails[key]);
+                if (Array.isArray(vehicleTrails[key])) {
+                    vehicleTrails[key].forEach(layer => map.removeLayer(layer));
+                } else {
+                    map.removeLayer(vehicleTrails[key]);
+                }
             }
         });
         vehicleTrails = {};
