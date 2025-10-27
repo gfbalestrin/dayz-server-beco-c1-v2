@@ -124,9 +124,7 @@ class CustomMission: MissionServer
 				if (!firstFoundMan)
 					firstFoundMan = m;
 					
-				string detectMsg = "AddOrUpdateActivePlayer(): DETECTADO personagem no mundo #" + duplicateCount.ToString() + 
-					" com PlayerID: " + playerId + " | Nome: " + pb.GetIdentity().GetName() + 
-					" | Pos: " + pb.GetPosition().ToString();
+				string detectMsg = "AddOrUpdateActivePlayer(): DETECTADO personagem no mundo #" + duplicateCount.ToString() + " com PlayerID: " + playerId + " | Nome: " + pb.GetIdentity().GetName() + " | Pos: " + pb.GetPosition().ToString();
 				WriteToLog(detectMsg, LogFile.INIT, false, LogType.INFO);
 			}
 		}
