@@ -341,7 +341,7 @@ def api_teleport_player(player_id):
         data = request.get_json()
         coord_x = data.get('coord_x')
         coord_y = data.get('coord_y')
-        coord_z = data.get('coord_z', 0)
+        coord_z = data.get('coord_z')
         
         logger.debug(f"Teleport request: player_id={player_id}, x={coord_x}, y={coord_y}, z={coord_z}")
         
@@ -358,8 +358,14 @@ def api_teleport_player(player_id):
                 'message': 'Arquivo de comandos não encontrado'
             }), 500
         
-        # Formato: PlayerID teleport CoordX CoordZ CoordY
-        command_line = f"{player_id} teleport {coord_x} {coord_z} {coord_y}\n"
+        # Formato: PlayerID teleport CoordX CoordZ CoordY [AlturaOpcional]
+        # Se coord_z não for fornecido, calcular altura automaticamente
+        if coord_z is not None:
+            # Altura especificada
+            command_line = f"{player_id} teleport {coord_x} {coord_z} {coord_y} {coord_z}\n"
+        else:
+            # Altura será calculada automaticamente pelo servidor
+            command_line = f"{player_id} teleport {coord_x} 0 {coord_y}\n"
         
         logger.info(f"Adicionando comando de teleporte: {command_line.strip()}")
         

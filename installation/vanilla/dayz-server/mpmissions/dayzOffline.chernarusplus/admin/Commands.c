@@ -148,11 +148,26 @@ bool ExecuteCommand(TStringArray tokens)
                 WriteToLog("Comando foi bloqueado para o jogador!", LogFile.INIT, false, LogType.ERROR);
                 return false;
             }
-            if (tokens.Count() == 5)
+            
+            // Formato: PlayerID teleport CoordX CoordZ CoordY [AlturaOpcional]
+            if (tokens.Count() >= 5)
             {
-                vector posT = Vector(tokens[2].ToFloat(), tokens[3].ToFloat(), tokens[4].ToFloat());
+                vector posT = Vector(tokens[2].ToFloat(), 0, tokens[4].ToFloat()); // X e Y (CoordZ é Y)
+                
+                // Se altura foi fornecida, usar. Caso contrário, calcular automaticamente
+                if (tokens.Count() >= 6)
+                {
+                    posT[1] = tokens[3].ToFloat(); // Usar altura fornecida
+                }
+                else
+                {
+                    // Calcular altura do terreno automaticamente
+                    posT[1] = GetGame().SurfaceY(posT[0], posT[2]);
+                }
+                
                 target.SetPosition(posT);
                 target.MessageStatus("Você foi teleportado");
+                WriteToLog("Jogador " + playerID + " teleportado para X=" + posT[0].ToString() + " Y=" + posT[2].ToString() + " Z=" + posT[1].ToString(), LogFile.INIT, false, LogType.INFO);
             }
             break;
 

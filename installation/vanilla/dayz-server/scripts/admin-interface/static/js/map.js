@@ -942,15 +942,15 @@ function handleTeleportClick(e) {
         return;
     }
     
-    // Executar teleporte
+    // Executar teleporte (sem especificar altura - será calculada automaticamente)
     $.ajax({
         url: `/api/players/${playerId}/teleport`,
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify({
             coord_x: dayzCoords.x,
-            coord_y: dayzCoords.y,
-            coord_z: 0
+            coord_y: dayzCoords.y
+            // coord_z não é enviado, altura será calculada automaticamente pelo servidor
         }),
         success: function(response) {
             showToast('Sucesso', response.message, 'success');
