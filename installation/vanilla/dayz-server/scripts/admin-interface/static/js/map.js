@@ -17,6 +17,11 @@ let showVehicles = false;
 let showKills = false;
 let currentMode = 'normal'; // normal, teleport
 let teleportTargetPlayer = null;
+let trailDateFilter = {
+    enabled: false,
+    startDate: null,
+    endDate: null
+};
 // Variáveis removidas - funcionalidades de spawn movidas para spawning.html
 
 // Cor padrão do Leaflet - cores mais vibrantes
@@ -47,6 +52,7 @@ $(document).ready(function() {
     $('#toggleTrailsBtn').on('click', toggleTrails);
     $('#toggleVehiclesBtn').on('click', toggleVehiclesDisplay);
     $('#toggleKillsBtn').on('click', toggleKills);
+    $('#applyTrailFilter').on('click', applyTrailDateFilter);
     
     // Event listeners para modos
     $('#btnModeNormal').on('click', () => setMode('normal'));
@@ -298,6 +304,20 @@ function drawTrail(playerId, trail) {
     
     if (trail.length === 0) return;
     
+    // Aplicar filtro de data se ativo
+    if (trailDateFilter.enabled) {
+        trail = trail.filter(point => {
+            const pointDate = new Date(point.timestamp);
+            return pointDate >= trailDateFilter.startDate && 
+                   pointDate <= trailDateFilter.endDate;
+        });
+        
+        if (trail.length === 0) {
+            console.log('Nenhum ponto encontrado no período especificado');
+            return;
+        }
+    }
+    
     // Criar linha do trail
     const latlngs = trail.map(point => [point.pixel_coords[0], point.pixel_coords[1]]);
     const color = getPlayerColor(playerId);
@@ -313,7 +333,10 @@ function drawTrail(playerId, trail) {
     // Adicionar marcadores em cada ponto com cálculo de velocidade
     for (let i = 0; i < trail.length; i++) {
         const point = trail[i];
-        let tooltipText = `<strong>📍 Ponto ${trail.length - i}</strong><br>`;
+        const playerName = playersData[playerId]?.name || 'Jogador';
+        const steamName = playersData[playerId]?.steamName || '';
+        let tooltipText = `<strong>👤 ${playerName}${steamName ? ` (${steamName})` : ''}</strong><br>`;
+        tooltipText += `<strong>📍 Ponto ${trail.length - i}</strong><br>`;
         tooltipText += `⏰ Tempo: <span class="value">${point.timestamp}</span><br>`;
         tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
         
@@ -402,10 +425,18 @@ function toggleTrails() {
     
     if (showTrails) {
         $('#toggleTrailsBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar Trails');
+        $('#trailDateFilter').show();
         // Carregar trails de todos os jogadores visíveis
         Object.keys(playerMarkers).forEach(loadPlayerTrail);
     } else {
         $('#toggleTrailsBtn').html('<i class="fas fa-route me-1"></i>Mostrar Trails');
+        $('#trailDateFilter').hide();
+        // Limpar filtros
+        trailDateFilter.enabled = false;
+        trailDateFilter.startDate = null;
+        trailDateFilter.endDate = null;
+        $('#trailStartDate').val('');
+        $('#trailEndDate').val('');
         // Remover todos os trails
         Object.keys(playerTrails).forEach(function(key) {
             const trail = playerTrails[key];
@@ -427,6 +458,27 @@ function filterPlayers() {
     
     // Recarregar posições
     loadPositions();
+}
+
+/**
+ * Aplicar filtro de data nos trails
+ */
+function applyTrailDateFilter() {
+    const startDate = $('#trailStartDate').val();
+    const endDate = $('#trailEndDate').val();
+    
+    if (startDate && endDate) {
+        trailDateFilter.enabled = true;
+        trailDateFilter.startDate = new Date(startDate);
+        trailDateFilter.endDate = new Date(endDate);
+    } else {
+        trailDateFilter.enabled = false;
+        trailDateFilter.startDate = null;
+        trailDateFilter.endDate = null;
+    }
+    
+    // Recarregar trails com filtro
+    Object.keys(playerMarkers).forEach(loadPlayerTrail);
 }
 
 /**
