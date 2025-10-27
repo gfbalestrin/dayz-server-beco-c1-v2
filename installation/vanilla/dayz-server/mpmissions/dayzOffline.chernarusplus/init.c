@@ -144,13 +144,11 @@ class CustomMission: MissionServer
 		
 		if (duplicateCount == 1 && !player)
 		{
-			WriteToLog("AddOrUpdateActivePlayer(): ALERTA! Personagem já existe no mundo mas player param é NULL", 
-				LogFile.INIT, false, LogType.WARN);
+			WriteToLog("AddOrUpdateActivePlayer(): ALERTA! Personagem já existe no mundo mas player param é NULL", LogFile.INIT, false, LogType.DEBUG);
 		}
 		else if (duplicateCount == 1 && player && firstFoundMan != player)
 		{
-			WriteToLog("AddOrUpdateActivePlayer(): DUPLICAÇÃO CRÍTICA! Personagem existente é DIFERENTE do novo!", 
-				LogFile.INIT, false, LogType.ERROR);
+			WriteToLog("AddOrUpdateActivePlayer(): DUPLICAÇÃO CRÍTICA! Personagem existente é DIFERENTE do novo!", LogFile.INIT, false, LogType.ERROR);
 		}
 		
 		// ============================================================================
