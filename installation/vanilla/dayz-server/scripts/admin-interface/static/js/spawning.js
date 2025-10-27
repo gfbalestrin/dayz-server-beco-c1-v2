@@ -343,6 +343,24 @@ let ammunitionsData = [];
 let selectedAmmo = null;
 let calibersData = [];
 
+// Carregar armas para os filtros
+function loadWeaponsForFilters() {
+    $.ajax({
+        url: '/api/items/weapons',
+        method: 'GET',
+        data: { limit: 200 },
+        success: function(response) {
+            const options = response.weapons.map(w => 
+                `<option value="${w.id}">${w.name}</option>`
+            ).join('');
+            
+            $('#ammoWeaponFilter, #magazineWeaponFilter, #attachmentWeaponFilter').html(
+                '<option value="">Todas</option>' + options
+            );
+        }
+    });
+}
+
 function loadCalibers() {
     $.ajax({
         url: '/api/items/calibers',
@@ -361,13 +379,19 @@ function loadCalibers() {
 function loadAmmunitions() {
     const search = $('#ammoSearch').val();
     const caliberId = $('#caliberSelect').val();
+    const weaponId = $('#ammoWeaponFilter').val();
     
     $('#ammunitionsGrid').html('<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i></div>');
     
     $.ajax({
         url: '/api/items/ammunitions',
         method: 'GET',
-        data: { search: search, caliber_id: caliberId || null, limit: 100 },
+        data: { 
+            search: search, 
+            caliber_id: caliberId || null, 
+            weapon_id: weaponId || null,
+            limit: 100 
+        },
         success: function(response) {
             ammunitionsData = response.ammunitions;
             renderAmmunitionsGrid();
@@ -411,12 +435,18 @@ let selectedMagazine = null;
 
 function loadMagazines() {
     const search = $('#magazineSearch').val();
+    const weaponId = $('#magazineWeaponFilter').val();
+    
     $('#magazinesGrid').html('<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i></div>');
     
     $.ajax({
         url: '/api/items/magazines',
         method: 'GET',
-        data: { search: search, limit: 100 },
+        data: { 
+            search: search, 
+            weapon_id: weaponId || null,
+            limit: 100 
+        },
         success: function(response) {
             magazinesData = response.magazines;
             renderMagazinesGrid();
@@ -477,13 +507,19 @@ function loadAttachmentTypes() {
 function loadAttachments() {
     const search = $('#attachmentSearch').val();
     const typeFilter = $('#attachmentTypeSelect').val();
+    const weaponId = $('#attachmentWeaponFilter').val();
     
     $('#attachmentsGrid').html('<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i></div>');
     
     $.ajax({
         url: '/api/items/attachments',
         method: 'GET',
-        data: { search: search, type: typeFilter, limit: 100 },
+        data: { 
+            search: search, 
+            type: typeFilter, 
+            weapon_id: weaponId || null,
+            limit: 100 
+        },
         success: function(response) {
             attachmentsData = response.attachments;
             renderAttachmentsGrid();
@@ -583,6 +619,7 @@ function showSpawnConfirmModal(type, item = null) {
 $(document).ready(function() {
     loadPlayers();
     loadWeapons();
+    loadWeaponsForFilters(); // Carregar armas para filtros
     loadItemTypes();
     loadItems();
     renderVehiclesGrid();
@@ -603,16 +640,25 @@ $(document).ready(function() {
     });
     
     // Event listeners para munições
+    $('#ammoWeaponFilter').on('change', function() {
+        loadAmmunitions();
+    });
     $('#caliberSelect, #ammoSearch').on('change input', function() {
         loadAmmunitions();
     });
     
     // Event listeners para magazines
+    $('#magazineWeaponFilter').on('change', function() {
+        loadMagazines();
+    });
     $('#magazineSearch').on('input', function() {
         loadMagazines();
     });
     
     // Event listeners para attachments
+    $('#attachmentWeaponFilter').on('change', function() {
+        loadAttachments();
+    });
     $('#attachmentTypeSelect, #attachmentSearch').on('change input', function() {
         loadAttachments();
     });

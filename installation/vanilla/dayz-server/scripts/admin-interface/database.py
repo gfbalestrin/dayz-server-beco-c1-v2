@@ -382,23 +382,42 @@ def get_explosives(search: str = None, limit: int = 50) -> List[Dict]:
         cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
 
-def get_ammunitions(search: str = None, caliber_id: int = None, limit: int = 50) -> List[Dict]:
+def get_ammunitions(search: str = None, caliber_id: int = None, weapon_id: int = None, limit: int = 50) -> List[Dict]:
     """Retorna lista de munições com filtros opcionais"""
     with DatabaseConnection(config.DB_ITEMS) as conn:
         cursor = conn.cursor()
-        query = "SELECT id, name, name_type, caliber_id, img FROM ammunitions WHERE 1=1"
-        params = []
         
-        if caliber_id:
-            query += " AND caliber_id = ?"
-            params.append(caliber_id)
-        
-        if search:
-            query += " AND (name LIKE ? OR name_type LIKE ?)"
-            params.extend([f'%{search}%', f'%{search}%'])
-        
-        query += " LIMIT ?"
-        params.append(limit)
+        if weapon_id:
+            # Filtrar apenas munições compatíveis com a arma
+            query = """
+                SELECT DISTINCT a.id, a.name, a.name_type, a.caliber_id, a.img
+                FROM ammunitions a
+                INNER JOIN weapon_ammunitions wa ON a.id = wa.ammo_id
+                WHERE wa.weapon_id = ?
+            """
+            params = [weapon_id]
+            
+            if search:
+                query += " AND (a.name LIKE ? OR a.name_type LIKE ?)"
+                params.extend([f'%{search}%', f'%{search}%'])
+            
+            query += " LIMIT ?"
+            params.append(limit)
+        else:
+            # Query original sem filtro de arma
+            query = "SELECT id, name, name_type, caliber_id, img FROM ammunitions WHERE 1=1"
+            params = []
+            
+            if caliber_id:
+                query += " AND caliber_id = ?"
+                params.append(caliber_id)
+            
+            if search:
+                query += " AND (name LIKE ? OR name_type LIKE ?)"
+                params.extend([f'%{search}%', f'%{search}%'])
+            
+            query += " LIMIT ?"
+            params.append(limit)
         
         cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
@@ -410,40 +429,82 @@ def get_calibers() -> List[Dict]:
         cursor.execute("SELECT id, name FROM calibers ORDER BY name")
         return [dict(row) for row in cursor.fetchall()]
 
-def get_magazines(search: str = None, limit: int = 50) -> List[Dict]:
+def get_magazines(search: str = None, weapon_id: int = None, limit: int = 50) -> List[Dict]:
     """Retorna lista de magazines com filtro opcional"""
     with DatabaseConnection(config.DB_ITEMS) as conn:
         cursor = conn.cursor()
-        query = "SELECT id, name, name_type, capacity, img FROM magazines WHERE 1=1"
-        params = []
         
-        if search:
-            query += " AND (name LIKE ? OR name_type LIKE ?)"
-            params.extend([f'%{search}%', f'%{search}%'])
-        
-        query += " LIMIT ?"
-        params.append(limit)
+        if weapon_id:
+            # Filtrar apenas magazines compatíveis com a arma
+            query = """
+                SELECT DISTINCT m.id, m.name, m.name_type, m.capacity, m.img
+                FROM magazines m
+                INNER JOIN weapon_magazines wm ON m.id = wm.magazine_id
+                WHERE wm.weapon_id = ?
+            """
+            params = [weapon_id]
+            
+            if search:
+                query += " AND (m.name LIKE ? OR m.name_type LIKE ?)"
+                params.extend([f'%{search}%', f'%{search}%'])
+            
+            query += " LIMIT ?"
+            params.append(limit)
+        else:
+            # Query original sem filtro de arma
+            query = "SELECT id, name, name_type, capacity, img FROM magazines WHERE 1=1"
+            params = []
+            
+            if search:
+                query += " AND (name LIKE ? OR name_type LIKE ?)"
+                params.extend([f'%{search}%', f'%{search}%'])
+            
+            query += " LIMIT ?"
+            params.append(limit)
         
         cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
 
-def get_attachments(search: str = None, type_filter: str = None, limit: int = 50) -> List[Dict]:
+def get_attachments(search: str = None, type_filter: str = None, weapon_id: int = None, limit: int = 50) -> List[Dict]:
     """Retorna lista de attachments com filtros opcionais"""
     with DatabaseConnection(config.DB_ITEMS) as conn:
         cursor = conn.cursor()
-        query = "SELECT id, name, name_type, type, img FROM attachments WHERE 1=1"
-        params = []
         
-        if type_filter:
-            query += " AND type = ?"
-            params.append(type_filter)
-        
-        if search:
-            query += " AND (name LIKE ? OR name_type LIKE ?)"
-            params.extend([f'%{search}%', f'%{search}%'])
-        
-        query += " LIMIT ?"
-        params.append(limit)
+        if weapon_id:
+            # Filtrar apenas attachments compatíveis com a arma
+            query = """
+                SELECT DISTINCT at.id, at.name, at.name_type, at.type, at.img
+                FROM attachments at
+                INNER JOIN weapon_attachments wat ON at.id = wat.attachment_id
+                WHERE wat.weapon_id = ?
+            """
+            params = [weapon_id]
+            
+            if type_filter:
+                query += " AND at.type = ?"
+                params.append(type_filter)
+            
+            if search:
+                query += " AND (at.name LIKE ? OR at.name_type LIKE ?)"
+                params.extend([f'%{search}%', f'%{search}%'])
+            
+            query += " ORDER BY at.type LIMIT ?"
+            params.append(limit)
+        else:
+            # Query original sem filtro de arma
+            query = "SELECT id, name, name_type, type, img FROM attachments WHERE 1=1"
+            params = []
+            
+            if type_filter:
+                query += " AND type = ?"
+                params.append(type_filter)
+            
+            if search:
+                query += " AND (name LIKE ? OR name_type LIKE ?)"
+                params.extend([f'%{search}%', f'%{search}%'])
+            
+            query += " LIMIT ?"
+            params.append(limit)
         
         cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]

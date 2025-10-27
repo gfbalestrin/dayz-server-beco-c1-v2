@@ -725,8 +725,9 @@ def api_explosives():
 def api_ammunitions():
     search = request.args.get('search', '')
     caliber_id = request.args.get('caliber_id', type=int)
+    weapon_id = request.args.get('weapon_id', type=int)
     limit = int(request.args.get('limit', 50))
-    ammunitions = get_ammunitions(search, caliber_id, limit)
+    ammunitions = get_ammunitions(search, caliber_id, weapon_id, limit)
     return jsonify({'ammunitions': ammunitions})
 
 @app.route('/api/items/calibers')
@@ -739,8 +740,9 @@ def api_calibers():
 @login_required
 def api_magazines():
     search = request.args.get('search', '')
+    weapon_id = request.args.get('weapon_id', type=int)
     limit = int(request.args.get('limit', 50))
-    magazines = get_magazines(search, limit)
+    magazines = get_magazines(search, weapon_id, limit)
     return jsonify({'magazines': magazines})
 
 @app.route('/api/items/attachments')
@@ -748,8 +750,9 @@ def api_magazines():
 def api_attachments():
     search = request.args.get('search', '')
     type_filter = request.args.get('type', '')
+    weapon_id = request.args.get('weapon_id', type=int)
     limit = int(request.args.get('limit', 50))
-    attachments = get_attachments(search, type_filter if type_filter else None, limit)
+    attachments = get_attachments(search, type_filter if type_filter else None, weapon_id, limit)
     return jsonify({'attachments': attachments})
 
 @app.route('/api/items/attachment-types')

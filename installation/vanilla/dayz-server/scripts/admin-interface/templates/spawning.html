@@ -136,19 +136,25 @@
         <!-- Aba de Munições -->
         <div id="ammo-tab" class="tab-pane fade">
             <div class="row mb-3">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label>Jogador</label>
                     <select id="ammoPlayerSelect" class="form-select">
                         <option value="">Carregando...</option>
                     </select>
                 </div>
                 <div class="col-md-3">
+                    <label>Arma (Filtro)</label>
+                    <select id="ammoWeaponFilter" class="form-select">
+                        <option value="">Todas as munições</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
                     <label>Calibre</label>
                     <select id="caliberSelect" class="form-select">
                         <option value="">Todos</option>
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label>Buscar Munição</label>
                     <input type="text" id="ammoSearch" class="form-control" placeholder="Nome da munição...">
                 </div>
@@ -168,13 +174,19 @@
         <!-- Aba de Magazines -->
         <div id="magazines-tab" class="tab-pane fade">
             <div class="row mb-3">
-                <div class="col-md-5">
+                <div class="col-md-4">
                     <label>Jogador</label>
                     <select id="magazinePlayerSelect" class="form-select">
                         <option value="">Carregando...</option>
                     </select>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-3">
+                    <label>Arma (Filtro)</label>
+                    <select id="magazineWeaponFilter" class="form-select">
+                        <option value="">Todos os magazines</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
                     <label>Buscar Magazine</label>
                     <input type="text" id="magazineSearch" class="form-control" placeholder="Nome do magazine...">
                 </div>
@@ -201,12 +213,18 @@
                     </select>
                 </div>
                 <div class="col-md-3">
+                    <label>Arma (Filtro)</label>
+                    <select id="attachmentWeaponFilter" class="form-select">
+                        <option value="">Todos os attachments</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
                     <label>Tipo</label>
                     <select id="attachmentTypeSelect" class="form-select">
                         <option value="">Todos</option>
                     </select>
                 </div>
-                <div class="col-md-5">
+                <div class="col-md-3">
                     <label>Buscar Attachment</label>
                     <input type="text" id="attachmentSearch" class="form-control" placeholder="Nome do attachment...">
                 </div>
