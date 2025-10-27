@@ -12,7 +12,10 @@ from database import (
     get_players_positions_by_timerange, dayz_to_pixel,
     get_vehicles_last_position, get_recent_kills, parse_position,
     check_backup_exists, get_backup_info, get_online_players,
-    get_weapons, get_items, get_item_types
+    get_weapons, get_items, get_item_types,
+    get_explosives, get_ammunitions, get_calibers,
+    get_magazines, get_attachments, get_attachment_types,
+    get_weapon_compatible_items
 )
 from datetime import datetime
 
@@ -707,6 +710,99 @@ def api_spawn_vehicle_at_coords():
         return jsonify({
             'success': False,
             'message': f'Erro ao spawnar veículo: {str(e)}'
+        }), 500
+
+@app.route('/api/items/explosives')
+@login_required
+def api_explosives():
+    search = request.args.get('search', '')
+    limit = int(request.args.get('limit', 50))
+    explosives = get_explosives(search, limit)
+    return jsonify({'explosives': explosives})
+
+@app.route('/api/items/ammunitions')
+@login_required
+def api_ammunitions():
+    search = request.args.get('search', '')
+    caliber_id = request.args.get('caliber_id', type=int)
+    limit = int(request.args.get('limit', 50))
+    ammunitions = get_ammunitions(search, caliber_id, limit)
+    return jsonify({'ammunitions': ammunitions})
+
+@app.route('/api/items/calibers')
+@login_required
+def api_calibers():
+    calibers = get_calibers()
+    return jsonify({'calibers': calibers})
+
+@app.route('/api/items/magazines')
+@login_required
+def api_magazines():
+    search = request.args.get('search', '')
+    limit = int(request.args.get('limit', 50))
+    magazines = get_magazines(search, limit)
+    return jsonify({'magazines': magazines})
+
+@app.route('/api/items/attachments')
+@login_required
+def api_attachments():
+    search = request.args.get('search', '')
+    type_filter = request.args.get('type', '')
+    limit = int(request.args.get('limit', 50))
+    attachments = get_attachments(search, type_filter if type_filter else None, limit)
+    return jsonify({'attachments': attachments})
+
+@app.route('/api/items/attachment-types')
+@login_required
+def api_attachment_types():
+    types = get_attachment_types()
+    return jsonify({'types': types})
+
+@app.route('/api/weapons/<int:weapon_id>/compatible-items')
+@login_required
+def api_weapon_compatible_items(weapon_id):
+    items = get_weapon_compatible_items(weapon_id)
+    return jsonify(items)
+
+@app.route('/api/spawn/loadout', methods=['POST'])
+@login_required
+def api_spawn_loadout():
+    """Spawnar arma com múltiplos acessórios"""
+    import fcntl
+    import os
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    data = request.get_json()
+    player_id = data.get('player_id')
+    items = data.get('items', [])  # Lista de {item_type, quantity}
+    
+    if not player_id or not items:
+        return jsonify({'success': False, 'message': 'Dados incompletos'}), 400
+    
+    try:
+        with open(config.COMMANDS_FILE, 'a') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                for item in items:
+                    command_line = f"{player_id} giveitem {item['item_type']} {item['quantity']}\n"
+                    f.write(command_line)
+                f.flush()
+                os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        
+        logger.info(f"Loadout com {len(items)} itens enviado para {player_id}")
+        return jsonify({
+            'success': True,
+            'message': f'Loadout com {len(items)} itens enviado com sucesso!'
+        })
+    except Exception as e:
+        logger.exception("Erro ao spawnar loadout")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao spawnar loadout: {str(e)}'
         }), 500
 
 @app.errorhandler(404)

@@ -22,6 +22,26 @@
             </a>
         </li>
         <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#explosives-tab">
+                <i class="fas fa-bomb me-2"></i>Explosivos
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#ammo-tab">
+                <i class="fas fa-bullseye me-2"></i>Munições
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#magazines-tab">
+                <i class="fas fa-battery-full me-2"></i>Magazines
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#attachments-tab">
+                <i class="fas fa-puzzle-piece me-2"></i>Attachments
+            </a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link" data-bs-toggle="tab" href="#vehicles-tab">
                 <i class="fas fa-car me-2"></i>Veículos
             </a>
@@ -87,6 +107,122 @@
             </div>
         </div>
 
+        <!-- Aba de Explosivos -->
+        <div id="explosives-tab" class="tab-pane fade">
+            <div class="row mb-3">
+                <div class="col-md-5">
+                    <label>Jogador</label>
+                    <select id="explosivePlayerSelect" class="form-select">
+                        <option value="">Carregando...</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label>Buscar Explosivo</label>
+                    <input type="text" id="explosiveSearch" class="form-control" placeholder="Nome do explosivo...">
+                </div>
+                <div class="col-md-1">
+                    <label>Qtd</label>
+                    <input type="number" id="explosiveQuantity" class="form-control" value="1" min="1" max="99">
+                </div>
+            </div>
+
+            <div id="explosivesGrid" class="items-grid">
+                <div class="text-center p-5">
+                    <i class="fas fa-spinner fa-spin fa-3x"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aba de Munições -->
+        <div id="ammo-tab" class="tab-pane fade">
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label>Jogador</label>
+                    <select id="ammoPlayerSelect" class="form-select">
+                        <option value="">Carregando...</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label>Calibre</label>
+                    <select id="caliberSelect" class="form-select">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label>Buscar Munição</label>
+                    <input type="text" id="ammoSearch" class="form-control" placeholder="Nome da munição...">
+                </div>
+                <div class="col-md-1">
+                    <label>Qtd</label>
+                    <input type="number" id="ammoQuantity" class="form-control" value="1" min="1" max="99">
+                </div>
+            </div>
+
+            <div id="ammunitionsGrid" class="items-grid">
+                <div class="text-center p-5">
+                    <i class="fas fa-spinner fa-spin fa-3x"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aba de Magazines -->
+        <div id="magazines-tab" class="tab-pane fade">
+            <div class="row mb-3">
+                <div class="col-md-5">
+                    <label>Jogador</label>
+                    <select id="magazinePlayerSelect" class="form-select">
+                        <option value="">Carregando...</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label>Buscar Magazine</label>
+                    <input type="text" id="magazineSearch" class="form-control" placeholder="Nome do magazine...">
+                </div>
+                <div class="col-md-1">
+                    <label>Qtd</label>
+                    <input type="number" id="magazineQuantity" class="form-control" value="1" min="1" max="99">
+                </div>
+            </div>
+
+            <div id="magazinesGrid" class="items-grid">
+                <div class="text-center p-5">
+                    <i class="fas fa-spinner fa-spin fa-3x"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aba de Attachments -->
+        <div id="attachments-tab" class="tab-pane fade">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label>Jogador</label>
+                    <select id="attachmentPlayerSelect" class="form-select">
+                        <option value="">Carregando...</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label>Tipo</label>
+                    <select id="attachmentTypeSelect" class="form-select">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label>Buscar Attachment</label>
+                    <input type="text" id="attachmentSearch" class="form-control" placeholder="Nome do attachment...">
+                </div>
+                <div class="col-md-1">
+                    <label>Qtd</label>
+                    <input type="number" id="attachmentQuantity" class="form-control" value="1" min="1" max="99">
+                </div>
+            </div>
+
+            <div id="attachmentsGrid" class="items-grid">
+                <div class="text-center p-5">
+                    <i class="fas fa-spinner fa-spin fa-3x"></i>
+                </div>
+            </div>
+        </div>
+
         <!-- Aba de Veículos -->
         <div id="vehicles-tab" class="tab-pane fade">
             <div class="row mb-3">
@@ -127,9 +263,44 @@
         </div>
     </div>
 </div>
+
+<!-- Modal de Loadout Completo -->
+<div class="modal fade" id="loadoutModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-layer-group me-2"></i>Loadout Completo - <span id="loadoutWeaponName"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Magazines -->
+                <h6><i class="fas fa-battery-full me-2"></i>Magazines Compatíveis</h6>
+                <div id="loadoutMagazinesGrid" class="loadout-grid mb-4"></div>
+                
+                <!-- Munições -->
+                <h6><i class="fas fa-bullseye me-2"></i>Munições Compatíveis</h6>
+                <div id="loadoutAmmunitionsGrid" class="loadout-grid mb-4"></div>
+                
+                <!-- Attachments -->
+                <h6><i class="fas fa-puzzle-piece me-2"></i>Attachments Compatíveis</h6>
+                <div id="loadoutAttachmentsGrid" class="loadout-grid"></div>
+            </div>
+            <div class="modal-footer">
+                <div class="me-auto">
+                    <strong>Itens selecionados:</strong> <span id="loadoutSelectedCount">0</span>
+                </div>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="spawnLoadoutBtn">
+                    <i class="fas fa-magic me-1"></i>Spawnar Tudo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/spawning.js') }}"></script>
 {% endblock %}
-

@@ -31,7 +31,7 @@ function renderPlayerSelects() {
         `<option value="${p.PlayerID}">${p.PlayerName} (${p.SteamName})</option>`
     ).join('');
     
-    $('#weaponPlayerSelect, #itemPlayerSelect, #vehiclePlayerSelect').html(
+    $('#weaponPlayerSelect, #itemPlayerSelect, #vehiclePlayerSelect, #explosivePlayerSelect, #ammoPlayerSelect, #magazinePlayerSelect, #attachmentPlayerSelect').html(
         '<option value="">Selecione um jogador</option>' + options
     );
 }
@@ -269,11 +269,12 @@ function executeSpawn() {
             showToast('Sucesso', response.message, 'success');
             
             // Limpar seleção
-            if (type === 'weapon') {
-                selectedWeapon = null;
-            } else {
-                selectedItem = null;
-            }
+            selectedWeapon = null;
+            selectedItem = null;
+            selectedExplosive = null;
+            selectedAmmo = null;
+            selectedMagazine = null;
+            selectedAttachment = null;
             $('.item-card').removeClass('selected');
         },
         error: function(xhr) {
@@ -287,6 +288,297 @@ function executeSpawn() {
 }
 
 // === INICIALIZAÇÃO ===
+
+// === ABA DE EXPLOSIVOS ===
+let explosivesData = [];
+let selectedExplosive = null;
+
+function loadExplosives() {
+    const search = $('#explosiveSearch').val();
+    $('#explosivesGrid').html('<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i></div>');
+    
+    $.ajax({
+        url: '/api/items/explosives',
+        method: 'GET',
+        data: { search: search, limit: 100 },
+        success: function(response) {
+            explosivesData = response.explosives;
+            renderExplosivesGrid();
+        }
+    });
+}
+
+function renderExplosivesGrid() {
+    const grid = $('#explosivesGrid');
+    grid.empty();
+    
+    if (explosivesData.length === 0) {
+        grid.html('<div class="text-center p-5">Nenhum explosivo encontrado</div>');
+        return;
+    }
+    
+    explosivesData.forEach(explosive => {
+        const card = $('<div class="item-card"></div>');
+        card.data('explosive', explosive);
+        card.html(`
+            <img src="${explosive.img}" alt="${explosive.name}" onerror="this.src='https://via.placeholder.com/100?text=No+Image'">
+            <div class="item-name" title="${explosive.name}">${explosive.name}</div>
+        `);
+        card.on('click', function() {
+            selectExplosive(explosive);
+        });
+        grid.append(card);
+    });
+}
+
+function selectExplosive(explosive) {
+    selectedExplosive = explosive;
+    $('.item-card').removeClass('selected');
+    $('.item-card').filter(function() { return $(this).data('explosive')?.id === explosive.id; }).addClass('selected');
+    showSpawnConfirmModal('explosive', explosive);
+}
+
+// === ABA DE MUNIÇÕES ===
+let ammunitionsData = [];
+let selectedAmmo = null;
+let calibersData = [];
+
+function loadCalibers() {
+    $.ajax({
+        url: '/api/items/calibers',
+        method: 'GET',
+        success: function(response) {
+            calibersData = response.calibers;
+            const options = calibersData.map(c => 
+                `<option value="${c.id}">${c.name}</option>`
+            ).join('');
+            $('#caliberSelect').html('<option value="">Todos</option>' + options);
+            loadAmmunitions();
+        }
+    });
+}
+
+function loadAmmunitions() {
+    const search = $('#ammoSearch').val();
+    const caliberId = $('#caliberSelect').val();
+    
+    $('#ammunitionsGrid').html('<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i></div>');
+    
+    $.ajax({
+        url: '/api/items/ammunitions',
+        method: 'GET',
+        data: { search: search, caliber_id: caliberId || null, limit: 100 },
+        success: function(response) {
+            ammunitionsData = response.ammunitions;
+            renderAmmunitionsGrid();
+        }
+    });
+}
+
+function renderAmmunitionsGrid() {
+    const grid = $('#ammunitionsGrid');
+    grid.empty();
+    
+    if (ammunitionsData.length === 0) {
+        grid.html('<div class="text-center p-5">Nenhuma munição encontrada</div>');
+        return;
+    }
+    
+    ammunitionsData.forEach(ammo => {
+        const card = $('<div class="item-card"></div>');
+        card.data('ammo', ammo);
+        card.html(`
+            <img src="${ammo.img}" alt="${ammo.name}" onerror="this.src='https://via.placeholder.com/100?text=No+Image'">
+            <div class="item-name" title="${ammo.name}">${ammo.name}</div>
+        `);
+        card.on('click', function() {
+            selectAmmo(ammo);
+        });
+        grid.append(card);
+    });
+}
+
+function selectAmmo(ammo) {
+    selectedAmmo = ammo;
+    $('.item-card').removeClass('selected');
+    $('.item-card').filter(function() { return $(this).data('ammo')?.id === ammo.id; }).addClass('selected');
+    showSpawnConfirmModal('ammo', ammo);
+}
+
+// === ABA DE MAGAZINES ===
+let magazinesData = [];
+let selectedMagazine = null;
+
+function loadMagazines() {
+    const search = $('#magazineSearch').val();
+    $('#magazinesGrid').html('<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i></div>');
+    
+    $.ajax({
+        url: '/api/items/magazines',
+        method: 'GET',
+        data: { search: search, limit: 100 },
+        success: function(response) {
+            magazinesData = response.magazines;
+            renderMagazinesGrid();
+        }
+    });
+}
+
+function renderMagazinesGrid() {
+    const grid = $('#magazinesGrid');
+    grid.empty();
+    
+    if (magazinesData.length === 0) {
+        grid.html('<div class="text-center p-5">Nenhum magazine encontrado</div>');
+        return;
+    }
+    
+    magazinesData.forEach(magazine => {
+        const card = $('<div class="item-card"></div>');
+        card.data('magazine', magazine);
+        card.html(`
+            <img src="${magazine.img}" alt="${magazine.name}" onerror="this.src='https://via.placeholder.com/100?text=No+Image'">
+            <div class="item-name" title="${magazine.name}">${magazine.name}</div>
+        `);
+        card.on('click', function() {
+            selectMagazine(magazine);
+        });
+        grid.append(card);
+    });
+}
+
+function selectMagazine(magazine) {
+    selectedMagazine = magazine;
+    $('.item-card').removeClass('selected');
+    $('.item-card').filter(function() { return $(this).data('magazine')?.id === magazine.id; }).addClass('selected');
+    showSpawnConfirmModal('magazine', magazine);
+}
+
+// === ABA DE ATTACHMENTS ===
+let attachmentsData = [];
+let selectedAttachment = null;
+let attachmentTypesData = [];
+
+function loadAttachmentTypes() {
+    $.ajax({
+        url: '/api/items/attachment-types',
+        method: 'GET',
+        success: function(response) {
+            attachmentTypesData = response.types;
+            const options = attachmentTypesData.map(t => 
+                `<option value="${t}">${t}</option>`
+            ).join('');
+            $('#attachmentTypeSelect').html('<option value="">Todos</option>' + options);
+            loadAttachments();
+        }
+    });
+}
+
+function loadAttachments() {
+    const search = $('#attachmentSearch').val();
+    const typeFilter = $('#attachmentTypeSelect').val();
+    
+    $('#attachmentsGrid').html('<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i></div>');
+    
+    $.ajax({
+        url: '/api/items/attachments',
+        method: 'GET',
+        data: { search: search, type: typeFilter, limit: 100 },
+        success: function(response) {
+            attachmentsData = response.attachments;
+            renderAttachmentsGrid();
+        }
+    });
+}
+
+function renderAttachmentsGrid() {
+    const grid = $('#attachmentsGrid');
+    grid.empty();
+    
+    if (attachmentsData.length === 0) {
+        grid.html('<div class="text-center p-5">Nenhum attachment encontrado</div>');
+        return;
+    }
+    
+    attachmentsData.forEach(attachment => {
+        const card = $('<div class="item-card"></div>');
+        card.data('attachment', attachment);
+        card.html(`
+            <img src="${attachment.img}" alt="${attachment.name}" onerror="this.src='https://via.placeholder.com/100?text=No+Image'">
+            <div class="item-name" title="${attachment.name}">${attachment.name}</div>
+        `);
+        card.on('click', function() {
+            selectAttachment(attachment);
+        });
+        grid.append(card);
+    });
+}
+
+function selectAttachment(attachment) {
+    selectedAttachment = attachment;
+    $('.item-card').removeClass('selected');
+    $('.item-card').filter(function() { return $(this).data('attachment')?.id === attachment.id; }).addClass('selected');
+    showSpawnConfirmModal('attachment', attachment);
+}
+
+// === ATUALIZAÇÃO DO MODAL DE CONFIRMAÇÃO ===
+function showSpawnConfirmModal(type, item = null) {
+    let playerId, quantity, itemName, itemType;
+    
+    if (type === 'weapon') {
+        playerId = $('#weaponPlayerSelect').val();
+        quantity = $('#weaponQuantity').val();
+        itemName = selectedWeapon.name;
+        itemType = selectedWeapon.name_type;
+    } else if (type === 'item') {
+        playerId = $('#itemPlayerSelect').val();
+        quantity = $('#itemQuantity').val();
+        itemName = selectedItem.name;
+        itemType = selectedItem.name_type;
+    } else if (type === 'explosive') {
+        playerId = $('#explosivePlayerSelect').val();
+        quantity = $('#explosiveQuantity').val();
+        itemName = item.name;
+        itemType = item.name_type;
+    } else if (type === 'ammo') {
+        playerId = $('#ammoPlayerSelect').val();
+        quantity = $('#ammoQuantity').val();
+        itemName = item.name;
+        itemType = item.name_type;
+    } else if (type === 'magazine') {
+        playerId = $('#magazinePlayerSelect').val();
+        quantity = $('#magazineQuantity').val();
+        itemName = item.name;
+        itemType = item.name_type;
+    } else if (type === 'attachment') {
+        playerId = $('#attachmentPlayerSelect').val();
+        quantity = $('#attachmentQuantity').val();
+        itemName = item.name;
+        itemType = item.name_type;
+    } else {
+        return;
+    }
+    
+    if (!playerId) {
+        showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+        return;
+    }
+    
+    const player = playersData.find(p => p.PlayerID === playerId);
+    
+    $('#confirmItemName').text(itemName);
+    $('#confirmPlayerName').text(player.PlayerName);
+    $('#confirmQuantity').text(quantity);
+    
+    // Armazenar dados no botão
+    $('#confirmSpawnBtn').data('type', type);
+    $('#confirmSpawnBtn').data('playerId', playerId);
+    $('#confirmSpawnBtn').data('itemType', itemType);
+    $('#confirmSpawnBtn').data('quantity', quantity);
+    
+    const modal = new bootstrap.Modal(document.getElementById('spawnConfirmModal'));
+    modal.show();
+}
 
 $(document).ready(function() {
     loadPlayers();
@@ -305,6 +597,26 @@ $(document).ready(function() {
         loadItems();
     });
     
+    // Event listeners para explosivos
+    $('#explosiveSearch').on('input', function() {
+        loadExplosives();
+    });
+    
+    // Event listeners para munições
+    $('#caliberSelect, #ammoSearch').on('change input', function() {
+        loadAmmunitions();
+    });
+    
+    // Event listeners para magazines
+    $('#magazineSearch').on('input', function() {
+        loadMagazines();
+    });
+    
+    // Event listeners para attachments
+    $('#attachmentTypeSelect, #attachmentSearch').on('change input', function() {
+        loadAttachments();
+    });
+    
     // Botão de confirmação
     $('#confirmSpawnBtn').on('click', executeSpawn);
     
@@ -315,6 +627,14 @@ $(document).ready(function() {
             loadWeapons();
         } else if (target === '#items-tab' && itemsData.length === 0) {
             loadItems();
+        } else if (target === '#explosives-tab' && explosivesData.length === 0) {
+            loadExplosives();
+        } else if (target === '#ammo-tab' && ammunitionsData.length === 0) {
+            loadCalibers();
+        } else if (target === '#magazines-tab' && magazinesData.length === 0) {
+            loadMagazines();
+        } else if (target === '#attachments-tab' && attachmentsData.length === 0) {
+            loadAttachmentTypes();
         }
     });
 });

@@ -364,3 +364,132 @@ def get_item_types() -> List[Dict]:
         cursor = conn.cursor()
         cursor.execute("SELECT id, name FROM item_types ORDER BY name")
         return [dict(row) for row in cursor.fetchall()]
+
+def get_explosives(search: str = None, limit: int = 50) -> List[Dict]:
+    """Retorna lista de explosivos com filtro opcional"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        query = "SELECT id, name, name_type, img FROM explosives WHERE 1=1"
+        params = []
+        
+        if search:
+            query += " AND (name LIKE ? OR name_type LIKE ?)"
+            params.extend([f'%{search}%', f'%{search}%'])
+        
+        query += " LIMIT ?"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_ammunitions(search: str = None, caliber_id: int = None, limit: int = 50) -> List[Dict]:
+    """Retorna lista de munições com filtros opcionais"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        query = "SELECT id, name, name_type, caliber_id, img FROM ammunitions WHERE 1=1"
+        params = []
+        
+        if caliber_id:
+            query += " AND caliber_id = ?"
+            params.append(caliber_id)
+        
+        if search:
+            query += " AND (name LIKE ? OR name_type LIKE ?)"
+            params.extend([f'%{search}%', f'%{search}%'])
+        
+        query += " LIMIT ?"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_calibers() -> List[Dict]:
+    """Retorna lista de calibres"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name FROM calibers ORDER BY name")
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_magazines(search: str = None, limit: int = 50) -> List[Dict]:
+    """Retorna lista de magazines com filtro opcional"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        query = "SELECT id, name, name_type, capacity, img FROM magazines WHERE 1=1"
+        params = []
+        
+        if search:
+            query += " AND (name LIKE ? OR name_type LIKE ?)"
+            params.extend([f'%{search}%', f'%{search}%'])
+        
+        query += " LIMIT ?"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_attachments(search: str = None, type_filter: str = None, limit: int = 50) -> List[Dict]:
+    """Retorna lista de attachments com filtros opcionais"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        query = "SELECT id, name, name_type, type, img FROM attachments WHERE 1=1"
+        params = []
+        
+        if type_filter:
+            query += " AND type = ?"
+            params.append(type_filter)
+        
+        if search:
+            query += " AND (name LIKE ? OR name_type LIKE ?)"
+            params.extend([f'%{search}%', f'%{search}%'])
+        
+        query += " LIMIT ?"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_attachment_types() -> List[str]:
+    """Retorna lista de tipos de attachments"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT type FROM attachments ORDER BY type")
+        return [row['type'] for row in cursor.fetchall()]
+
+def get_weapon_compatible_items(weapon_id: int) -> Dict:
+    """Retorna magazines, munições e attachments compatíveis com uma arma"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        
+        # Magazines compatíveis
+        cursor.execute("""
+            SELECT m.id, m.name, m.name_type, m.capacity, m.img
+            FROM magazines m
+            INNER JOIN weapon_magazines wm ON m.id = wm.magazine_id
+            WHERE wm.weapon_id = ?
+        """, (weapon_id,))
+        magazines = [dict(row) for row in cursor.fetchall()]
+        
+        # Munições compatíveis
+        cursor.execute("""
+            SELECT a.id, a.name, a.name_type, a.img
+            FROM ammunitions a
+            INNER JOIN weapon_ammunitions wa ON a.id = wa.ammo_id
+            WHERE wa.weapon_id = ?
+        """, (weapon_id,))
+        ammunitions = [dict(row) for row in cursor.fetchall()]
+        
+        # Attachments compatíveis
+        cursor.execute("""
+            SELECT at.id, at.name, at.name_type, at.type, at.img
+            FROM attachments at
+            INNER JOIN weapon_attachments wat ON at.id = wat.attachment_id
+            WHERE wat.weapon_id = ?
+            ORDER BY at.type
+        """, (weapon_id,))
+        attachments = [dict(row) for row in cursor.fetchall()]
+        
+        return {
+            'magazines': magazines,
+            'ammunitions': ammunitions,
+            'attachments': attachments
+        }
