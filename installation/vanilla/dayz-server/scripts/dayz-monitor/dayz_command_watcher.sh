@@ -337,6 +337,9 @@ EOF
             echo ">> Recebendo posições dos veículos"
             INSERT_CUSTOM_LOG "Processando posições dos veículos" "INFO" "$ScriptName"
             
+            # Captura o timestamp atual antes do loop para usar em todos os veículos
+            current_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+            
             # Obtém o array de veículos do JSON
             vehicles=$(echo "$line" | jq -c '.vehicles[]')
             
@@ -351,17 +354,9 @@ EOF
                 coord_z=$(echo "$vehicle_data" | jq -r '.z')
                 coord_y=$(echo "$vehicle_data" | jq -r '.y')
                 
-                # Insere a posição do veículo no banco de dados
-                VehicleTrackingId=$(INSERT_VEHICLE_POSITION "$vehicle_id" "$vehicle_name" "$coord_x" "$coord_z" "$coord_y")
-                
-                if [ $? -eq 0 ] && [ -n "$VehicleTrackingId" ]; then
-                    #echo ">> Posição do veículo $vehicle_name (ID: $vehicle_id) armazenada com sucesso (TrackingID: $VehicleTrackingId)"
-                    #INSERT_CUSTOM_LOG "Veículo rastreado: $vehicle_name (ID: $vehicle_id) | Posição: X=$coord_x, Z=$coord_z, Y=$coord_y" "INFO" "$ScriptName"
-                else
-                    echo ">> Erro ao armazenar posição do veículo $vehicle_name"
-                    INSERT_CUSTOM_LOG "Erro ao rastrear veículo: $vehicle_name (ID: $vehicle_id)" "ERROR" "$ScriptName"
-                fi
-                
+                # Insere a posição do veículo no banco de dados com o timestamp compartilhado
+                VehicleTrackingId=$(INSERT_VEHICLE_POSITION "$vehicle_id" "$vehicle_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp")
+                               
             done <<< "$vehicles"
             
             echo ">> $vehicle_count veículos processados"

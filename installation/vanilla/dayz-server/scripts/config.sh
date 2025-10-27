@@ -552,6 +552,7 @@ INSERT_VEHICLE_POSITION() {
     local CoordX="$3"
     local CoordZ="$4"
     local CoordY="$5"
+    local CustomTimestamp="$6"  # Parâmetro opcional para timestamp customizado
     
     local max_retries=5
     local retry_delay=0.2
@@ -565,10 +566,18 @@ INSERT_VEHICLE_POSITION() {
 
     local EscapedVehicleId
     local EscapedVehicleName
+    local TimestampValue
 
     # Escapar aspas simples
     EscapedVehicleId=$(echo "$VehicleId" | sed "s/'/''/g")
     EscapedVehicleName=$(echo "$VehicleName" | sed "s/'/''/g")
+    
+    # Usar timestamp customizado se fornecido, senão usar datetime atual
+    if [[ -n "$CustomTimestamp" ]]; then
+        TimestampValue="'$CustomTimestamp'"
+    else
+        TimestampValue="datetime('now', 'localtime')"
+    fi
 
     while (( attempt <= max_retries )); do
         local VehicleTrackingId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
@@ -579,7 +588,7 @@ VALUES (
     '$CoordX',
     '$CoordZ',
     '$CoordY',
-    datetime('now', 'localtime')
+    $TimestampValue
 );
 SELECT last_insert_rowid();
 EOF
