@@ -210,7 +210,40 @@ class CustomMission: MissionServer
 				return;
 			}
 
-			// ANTES DE ATUALIZAR: Verifica se o jogador existente é um GHOST
+			// ============================================================================
+			// DETECÇÃO DE RECONEXÃO RÁPIDA (Ghost via ActivePlayers)
+			// Se existingPlayer tem Identity válida = sessão antiga ainda registrada
+			// ============================================================================
+			if (existingPlayer && existingPlayer.HasIdentity())
+			{
+				WriteToLog("AddOrUpdateActivePlayer(): RECONEXÃO RÁPIDA DETECTADA! Removendo sessão antiga...", LogFile.INIT, false, LogType.INFO);
+				
+				// Pega o objeto Man do ghost
+				Man ghostMan = existingPlayer.GetPlayer();
+				
+				// Força desconexão
+				PlayerIdentity ghostIdentity = existingPlayer.GetIdentity();
+				GetGame().DisconnectPlayer(ghostIdentity, playerId);
+				
+				// Deletar fisicamente se o objeto existe
+				if (ghostMan)
+				{
+					WriteToLog("AddOrUpdateActivePlayer(): Deletando objeto Man do ghost...", LogFile.INIT, false, LogType.INFO);
+					GetGame().ObjectDelete(ghostMan);
+				}
+				
+				// Remove de ActivePlayers
+				ActivePlayers.Remove(existingPlayerIndex);
+				WriteToLog("AddOrUpdateActivePlayer(): Sessão antiga removida com sucesso", LogFile.INIT, false, LogType.INFO);
+				
+				// Agora adiciona o novo normalmente (continua o fluxo abaixo)
+				ActivePlayer newReconnectedPlayer = new ActivePlayer(identity, player);
+				ActivePlayers.Insert(newReconnectedPlayer);
+				WriteToLog("AddOrUpdateActivePlayer(): Jogador readicionado após remoção de sessão antiga: " + playerName + " (PlayerID: " + playerId + ", SteamID: " + steamId + ")", LogFile.INIT, false, LogType.INFO);
+				return;
+			}
+
+			// ANTES DE ATUALIZAR: Verifica se o jogador existente é um GHOST (verificação legada)
 			bool existingPlayerIsGhost = false;
 			if (existingPlayer && existingPlayer.HasIdentity())
 			{
