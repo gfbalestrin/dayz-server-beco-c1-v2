@@ -142,6 +142,10 @@ def api_positions():
     """API com posições atuais de todos os jogadores"""
     positions = get_players_last_position()
     
+    # Buscar lista de jogadores online
+    online_players = get_online_players()
+    online_ids = set(p['PlayerID'] for p in online_players)
+    
     # Converter para formato esperado pelo frontend
     result = {
         'timestamp': datetime.now().isoformat(),
@@ -162,7 +166,7 @@ def api_positions():
             'coord_z': pos['CoordZ'],  # Essa é Altitude
             'pixel_coords': pixel_coords,
             'last_update': pos['Data'] or '',
-            'is_online': False
+            'is_online': pos['PlayerID'] in online_ids
         })
     
     return jsonify(result)

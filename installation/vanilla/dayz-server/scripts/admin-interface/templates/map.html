@@ -205,6 +205,9 @@
                     <button type="button" class="btn btn-primary" id="teleportActionBtn">
                         <i class="fas fa-map-marker-alt me-2"></i>Teleportar para Posição
                     </button>
+                    <button type="button" class="btn btn-success" id="cloneCharacterActionBtn">
+                        <i class="fas fa-clone me-2"></i>Clonar Personagem
+                    </button>
                 </div>
             </div>
         </div>
@@ -241,6 +244,44 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="confirmTeleportToPlayerBtn">
                     <i class="fas fa-map-marker-alt me-1"></i>Teleportar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Clonagem de Personagem -->
+<div class="modal fade" id="cloneCharacterModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-clone me-2"></i>Clonar Personagem
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Selecione um jogador para receber o inventário/estado deste ponto.
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Jogador de Destino:</label>
+                    <select class="form-select" id="cloneCharacterDropdown">
+                        <option value="">Carregando jogadores...</option>
+                    </select>
+                </div>
+                <div id="cloneCharacterInfo">
+                    <p><strong>Origem:</strong> <span id="cloneSourcePlayerName"></span></p>
+                    <p><strong>Ponto:</strong> <span id="clonePointNumber"></span></p>
+                    <p><strong>Data do Ponto:</strong> <span id="clonePointDate"></span></p>
+                    <p><strong>Coordenadas:</strong> <span id="cloneCoords"></span></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="confirmCloneCharacterBtn">
+                    <i class="fas fa-clone me-1"></i>Clonar
                 </button>
             </div>
         </div>

@@ -904,6 +904,94 @@ function executeTeleportToPlayer() {
     });
 }
 
+/**
+ * Mostrar modal de clonagem de personagem
+ */
+function showCloneCharacterModal(playerId, point, pointNumber) {
+    const playerData = playersData[playerId];
+    const playerName = playerData ? playerData.name : 'Desconhecido';
+    
+    // Preencher informações
+    $('#cloneSourcePlayerName').text(playerName);
+    $('#clonePointNumber').text(pointNumber);
+    $('#clonePointDate').text(point.timestamp);
+    $('#cloneCoords').text(`X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}, Z=${point.coord_z ? point.coord_z.toFixed(1) : 'N/A'}`);
+    
+    // Armazenar dados
+    $('#confirmCloneCharacterBtn').data('sourcePlayerId', playerId);
+    $('#confirmCloneCharacterBtn').data('playerCoordId', point.player_coord_id);
+    
+    // Limpar e popular dropdown
+    const dropdown = $('#cloneCharacterDropdown');
+    dropdown.html('<option value="">Carregando jogadores...</option>');
+    
+    // Buscar jogadores online
+    $.get('/api/players/online/positions')
+        .done(function(data) {
+            dropdown.html('<option value="">Selecione um jogador</option>');
+            
+            data.players.forEach(function(player) {
+                const option = $('<option></option>');
+                option.val(player.player_id);
+                option.text(`${player.player_name}${player.steam_name ? ' (' + player.steam_name + ')' : ''}`);
+                dropdown.append(option);
+            });
+        })
+        .fail(function() {
+            dropdown.html('<option value="">Erro ao carregar jogadores</option>');
+        });
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('cloneCharacterModal'));
+    modal.show();
+}
+
+/**
+ * Executar clonagem de personagem
+ */
+function executeCloneCharacter() {
+    const targetPlayerId = $('#cloneCharacterDropdown').val();
+    const sourcePlayerId = $('#confirmCloneCharacterBtn').data('sourcePlayerId');
+    const playerCoordId = $('#confirmCloneCharacterBtn').data('playerCoordId');
+    
+    if (!targetPlayerId || targetPlayerId === '') {
+        showToast('Aviso', 'Selecione um jogador de destino', 'warning');
+        return;
+    }
+    
+    if (!playerCoordId) {
+        showToast('Erro', 'Dados inválidos para clonagem', 'error');
+        return;
+    }
+    
+    // Desabilitar botão e mostrar loading
+    $('#confirmCloneCharacterBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Clonando...');
+    
+    // Chamar API de restore-backup para o jogador de destino
+    $.ajax({
+        url: `/api/players/${targetPlayerId}/restore-backup`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            player_coord_id: playerCoordId
+        }),
+        success: function(response) {
+            bootstrap.Modal.getInstance(document.getElementById('cloneCharacterModal')).hide();
+            showToast('Sucesso', response.message, 'success');
+            loadPositions();
+        },
+        error: function(xhr) {
+            console.error('Erro ao clonar:', xhr);
+            const error = xhr.responseJSON || {};
+            const errorMsg = error.message || error.error || 'Erro desconhecido ao clonar';
+            showToast('Erro', errorMsg, 'error');
+        },
+        complete: function() {
+            $('#confirmCloneCharacterBtn').prop('disabled', false).html('<i class="fas fa-clone me-1"></i>Clonar');
+        }
+    });
+}
+
 // Event listeners
 $(document).ready(function() {
     // Botão de restaurar backup
@@ -937,8 +1025,26 @@ $(document).ready(function() {
         }
     });
     
+    // Botão de clonagem no menu de ações
+    $('#cloneCharacterActionBtn').on('click', function() {
+        if (currentPointContext) {
+            // Fechar menu de ações
+            bootstrap.Modal.getInstance(document.getElementById('pointActionsModal')).hide();
+            
+            // Abrir modal de clonagem
+            showCloneCharacterModal(
+                currentPointContext.playerId,
+                currentPointContext.point,
+                currentPointContext.pointNumber
+            );
+        }
+    });
+    
     // Botão de teleporte entre jogadores
     $('#confirmTeleportToPlayerBtn').on('click', executeTeleportToPlayer);
+    
+    // Botão de confirmação de clonagem
+    $('#confirmCloneCharacterBtn').on('click', executeCloneCharacter);
 });
 
 /**
