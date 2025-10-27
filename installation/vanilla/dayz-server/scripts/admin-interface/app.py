@@ -6,7 +6,7 @@ from functools import wraps
 import config
 from database import (
     get_all_players, get_player_coords, get_player_coords_backup,
-    get_logs_adm, get_logs_custom, get_vehicles_tracking,
+    get_logs_adm, get_logs_custom,     get_vehicles_tracking, get_vehicles_map_positions,
     get_player_by_id, search_players, get_players_last_position,
     get_player_trail, get_online_players_positions,
     get_players_positions_by_timerange, dayz_to_pixel,
@@ -221,6 +221,35 @@ def api_online_positions():
 def api_vehicles_positions():
     """API com posições atuais de todos os veículos"""
     vehicles = get_vehicles_last_position()
+    
+    result = {
+        'timestamp': datetime.now().isoformat(),
+        'vehicles': []
+    }
+    
+    for veh in vehicles:
+        # Para veículos (diferente dos jogadores):
+        # PositionX = Leste-Oeste
+        # PositionY = Sul-Norte (Y do mapa) ← usar este
+        # PositionZ = Altitude (ignorar)
+        pixel_coords = dayz_to_pixel(veh['PositionX'], veh['PositionY'])
+        result['vehicles'].append({
+            'vehicle_id': veh['VehicleId'],
+            'vehicle_name': veh['VehicleName'] or 'Veículo',
+            'coord_x': veh['PositionX'],
+            'coord_y': veh['PositionY'],  # Sul-Norte (Y do mapa)
+            'coord_z': veh['PositionZ'],  # Altitude
+            'pixel_coords': pixel_coords,
+            'last_update': veh['TimeStamp'] or ''
+        })
+    
+    return jsonify(result)
+
+@app.route('/api/vehicles/map-positions')
+@login_required
+def api_vehicles_map_positions():
+    """API com posições atuais dos veículos para o mapa (otimizado)"""
+    vehicles = get_vehicles_map_positions()
     
     result = {
         'timestamp': datetime.now().isoformat(),

@@ -99,14 +99,30 @@ def get_vehicles_last_position() -> List[Dict]:
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT VehicleId, VehicleName,
-                   PositionX, PositionY, PositionZ, TimeStamp, IdVehicleTracking
+            SELECT v1.VehicleId, v1.VehicleName,
+                   v1.PositionX, v1.PositionY, v1.PositionZ, v1.TimeStamp, v1.IdVehicleTracking
             FROM vehicles_tracking v1
-            WHERE TimeStamp = (
-                SELECT MAX(TimeStamp)
-                FROM vehicles_tracking v2
-                WHERE v2.VehicleId = v1.VehicleId
-            )
+            INNER JOIN (
+                SELECT VehicleId, MAX(TimeStamp) as MaxTime
+                FROM vehicles_tracking
+                GROUP BY VehicleId
+            ) v2 ON v1.VehicleId = v2.VehicleId AND v1.TimeStamp = v2.MaxTime
+            ORDER BY v1.VehicleName
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_vehicles_map_positions() -> List[Dict]:
+    """Retorna última posição de cada veículo para exibição no mapa (otimizado)"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT VehicleId, VehicleName, PositionX, PositionY, PositionZ, TimeStamp, IdVehicleTracking
+            FROM (
+                SELECT *,
+                       ROW_NUMBER() OVER (PARTITION BY VehicleId ORDER BY TimeStamp DESC) as rn
+                FROM vehicles_tracking
+            ) ranked
+            WHERE rn = 1
             ORDER BY VehicleName
         """)
         return [dict(row) for row in cursor.fetchall()]
