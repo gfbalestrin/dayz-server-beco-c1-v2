@@ -40,14 +40,11 @@ function renderPlayerSelects() {
 // === ABA DE ARMAS ===
 
 function loadWeapons() {
-    const search = $('#weaponSearchInput').val() || '';
-    
     $('#weaponsGrid').html('<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i></div>');
     
     $.ajax({
-        url: '/api/items/weapons',
+        url: '/api/manage/weapons',
         method: 'GET',
-        data: { search: search, limit: 500 },
         success: function(response) {
             weaponsData = response.weapons;
             applyWeaponFilters();
@@ -89,12 +86,12 @@ function applyWeaponFilters() {
         }
     }
     
-    // Filtro por calibre
+    // Filtro por calibre (case-insensitive)
     if (caliberFilter) {
         filtered = filtered.filter(w => {
             if (!w.calibers) return false;
-            const calibers = w.calibers.split(',').map(c => c.trim());
-            return calibers.includes(caliberFilter);
+            const calibers = w.calibers.toLowerCase().split(',').map(c => c.trim());
+            return calibers.includes(caliberFilter.toLowerCase());
         });
     }
     
@@ -157,9 +154,8 @@ function loadItems() {
     $('#itemsGrid').html('<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i></div>');
     
     $.ajax({
-        url: '/api/items/items',
+        url: '/api/manage/items',
         method: 'GET',
-        data: { limit: 500 },
         success: function(response) {
             itemsData = response.items;
             applyItemFilters();
@@ -750,6 +746,7 @@ function getUrlParameter(name) {
 $(document).ready(function() {
     loadPlayers();
     loadWeapons(); // Carregar armas na inicialização
+    loadItems(); // Carregar itens na inicialização
     loadCalibersFilter();
     loadWeaponsForFilters();
     loadItemTypes();
