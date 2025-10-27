@@ -66,6 +66,40 @@
         <div class="card">
             <div class="card-body">
                 <h6><i class="fas fa-filter me-2"></i>Filtrar Trails por Data/Hora</h6>
+                
+                <!-- Botões de Atalho -->
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label"><i class="fas fa-clock me-1"></i>Atalhos Rápidos:</label>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary" data-filter="1hour">
+                                <i class="fas fa-hourglass-half me-1"></i>Última Hora
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" data-filter="3hours">
+                                <i class="fas fa-clock me-1"></i>Últimas 3h
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" data-filter="6hours">
+                                <i class="fas fa-clock me-1"></i>Últimas 6h
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" data-filter="24hours">
+                                <i class="fas fa-calendar-day me-1"></i>Últimas 24h
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" data-filter="today">
+                                <i class="fas fa-sun me-1"></i>Hoje
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" data-filter="yesterday">
+                                <i class="fas fa-calendar-minus me-1"></i>Ontem
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" data-filter="7days">
+                                <i class="fas fa-calendar-week me-1"></i>Últimos 7 Dias
+                            </button>
+                            <button type="button" class="btn btn-outline-danger" data-filter="clear">
+                                <i class="fas fa-times me-1"></i>Limpar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="row">
                     <div class="col-md-3">
                         <label class="form-label">Data/Hora Início</label>

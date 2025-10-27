@@ -314,3 +314,10 @@
     min-width: 140px;
     display: inline-block;
 }
+
+/* Estilo para botões de filtro ativos */
+.btn-group [data-filter].active {
+    background-color: #0d6efd;
+    color: white;
+    border-color: #0d6efd;
+}

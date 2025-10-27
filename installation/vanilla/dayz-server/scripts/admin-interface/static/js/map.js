@@ -54,6 +54,12 @@ $(document).ready(function() {
     $('#toggleKillsBtn').on('click', toggleKills);
     $('#applyTrailFilter').on('click', applyTrailDateFilter);
     
+    // Event listener para atalhos de filtro de trails
+    $('[data-filter]').on('click', function() {
+        const filter = $(this).data('filter');
+        applyTrailFilterShortcut(filter);
+    });
+    
     // Event listeners para modos
     $('#btnModeNormal').on('click', () => setMode('normal'));
     $('#btnModeTeleport').on('click', () => setMode('teleport'));
@@ -521,6 +527,79 @@ function filterPlayers() {
             Object.keys(playerMarkers).forEach(loadPlayerTrail);
         }, 500);
     }
+}
+
+/**
+ * Aplicar filtro de trail por atalho
+ */
+function applyTrailFilterShortcut(shortcut) {
+    const now = new Date();
+    let startDate, endDate;
+    
+    switch(shortcut) {
+        case '1hour':
+            startDate = new Date(now.getTime() - (1 * 60 * 60 * 1000));
+            endDate = now;
+            break;
+        case '3hours':
+            startDate = new Date(now.getTime() - (3 * 60 * 60 * 1000));
+            endDate = now;
+            break;
+        case '6hours':
+            startDate = new Date(now.getTime() - (6 * 60 * 60 * 1000));
+            endDate = now;
+            break;
+        case '24hours':
+            startDate = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+            endDate = now;
+            break;
+        case 'today':
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+            endDate = now;
+            break;
+        case 'yesterday':
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0);
+            endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59);
+            break;
+        case '7days':
+            startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+            endDate = now;
+            break;
+        case 'clear':
+            // Limpar filtro
+            $('#trailStartDate').val('');
+            $('#trailStartTime').val('');
+            $('#trailEndDate').val('');
+            $('#trailEndTime').val('');
+            trailDateFilter.enabled = false;
+            trailDateFilter.startDate = null;
+            trailDateFilter.endDate = null;
+            Object.keys(playerMarkers).forEach(loadPlayerTrail);
+            return;
+    }
+    
+    // Formatar e preencher campos
+    const formatDate = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+    
+    const formatTime = (date) => {
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${hours}:${minutes}:${seconds}`;
+    };
+    
+    $('#trailStartDate').val(formatDate(startDate));
+    $('#trailStartTime').val(formatTime(startDate));
+    $('#trailEndDate').val(formatDate(endDate));
+    $('#trailEndTime').val(formatTime(endDate));
+    
+    // Aplicar filtro automaticamente
+    applyTrailDateFilter();
 }
 
 /**
