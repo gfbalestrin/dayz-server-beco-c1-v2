@@ -7,13 +7,13 @@ let selectedPlayer = null; // Jogador globalmente selecionado
 
 // Lista de veículos comuns
 const VEHICLES = [
-    { type: 'OffroadHatchback', name: 'Ada 4x4' },
-    { type: 'Sedan_02', name: 'Sarka 120' },
-    { type: 'CivilianSedan', name: 'Olga 24' },
-    { type: 'Hatchback_02', name: 'Gunter 2' },
-    { type: 'Hatchback_02_Black', name: 'Hatchback_02_Black' },
-    { type: 'Truck_01_Covered', name: 'Caminhão Coberto' },
-    { type: 'Offroad_02', name: 'humvee' }
+    { type: 'OffroadHatchback', name: 'Ada 4x4', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/c/cc/Lada-niva.png' },
+    { type: 'Sedan_02', name: 'Sarka 120', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/6/6f/S120.png' },
+    { type: 'CivilianSedan', name: 'Olga 24', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/3/38/Volga.png' },
+    { type: 'Hatchback_02', name: 'Gunter 2 vermelho', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/5/53/Hatchback_02.png' },
+    { type: 'Hatchback_02_Black', name: 'Gunter 2 preto', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/5/53/Hatchback_02.png' },
+    { type: 'Truck_01_Covered', name: 'Caminhão Coberto', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/0/0d/M3S_Covered.png' },
+    { type: 'Offroad_02', name: 'humvee', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/9/93/M1025.png' }
 ];
 
 function loadPlayers() {
@@ -254,7 +254,7 @@ function renderVehiclesGrid() {
     VEHICLES.forEach(vehicle => {
         const card = $(`
             <div class="vehicle-card" data-vehicle-type="${vehicle.type}">
-                <i class="fas fa-car"></i>
+                <img src="${vehicle.image}" alt="${vehicle.name}" onerror="this.src='https://via.placeholder.com/200x120/6c757d/ffffff?text=Erro+ao+carregar'">
                 <div class="vehicle-name">${vehicle.name}</div>
             </div>
         `);
