@@ -71,17 +71,9 @@ def logout():
 @app.route('/')
 @login_required
 def index():
-    """Dashboard principal"""
-    players_list = get_all_players()[:100]  # Limit for stats
-    logs_adm_list = get_logs_adm(limit=100)
-    logs_custom_list = get_logs_custom(limit=100)
-    vehicles_list = get_vehicles_tracking(limit=100)
-    
-    return render_template('index.html', 
-                         players=players_list,
-                         logs_adm=logs_adm_list,
-                         logs_custom=logs_custom_list,
-                         vehicles=vehicles_list)
+    """Lista de jogadores - Página principal"""
+    players_list = get_all_players_with_status()
+    return render_template('players.html', players=players_list)
 
 @app.route('/players')
 @login_required
