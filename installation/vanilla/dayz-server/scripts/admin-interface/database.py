@@ -337,11 +337,36 @@ def get_weapons(search: str = None, limit: int = 50) -> List[Dict]:
             """, (limit,))
         return [dict(row) for row in cursor.fetchall()]
 
+def get_weapons_with_calibers(limit: int = 1000) -> List[Dict]:
+    """Retorna armas com seus calibres"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT DISTINCT
+                w.id, w.name, w.name_type, w.feed_type, 
+                w.slots, w.width, w.height, w.img,
+                GROUP_CONCAT(DISTINCT c.name) as calibers
+            FROM weapons w
+            LEFT JOIN weapon_ammunitions wa ON w.id = wa.weapon_id
+            LEFT JOIN ammunitions a ON wa.ammo_id = a.id
+            LEFT JOIN calibers c ON a.caliber_id = c.id
+            GROUP BY w.id
+            LIMIT ?
+        """, (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_all_calibers() -> List[Dict]:
+    """Retorna todos os calibres disponíveis"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name FROM calibers ORDER BY name")
+        return [dict(row) for row in cursor.fetchall()]
+
 def get_items(type_id: int = None, search: str = None, limit: int = 50) -> List[Dict]:
     """Retorna lista de itens com filtros opcionais"""
     with DatabaseConnection(config.DB_ITEMS) as conn:
         cursor = conn.cursor()
-        query = "SELECT id, name, name_type, type_id, slots, width, height, img FROM item WHERE 1=1"
+        query = "SELECT id, name, name_type, type_id, slots, width, height, img, localization, storage_slots FROM item WHERE 1=1"
         params = []
         
         if type_id:

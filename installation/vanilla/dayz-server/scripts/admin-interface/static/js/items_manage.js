@@ -16,12 +16,17 @@ let itemTypesData = [];
 
 $(document).ready(function() {
     loadWeapons();
+    loadCalibersFilter();
+    loadItemTypesFilter();
     
     // Event listeners - Armas
     $('#btnAddWeapon').on('click', showAddWeaponModal);
     $('#btnSaveWeapon').on('click', saveWeapon);
     $('#btnValidateType').on('click', validateNameType);
-    $('#weaponSearchInput').on('input', filterWeapons);
+    $('#weaponSearchInput').on('input', applyWeaponFilters);
+    $('#filterFeedType').on('change', applyWeaponFilters);
+    $('#filterWeaponSize').on('change', applyWeaponFilters);
+    $('#filterCaliber').on('change', applyWeaponFilters);
     
     // Cálculo automático de slots
     $('#weaponWidth, #weaponHeight').on('input', calculateSlots);
@@ -40,6 +45,28 @@ $(document).ready(function() {
         else if (target === '#attachments-tab' && attachmentsData.length === 0) loadAttachments();
         else if (target === '#calibers-tab' && calibersData.length === 0) loadCalibers();
         else if (target === '#types-tab' && itemTypesData.length === 0) loadItemTypes();
+        else if (target === '#items-tab' && itemsData.length === 0) loadItems();
+    });
+    
+    // Event listeners - Itens
+    $('#btnAddItem').on('click', showAddItemModal);
+    $('#btnSaveItem').on('click', saveItem);
+    $('#btnValidateItemType').on('click', validateItemNameType);
+    $('#itemSearchInput').on('input', applyItemFilters);
+    $('#filterItemType').on('change', applyItemFilters);
+    $('#filterItemLocation').on('change', applyItemFilters);
+    $('#filterItemStorage').on('change', applyItemFilters);
+    
+    // Cálculo automático de slots para itens
+    $('#itemWidth, #itemHeight').on('input', calculateItemSlots);
+    $('#itemStorageWidth, #itemStorageHeight').on('input', calculateItemStorageSlots);
+    
+    // Busca em relacionamentos de itens
+    $('#parentsSearchInput').on('input', function() {
+        filterItemRelationships('parents');
+    });
+    $('#childrenSearchInput').on('input', function() {
+        filterItemRelationships('children');
     });
 });
 
@@ -50,26 +77,22 @@ function loadWeapons() {
         method: 'GET',
         success: function(response) {
             weaponsData = response.weapons;
-            renderWeaponsGrid();
+            applyWeaponFilters();
         }
     });
 }
 
-function renderWeaponsGrid(filter = '') {
+function renderWeaponsGrid(data = weaponsData) {
     const grid = $('#weaponsGrid');
     grid.empty();
     
-    const filtered = weaponsData.filter(w => 
-        w.name.toLowerCase().includes(filter.toLowerCase()) ||
-        w.name_type.toLowerCase().includes(filter.toLowerCase())
-    );
-    
-    if (filtered.length === 0) {
+    if (data.length === 0) {
         grid.html('<div class="text-center p-5">Nenhuma arma encontrada</div>');
         return;
     }
     
-    filtered.forEach(weapon => {
+    data.forEach(weapon => {
+        const calibersText = weapon.calibers ? weapon.calibers.split(',').join(', ') : 'N/A';
         const card = $(`
             <div class="weapon-card">
                 <div class="weapon-actions">
@@ -85,17 +108,13 @@ function renderWeaponsGrid(filter = '') {
                 <div class="weapon-info">
                     ${weapon.name_type}<br>
                     ${weapon.feed_type} | ${weapon.slots} slots<br>
-                    ${weapon.width}x${weapon.height}
+                    ${weapon.width}x${weapon.height}<br>
+                    <small class="text-muted">Calibre: ${calibersText}</small>
                 </div>
             </div>
         `);
         grid.append(card);
     });
-}
-
-function filterWeapons() {
-    const filter = $('#weaponSearchInput').val();
-    renderWeaponsGrid(filter);
 }
 
 // === MODAL E VALIDAÇÕES ===
@@ -533,6 +552,12 @@ function loadItemTypes() {
             itemTypesData = response.types;
             const tbody = $('#itemTypesTable tbody');
             tbody.empty();
+            
+            if (itemTypesData.length === 0) {
+                tbody.append('<tr><td colspan="3" class="text-center">Nenhum tipo de item encontrado</td></tr>');
+                return;
+            }
+            
             itemTypesData.forEach(type => {
                 tbody.append(`
                     <tr>
@@ -549,6 +574,9 @@ function loadItemTypes() {
                     </tr>
                 `);
             });
+        },
+        error: function(xhr) {
+            showToast('Erro', 'Erro ao carregar tipos de item', 'error');
         }
     });
 }
@@ -783,51 +811,17 @@ let selectedParentItems = [];
 let selectedChildItems = [];
 let itemTypes = [];
 
-// Event listeners
-$('#btnAddItem').on('click', showAddItemModal);
-$('#btnSaveItem').on('click', saveItem);
-$('#btnValidateItemType').on('click', validateItemNameType);
-$('#itemSearchInput').on('input', filterItems);
-
-// Cálculo automático
-$('#itemWidth, #itemHeight').on('input', calculateItemSlots);
-$('#itemStorageWidth, #itemStorageHeight').on('input', calculateItemStorageSlots);
-
-// Busca em relacionamentos
-$('#parentsSearchInput').on('input', function() {
-    filterItemRelationships('parents');
-});
-$('#childrenSearchInput').on('input', function() {
-    filterItemRelationships('children');
-});
-
-// Carregar itens ao trocar de aba
-$('a[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
-    const target = $(e.target).attr('href');
-    if (target === '#items-tab' && itemsData.length === 0) {
-        loadItems();
-    }
-});
-
 function loadItems() {
     $.ajax({
         url: '/api/manage/items',
         method: 'GET',
         success: function(response) {
             itemsData = response.items;
-            renderGrid('items', itemsData, $('#itemsGrid'));
+            applyItemFilters();
         }
     });
 }
 
-function filterItems() {
-    const filter = $('#itemSearchInput').val();
-    const filtered = itemsData.filter(item =>
-        item.name.toLowerCase().includes(filter.toLowerCase()) ||
-        item.name_type.toLowerCase().includes(filter.toLowerCase())
-    );
-    renderGrid('items', filtered, $('#itemsGrid'));
-}
 
 function showAddItemModal() {
     $('#itemId').val('');
@@ -835,12 +829,12 @@ function showAddItemModal() {
     $('#itemTypeValidationFeedback').text('').removeClass('valid invalid');
     selectedParentItems = [];
     selectedChildItems = [];
-    loadItemTypes();
+    loadItemTypesDropdown();
     loadAllItemsForCompatibility();
     $('#itemModal').modal('show');
 }
 
-function loadItemTypes() {
+function loadItemTypesDropdown() {
     $.ajax({
         url: '/api/manage/item-types',
         method: 'GET',
@@ -1038,10 +1032,12 @@ function editItem(itemId) {
                     });
                     // Definir o valor atual após popular o select
                     select.val(item.type_id);
+                    
+                    // Carregar itens de compatibilidade após definir o tipo
+                    loadAllItemsForCompatibility();
                 }
             });
             
-            loadAllItemsForCompatibility();
             $('#itemModal').modal('show');
         }
     });
@@ -1128,3 +1124,114 @@ function deleteItem(itemId) {
 // Exportar para global scope (para onclick nos cards)
 window.editItem = editItem;
 window.deleteItem = deleteItem;
+
+// ============================================================================
+// FUNÇÕES DE FILTROS
+// ============================================================================
+
+// Carregar calibres para o filtro
+function loadCalibersFilter() {
+    $.ajax({
+        url: '/api/manage/calibers-list',
+        method: 'GET',
+        success: function(response) {
+            const select = $('#filterCaliber');
+            response.calibers.forEach(caliber => {
+                select.append(`<option value="${caliber.name}">${caliber.name}</option>`);
+            });
+        }
+    });
+}
+
+// Aplicar filtros de armas
+function applyWeaponFilters() {
+    const searchTerm = $('#weaponSearchInput').val().toLowerCase();
+    const feedType = $('#filterFeedType').val();
+    const size = $('#filterWeaponSize').val();
+    const caliber = $('#filterCaliber').val();
+    
+    const filtered = weaponsData.filter(weapon => {
+        // Filtro de busca por texto
+        const matchesSearch = !searchTerm || 
+            weapon.name.toLowerCase().includes(searchTerm) ||
+            weapon.name_type.toLowerCase().includes(searchTerm);
+        
+        // Filtro por feed type
+        const matchesFeedType = !feedType || weapon.feed_type === feedType;
+        
+        // Filtro por tamanho
+        let matchesSize = true;
+        if (size === 'small') {
+            matchesSize = weapon.slots <= 12;
+        } else if (size === 'large') {
+            matchesSize = weapon.slots > 12;
+        }
+        
+        // Filtro por calibre
+        const matchesCaliber = !caliber || 
+            (weapon.calibers && weapon.calibers.includes(caliber));
+        
+        return matchesSearch && matchesFeedType && matchesSize && matchesCaliber;
+    });
+    
+    renderWeaponsGrid(filtered);
+}
+
+// Carregar tipos de item para o filtro
+function loadItemTypesFilter() {
+    $.ajax({
+        url: '/api/manage/item-types',
+        method: 'GET',
+        success: function(response) {
+            const select = $('#filterItemType');
+            response.types.forEach(type => {
+                select.append(`<option value="${type.id}">${type.name}</option>`);
+            });
+        }
+    });
+}
+
+// Aplicar filtros de itens
+function applyItemFilters() {
+    const searchTerm = $('#itemSearchInput').val().toLowerCase();
+    const typeId = $('#filterItemType').val();
+    const location = $('#filterItemLocation').val();
+    const storage = $('#filterItemStorage').val();
+    
+    const filtered = itemsData.filter(item => {
+        // Filtro de busca por texto
+        const matchesSearch = !searchTerm || 
+            item.name.toLowerCase().includes(searchTerm) ||
+            item.name_type.toLowerCase().includes(searchTerm);
+        
+        // Filtro por tipo
+        const matchesType = !typeId || item.type_id == typeId;
+        
+        // Filtro por localização
+        let matchesLocation = true;
+        if (location) {
+            if (location === 'none') {
+                matchesLocation = !item.localization || item.localization === '' || item.localization === null;
+            } else {
+                matchesLocation = item.localization === location;
+            }
+        }
+        
+        // Filtro por storage
+        let matchesStorage = true;
+        if (storage) {
+            const storageSlots = item.storage_slots || 0;
+            if (storage === 'with') {
+                matchesStorage = storageSlots > 0;
+            } else if (storage === 'without') {
+                matchesStorage = storageSlots === 0;
+            }
+        }
+        
+        return matchesSearch && matchesType && matchesLocation && matchesStorage;
+    });
+    
+    renderGrid('items', filtered, $('#itemsGrid'));
+}
+
+// Nota: Event listeners para filtros de itens já estão configurados acima na linha 783-787

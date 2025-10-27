@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="fas fa-database me-2"></i>Gerenciar Banco de Dados de Itens</h2>
     </div>
@@ -60,13 +60,34 @@
         <!-- Aba de Armas -->
         <div id="weapons-tab" class="tab-pane fade show active">
             <div class="row mb-3">
-                <div class="col-md-6">
+                <div class="col-md-3">
                     <button class="btn btn-success" id="btnAddWeapon">
                         <i class="fas fa-plus me-2"></i>Nova Arma
                     </button>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-2">
                     <input type="text" id="weaponSearchInput" class="form-control" placeholder="Buscar arma...">
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterFeedType">
+                        <option value="">Todos Feed Types</option>
+                        <option value="magazine">Magazine</option>
+                        <option value="manual">Manual</option>
+                        <option value="internal">Internal</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterWeaponSize">
+                        <option value="">Todos Tamanhos</option>
+                        <option value="small">Pequenas (≤12)</option>
+                        <option value="large">Grandes (>12)</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" id="filterCaliber">
+                        <option value="">Todos Calibres</option>
+                        <!-- Populated by JS -->
+                    </select>
                 </div>
             </div>
             
@@ -78,13 +99,41 @@
         <!-- Aba de Itens -->
         <div id="items-tab" class="tab-pane fade">
             <div class="row mb-3">
-                <div class="col-md-6">
+                <div class="col-md-3">
                     <button class="btn btn-success" id="btnAddItem">
                         <i class="fas fa-plus me-2"></i>Novo Item
                     </button>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-2">
                     <input type="text" id="itemSearchInput" class="form-control" placeholder="Buscar item...">
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterItemType">
+                        <option value="">Todos Tipos</option>
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterItemLocation">
+                        <option value="">Todas Localizações</option>
+                        <option value="none">Nenhuma</option>
+                        <option value="back">Back</option>
+                        <option value="eyes">Eyes</option>
+                        <option value="face">Face</option>
+                        <option value="foot">Foot</option>
+                        <option value="hands">Hands</option>
+                        <option value="head">Head</option>
+                        <option value="legs">Legs</option>
+                        <option value="torso">Torso</option>
+                        <option value="waist">Waist</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterItemStorage">
+                        <option value="">Todos</option>
+                        <option value="with">Com Storage</option>
+                        <option value="without">Sem Storage</option>
+                    </select>
                 </div>
             </div>
             <div id="itemsGrid" class="weapons-grid"></div>

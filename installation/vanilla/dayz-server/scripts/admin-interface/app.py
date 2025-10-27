@@ -12,7 +12,7 @@ from database import (
     get_players_positions_by_timerange, dayz_to_pixel,
     get_vehicles_last_position, get_recent_kills, parse_position,
     check_backup_exists, get_backup_info, get_online_players,
-    get_weapons, get_items, get_item_types,
+    get_weapons, get_weapons_with_calibers, get_all_calibers, get_items, get_item_types,
     get_explosives, get_ammunitions, get_calibers,
     get_magazines, get_attachments, get_attachment_types,
     get_weapon_compatible_items,
@@ -834,7 +834,7 @@ def items_manage():
 @app.route('/api/manage/weapons', methods=['GET'])
 @login_required
 def api_manage_weapons_list():
-    weapons = get_weapons(limit=1000)
+    weapons = get_weapons_with_calibers(limit=1000)
     return jsonify({'weapons': weapons})
 
 @app.route('/api/manage/weapons/<int:weapon_id>', methods=['GET'])
@@ -895,6 +895,13 @@ def api_manage_weapon_relationships_update(weapon_id):
 @login_required
 def api_manage_calibers_list():
     calibers = get_calibers()
+    return jsonify({'calibers': calibers})
+
+@app.route('/api/manage/calibers-list', methods=['GET'])
+@login_required
+def api_manage_calibers_list_simple():
+    """Retorna apenas id e name dos calibres para filtros"""
+    calibers = get_all_calibers()
     return jsonify({'calibers': calibers})
 
 @app.route('/api/manage/calibers/<int:caliber_id>', methods=['GET'])
