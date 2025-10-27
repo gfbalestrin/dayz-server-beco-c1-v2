@@ -133,7 +133,8 @@ def vehicles():
 def map_view():
     """Visualização do mapa"""
     players_list = get_all_players()
-    return render_template('map.html', players=players_list)
+    player_id_filter = request.args.get('player_id', None)
+    return render_template('map.html', players=players_list, player_id_filter=player_id_filter)
 
 @app.route('/api/players/positions')
 @login_required

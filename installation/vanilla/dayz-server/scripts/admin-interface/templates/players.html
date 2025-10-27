@@ -11,8 +11,38 @@
         <div class="badge bg-success me-2">
             <i class="fas fa-circle"></i> <span id="onlineCount">0</span> Online
         </div>
-        <div class="badge bg-secondary">
+        <div class="badge bg-secondary me-3">
             <span id="totalCount">0</span> Total
+        </div>
+        <span class="text-muted small me-3" id="nextRefreshTime">--</span>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-3">
+                        <div class="form-check form-switch mb-2 mb-md-0">
+                            <input class="form-check-input" type="checkbox" id="autoRefreshToggle" checked>
+                            <label class="form-check-label" for="autoRefreshToggle">
+                                Auto-Refresh
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <select id="refreshIntervalSelect" class="form-select form-select-sm">
+                            <option value="10000">10 segundos</option>
+                            <option value="30000" selected>30 segundos</option>
+                            <option value="60000">1 minuto</option>
+                        </select>
+                    </div>
+                    <div class="col-md-7">
+                        <input type="text" id="searchInput" placeholder="Buscar por nome, steam name ou Player ID..." class="form-control">
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -28,12 +58,13 @@
                     <th>Steam Name</th>
                     <th>Data/Tempo</th>
                     <th>Localização</th>
+                    <th>Mapa</th>
                     <th>Ações</th>
                 </tr>
             </thead>
             <tbody id="playersTableBody">
                 <tr>
-                    <td colspan="7" class="text-center">
+                    <td colspan="8" class="text-center">
                         <i class="fas fa-spinner fa-spin"></i> Carregando...
                     </td>
                 </tr>

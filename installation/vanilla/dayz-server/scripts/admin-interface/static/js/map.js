@@ -66,6 +66,16 @@ $(document).ready(function() {
     // Listener para mudança de tipo de item
     $('#spawnItemTypeSelect').on('change', loadSpawnItems);
     
+    // Verificar se há filtro de player_id na URL e aplicar
+    const urlParams = new URLSearchParams(window.location.search);
+    const playerIdFilter = urlParams.get('player_id');
+    if (playerIdFilter) {
+        setTimeout(function() {
+            $('#playerFilter').val(playerIdFilter);
+            filterPlayers();
+        }, 500); // Aguardar carga completa do mapa
+    }
+    
     // Auto-refresh inicial
     toggleAutoRefresh();
 });

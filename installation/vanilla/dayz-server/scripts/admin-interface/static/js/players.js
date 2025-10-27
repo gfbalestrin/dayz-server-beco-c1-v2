@@ -1,6 +1,10 @@
 let playersData = [];
 let table;
 let godModeStatus = {};
+let autoRefreshInterval = null;
+let currentRefreshInterval = 30000; // 30 segundos padrão
+let nextRefreshTime = 0;
+let searchTimeout = null;
 
 // Função para escapar HTML e prevenir XSS
 function escapeHtml(text) {
@@ -206,11 +210,105 @@ function loadPlayers() {
     });
 }
 
-// Função para renderizar tabela
+// Função auxiliar para toast
+function showToast(title, message, type) {
+    // Implementação básica - ajustar conforme necessário
+    if (typeof toastr !== 'undefined') {
+        toastr[type](message, title);
+    } else {
+        alert(message);
+    }
+}
+
+// Função para criar link de visualização no mapa
+function createMapViewLink(playerId) {
+    return `
+        <a href="/map?player_id=${playerId}" class="btn btn-sm btn-outline-info" title="Ver no mapa">
+            <i class="fas fa-map-marked-alt"></i>
+        </a>
+    `;
+}
+
+// Função para atualizar intervalo de refresh
+function updateRefreshInterval() {
+    // Limpar intervalo atual
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+    }
+    
+    const isEnabled = $('#autoRefreshToggle').is(':checked');
+    
+    if (isEnabled) {
+        currentRefreshInterval = parseInt($('#refreshIntervalSelect').val());
+        
+        // Definir tempo da próxima atualização
+        nextRefreshTime = Date.now() + currentRefreshInterval;
+        
+        // Iniciar contador regressivo
+        startRefreshCountdown();
+        
+        // Criar novo intervalo
+        autoRefreshInterval = setInterval(function() {
+            loadPlayers();
+            nextRefreshTime = Date.now() + currentRefreshInterval;
+        }, currentRefreshInterval);
+        
+        console.log(`Auto-refresh ativado: ${currentRefreshInterval}ms`);
+    } else {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+        $('#nextRefreshTime').text('Auto-refresh desativado');
+        console.log('Auto-refresh desativado');
+    }
+}
+
+// Função para contador regressivo
+function startRefreshCountdown() {
+    const countdownInterval = setInterval(function() {
+        if (!autoRefreshInterval) {
+            clearInterval(countdownInterval);
+            return;
+        }
+        
+        const now = Date.now();
+        const remaining = Math.max(0, nextRefreshTime - now);
+        const seconds = Math.floor(remaining / 1000);
+        
+        if (seconds > 0) {
+            $('#nextRefreshTime').text(`Próxima atualização: ${seconds}s`);
+        } else {
+            $('#nextRefreshTime').text('Atualizando...');
+        }
+    }, 1000);
+}
+
+// Função para filtrar dados
+function filterPlayersData(data, searchTerm) {
+    if (!searchTerm || searchTerm.trim() === '') {
+        return data;
+    }
+    
+    const term = searchTerm.toLowerCase().trim();
+    
+    return data.filter(player => {
+        const playerName = (player.PlayerName || '').toLowerCase();
+        const steamName = (player.SteamName || '').toLowerCase();
+        const playerId = (player.PlayerID || '').toLowerCase();
+        
+        return playerName.includes(term) || 
+               steamName.includes(term) || 
+               playerId.includes(term);
+    });
+}
+
+// Função para renderizar tabela com filtro
 function renderPlayersTable() {
+    const searchTerm = $('#searchInput').val();
+    let filteredData = filterPlayersData(playersData, searchTerm);
+    
     // Atualizar contadores
-    const onlineCount = playersData.filter(p => p.IsOnline && p.IsOnline !== 0).length;
-    const totalCount = playersData.length;
+    const onlineCount = filteredData.filter(p => p.IsOnline && p.IsOnline !== 0).length;
+    const totalCount = filteredData.length;
     
     $('#onlineCount').text(onlineCount);
     $('#totalCount').text(totalCount);
@@ -219,13 +317,13 @@ function renderPlayersTable() {
     const tbody = $('#playersTableBody');
     tbody.empty();
     
-    if (playersData.length === 0) {
-        tbody.append('<tr><td colspan="7" class="text-center">Nenhum jogador encontrado</td></tr>');
+    if (filteredData.length === 0) {
+        tbody.append('<tr><td colspan="8" class="text-center">Nenhum jogador encontrado</td></tr>');
         return;
     }
     
     // Renderizar cada jogador
-    playersData.forEach(player => {
+    filteredData.forEach(player => {
         const row = `
             <tr class="${player.IsOnline && player.IsOnline !== 0 ? 'table-info' : ''}">
                 <td>${renderStatus(player)}</td>
@@ -234,6 +332,7 @@ function renderPlayersTable() {
                 <td>${createSteamLink(player.SteamID, player.SteamName)}</td>
                 <td>${renderDateTime(player)}</td>
                 <td>${createMapLink(player.CoordX, player.CoordY)}</td>
+                <td>${createMapViewLink(player.PlayerID)}</td>
                 <td>${renderActions(player)}</td>
             </tr>
         `;
@@ -253,29 +352,63 @@ function renderPlayersTable() {
         pageLength: 25,
         responsive: true,
         columnDefs: [
-            { orderable: false, targets: [1, 5, 6] } // Player ID, Localização e Ações não são ordenáveis
+            { orderable: false, targets: [1, 5, 6, 7] } // Player ID, Localização, Mapa e Ações não são ordenáveis
         ]
     });
 }
 
-// Função auxiliar para toast
-function showToast(title, message, type) {
-    // Implementação básica - ajustar conforme necessário
-    if (typeof toastr !== 'undefined') {
-        toastr[type](message, title);
-    } else {
-        alert(message);
-    }
-}
-
 // Inicialização
 $(document).ready(function() {
+    // Carregar preferências do localStorage
+    const savedInterval = localStorage.getItem('refreshInterval');
+    if (savedInterval) {
+        currentRefreshInterval = parseInt(savedInterval);
+        $('#refreshIntervalSelect').val(savedInterval);
+    }
+    
+    // Event listeners para controles
+    $('#autoRefreshToggle').on('change', function() {
+        updateRefreshInterval();
+    });
+    
+    $('#refreshIntervalSelect').on('change', function() {
+        const interval = $(this).val();
+        currentRefreshInterval = parseInt(interval);
+        localStorage.setItem('refreshInterval', interval);
+        updateRefreshInterval();
+    });
+    
+    // Search com debounce
+    $('#searchInput').on('input', function() {
+        const searchTerm = $(this).val();
+        
+        // Limpar timeout anterior
+        if (searchTimeout) {
+            clearTimeout(searchTimeout);
+        }
+        
+        // Criar novo timeout
+        searchTimeout = setTimeout(function() {
+            renderPlayersTable();
+        }, 300); // 300ms de debounce
+    });
+    
+    // Carregar dados iniciais
     loadPlayers();
-    setInterval(loadPlayers, 10000); // Auto-refresh a cada 10s
+    
+    // Iniciar auto-refresh
+    updateRefreshInterval();
     
     // Tornar funções globais para uso nos botões inline
     window.copyPlayerId = copyPlayerId;
     window.executeAction = executeAction;
     window.toggleGodMode = toggleGodMode;
+    
+    // Limpar intervalos ao sair da página
+    $(window).on('beforeunload', function() {
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+        }
+    });
 });
 
