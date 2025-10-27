@@ -127,6 +127,40 @@ def get_vehicles_map_positions() -> List[Dict]:
         """)
         return [dict(row) for row in cursor.fetchall()]
 
+def get_vehicles_trails(limit_per_vehicle: int = 100) -> List[Dict]:
+    """Retorna histórico de posições (trails) de todos os veículos"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT VehicleId, VehicleName, PositionX, PositionY, PositionZ, TimeStamp
+            FROM (
+                SELECT *,
+                       ROW_NUMBER() OVER (PARTITION BY VehicleId ORDER BY TimeStamp DESC) as rn
+                FROM vehicles_tracking
+            ) ranked
+            WHERE rn <= ?
+            ORDER BY VehicleId, TimeStamp DESC
+        """, (limit_per_vehicle,))
+        
+        # Agrupar resultados por veículo
+        vehicles_dict = {}
+        for row in cursor.fetchall():
+            vehicle_id = row['VehicleId']
+            if vehicle_id not in vehicles_dict:
+                vehicles_dict[vehicle_id] = {
+                    'vehicle_id': vehicle_id,
+                    'vehicle_name': row['VehicleName'],
+                    'trail': []
+                }
+            vehicles_dict[vehicle_id]['trail'].append({
+                'x': row['PositionX'],
+                'y': row['PositionY'],
+                'z': row['PositionZ'],
+                'timestamp': row['TimeStamp']
+            })
+        
+        return list(vehicles_dict.values())
+
 def search_players(query: str) -> List[Dict]:
     """Busca jogadores por nome ou ID"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:

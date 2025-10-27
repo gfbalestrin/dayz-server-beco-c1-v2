@@ -10,7 +10,7 @@ from database import (
     get_player_by_id, search_players, get_players_last_position,
     get_player_trail, get_online_players_positions,
     get_players_positions_by_timerange, dayz_to_pixel,
-    get_vehicles_last_position, get_recent_kills, parse_position,
+    get_vehicles_last_position, get_vehicles_trails, get_recent_kills, parse_position,
     check_backup_exists, check_backup_exists_any_player, get_backup_info, get_online_players,
     get_all_players_with_status,
     get_weapons, get_weapons_with_calibers, get_all_calibers, get_items, get_item_types,
@@ -270,6 +270,37 @@ def api_vehicles_map_positions():
             'coord_z': veh['PositionZ'],  # Altitude
             'pixel_coords': pixel_coords,
             'last_update': veh['TimeStamp'] or ''
+        })
+    
+    return jsonify(result)
+
+@app.route('/api/vehicles/trails')
+@login_required
+def api_vehicles_trails():
+    """API com histórico de posições (trails) de todos os veículos"""
+    vehicles = get_vehicles_trails(limit_per_vehicle=100)
+    
+    result = {
+        'timestamp': datetime.now().isoformat(),
+        'vehicles': []
+    }
+    
+    for vehicle in vehicles:
+        trail = []
+        for point in vehicle['trail']:
+            pixel_coords = dayz_to_pixel(point['x'], point['y'])
+            trail.append({
+                'x': point['x'],
+                'y': point['y'],
+                'z': point['z'],
+                'timestamp': point['timestamp'],
+                'pixel_coords': pixel_coords
+            })
+        
+        result['vehicles'].append({
+            'vehicle_id': vehicle['vehicle_id'],
+            'vehicle_name': vehicle['vehicle_name'],
+            'trail': trail
         })
     
     return jsonify(result)

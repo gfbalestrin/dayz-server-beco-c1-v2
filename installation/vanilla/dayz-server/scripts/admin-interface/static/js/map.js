@@ -7,6 +7,7 @@ let map;
 let playerMarkers = {};
 let playerTrails = {};
 let vehicleMarkers = {};
+let vehicleTrails = {};
 let killMarkers = [];
 let playersData = {}; // Armazenar dados dos jogadores
 let currentPointContext = null; // Contexto do ponto para ações
@@ -14,6 +15,7 @@ let currentFilter = null;
 let autoRefreshInterval = null;
 let showTrails = false;
 let showVehicles = false;
+let showVehicleTrails = false;
 let showKills = false;
 let currentMode = 'normal'; // normal, teleport
 let teleportTargetPlayer = null;
@@ -51,6 +53,7 @@ $(document).ready(function() {
     $('#playerFilter').on('change', filterPlayers);
     $('#toggleTrailsBtn').on('click', toggleTrails);
     $('#toggleVehiclesBtn').on('click', toggleVehiclesDisplay);
+    $('#toggleVehicleTrailsBtn').on('click', toggleVehicleTrailsDisplay);
     $('#toggleKillsBtn').on('click', toggleKills);
     $('#applyTrailFilter').on('click', applyTrailDateFilter);
     
@@ -533,7 +536,12 @@ function toggleAutoRefresh() {
     if ($('#autoRefreshCheck').is(':checked')) {
         autoRefreshInterval = setInterval(function() {
             loadPositions();
-            if (showVehicles) loadVehicles();
+            if (showVehicles) {
+                loadVehicles();
+                if (showVehicleTrails) {
+                    loadVehicleTrails();
+                }
+            }
         }, 10000); // 10 segundos
         console.log('Auto-refresh ligado');
     } else {
@@ -567,6 +575,9 @@ function updateVehicles(data) {
         map.removeLayer(vehicleMarkers[key]);
     });
     vehicleMarkers = {};
+    
+    // Atualizar contador de veículos
+    $('#vehicleCount').text(data.vehicles.length);
     
     if (!showVehicles) {
         return;
@@ -617,6 +628,11 @@ function toggleVehiclesDisplay() {
     if (showVehicles) {
         $('#toggleVehiclesBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar Veículos');
         loadVehicles();
+        
+        // Carregar trails se estiver habilitado
+        if (showVehicleTrails) {
+            loadVehicleTrails();
+        }
     } else {
         $('#toggleVehiclesBtn').html('<i class="fas fa-car me-1"></i>Mostrar Veículos');
         // Remover todos os veículos
@@ -624,6 +640,151 @@ function toggleVehiclesDisplay() {
             map.removeLayer(vehicleMarkers[key]);
         });
         vehicleMarkers = {};
+        
+        // Remover trails também
+        Object.keys(vehicleTrails).forEach(function(key) {
+            if (vehicleTrails[key]) {
+                map.removeLayer(vehicleTrails[key]);
+            }
+        });
+        vehicleTrails = {};
+        
+        // Resetar contador de veículos
+        $('#vehicleCount').text('0');
+    }
+}
+
+/**
+ * Carregar trails de veículos
+ */
+function loadVehicleTrails() {
+    $.get('/api/vehicles/trails')
+        .done(function(data) {
+            updateVehicleTrails(data);
+        })
+        .fail(function() {
+            console.error('Erro ao carregar trails de veículos');
+        });
+}
+
+/**
+ * Atualizar trails de veículos no mapa
+ */
+function updateVehicleTrails(data) {
+    // Limpar trails antigos
+    Object.keys(vehicleTrails).forEach(function(key) {
+        if (vehicleTrails[key]) {
+            if (Array.isArray(vehicleTrails[key])) {
+                vehicleTrails[key].forEach(layer => map.removeLayer(layer));
+            } else {
+                map.removeLayer(vehicleTrails[key]);
+            }
+        }
+    });
+    vehicleTrails = {};
+    
+    if (!showVehicles || !showVehicleTrails) {
+        return;
+    }
+    
+    // Adicionar trails de veículos
+    data.vehicles.forEach(function(vehicle) {
+        if (!vehicle.trail || vehicle.trail.length < 2) {
+            return; // Precisa de pelo menos 2 pontos para desenhar uma linha
+        }
+        
+        const vehicleId = vehicle.vehicle_id;
+        const latlngs = [];
+        vehicleTrails[vehicleId] = [];
+        
+        vehicle.trail.forEach(function(point, i) {
+            latlngs.push([point.pixel_coords[0], point.pixel_coords[1]]);
+            
+            // Criar marcador circular no ponto
+            const circleMarker = L.circleMarker(
+                [point.pixel_coords[0], point.pixel_coords[1]],
+                {
+                    radius: 5,
+                    fillColor: '#28a745',
+                    color: '#ffffff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }
+            ).addTo(map);
+            
+            // Adicionar tooltip com informações do ponto
+            const tooltipText = `
+                <strong>${vehicle.vehicle_name}</strong><br>
+                Ponto #${vehicle.trail.length - i}<br>
+                X: ${point.x.toFixed(2)}, Y: ${point.y.toFixed(2)}<br>
+                Altura: ${point.z ? point.z.toFixed(2) : 'N/A'}<br>
+                ${point.timestamp || 'Sem data'}
+            `;
+            
+            // Determinar direção do tooltip baseado na posição
+            let tooltipDirection = 'top';
+            if (point.pixel_coords[0] < 1024) {
+                tooltipDirection = 'bottom';
+            } else if (point.pixel_coords[0] > 3072) {
+                tooltipDirection = 'top';
+            }
+            if (point.pixel_coords[1] < 1024) {
+                tooltipDirection = 'right';
+            } else if (point.pixel_coords[1] > 3072) {
+                tooltipDirection = 'left';
+            }
+            
+            circleMarker.bindTooltip(tooltipText, {
+                permanent: false,
+                direction: tooltipDirection,
+                className: 'trail-tooltip'
+            });
+            
+            vehicleTrails[vehicleId].push(circleMarker);
+        });
+        
+        // Adicionar linha conectando os pontos
+        const polyline = L.polyline(latlngs, {
+            color: '#28a745',
+            weight: 3,
+            opacity: 0.6,
+            interactive: false
+        }).addTo(map);
+        
+        vehicleTrails[vehicleId].push(polyline);
+    });
+    
+    console.log(`Trails de veículos atualizados: ${data.vehicles.length} veículos`);
+}
+
+/**
+ * Toggle mostrar trails de veículos
+ */
+function toggleVehicleTrailsDisplay() {
+    showVehicleTrails = !showVehicleTrails;
+    
+    if (showVehicleTrails) {
+        $('#toggleVehicleTrailsBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar Trails');
+        
+        // Se veículos não estiverem visíveis, mostrar primeiro
+        if (!showVehicles) {
+            showVehicles = true;
+            $('#toggleVehiclesBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar Veículos');
+            loadVehicles();
+        }
+        
+        loadVehicleTrails();
+    } else {
+        $('#toggleVehicleTrailsBtn').html('<i class="fas fa-route me-1"></i>Trails Veículos');
+        
+        // Remover trails
+        Object.keys(vehicleTrails).forEach(function(key) {
+            if (vehicleTrails[key]) {
+                map.removeLayer(vehicleTrails[key]);
+            }
+        });
+        vehicleTrails = {};
     }
 }
 
