@@ -7,8 +7,31 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <h2 class="mb-4"><i class="fas fa-magic me-2"></i>Sistema de Spawning</h2>
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-magic me-2"></i>Sistema de Spawning</h2>
+    </div>
+
+    <!-- Seletor Global de Jogador -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Jogador:</label>
+                </div>
+                <div class="col-md-6">
+                    <select id="globalPlayerSelect" class="form-select">
+                        <option value="">Carregando jogadores...</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <div id="selectedPlayerInfo" class="text-muted">
+                        <small>Nenhum jogador selecionado</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <ul class="nav nav-tabs mb-4" role="tablist">
         <li class="nav-item">
@@ -52,73 +75,97 @@
         <!-- Aba de Armas -->
         <div id="weapons-tab" class="tab-pane fade show active">
             <div class="row mb-3">
-                <div class="col-md-5">
-                    <label>Jogador</label>
-                    <select id="weaponPlayerSelect" class="form-select">
-                        <option value="">Carregando...</option>
+                <div class="col-md-3">
+                    <button class="btn btn-success" onclick="loadCompleteWeaponLoadout()">
+                        <i class="fas fa-layer-group me-2"></i>Loadout Completo
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <input type="text" id="weaponSearchInput" class="form-control" placeholder="Buscar arma...">
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterFeedType">
+                        <option value="">Todos Feed Types</option>
+                        <option value="magazine">Magazine</option>
+                        <option value="manual">Manual</option>
+                        <option value="internal">Internal</option>
                     </select>
                 </div>
-                <div class="col-md-6">
-                    <label>Buscar Arma</label>
-                    <input type="text" id="weaponSearch" class="form-control" placeholder="Nome da arma...">
+                <div class="col-md-2">
+                    <select class="form-select" id="filterWeaponSize">
+                        <option value="">Todos Tamanhos</option>
+                        <option value="small">Pequenas (≤12)</option>
+                        <option value="large">Grandes (>12)</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterCaliber">
+                        <option value="">Todos Calibres</option>
+                        <!-- Populated by JS -->
+                    </select>
                 </div>
                 <div class="col-md-1">
                     <label>Qtd</label>
                     <input type="number" id="weaponQuantity" class="form-control" value="1" min="1" max="99">
                 </div>
             </div>
-
-            <div id="weaponsGrid" class="items-grid">
-                <div class="text-center p-5">
-                    <i class="fas fa-spinner fa-spin fa-3x"></i>
-                </div>
+            
+            <div id="weaponsGrid" class="weapons-grid">
+                <!-- Populated by JS -->
             </div>
         </div>
 
         <!-- Aba de Itens -->
         <div id="items-tab" class="tab-pane fade">
             <div class="row mb-3">
-                <div class="col-md-4">
-                    <label>Jogador</label>
-                    <select id="itemPlayerSelect" class="form-select">
-                        <option value="">Carregando...</option>
+                <div class="col-md-2">
+                    <input type="text" id="itemSearchInput" class="form-control" placeholder="Buscar item...">
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterItemType">
+                        <option value="">Todos Tipos</option>
+                        <!-- Populated by JS -->
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label>Categoria</label>
-                    <select id="itemTypeSelect" class="form-select">
-                        <option value="">Todas</option>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterItemLocation">
+                        <option value="">Todas Localizações</option>
+                        <option value="none">Nenhuma</option>
+                        <option value="back">Back</option>
+                        <option value="eyes">Eyes</option>
+                        <option value="face">Face</option>
+                        <option value="foot">Foot</option>
+                        <option value="hands">Hands</option>
+                        <option value="head">Head</option>
+                        <option value="legs">Legs</option>
+                        <option value="torso">Torso</option>
+                        <option value="waist">Waist</option>
                     </select>
                 </div>
-                <div class="col-md-4">
-                    <label>Buscar Item</label>
-                    <input type="text" id="itemSearch" class="form-control" placeholder="Nome do item...">
+                <div class="col-md-2">
+                    <select class="form-select" id="filterItemStorage">
+                        <option value="">Todos</option>
+                        <option value="with">Com Storage</option>
+                        <option value="without">Sem Storage</option>
+                    </select>
                 </div>
+                <div class="col-md-3"></div>
                 <div class="col-md-1">
                     <label>Qtd</label>
                     <input type="number" id="itemQuantity" class="form-control" value="1" min="1" max="99">
                 </div>
             </div>
-
-            <div id="itemsGrid" class="items-grid">
-                <div class="text-center p-5">
-                    <i class="fas fa-spinner fa-spin fa-3x"></i>
-                </div>
+            
+            <div id="itemsGrid" class="weapons-grid">
+                <!-- Populated by JS -->
             </div>
         </div>
 
         <!-- Aba de Explosivos -->
         <div id="explosives-tab" class="tab-pane fade">
             <div class="row mb-3">
-                <div class="col-md-5">
-                    <label>Jogador</label>
-                    <select id="explosivePlayerSelect" class="form-select">
-                        <option value="">Carregando...</option>
-                    </select>
-                </div>
-                <div class="col-md-6">
-                    <label>Buscar Explosivo</label>
-                    <input type="text" id="explosiveSearch" class="form-control" placeholder="Nome do explosivo...">
+                <div class="col-md-11">
+                    <input type="text" id="explosiveSearchInput" class="form-control" placeholder="Buscar explosivo...">
                 </div>
                 <div class="col-md-1">
                     <label>Qtd</label>
@@ -126,10 +173,8 @@
                 </div>
             </div>
 
-            <div id="explosivesGrid" class="items-grid">
-                <div class="text-center p-5">
-                    <i class="fas fa-spinner fa-spin fa-3x"></i>
-                </div>
+            <div id="explosivesGrid" class="weapons-grid">
+                <!-- Populated by JS -->
             </div>
         </div>
 
@@ -137,37 +182,27 @@
         <div id="ammo-tab" class="tab-pane fade">
             <div class="row mb-3">
                 <div class="col-md-3">
-                    <label>Jogador</label>
-                    <select id="ammoPlayerSelect" class="form-select">
-                        <option value="">Carregando...</option>
-                    </select>
+                    <input type="text" id="ammoSearchInput" class="form-control" placeholder="Buscar munição...">
                 </div>
                 <div class="col-md-3">
-                    <label>Arma (Filtro)</label>
                     <select id="ammoWeaponFilter" class="form-select">
-                        <option value="">Todas as munições</option>
+                        <option value="">Todas as armas</option>
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label>Calibre</label>
                     <select id="caliberSelect" class="form-select">
-                        <option value="">Todos</option>
+                        <option value="">Todos calibres</option>
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label>Buscar Munição</label>
-                    <input type="text" id="ammoSearch" class="form-control" placeholder="Nome da munição...">
-                </div>
+                <div class="col-md-5"></div>
                 <div class="col-md-1">
                     <label>Qtd</label>
                     <input type="number" id="ammoQuantity" class="form-control" value="1" min="1" max="99">
                 </div>
             </div>
 
-            <div id="ammunitionsGrid" class="items-grid">
-                <div class="text-center p-5">
-                    <i class="fas fa-spinner fa-spin fa-3x"></i>
-                </div>
+            <div id="ammunitionsGrid" class="weapons-grid">
+                <!-- Populated by JS -->
             </div>
         </div>
 
@@ -175,20 +210,12 @@
         <div id="magazines-tab" class="tab-pane fade">
             <div class="row mb-3">
                 <div class="col-md-4">
-                    <label>Jogador</label>
-                    <select id="magazinePlayerSelect" class="form-select">
-                        <option value="">Carregando...</option>
-                    </select>
+                    <input type="text" id="magazineSearchInput" class="form-control" placeholder="Buscar magazine...">
                 </div>
-                <div class="col-md-3">
-                    <label>Arma (Filtro)</label>
+                <div class="col-md-7">
                     <select id="magazineWeaponFilter" class="form-select">
-                        <option value="">Todos os magazines</option>
+                        <option value="">Todas as armas</option>
                     </select>
-                </div>
-                <div class="col-md-4">
-                    <label>Buscar Magazine</label>
-                    <input type="text" id="magazineSearch" class="form-control" placeholder="Nome do magazine...">
                 </div>
                 <div class="col-md-1">
                     <label>Qtd</label>
@@ -196,10 +223,8 @@
                 </div>
             </div>
 
-            <div id="magazinesGrid" class="items-grid">
-                <div class="text-center p-5">
-                    <i class="fas fa-spinner fa-spin fa-3x"></i>
-                </div>
+            <div id="magazinesGrid" class="weapons-grid">
+                <!-- Populated by JS -->
             </div>
         </div>
 
@@ -207,26 +232,17 @@
         <div id="attachments-tab" class="tab-pane fade">
             <div class="row mb-3">
                 <div class="col-md-3">
-                    <label>Jogador</label>
-                    <select id="attachmentPlayerSelect" class="form-select">
-                        <option value="">Carregando...</option>
-                    </select>
+                    <input type="text" id="attachmentSearchInput" class="form-control" placeholder="Buscar attachment...">
                 </div>
-                <div class="col-md-3">
-                    <label>Arma (Filtro)</label>
+                <div class="col-md-4">
                     <select id="attachmentWeaponFilter" class="form-select">
-                        <option value="">Todos os attachments</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label>Tipo</label>
-                    <select id="attachmentTypeSelect" class="form-select">
-                        <option value="">Todos</option>
+                        <option value="">Todas as armas</option>
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label>Buscar Attachment</label>
-                    <input type="text" id="attachmentSearch" class="form-control" placeholder="Nome do attachment...">
+                    <select id="attachmentTypeSelect" class="form-select">
+                        <option value="">Todos os tipos</option>
+                    </select>
                 </div>
                 <div class="col-md-1">
                     <label>Qtd</label>
@@ -234,22 +250,16 @@
                 </div>
             </div>
 
-            <div id="attachmentsGrid" class="items-grid">
-                <div class="text-center p-5">
-                    <i class="fas fa-spinner fa-spin fa-3x"></i>
-                </div>
+            <div id="attachmentsGrid" class="weapons-grid">
+                <!-- Populated by JS -->
             </div>
         </div>
 
         <!-- Aba de Veículos -->
         <div id="vehicles-tab" class="tab-pane fade">
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <label>Jogador</label>
-                    <select id="vehiclePlayerSelect" class="form-select">
-                        <option value="">Carregando...</option>
-                    </select>
-                </div>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                Selecione um jogador na parte superior da página para spawnar veículos próximo a ele.
             </div>
 
             <div id="vehiclesGrid" class="vehicles-grid">

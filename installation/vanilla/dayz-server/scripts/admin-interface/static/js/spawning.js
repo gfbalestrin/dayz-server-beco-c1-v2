@@ -3,6 +3,7 @@ let weaponsData = [];
 let itemsData = [];
 let selectedWeapon = null;
 let selectedItem = null;
+let selectedPlayer = null; // Jogador globalmente selecionado
 
 // Lista de veículos comuns
 const VEHICLES = [
@@ -31,7 +32,7 @@ function renderPlayerSelects() {
         `<option value="${p.PlayerID}">${p.PlayerName} (${p.SteamName})</option>`
     ).join('');
     
-    $('#weaponPlayerSelect, #itemPlayerSelect, #vehiclePlayerSelect, #explosivePlayerSelect, #ammoPlayerSelect, #magazinePlayerSelect, #attachmentPlayerSelect').html(
+    $('#globalPlayerSelect').html(
         '<option value="">Selecione um jogador</option>' + options
     );
 }
@@ -39,17 +40,17 @@ function renderPlayerSelects() {
 // === ABA DE ARMAS ===
 
 function loadWeapons() {
-    const search = $('#weaponSearch').val();
+    const search = $('#weaponSearchInput').val() || '';
     
     $('#weaponsGrid').html('<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i></div>');
     
     $.ajax({
         url: '/api/items/weapons',
         method: 'GET',
-        data: { search: search, limit: 100 },
+        data: { search: search, limit: 500 },
         success: function(response) {
             weaponsData = response.weapons;
-            renderWeaponsGrid();
+            applyWeaponFilters();
         },
         error: function() {
             $('#weaponsGrid').html('<div class="text-center p-5 text-danger">Erro ao carregar armas</div>');
@@ -57,20 +58,63 @@ function loadWeapons() {
     });
 }
 
-function renderWeaponsGrid() {
+function applyWeaponFilters() {
+    const search = $('#weaponSearchInput').val().toLowerCase();
+    const feedType = $('#filterFeedType').val();
+    const sizeFilter = $('#filterWeaponSize').val();
+    const caliberFilter = $('#filterCaliber').val();
+    
+    let filtered = weaponsData;
+    
+    // Busca por nome
+    if (search) {
+        filtered = filtered.filter(w => 
+            w.name.toLowerCase().includes(search) || 
+            w.name_type.toLowerCase().includes(search)
+        );
+    }
+    
+    // Filtro por feed type
+    if (feedType) {
+        filtered = filtered.filter(w => w.feed_type === feedType);
+    }
+    
+    // Filtro por tamanho
+    if (sizeFilter) {
+        const totalSlots = (w) => parseInt(w.width) * parseInt(w.height);
+        if (sizeFilter === 'small') {
+            filtered = filtered.filter(w => totalSlots(w) <= 12);
+        } else if (sizeFilter === 'large') {
+            filtered = filtered.filter(w => totalSlots(w) > 12);
+        }
+    }
+    
+    // Filtro por calibre
+    if (caliberFilter) {
+        filtered = filtered.filter(w => {
+            if (!w.calibers) return false;
+            const calibers = w.calibers.split(',').map(c => c.trim());
+            return calibers.includes(caliberFilter);
+        });
+    }
+    
+    renderWeaponsGrid(filtered);
+}
+
+function renderWeaponsGrid(data = weaponsData) {
     const grid = $('#weaponsGrid');
     grid.empty();
     
-    if (weaponsData.length === 0) {
+    if (data.length === 0) {
         grid.html('<div class="text-center p-5">Nenhuma arma encontrada</div>');
         return;
     }
     
-    weaponsData.forEach(weapon => {
+    data.forEach(weapon => {
         const card = $(`
-            <div class="item-card" data-weapon-id="${weapon.id}" data-weapon-type="${weapon.name_type}">
+            <div class="weapon-card" data-weapon-id="${weapon.id}" data-weapon-type="${weapon.name_type}">
                 <img src="${weapon.img}" alt="${weapon.name}" onerror="this.src='https://via.placeholder.com/100?text=No+Image'">
-                <div class="item-name" title="${weapon.name}">${weapon.name}</div>
+                <div class="weapon-name" title="${weapon.name}">${weapon.name}</div>
             </div>
         `);
         
@@ -83,9 +127,14 @@ function renderWeaponsGrid() {
 }
 
 function selectWeapon(weapon) {
+    if (!selectedPlayer) {
+        showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+        return;
+    }
+    
     selectedWeapon = weapon;
-    $('.item-card').removeClass('selected');
-    $(`.item-card[data-weapon-id="${weapon.id}"]`).addClass('selected');
+    $('.weapon-card').removeClass('selected');
+    $(`.weapon-card[data-weapon-id="${weapon.id}"]`).addClass('selected');
     showSpawnConfirmModal('weapon');
 }
 
@@ -99,24 +148,21 @@ function loadItemTypes() {
             const options = response.types.map(t => 
                 `<option value="${t.id}">${t.name}</option>`
             ).join('');
-            $('#itemTypeSelect').html('<option value="">Todas</option>' + options);
+            $('#filterItemType').html('<option value="">Todos Tipos</option>' + options);
         }
     });
 }
 
 function loadItems() {
-    const typeId = $('#itemTypeSelect').val();
-    const search = $('#itemSearch').val();
-    
     $('#itemsGrid').html('<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i></div>');
     
     $.ajax({
         url: '/api/items/items',
         method: 'GET',
-        data: { type_id: typeId || null, search: search, limit: 100 },
+        data: { limit: 500 },
         success: function(response) {
             itemsData = response.items;
-            renderItemsGrid();
+            applyItemFilters();
         },
         error: function() {
             $('#itemsGrid').html('<div class="text-center p-5 text-danger">Erro ao carregar itens</div>');
@@ -124,20 +170,58 @@ function loadItems() {
     });
 }
 
-function renderItemsGrid() {
+function applyItemFilters() {
+    const search = $('#itemSearchInput').val().toLowerCase();
+    const typeFilter = $('#filterItemType').val();
+    const locationFilter = $('#filterItemLocation').val();
+    const storageFilter = $('#filterItemStorage').val();
+    
+    let filtered = itemsData;
+    
+    // Busca por nome
+    if (search) {
+        filtered = filtered.filter(i => 
+            i.name.toLowerCase().includes(search) || 
+            i.name_type.toLowerCase().includes(search)
+        );
+    }
+    
+    // Filtro por tipo
+    if (typeFilter) {
+        filtered = filtered.filter(i => i.type_id == typeFilter);
+    }
+    
+    // Filtro por localização
+    if (locationFilter) {
+        filtered = filtered.filter(i => i.location === locationFilter);
+    }
+    
+    // Filtro por storage
+    if (storageFilter) {
+        if (storageFilter === 'with') {
+            filtered = filtered.filter(i => i.storage_width > 0 && i.storage_height > 0);
+        } else if (storageFilter === 'without') {
+            filtered = filtered.filter(i => !i.storage_width || i.storage_width === 0);
+        }
+    }
+    
+    renderItemsGrid(filtered);
+}
+
+function renderItemsGrid(data = itemsData) {
     const grid = $('#itemsGrid');
     grid.empty();
     
-    if (itemsData.length === 0) {
+    if (data.length === 0) {
         grid.html('<div class="text-center p-5">Nenhum item encontrado</div>');
         return;
     }
     
-    itemsData.forEach(item => {
+    data.forEach(item => {
         const card = $(`
-            <div class="item-card" data-item-id="${item.id}" data-item-type="${item.name_type}">
+            <div class="weapon-card" data-item-id="${item.id}" data-item-type="${item.name_type}">
                 <img src="${item.img}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/100?text=No+Image'">
-                <div class="item-name" title="${item.name}">${item.name}</div>
+                <div class="weapon-name" title="${item.name}">${item.name}</div>
             </div>
         `);
         
@@ -150,9 +234,14 @@ function renderItemsGrid() {
 }
 
 function selectItem(item) {
+    if (!selectedPlayer) {
+        showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+        return;
+    }
+    
     selectedItem = item;
-    $('.item-card').removeClass('selected');
-    $(`.item-card[data-item-id="${item.id}"]`).addClass('selected');
+    $('.weapon-card').removeClass('selected');
+    $(`.weapon-card[data-item-id="${item.id}"]`).addClass('selected');
     showSpawnConfirmModal('item');
 }
 
@@ -179,13 +268,12 @@ function renderVehiclesGrid() {
 }
 
 function spawnVehicle(vehicle) {
-    const playerId = $('#vehiclePlayerSelect').val();
-    if (!playerId) {
+    if (!selectedPlayer) {
         showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
         return;
     }
     
-    const player = playersData.find(p => p.PlayerID === playerId);
+    const player = selectedPlayer;
     
     if (!confirm(`Spawnar ${vehicle.name} próximo ao jogador ${player.PlayerName}?`)) return;
     
@@ -194,7 +282,7 @@ function spawnVehicle(vehicle) {
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify({
-            player_id: playerId,
+            player_id: player.PlayerID,
             vehicle_type: vehicle.type
         }),
         success: function(response) {
@@ -294,7 +382,7 @@ let explosivesData = [];
 let selectedExplosive = null;
 
 function loadExplosives() {
-    const search = $('#explosiveSearch').val();
+    const search = $('#explosiveSearchInput').val();
     $('#explosivesGrid').html('<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i></div>');
     
     $.ajax({
@@ -377,7 +465,7 @@ function loadCalibers() {
 }
 
 function loadAmmunitions() {
-    const search = $('#ammoSearch').val();
+    const search = $('#ammoSearchInput').val();
     const caliberId = $('#caliberSelect').val();
     const weaponId = $('#ammoWeaponFilter').val();
     
@@ -434,7 +522,7 @@ let magazinesData = [];
 let selectedMagazine = null;
 
 function loadMagazines() {
-    const search = $('#magazineSearch').val();
+    const search = $('#magazineSearchInput').val();
     const weaponId = $('#magazineWeaponFilter').val();
     
     $('#magazinesGrid').html('<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i></div>');
@@ -505,7 +593,7 @@ function loadAttachmentTypes() {
 }
 
 function loadAttachments() {
-    const search = $('#attachmentSearch').val();
+    const search = $('#attachmentSearchInput').val();
     const typeFilter = $('#attachmentTypeSelect').val();
     const weaponId = $('#attachmentWeaponFilter').val();
     
@@ -561,33 +649,35 @@ function selectAttachment(attachment) {
 function showSpawnConfirmModal(type, item = null) {
     let playerId, quantity, itemName, itemType;
     
+    // Usar jogador globalmente selecionado
+    playerId = selectedPlayer ? selectedPlayer.PlayerID : null;
+    
+    if (!playerId) {
+        showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+        return;
+    }
+    
     if (type === 'weapon') {
-        playerId = $('#weaponPlayerSelect').val();
         quantity = $('#weaponQuantity').val();
         itemName = selectedWeapon.name;
         itemType = selectedWeapon.name_type;
     } else if (type === 'item') {
-        playerId = $('#itemPlayerSelect').val();
         quantity = $('#itemQuantity').val();
         itemName = selectedItem.name;
         itemType = selectedItem.name_type;
     } else if (type === 'explosive') {
-        playerId = $('#explosivePlayerSelect').val();
         quantity = $('#explosiveQuantity').val();
         itemName = item.name;
         itemType = item.name_type;
     } else if (type === 'ammo') {
-        playerId = $('#ammoPlayerSelect').val();
         quantity = $('#ammoQuantity').val();
         itemName = item.name;
         itemType = item.name_type;
     } else if (type === 'magazine') {
-        playerId = $('#magazinePlayerSelect').val();
         quantity = $('#magazineQuantity').val();
         itemName = item.name;
         itemType = item.name_type;
     } else if (type === 'attachment') {
-        playerId = $('#attachmentPlayerSelect').val();
         quantity = $('#attachmentQuantity').val();
         itemName = item.name;
         itemType = item.name_type;
@@ -595,12 +685,7 @@ function showSpawnConfirmModal(type, item = null) {
         return;
     }
     
-    if (!playerId) {
-        showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
-        return;
-    }
-    
-    const player = playersData.find(p => p.PlayerID === playerId);
+    const player = selectedPlayer;
     
     $('#confirmItemName').text(itemName);
     $('#confirmPlayerName').text(player.PlayerName);
@@ -616,26 +701,75 @@ function showSpawnConfirmModal(type, item = null) {
     modal.show();
 }
 
+function loadCalibersFilter() {
+    $.ajax({
+        url: '/api/items/calibers',
+        method: 'GET',
+        success: function(response) {
+            const options = response.calibers.map(c => 
+                `<option value="${c.name}">${c.name}</option>`
+            ).join('');
+            $('#filterCaliber').html('<option value="">Todos Calibres</option>' + options);
+        }
+    });
+}
+
+function loadCompleteWeaponLoadout() {
+    if (!selectedPlayer) {
+        showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+        return;
+    }
+    
+    if (!selectedWeapon) {
+        showToast('Aviso', 'Selecione uma arma primeiro!', 'warning');
+        return;
+    }
+    
+    // Carregar dados do loadout completo
+    $.ajax({
+        url: `/api/items/weapon/${selectedWeapon.id}/loadout`,
+        method: 'GET',
+        success: function(response) {
+            // Implementar lógica do modal de loadout
+            $('#loadoutWeaponName').text(selectedWeapon.name);
+            
+            // Popular grids de magazines, ammunitions e attachments
+            // ... implementação do loadout completo
+        }
+    });
+}
+
 $(document).ready(function() {
     loadPlayers();
-    loadWeapons();
-    loadWeaponsForFilters(); // Carregar armas para filtros
+    loadCalibersFilter();
+    loadWeaponsForFilters();
     loadItemTypes();
-    loadItems();
     renderVehiclesGrid();
     
-    // Event listeners para armas
-    $('#weaponSearch').on('input', function() {
-        loadWeapons();
+    // Seletor global de jogador
+    $('#globalPlayerSelect').on('change', function() {
+        const playerId = $(this).val();
+        if (playerId) {
+            selectedPlayer = playersData.find(p => p.PlayerID === playerId);
+            $('#selectedPlayerInfo').html(`
+                <strong>Jogador selecionado:</strong> ${selectedPlayer.PlayerName} (${selectedPlayer.SteamName})
+            `);
+        } else {
+            selectedPlayer = null;
+            $('#selectedPlayerInfo').html('<small>Nenhum jogador selecionado</small>');
+        }
     });
+    
+    // Event listeners para armas
+    $('#weaponSearchInput').on('input', applyWeaponFilters);
+    $('#filterFeedType, #filterWeaponSize, #filterCaliber').on('change', applyWeaponFilters);
     
     // Event listeners para itens
-    $('#itemTypeSelect, #itemSearch').on('change input', function() {
-        loadItems();
-    });
+    $('#itemSearchInput').on('input', applyItemFilters);
+    $('#filterItemType, #filterItemLocation, #filterItemStorage').on('change', applyItemFilters);
     
     // Event listeners para explosivos
-    $('#explosiveSearch').on('input', function() {
+    $('#explosiveSearchInput').on('input', function() {
         loadExplosives();
     });
     
@@ -643,7 +777,7 @@ $(document).ready(function() {
     $('#ammoWeaponFilter').on('change', function() {
         loadAmmunitions();
     });
-    $('#caliberSelect, #ammoSearch').on('change input', function() {
+    $('#caliberSelect, #ammoSearchInput').on('change input', function() {
         loadAmmunitions();
     });
     
@@ -651,7 +785,7 @@ $(document).ready(function() {
     $('#magazineWeaponFilter').on('change', function() {
         loadMagazines();
     });
-    $('#magazineSearch').on('input', function() {
+    $('#magazineSearchInput').on('input', function() {
         loadMagazines();
     });
     
@@ -659,7 +793,7 @@ $(document).ready(function() {
     $('#attachmentWeaponFilter').on('change', function() {
         loadAttachments();
     });
-    $('#attachmentTypeSelect, #attachmentSearch').on('change input', function() {
+    $('#attachmentTypeSelect, #attachmentSearchInput').on('change input', function() {
         loadAttachments();
     });
     
