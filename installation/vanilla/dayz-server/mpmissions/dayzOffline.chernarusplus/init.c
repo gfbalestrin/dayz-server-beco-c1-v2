@@ -827,10 +827,13 @@ class CustomMission: MissionServer
 		AddOrUpdateActivePlayer(identity, player);
 		
 		// Limpa corpos órfãos/ghosts próximos após 2 segundos
-		PlayerBase pb = PlayerBase.Cast(player);
-		if (pb)
+		if (player)
 		{
-			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(CleanOrphanedBodiesNearPlayer, 2000, false, pb, 100.0);
+			PlayerBase pbForCleanup = PlayerBase.Cast(player);
+			if (pbForCleanup)
+			{
+				GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(CleanOrphanedBodiesNearPlayer, 2000, false, pbForCleanup, 100.0);
+			}
 		}
 		
 		// Verifica se o jogador foi adicionado corretamente
