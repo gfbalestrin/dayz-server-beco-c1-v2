@@ -497,6 +497,67 @@ class CustomMission: MissionServer
 		return null;
 	}
 	
+	// Limpa corpos órfãos/ghosts próximos ao jogador (clone bodies sem Identity)
+	void CleanOrphanedBodiesNearPlayer(PlayerBase player, float radius)
+	{
+		if (!player) return;
+		
+		vector playerPos = player.GetPosition();
+		
+		array<Object> nearbyObjects = new array<Object>();
+		array<CargoBase> proxyCargos = new array<CargoBase>();
+		
+		GetGame().GetObjectsAtPosition(playerPos, radius, nearbyObjects, proxyCargos);
+		
+		int deletedCount = 0;
+		
+		foreach (Object obj : nearbyObjects)
+		{
+			PlayerBase pb = PlayerBase.Cast(obj);
+			if (!pb) continue;
+			
+			if (pb == player) continue;
+			
+			if (!pb.GetIdentity())
+			{
+				vector orphanPos = pb.GetPosition();
+				WriteToLog("CleanOrphanedBodiesNearPlayer(): Corpo órfão detectado (sem Identity) | Pos: " + orphanPos.ToString(), LogFile.INIT, false, LogType.INFO);
+				GetGame().ObjectDelete(pb);
+				deletedCount++;
+				continue;
+			}
+			
+			string pbId = pb.GetIdentity().GetId();
+			bool foundInGetPlayers = false;
+			
+			array<Man> allPlayers = new array<Man>();
+			GetGame().GetPlayers(allPlayers);
+			
+			foreach (Man m : allPlayers)
+			{
+				PlayerBase activePB = PlayerBase.Cast(m);
+				if (activePB && activePB.GetIdentity() && activePB.GetIdentity().GetId() == pbId)
+				{
+					foundInGetPlayers = true;
+					break;
+				}
+			}
+			
+			if (!foundInGetPlayers)
+			{
+				WriteToLog("CleanOrphanedBodiesNearPlayer(): Ghost body detectado (tem Identity mas não em GetPlayers) | ID: " + pbId, LogFile.INIT, false, LogType.INFO);
+				GetGame().ObjectDelete(pb);
+				deletedCount++;
+			}
+		}
+		
+		if (deletedCount > 0)
+		{
+			string summaryMsg = "CleanOrphanedBodiesNearPlayer(): " + deletedCount.ToString() + " corpos órfãos deletados";
+			WriteToLog(summaryMsg, LogFile.INIT, false, LogType.INFO);
+		}
+	}
+	
 	// Limpa jogadores inválidos do array ActivePlayers e força desconexão de ghosts
 	void CleanupInvalidActivePlayers()
 	{
@@ -764,6 +825,13 @@ class CustomMission: MissionServer
 									
 		// Adiciona o jogador à lista
 		AddOrUpdateActivePlayer(identity, player);
+		
+		// Limpa corpos órfãos/ghosts próximos após 2 segundos
+		PlayerBase pb = PlayerBase.Cast(player);
+		if (pb)
+		{
+			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(CleanOrphanedBodiesNearPlayer, 2000, false, pb, 100.0);
+		}
 		
 		// Verifica se o jogador foi adicionado corretamente
 		ActivePlayer addedPlayer = GetActivePlayerById(identity.GetId());
