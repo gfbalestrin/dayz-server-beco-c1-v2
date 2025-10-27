@@ -189,15 +189,19 @@ function applyItemFilters() {
     
     // Filtro por localização
     if (locationFilter) {
-        filtered = filtered.filter(i => i.location === locationFilter);
+        if (locationFilter === 'none') {
+            filtered = filtered.filter(i => !i.localization || i.localization === '' || i.localization === null);
+        } else {
+            filtered = filtered.filter(i => i.localization === locationFilter);
+        }
     }
     
     // Filtro por storage
     if (storageFilter) {
         if (storageFilter === 'with') {
-            filtered = filtered.filter(i => i.storage_width > 0 && i.storage_height > 0);
+            filtered = filtered.filter(i => (i.storage_slots || 0) > 0);
         } else if (storageFilter === 'without') {
-            filtered = filtered.filter(i => !i.storage_width || i.storage_width === 0);
+            filtered = filtered.filter(i => (i.storage_slots || 0) === 0);
         }
     }
     
