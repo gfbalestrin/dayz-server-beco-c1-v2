@@ -15,23 +15,14 @@ let autoRefreshInterval = null;
 let showTrails = false;
 let showVehicles = false;
 let showKills = false;
-let currentMode = 'normal'; // normal, teleport, spawn_item, spawn_vehicle
+let currentMode = 'normal'; // normal, teleport
 let teleportTargetPlayer = null;
-let spawnItemsData = [];
-let spawnVehiclesData = [
-    { type: 'OffroadHatchback', name: 'Hatchback' },
-    { type: 'Sedan_02', name: 'Sedan' },
-    { type: 'CivilianSedan', name: 'Sedan Civil' },
-    { type: 'Hatchback_02', name: 'Hatchback 02' },
-    { type: 'OffroadHatchback_Blue', name: 'Hatchback Azul' },
-    { type: 'Truck_01_Covered', name: 'Caminhão Coberto' },
-    { type: 'V3S_Chassis', name: 'V3S' }
-];
+// Variáveis removidas - funcionalidades de spawn movidas para spawning.html
 
-// Cor padrão do Leaflet
+// Cor padrão do Leaflet - cores mais vibrantes
 const iconColors = [
-    'red', 'blue', 'green', 'orange', 'purple', 'pink', 
-    'yellow', 'brown', 'darkred', 'darkblue', 'darkgreen'
+    '#ff0000', '#0066ff', '#00cc00', '#ff6600', '#9900ff', '#ff0099',
+    '#ffcc00', '#00cccc', '#cc0000', '#0000cc', '#009900'
 ];
 
 // Ícone customizado para veículos
@@ -60,11 +51,6 @@ $(document).ready(function() {
     // Event listeners para modos
     $('#btnModeNormal').on('click', () => setMode('normal'));
     $('#btnModeTeleport').on('click', () => setMode('teleport'));
-    $('#btnModeSpawnItem').on('click', () => setMode('spawn_item'));
-    $('#btnModeSpawnVehicle').on('click', () => setMode('spawn_vehicle'));
-    
-    // Listener para mudança de tipo de item
-    $('#spawnItemTypeSelect').on('change', loadSpawnItems);
     
     // Verificar se há filtro de player_id na URL e aplicar
     const urlParams = new URLSearchParams(window.location.search);
@@ -133,10 +119,6 @@ function initMap() {
     map.on('click', function(e) {
         if (currentMode === 'teleport') {
             handleTeleportClick(e);
-        } else if (currentMode === 'spawn_item') {
-            handleSpawnItemClick(e);
-        } else if (currentMode === 'spawn_vehicle') {
-            handleSpawnVehicleClick(e);
         }
     });
     
@@ -246,7 +228,7 @@ function updatePositions(data) {
         // Criar novo marcador
         const marker = L.marker([lat, lng], {
             icon: createMarkerIcon(color),
-            opacity: player.is_online ? 1.0 : 0.6
+            opacity: player.is_online ? 1.0 : 0.9
         }).addTo(map);
         
         // Adicionar popup
@@ -322,8 +304,8 @@ function drawTrail(playerId, trail) {
     
     const polyline = L.polyline(latlngs, {
         color: color,
-        weight: 3,
-        opacity: 0.6
+        weight: 4,
+        opacity: 0.85
     }).addTo(map);
     
     playerTrails[playerId].push(polyline);
@@ -371,14 +353,14 @@ function drawTrail(playerId, trail) {
                 
                 // Velocidade suspeita (>30 km/h)
                 if (speed > 30) {
-                    pointColor = '#dc3545'; // vermelho
+                    pointColor = '#ff0000'; // vermelho mais vibrante
                     tooltipText += `<br><br><span style="color: #ff5252; font-weight: bold; font-size: 14px; background: rgba(255,0,0,0.2); padding: 4px 8px; border-radius: 4px; display: inline-block;">⚠️ VELOCIDADE SUSPEITA!</span>`;
                 }
             }
         }
         
         // Aumentar raio se houver backup
-        const markerRadius = point.has_backup ? 6 : 4;
+        const markerRadius = point.has_backup ? 7 : 5;
         
         // Criar marcador circular no ponto
         const circleMarker = L.circleMarker(
@@ -389,7 +371,7 @@ function drawTrail(playerId, trail) {
                 color: point.has_backup ? '#4caf50' : 'white',
                 weight: point.has_backup ? 2 : 1,
                 opacity: 1,
-                fillOpacity: 0.8
+                fillOpacity: 1.0
             }
         ).addTo(map);
         
@@ -871,51 +853,19 @@ function setMode(mode) {
     currentMode = mode;
     
     // Atualizar UI dos botões
-    $('#btnModeNormal, #btnModeTeleport, #btnModeSpawnItem, #btnModeSpawnVehicle').removeClass('active');
+    $('#btnModeNormal, #btnModeTeleport').removeClass('active');
     
     // Ocultar todos os controles
-    $('#teleportControls, #spawnItemControls, #spawnVehicleControls').hide();
+    $('#teleportInfo').hide();
     
     if (mode === 'normal') {
         $('#btnModeNormal').addClass('active');
         map.getContainer().style.cursor = '';
     } else if (mode === 'teleport') {
         $('#btnModeTeleport').addClass('active');
-        $('#teleportControls').show();
+        $('#teleportInfo').show();
         map.getContainer().style.cursor = 'crosshair';
-        loadPlayersForTeleport();
-    } else if (mode === 'spawn_item') {
-        $('#btnModeSpawnItem').addClass('active');
-        $('#spawnItemControls').show();
-        map.getContainer().style.cursor = 'crosshair';
-        loadDataForSpawnItem();
-    } else if (mode === 'spawn_vehicle') {
-        $('#btnModeSpawnVehicle').addClass('active');
-        $('#spawnVehicleControls').show();
-        map.getContainer().style.cursor = 'crosshair';
-        loadDataForSpawnVehicle();
     }
-}
-
-/**
- * Carregar jogadores online para o select de teleporte
- */
-function loadPlayersForTeleport() {
-    $.ajax({
-        url: '/api/players/online',
-        method: 'GET',
-        success: function(response) {
-            const select = $('#teleportPlayerSelect');
-            select.html('<option value="">Selecione um jogador...</option>');
-            
-            response.players.forEach(player => {
-                select.append(`<option value="${player.PlayerID}">${player.PlayerName || 'Sem nome'} (${player.SteamName || 'N/A'})</option>`);
-            });
-        },
-        error: function(xhr) {
-            showToast('Erro', 'Erro ao carregar jogadores', 'error');
-        }
-    });
 }
 
 /**
@@ -934,9 +884,9 @@ function pixelToDayz(pixelCoords) {
  * Handler para clique no mapa em modo teleporte
  */
 function handleTeleportClick(e) {
-    const playerId = $('#teleportPlayerSelect').val();
-    if (!playerId) {
-        showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+    const playerId = $('#playerFilter').val();
+    if (!playerId || playerId === '') {
+        showToast('Aviso', 'Selecione um jogador no filtro acima para teleportar', 'warning');
         return;
     }
     
@@ -944,8 +894,8 @@ function handleTeleportClick(e) {
     const pixelCoords = [e.latlng.lat, e.latlng.lng];
     const dayzCoords = pixelToDayz(pixelCoords);
     
-    // Buscar nome do jogador
-    const select = $('#teleportPlayerSelect');
+    // Buscar nome do jogador do filtro
+    const select = $('#playerFilter');
     const playerName = select.find('option:selected').text();
     
     if (!confirm(`Teleportar ${playerName} para X=${dayzCoords.x.toFixed(1)}, Y=${dayzCoords.y.toFixed(1)}?`)) {
@@ -976,156 +926,4 @@ function handleTeleportClick(e) {
     });
 }
 
-/**
- * Carregar dados para spawn de item
- */
-function loadDataForSpawnItem() {
-    // Carregar tipos de itens
-    $.ajax({
-        url: '/api/items/types',
-        method: 'GET',
-        success: function(response) {
-            const select = $('#spawnItemTypeSelect');
-            select.html('<option value="">Todas</option>');
-            response.types.forEach(type => {
-                select.append(`<option value="${type.id}">${type.name}</option>`);
-            });
-        }
-    });
-    
-    // Carregar itens iniciais
-    loadSpawnItems();
-}
-
-/**
- * Carregar itens para spawn
- */
-function loadSpawnItems() {
-    const typeId = $('#spawnItemTypeSelect').val();
-    
-    // Carregar armas
-    $.ajax({
-        url: '/api/items/weapons',
-        method: 'GET',
-        success: function(response) {
-            const weapons = response.weapons;
-            
-            // Carregar itens
-            $.ajax({
-                url: '/api/items/items',
-                method: 'GET',
-                data: { type_id: typeId || null },
-                success: function(response) {
-                    spawnItemsData = [...weapons, ...response.items];
-                    renderSpawnItemSelect();
-                }
-            });
-        }
-    });
-}
-
-/**
- * Renderizar select de itens
- */
-function renderSpawnItemSelect() {
-    const select = $('#spawnItemSelect');
-    select.html('<option value="">Selecione um item...</option>');
-    
-    spawnItemsData.forEach(item => {
-        select.append(`<option value="${item.name_type}">${item.name}</option>`);
-    });
-}
-
-/**
- * Carregar dados para spawn de veículo
- */
-function loadDataForSpawnVehicle() {
-    // Renderizar veículos
-    const select = $('#spawnVehicleSelect');
-    select.html('<option value="">Selecione um veículo...</option>');
-    spawnVehiclesData.forEach(vehicle => {
-        select.append(`<option value="${vehicle.type}">${vehicle.name}</option>`);
-    });
-}
-
-/**
- * Handler para spawn de item
- */
-function handleSpawnItemClick(e) {
-    const itemType = $('#spawnItemSelect').val();
-    const quantity = $('#spawnItemQuantity').val();
-    
-    if (!itemType) {
-        showToast('Aviso', 'Selecione um item primeiro!', 'warning');
-        return;
-    }
-    
-    const pixelCoords = [e.latlng.lat, e.latlng.lng];
-    const dayzCoords = pixelToDayz(pixelCoords);
-    
-    const itemName = $('#spawnItemSelect option:selected').text();
-    
-    if (!confirm(`Spawnar ${quantity}x ${itemName} em X=${dayzCoords.x.toFixed(1)}, Y=${dayzCoords.y.toFixed(1)}?`)) {
-        return;
-    }
-    
-    $.ajax({
-        url: '/api/spawn/item-at-coords',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({
-            item_type: itemType,
-            quantity: quantity,
-            coord_x: dayzCoords.x,
-            coord_y: dayzCoords.y
-        }),
-        success: function(response) {
-            showToast('Sucesso', response.message, 'success');
-        },
-        error: function(xhr) {
-            const error = xhr.responseJSON || {};
-            showToast('Erro', error.message || 'Erro ao spawnar item', 'error');
-        }
-    });
-}
-
-/**
- * Handler para spawn de veículo
- */
-function handleSpawnVehicleClick(e) {
-    const vehicleType = $('#spawnVehicleSelect').val();
-    
-    if (!vehicleType) {
-        showToast('Aviso', 'Selecione um veículo primeiro!', 'warning');
-        return;
-    }
-    
-    const pixelCoords = [e.latlng.lat, e.latlng.lng];
-    const dayzCoords = pixelToDayz(pixelCoords);
-    const vehicleName = $('#spawnVehicleSelect option:selected').text();
-    
-    if (!confirm(`Spawnar ${vehicleName} em X=${dayzCoords.x.toFixed(1)}, Y=${dayzCoords.y.toFixed(1)}?`)) {
-        return;
-    }
-    
-    $.ajax({
-        url: '/api/spawn/vehicle-at-coords',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({
-            vehicle_type: vehicleType,
-            coord_x: dayzCoords.x,
-            coord_y: dayzCoords.y
-        }),
-        success: function(response) {
-            showToast('Sucesso', response.message, 'success');
-            setTimeout(() => {
-                if (showVehicles) loadVehicles();
-            }, 1000);
-        },
-        error: function(xhr) {
-            const error = xhr.responseJSON || {};
-            showToast('Erro', error.message || 'Erro ao spawnar veículo', 'error');
-        }
-    });
-}
+// Funções de spawn removidas - funcionalidades movidas para spawning.html
