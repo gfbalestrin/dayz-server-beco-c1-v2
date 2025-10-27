@@ -106,6 +106,54 @@ class CustomMission: MissionServer
 		string playerId = identity.GetId();
 		
 		// ============================================================================
+		// DETECÇÃO DE DUPLICAÇÃO NO MUNDO
+		// Verifica se já existe personagem físico com mesmo PlayerID
+		// ============================================================================
+		array<Man> allPlayers = new array<Man>();
+		GetGame().GetPlayers(allPlayers);
+		
+		int duplicateCount = 0;
+		Man firstFoundMan = null;
+		
+		foreach (Man m : allPlayers)
+		{
+			PlayerBase pb = PlayerBase.Cast(m);
+			if (pb && pb.GetIdentity() && pb.GetIdentity().GetId() == playerId)
+			{
+				duplicateCount++;
+				if (!firstFoundMan)
+					firstFoundMan = m;
+					
+				WriteToLog("AddOrUpdateActivePlayer(): DETECTADO personagem no mundo #" + duplicateCount + 
+					" com PlayerID: " + playerId + " | Nome: " + pb.GetIdentity().GetName() + 
+					" | Pos: " + pb.GetPosition().ToString(), LogFile.INIT, false, LogType.INFO);
+			}
+		}
+		
+		if (duplicateCount > 1)
+		{
+			WriteToLog("AddOrUpdateActivePlayer(): ALERTA! Múltiplos personagens detectados (" + 
+				duplicateCount + ") para o mesmo PlayerID!", LogFile.INIT, false, LogType.ERROR);
+		}
+		
+		string playerParamStatus = "NULL";
+		if (player)
+			playerParamStatus = "VÁLIDO";
+		
+		WriteToLog("AddOrUpdateActivePlayer(): Resumo - Duplicados: " + duplicateCount + " | player param: " + playerParamStatus, LogFile.INIT, false, LogType.DEBUG);
+		
+		if (duplicateCount == 1 && !player)
+		{
+			WriteToLog("AddOrUpdateActivePlayer(): ALERTA! Personagem já existe no mundo mas player param é NULL", 
+				LogFile.INIT, false, LogType.WARN);
+		}
+		else if (duplicateCount == 1 && player && firstFoundMan != player)
+		{
+			WriteToLog("AddOrUpdateActivePlayer(): DUPLICAÇÃO CRÍTICA! Personagem existente é DIFERENTE do novo!", 
+				LogFile.INIT, false, LogType.ERROR);
+		}
+		
+		// ============================================================================
 		// DEBUG: Verifica se player está presente
 		// ============================================================================
 		string playerStatus = "NULL";
