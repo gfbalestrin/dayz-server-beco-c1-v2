@@ -1203,9 +1203,10 @@ def api_manage_item_delete(item_id):
 @login_required
 def api_manage_item_compatibility_update(item_id):
     data = request.get_json()
-    compatible_ids = data.get('compatible_ids', [])
+    parent_ids = data.get('parents', [])
+    child_ids = data.get('children', [])
     try:
-        success = update_item_compatibility(item_id, compatible_ids)
+        success = update_item_compatibility(item_id, parent_ids, child_ids)
         return jsonify({'success': success})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400

@@ -6,10 +6,18 @@ let allAmmunitions = [];
 let allMagazines = [];
 let allAttachments = [];
 
+// Dados para outras abas
+let explosivesData = [];
+let ammunitionsData = [];
+let magazinesData = [];
+let attachmentsData = [];
+let calibersData = [];
+let itemTypesData = [];
+
 $(document).ready(function() {
     loadWeapons();
     
-    // Event listeners
+    // Event listeners - Armas
     $('#btnAddWeapon').on('click', showAddWeaponModal);
     $('#btnSaveWeapon').on('click', saveWeapon);
     $('#btnValidateType').on('click', validateNameType);
@@ -22,6 +30,17 @@ $(document).ready(function() {
     $('#ammoSearchInput').on('input', () => filterRelationships('ammo'));
     $('#magsSearchInput').on('input', () => filterRelationships('mags'));
     $('#attsSearchInput').on('input', () => filterRelationships('atts'));
+    
+    // Event listeners para outras abas
+    $('a[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
+        const target = $(e.target).attr('href');
+        if (target === '#explosives-tab' && explosivesData.length === 0) loadExplosives();
+        else if (target === '#ammo-tab' && ammunitionsData.length === 0) loadAmmunitions();
+        else if (target === '#magazines-tab' && magazinesData.length === 0) loadMagazines();
+        else if (target === '#attachments-tab' && attachmentsData.length === 0) loadAttachments();
+        else if (target === '#calibers-tab' && calibersData.length === 0) loadCalibers();
+        else if (target === '#types-tab' && itemTypesData.length === 0) loadItemTypes();
+    });
 });
 
 // === GRID DE ARMAS ===
@@ -423,3 +442,689 @@ function deleteWeapon(weaponId) {
     });
 }
 
+// ============================================================================
+// FUNÇÕES PARA OUTRAS ABAS
+// ============================================================================
+
+// === EXPLOSIVOS ===
+function loadExplosives() {
+    $.ajax({
+        url: '/api/manage/explosives',
+        method: 'GET',
+        success: function(response) {
+            explosivesData = response.explosives;
+            renderGrid('explosives', explosivesData, $('#explosivesGrid'));
+        }
+    });
+}
+
+// === MUNIÇÕES ===
+function loadAmmunitions() {
+    $.ajax({
+        url: '/api/manage/ammunitions',
+        method: 'GET',
+        success: function(response) {
+            ammunitionsData = response.ammunitions;
+            renderGrid('ammunitions', ammunitionsData, $('#ammunitionsGrid'));
+        }
+    });
+}
+
+// === MAGAZINES ===
+function loadMagazines() {
+    $.ajax({
+        url: '/api/manage/magazines',
+        method: 'GET',
+        success: function(response) {
+            magazinesData = response.magazines;
+            renderGrid('magazines', magazinesData, $('#magazinesGrid'));
+        }
+    });
+}
+
+// === ATTACHMENTS ===
+function loadAttachments() {
+    $.ajax({
+        url: '/api/manage/attachments',
+        method: 'GET',
+        success: function(response) {
+            attachmentsData = response.attachments;
+            renderGrid('attachments', attachmentsData, $('#attachmentsGrid'));
+        }
+    });
+}
+
+// === CALIBERS ===
+function loadCalibers() {
+    $.ajax({
+        url: '/api/manage/calibers',
+        method: 'GET',
+        success: function(response) {
+            calibersData = response.calibers;
+            // Calibers usa tabela simples (apenas nome)
+            const tbody = $('#calibersTable tbody');
+            tbody.empty();
+            calibersData.forEach(caliber => {
+                tbody.append(`
+                    <tr>
+                        <td>${caliber.id}</td>
+                        <td>${caliber.name}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="editCaliber(${caliber.id})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger ms-1" onclick="deleteCaliber(${caliber.id})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `);
+            });
+        }
+    });
+}
+
+// === TIPOS DE ITEM ===
+function loadItemTypes() {
+    $.ajax({
+        url: '/api/manage/item-types',
+        method: 'GET',
+        success: function(response) {
+            itemTypesData = response.types;
+            const tbody = $('#itemTypesTable tbody');
+            tbody.empty();
+            itemTypesData.forEach(type => {
+                tbody.append(`
+                    <tr>
+                        <td>${type.id}</td>
+                        <td>${type.name}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="editItemType(${type.id})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger ms-1" onclick="deleteItemType(${type.id})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `);
+            });
+        }
+    });
+}
+
+// === FUNÇÃO GENÉRICA PARA RENDERIZAR GRID ===
+function renderGrid(type, data, grid) {
+    grid.empty();
+    
+    if (data.length === 0) {
+        grid.html('<div class="text-center p-5">Nenhum item encontrado</div>');
+        return;
+    }
+    
+    data.forEach(item => {
+        const info = type === 'explosives' 
+            ? `${item.slots || 0} slots | ${item.width || 0}x${item.height || 0}`
+            : type === 'ammunitions'
+            ? `Calibre ID: ${item.caliber_id || 'N/A'} | ${item.slots || 0} slots`
+            : type === 'magazines'
+            ? `Cap: ${item.capacity || 'N/A'} | ${item.slots || 0} slots`
+            : type === 'items'
+            ? `${item.slots || 0} slots | ${item.width || 0}x${item.height || 0}`
+            : `Tipo: ${item.type || 'N/A'} | ${item.slots || 0} slots`;
+        
+        const card = $(`
+            <div class="weapon-card">
+                <div class="weapon-actions">
+                    <button class="btn btn-sm btn-primary me-1" onclick="edit${capitalize(type)}(${item.id})">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="delete${capitalize(type)}(${item.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+                <img src="${item.img}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/120?text=No+Image'">
+                <div class="weapon-name">${item.name}</div>
+                <div class="weapon-info">
+                    ${item.name_type || 'N/A'}<br>
+                    ${info}
+                </div>
+            </div>
+        `);
+        grid.append(card);
+    });
+}
+
+function capitalize(str) {
+    // Para "items" -> "Item", "explosives" -> "Explosive", etc.
+    if (str.endsWith('s')) {
+        return str.charAt(0).toUpperCase() + str.slice(1, -1);
+    }
+    return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// === FUNÇÕES DE EDIÇÃO E EXCLUSÃO GENÉRICAS ===
+// Estas funções são chamadas dinamicamente via onclick nos cards
+
+function editExplosives(id) {
+    console.log('Editar explosivo:', id);
+    showToast('Info', 'Funcionalidade em desenvolvimento', 'info');
+}
+
+function deleteExplosives(id) {
+    if (!confirm('Excluir este explosivo?')) return;
+    $.ajax({
+        url: `/api/manage/explosives/${id}`,
+        method: 'DELETE',
+        success: function() {
+            showToast('Sucesso', 'Explosivo excluído!', 'success');
+            loadExplosives();
+        }
+    });
+}
+
+function editAmmunitions(id) {
+    console.log('Editar munição:', id);
+    showToast('Info', 'Funcionalidade em desenvolvimento', 'info');
+}
+
+function deleteAmmunitions(id) {
+    if (!confirm('Excluir esta munição?')) return;
+    $.ajax({
+        url: `/api/manage/ammunitions/${id}`,
+        method: 'DELETE',
+        success: function() {
+            showToast('Sucesso', 'Munição excluída!', 'success');
+            loadAmmunitions();
+        }
+    });
+}
+
+function editMagazines(id) {
+    console.log('Editar magazine:', id);
+    showToast('Info', 'Funcionalidade em desenvolvimento', 'info');
+}
+
+function deleteMagazines(id) {
+    if (!confirm('Excluir este magazine?')) return;
+    $.ajax({
+        url: `/api/manage/magazines/${id}`,
+        method: 'DELETE',
+        success: function() {
+            showToast('Sucesso', 'Magazine excluído!', 'success');
+            loadMagazines();
+        }
+    });
+}
+
+function editAttachments(id) {
+    console.log('Editar attachment:', id);
+    showToast('Info', 'Funcionalidade em desenvolvimento', 'info');
+}
+
+function deleteAttachments(id) {
+    if (!confirm('Excluir este attachment?')) return;
+    $.ajax({
+        url: `/api/manage/attachments/${id}`,
+        method: 'DELETE',
+        success: function() {
+            showToast('Sucesso', 'Attachment excluído!', 'success');
+            loadAttachments();
+        }
+    });
+}
+
+function editCaliber(id) {
+    const caliber = calibersData.find(c => c.id === id);
+    if (!caliber) return;
+    
+    $('#caliberModalId').val(caliber.id);
+    $('#caliberName').val(caliber.name);
+    $('#caliberModal').modal('show');
+}
+
+function deleteCaliber(id) {
+    if (!confirm('Excluir este calibre?')) return;
+    $.ajax({
+        url: `/api/manage/calibers/${id}`,
+        method: 'DELETE',
+        success: function() {
+            showToast('Sucesso', 'Calibre excluído!', 'success');
+            loadCalibers();
+        }
+    });
+}
+
+function editItemType(id) {
+    const type = itemTypesData.find(t => t.id === id);
+    if (!type) return;
+    
+    $('#itemTypeModalId').val(type.id);
+    $('#itemTypeName').val(type.name);
+    $('#itemTypeModal').modal('show');
+}
+
+function deleteItemType(id) {
+    if (!confirm('Excluir este tipo de item?')) return;
+    $.ajax({
+        url: `/api/manage/item-types/${id}`,
+        method: 'DELETE',
+        success: function() {
+            showToast('Sucesso', 'Tipo de item excluído!', 'success');
+            loadItemTypes();
+        }
+    });
+}
+
+// Salvamento
+$(document).on('click', '#btnSaveCaliber', function() {
+    const id = $('#caliberModalId').val();
+    const isNew = !id;
+    const data = { name: $('#caliberName').val() };
+    
+    const url = isNew ? '/api/manage/calibers' : `/api/manage/calibers/${id}`;
+    const method = isNew ? 'POST' : 'PUT';
+    
+    $.ajax({
+        url: url,
+        method: method,
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function() {
+            showToast('Sucesso', 'Calibre salvo!', 'success');
+            $('#caliberModal').modal('hide');
+            loadCalibers();
+        }
+    });
+});
+
+$(document).on('click', '#btnSaveItemType', function() {
+    const id = $('#itemTypeModalId').val();
+    const isNew = !id;
+    const data = { name: $('#itemTypeName').val() };
+    
+    const url = isNew ? '/api/manage/item-types' : `/api/manage/item-types/${id}`;
+    const method = isNew ? 'POST' : 'PUT';
+    
+    $.ajax({
+        url: url,
+        method: method,
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function() {
+            showToast('Sucesso', 'Tipo de item salvo!', 'success');
+            $('#itemTypeModal').modal('hide');
+            loadItemTypes();
+        }
+    });
+});
+
+// Botões de adicionar
+$('#btnAddCaliber').on('click', function() {
+    $('#caliberModalId').val('');
+    $('#caliberForm')[0].reset();
+    $('#caliberModal').modal('show');
+});
+
+$('#btnAddItemType').on('click', function() {
+    $('#itemTypeModalId').val('');
+    $('#itemTypeForm')[0].reset();
+    $('#itemTypeModal').modal('show');
+});
+
+// ============================================================================
+// FUNÇÕES PARA ABA DE ITENS
+// ============================================================================
+
+// Dados globais
+let itemsData = [];
+let allItems = [];
+let selectedParentItems = [];
+let selectedChildItems = [];
+let itemTypes = [];
+
+// Event listeners
+$('#btnAddItem').on('click', showAddItemModal);
+$('#btnSaveItem').on('click', saveItem);
+$('#btnValidateItemType').on('click', validateItemNameType);
+$('#itemSearchInput').on('input', filterItems);
+
+// Cálculo automático
+$('#itemWidth, #itemHeight').on('input', calculateItemSlots);
+$('#itemStorageWidth, #itemStorageHeight').on('input', calculateItemStorageSlots);
+
+// Busca em relacionamentos
+$('#parentsSearchInput').on('input', function() {
+    filterItemRelationships('parents');
+});
+$('#childrenSearchInput').on('input', function() {
+    filterItemRelationships('children');
+});
+
+// Carregar itens ao trocar de aba
+$('a[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
+    const target = $(e.target).attr('href');
+    if (target === '#items-tab' && itemsData.length === 0) {
+        loadItems();
+    }
+});
+
+function loadItems() {
+    $.ajax({
+        url: '/api/manage/items',
+        method: 'GET',
+        success: function(response) {
+            itemsData = response.items;
+            renderGrid('items', itemsData, $('#itemsGrid'));
+        }
+    });
+}
+
+function filterItems() {
+    const filter = $('#itemSearchInput').val();
+    const filtered = itemsData.filter(item =>
+        item.name.toLowerCase().includes(filter.toLowerCase()) ||
+        item.name_type.toLowerCase().includes(filter.toLowerCase())
+    );
+    renderGrid('items', filtered, $('#itemsGrid'));
+}
+
+function showAddItemModal() {
+    $('#itemId').val('');
+    $('#itemForm')[0].reset();
+    $('#itemTypeValidationFeedback').text('').removeClass('valid invalid');
+    selectedParentItems = [];
+    selectedChildItems = [];
+    loadItemTypes();
+    loadAllItemsForCompatibility();
+    $('#itemModal').modal('show');
+}
+
+function loadItemTypes() {
+    $.ajax({
+        url: '/api/manage/item-types',
+        method: 'GET',
+        success: function(response) {
+            itemTypes = response.types;
+            const select = $('#itemTypeId');
+            select.empty();
+            select.append('<option value="">Selecione...</option>');
+            itemTypes.forEach(type => {
+                select.append(`<option value="${type.id}">${type.name}</option>`);
+            });
+        }
+    });
+}
+
+function loadAllItemsForCompatibility() {
+    $.ajax({
+        url: '/api/manage/items',
+        method: 'GET',
+        data: { limit: 1000 },
+        success: function(response) {
+            allItems = response.items;
+            renderItemCompatibilityGrid('parents');
+            renderItemCompatibilityGrid('children');
+        }
+    });
+}
+
+function calculateItemSlots() {
+    const width = parseInt($('#itemWidth').val()) || 0;
+    const height = parseInt($('#itemHeight').val()) || 0;
+    $('#itemSlots').val(width * height);
+}
+
+function calculateItemStorageSlots() {
+    const width = parseInt($('#itemStorageWidth').val()) || 0;
+    const height = parseInt($('#itemStorageHeight').val()) || 0;
+    $('#itemStorageSlots').val(width * height);
+}
+
+function validateItemNameType() {
+    const nameType = $('#itemNameType').val();
+    if (!nameType) {
+        $('#itemTypeValidationFeedback').text('Digite um name_type').removeClass('valid invalid');
+        return;
+    }
+    
+    $.ajax({
+        url: `/api/validate/item-type/${encodeURIComponent(nameType)}`,
+        method: 'GET',
+        success: function(response) {
+            if (response.valid) {
+                $('#itemTypeValidationFeedback')
+                    .text('✓ Name type válido!')
+                    .removeClass('invalid')
+                    .addClass('valid');
+            } else {
+                $('#itemTypeValidationFeedback')
+                    .text('✗ Name type não encontrado no types.xml')
+                    .removeClass('valid')
+                    .addClass('invalid');
+            }
+        }
+    });
+}
+
+function renderItemCompatibilityGrid(type) {
+    const selected = type === 'parents' ? selectedParentItems : selectedChildItems;
+    const gridId = type === 'parents' ? '#parentsGrid' : '#childrenGrid';
+    const grid = $(gridId);
+    grid.empty();
+    
+    allItems.forEach(item => {
+        const isSelected = selected.includes(item.id);
+        const card = $(`
+            <div class="relationship-item ${isSelected ? 'selected' : ''}" data-id="${item.id}">
+                <div class="checkbox-indicator"></div>
+                <img src="${item.img}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                <div class="item-name" title="${item.name}">${item.name}</div>
+            </div>
+        `);
+        
+        card.on('click', function() {
+            toggleItemCompatibility(type, item.id);
+        });
+        
+        grid.append(card);
+    });
+    
+    updateItemSelectedSection(type);
+    updateItemBadgeCount(type);
+}
+
+function toggleItemCompatibility(type, itemId) {
+    const selected = type === 'parents' ? selectedParentItems : selectedChildItems;
+    const index = selected.indexOf(itemId);
+    
+    if (index > -1) {
+        selected.splice(index, 1);
+    } else {
+        selected.push(itemId);
+    }
+    
+    renderItemCompatibilityGrid(type);
+}
+
+function updateItemSelectedSection(type) {
+    const selected = type === 'parents' ? selectedParentItems : selectedChildItems;
+    const sectionId = type === 'parents' ? '#selectedParents .selected-items-grid' : '#selectedChildren .selected-items-grid';
+    const section = $(sectionId);
+    section.empty();
+    
+    if (selected.length === 0) {
+        section.html('<span class="text-muted">Nenhum item selecionado</span>');
+        return;
+    }
+    
+    selected.forEach(id => {
+        const item = allItems.find(i => i.id === id);
+        if (item) {
+            const badge = $(`
+                <div class="selected-item-badge">
+                    ${item.name}
+                    <span class="remove-btn" data-id="${id}">×</span>
+                </div>
+            `);
+            
+            badge.find('.remove-btn').on('click', function(e) {
+                e.stopPropagation();
+                toggleItemCompatibility(type, id);
+            });
+            
+            section.append(badge);
+        }
+    });
+}
+
+function updateItemBadgeCount(type) {
+    const count = type === 'parents' ? selectedParentItems.length : selectedChildItems.length;
+    const badgeId = type === 'parents' ? '#parentsCount' : '#childrenCount';
+    $(badgeId).text(count);
+}
+
+function filterItemRelationships(type) {
+    const searchTerm = type === 'parents' ? $('#parentsSearchInput').val() : $('#childrenSearchInput').val();
+    const gridId = type === 'parents' ? '#parentsGrid' : '#childrenGrid';
+    const grid = $(gridId);
+    
+    grid.find('.relationship-item').each(function() {
+        const item = $(this);
+        const name = item.find('.item-name').text().toLowerCase();
+        if (name.includes(searchTerm.toLowerCase())) {
+            item.show();
+        } else {
+            item.hide();
+        }
+    });
+}
+
+function editItem(itemId) {
+    $.ajax({
+        url: `/api/manage/items/${itemId}`,
+        method: 'GET',
+        success: function(response) {
+            const item = response.item;
+            const compat = response.compatibility;
+            
+            $('#itemId').val(item.id);
+            $('#itemName').val(item.name);
+            $('#itemNameType').val(item.name_type);
+            $('#itemWidth').val(item.width);
+            $('#itemHeight').val(item.height);
+            $('#itemSlots').val(item.slots);
+            $('#itemStorageWidth').val(item.storage_width || 0);
+            $('#itemStorageHeight').val(item.storage_height || 0);
+            $('#itemStorageSlots').val(item.storage_slots || 0);
+            $('#itemLocalization').val(item.localization || '');
+            $('#itemImg').val(item.img);
+            
+            // Carregar compatibilidades
+            selectedParentItems = compat.parents.map(p => p.id);
+            selectedChildItems = compat.children.map(c => c.id);
+            
+            // Carregar tipos e definir o valor após o carregamento
+            $.ajax({
+                url: '/api/manage/item-types',
+                method: 'GET',
+                success: function(response) {
+                    itemTypes = response.types;
+                    const select = $('#itemTypeId');
+                    select.empty();
+                    select.append('<option value="">Selecione...</option>');
+                    itemTypes.forEach(type => {
+                        select.append(`<option value="${type.id}">${type.name}</option>`);
+                    });
+                    // Definir o valor atual após popular o select
+                    select.val(item.type_id);
+                }
+            });
+            
+            loadAllItemsForCompatibility();
+            $('#itemModal').modal('show');
+        }
+    });
+}
+
+function saveItem() {
+    const itemId = $('#itemId').val();
+    const isNew = !itemId;
+    
+    const itemData = {
+        name: $('#itemName').val(),
+        name_type: $('#itemNameType').val(),
+        type_id: parseInt($('#itemTypeId').val()),
+        slots: parseInt($('#itemSlots').val()),
+        width: parseInt($('#itemWidth').val()),
+        height: parseInt($('#itemHeight').val()),
+        storage_slots: parseInt($('#itemStorageSlots').val()) || 0,
+        storage_width: parseInt($('#itemStorageWidth').val()) || 0,
+        storage_height: parseInt($('#itemStorageHeight').val()) || 0,
+        localization: $('#itemLocalization').val() || '',
+        img: $('#itemImg').val()
+    };
+    
+    // Validação
+    if (!itemData.name || !itemData.name_type || !itemData.type_id) {
+        showToast('Erro', 'Preencha todos os campos obrigatórios', 'error');
+        return;
+    }
+    
+    const url = isNew ? '/api/manage/items' : `/api/manage/items/${itemId}`;
+    const method = isNew ? 'POST' : 'PUT';
+    
+    $.ajax({
+        url: url,
+        method: method,
+        contentType: 'application/json',
+        data: JSON.stringify(itemData),
+        success: function(response) {
+            const savedId = isNew ? response.id : itemId;
+            
+            // Salvar compatibilidades
+            $.ajax({
+                url: `/api/manage/items/${savedId}/compatibility`,
+                method: 'PUT',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    parents: selectedParentItems,
+                    children: selectedChildItems
+                }),
+                success: function() {
+                    showToast('Sucesso', 'Item salvo com sucesso!', 'success');
+                    $('#itemModal').modal('hide');
+                    loadItems();
+                },
+                error: function() {
+                    showToast('Erro', 'Erro ao salvar compatibilidades', 'error');
+                }
+            });
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            showToast('Erro', error.error || 'Erro ao salvar item', 'error');
+        }
+    });
+}
+
+function deleteItem(itemId) {
+    if (!confirm('Tem certeza que deseja excluir este item?')) return;
+    
+    $.ajax({
+        url: `/api/manage/items/${itemId}`,
+        method: 'DELETE',
+        success: function() {
+            showToast('Sucesso', 'Item excluído com sucesso!', 'success');
+            loadItems();
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            showToast('Erro', error.error || 'Erro ao excluir item', 'error');
+        }
+    });
+}
+
+// Exportar para global scope (para onclick nos cards)
+window.editItem = editItem;
+window.deleteItem = deleteItem;

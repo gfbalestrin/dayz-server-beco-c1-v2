@@ -341,7 +341,7 @@ def get_items(type_id: int = None, search: str = None, limit: int = 50) -> List[
     """Retorna lista de itens com filtros opcionais"""
     with DatabaseConnection(config.DB_ITEMS) as conn:
         cursor = conn.cursor()
-        query = "SELECT id, name, name_type, type_id, img FROM item WHERE 1=1"
+        query = "SELECT id, name, name_type, type_id, slots, width, height, img FROM item WHERE 1=1"
         params = []
         
         if type_id:
@@ -960,28 +960,56 @@ def get_item_by_id(item_id: int) -> Dict:
         row = cursor.fetchone()
         return dict(row) if row else None
 
-def get_item_compatibility(item_id: int) -> List[Dict]:
-    """Retorna itens compatíveis com um item"""
+def get_item_compatibility(item_id: int) -> Dict:
+    """Retorna relacionamentos de compatibilidade de um item"""
     with DatabaseConnection(config.DB_ITEMS) as conn:
         cursor = conn.cursor()
+        
+        # Itens que ESTE item encaixa (parents)
+        cursor.execute("""
+            SELECT i.* FROM item i
+            INNER JOIN item_compatibility ic ON i.id = ic.parent_item_id
+            WHERE ic.child_item_id = ?
+        """, (item_id,))
+        parents = [dict(row) for row in cursor.fetchall()]
+        
+        # Itens que encaixam NESTE item (children)
         cursor.execute("""
             SELECT i.* FROM item i
             INNER JOIN item_compatibility ic ON i.id = ic.child_item_id
             WHERE ic.parent_item_id = ?
         """, (item_id,))
-        return [dict(row) for row in cursor.fetchall()]
+        children = [dict(row) for row in cursor.fetchall()]
+        
+        return {
+            'parents': parents,  # Este item encaixa em...
+            'children': children  # Este item recebe...
+        }
 
-def update_item_compatibility(item_id: int, compatible_ids: List[int]) -> bool:
-    """Atualiza a compatibilidade de itens"""
+def update_item_compatibility(item_id: int, parent_ids: List[int], child_ids: List[int]) -> bool:
+    """Atualiza a compatibilidade de itens (relação recursiva)"""
     with DatabaseConnection(config.DB_ITEMS) as conn:
         cursor = conn.cursor()
+        
+        # Remover relacionamentos onde ESTE item é filho (encaixa em...)
+        cursor.execute("DELETE FROM item_compatibility WHERE child_item_id=?", (item_id,))
+        
+        # Remover relacionamentos onde ESTE item é pai (recebe...)
         cursor.execute("DELETE FROM item_compatibility WHERE parent_item_id=?", (item_id,))
         
-        for comp_id in compatible_ids:
+        # Inserir novos relacionamentos como filho (encaixa em...)
+        for parent_id in parent_ids:
             cursor.execute("""
                 INSERT INTO item_compatibility (parent_item_id, child_item_id) 
                 VALUES (?, ?)
-            """, (item_id, comp_id))
+            """, (parent_id, item_id))
+        
+        # Inserir novos relacionamentos como pai (recebe...)
+        for child_id in child_ids:
+            cursor.execute("""
+                INSERT INTO item_compatibility (parent_item_id, child_item_id) 
+                VALUES (?, ?)
+            """, (item_id, child_id))
         
         conn.commit()
         return True
