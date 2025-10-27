@@ -49,7 +49,7 @@ bool SpawnVehicleWithParts(vector pos, string vehicleType)
         case "Hatchback_02":
             battery = "CarBattery";
             plug = "SparkPlug";
-            wheel = "HatchbackWheel";
+            wheel = "Hatchback_02_Wheel";
             parts = {
                 "Hatchback_02_Door_1_1",
                 "Hatchback_02_Door_1_2",
@@ -117,12 +117,10 @@ bool SpawnVehicleWithParts(vector pos, string vehicleType)
             plug = "SparkPlug";
             wheel = "HatchbackWheel";
             parts = {
-                "Hatchback_02_Door_1_1",
-                "Hatchback_02_Door_1_2",
-                "Hatchback_02_Door_2_1",
-                "Hatchback_02_Door_2_2",
-                "Hatchback_02_Hood",
-                "Hatchback_02_Trunk",
+                "HatchbackDoors_Driver",
+                "HatchbackDoors_CoDriver",
+                "HatchbackHood", // Capo
+                "HatchbackTrunk", // Porta-malas
                 "CarRadiator",
                 "HeadlightH7",
                 "HeadlightH7"
@@ -147,7 +145,6 @@ bool SpawnVehicleWithParts(vector pos, string vehicleType)
             break;
 
         case "Truck_01_Covered":
-        case "Truck_01_Open":
             battery = "TruckBattery";
             plug = "GlowPlug";
             wheel = "Truck_01_Wheel";
