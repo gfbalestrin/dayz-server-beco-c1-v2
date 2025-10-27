@@ -201,6 +201,10 @@ function updatePositions(data) {
         playerMarkers = {};
     }
     
+    // Contadores de jogadores exibidos
+    let onlineCount = 0;
+    let offlineCount = 0;
+    
     // Processar cada jogador
     data.players.forEach(function(player) {
         const playerId = player.player_id;
@@ -220,6 +224,13 @@ function updatePositions(data) {
                 delete playerMarkers[playerId];
             }
             return;
+        }
+        
+        // Contar jogador (somente se passou pelo filtro)
+        if (player.is_online) {
+            onlineCount++;
+        } else {
+            offlineCount++;
         }
         
         const color = getPlayerColor(playerId);
@@ -263,6 +274,11 @@ function updatePositions(data) {
         
         playerMarkers[playerId] = marker;
     });
+    
+    // Atualizar contadores na UI
+    $('#mapOnlineCount').text(onlineCount);
+    $('#mapOfflineCount').text(offlineCount);
+    $('#mapTotalCount').text(onlineCount + offlineCount);
     
     hideLoading();
     console.log(`Posições atualizadas: ${data.players.length} jogadores`);
