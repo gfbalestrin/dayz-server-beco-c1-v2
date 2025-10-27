@@ -86,7 +86,7 @@ function initMap() {
         maxZoom: 3,
         maxBounds: [[0, 0], [4096, 4096]],
         maxBoundsViscosity: 1.0,  // Impede arrastar para fora dos limites
-        zoom: 0,
+        zoom: -2,  // Iniciar no zoom mínimo para ver mapa completo
         center: [2048, 2048],  // Centro do mapa 4096x4096
         zoomControl: true,
         attributionControl: false
@@ -406,10 +406,12 @@ function drawTrail(playerId, trail) {
         // Adicionar cursor pointer
         circleMarker.getElement().style.cursor = 'pointer';
         
-        // Adicionar tooltip
+        // Adicionar tooltip (direção dinâmica baseada na posição)
+        // Valores altos de Y (pixel_coords[0]) representam o norte do mapa
+        const tooltipDirection = point.pixel_coords[0] > 3000 ? 'bottom' : 'top';
         circleMarker.bindTooltip(tooltipText, {
             permanent: false,
-            direction: 'top',
+            direction: tooltipDirection,
             className: 'trail-tooltip'
         });
         
@@ -436,7 +438,9 @@ function toggleTrails() {
         trailDateFilter.startDate = null;
         trailDateFilter.endDate = null;
         $('#trailStartDate').val('');
+        $('#trailStartTime').val('');
         $('#trailEndDate').val('');
+        $('#trailEndTime').val('');
         // Remover todos os trails
         Object.keys(playerTrails).forEach(function(key) {
             const trail = playerTrails[key];
@@ -465,12 +469,14 @@ function filterPlayers() {
  */
 function applyTrailDateFilter() {
     const startDate = $('#trailStartDate').val();
+    const startTime = $('#trailStartTime').val() || '00:00:00';
     const endDate = $('#trailEndDate').val();
+    const endTime = $('#trailEndTime').val() || '23:59:59';
     
     if (startDate && endDate) {
         trailDateFilter.enabled = true;
-        trailDateFilter.startDate = new Date(startDate);
-        trailDateFilter.endDate = new Date(endDate);
+        trailDateFilter.startDate = new Date(`${startDate}T${startTime}`);
+        trailDateFilter.endDate = new Date(`${endDate}T${endTime}`);
     } else {
         trailDateFilter.enabled = false;
         trailDateFilter.startDate = null;

@@ -53,18 +53,32 @@
             <div class="card-body">
                 <h6><i class="fas fa-filter me-2"></i>Filtrar Trails por Data/Hora</h6>
                 <div class="row">
-                    <div class="col-md-4">
-                        <label class="form-label">Data Início</label>
-                        <input type="datetime-local" id="trailStartDate" class="form-control">
+                    <div class="col-md-3">
+                        <label class="form-label">Data/Hora Início</label>
+                        <div class="row">
+                            <div class="col-7">
+                                <input type="date" id="trailStartDate" class="form-control">
+                            </div>
+                            <div class="col-5">
+                                <input type="time" id="trailStartTime" class="form-control" step="1">
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Data Fim</label>
-                        <input type="datetime-local" id="trailEndDate" class="form-control">
+                    <div class="col-md-3">
+                        <label class="form-label">Data/Hora Fim</label>
+                        <div class="row">
+                            <div class="col-7">
+                                <input type="date" id="trailEndDate" class="form-control">
+                            </div>
+                            <div class="col-5">
+                                <input type="time" id="trailEndTime" class="form-control" step="1">
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-2">
                         <label class="form-label">&nbsp;</label>
                         <button class="btn btn-primary w-100" id="applyTrailFilter">
-                            <i class="fas fa-filter me-2"></i>Aplicar Filtro
+                            <i class="fas fa-filter me-2"></i>Aplicar
                         </button>
                     </div>
                 </div>
