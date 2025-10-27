@@ -95,58 +95,79 @@ def get_vehicles_tracking(limit: int = 1000) -> List[Dict]:
         return [dict(row) for row in cursor.fetchall()]
 
 def get_vehicles_last_position() -> List[Dict]:
-    """Retorna a última posição de cada veículo"""
+    """Retorna apenas veículos do último timestamp de rastreamento (veículos atualmente ativos)"""
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT v1.VehicleId, v1.VehicleName,
-                   v1.PositionX, v1.PositionY, v1.PositionZ, v1.TimeStamp, v1.IdVehicleTracking
-            FROM vehicles_tracking v1
-            INNER JOIN (
-                SELECT VehicleId, MAX(TimeStamp) as MaxTime
-                FROM vehicles_tracking
-                GROUP BY VehicleId
-            ) v2 ON v1.VehicleId = v2.VehicleId AND v1.TimeStamp = v2.MaxTime
-            ORDER BY v1.VehicleName
+            SELECT VehicleId, VehicleName,
+                   PositionX, PositionY, PositionZ, TimeStamp, IdVehicleTracking
+            FROM vehicles_tracking
+            WHERE TimeStamp = (
+                SELECT MAX(TimeStamp) FROM vehicles_tracking
+            )
+            ORDER BY VehicleName
         """)
         return [dict(row) for row in cursor.fetchall()]
 
 def get_vehicles_map_positions() -> List[Dict]:
-    """Retorna última posição de cada veículo para exibição no mapa (otimizado)"""
+    """Retorna apenas veículos do último timestamp de rastreamento para exibição no mapa"""
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT VehicleId, VehicleName, PositionX, PositionY, PositionZ, TimeStamp, IdVehicleTracking
-            FROM (
-                SELECT *,
-                       ROW_NUMBER() OVER (PARTITION BY VehicleId ORDER BY TimeStamp DESC) as rn
-                FROM vehicles_tracking
-            ) ranked
-            WHERE rn = 1
+            FROM vehicles_tracking
+            WHERE TimeStamp = (
+                SELECT MAX(TimeStamp) FROM vehicles_tracking
+            )
             ORDER BY VehicleName
         """)
         return [dict(row) for row in cursor.fetchall()]
 
 def get_vehicles_trails(limit_per_vehicle: int = 100) -> List[Dict]:
     """Retorna histórico de posições (trails) de todos os veículos, filtrando pontos duplicados"""
-    import math
     
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
+        
+        # Query SQL otimizada usando LAG() window function para calcular distância
+        # Filtra pontos consecutivos com distância > 5 metros
         cursor.execute("""
-            SELECT VehicleId, VehicleName, PositionX, PositionY, PositionZ, TimeStamp
-            FROM (
-                SELECT *,
-                       ROW_NUMBER() OVER (PARTITION BY VehicleId ORDER BY TimeStamp DESC) as rn
+            WITH ordered_positions AS (
+                SELECT 
+                    VehicleId,
+                    VehicleName,
+                    PositionX,
+                    PositionY,
+                    PositionZ,
+                    TimeStamp,
+                    LAG(PositionX) OVER (PARTITION BY VehicleId ORDER BY TimeStamp) as PrevX,
+                    LAG(PositionY) OVER (PARTITION BY VehicleId ORDER BY TimeStamp) as PrevY,
+                    ROW_NUMBER() OVER (PARTITION BY VehicleId ORDER BY TimeStamp DESC) as rn
                 FROM vehicles_tracking
-            ) ranked
-            WHERE rn <= ?
+            ),
+            filtered_positions AS (
+                SELECT 
+                    VehicleId,
+                    VehicleName,
+                    PositionX,
+                    PositionY,
+                    PositionZ,
+                    TimeStamp,
+                    CASE 
+                        WHEN PrevX IS NULL THEN 999999  -- Primeiro ponto sempre incluir
+                        ELSE SQRT((PositionX - PrevX) * (PositionX - PrevX) + (PositionY - PrevY) * (PositionY - PrevY))
+                    END as distance_from_prev
+                FROM ordered_positions
+                WHERE rn <= ?
+            )
+            SELECT VehicleId, VehicleName, PositionX, PositionY, PositionZ, TimeStamp
+            FROM filtered_positions
+            WHERE distance_from_prev > 5.0 OR distance_from_prev = 999999
             ORDER BY VehicleId, TimeStamp DESC
         """, (limit_per_vehicle,))
         
-        # Agrupar resultados por veículo e filtrar pontos duplicados
+        # Agrupar resultados por veículo
         vehicles_dict = {}
-        MIN_DISTANCE = 5.0  # Mínimo de 5 metros para considerar movimento
         
         for row in cursor.fetchall():
             vehicle_id = row['VehicleId']
@@ -157,33 +178,15 @@ def get_vehicles_trails(limit_per_vehicle: int = 100) -> List[Dict]:
                     'trail': []
                 }
             
-            trail = vehicles_dict[vehicle_id]['trail']
-            new_point = {
+            vehicles_dict[vehicle_id]['trail'].append({
                 'x': row['PositionX'],
                 'y': row['PositionY'],
                 'z': row['PositionZ'],
                 'timestamp': row['TimeStamp']
-            }
-            
-            # Adicionar se for o primeiro ponto, ou se houver diferença significativa do último
-            if len(trail) == 0:
-                trail.append(new_point)
-            else:
-                last_point = trail[0]  # Ponto mais recente (estamos em ordem DESC)
-                # Calcular distância euclidiana
-                dx = new_point['x'] - last_point['x']
-                dy = new_point['y'] - last_point['y']
-                distance = math.sqrt(dx * dx + dy * dy)
-                
-                if distance >= MIN_DISTANCE:
-                    trail.insert(0, new_point)  # Inserir no início (ordem cronológica)
-                # Se a distância for menor que MIN_DISTANCE, ignorar o ponto
-            
-            # Limitar quantidade de pontos por veículo
-            if len(trail) > limit_per_vehicle:
-                trail.pop()  # Remover o mais antigo (último elemento)
+            })
         
-        return list(vehicles_dict.values())
+        # Filtrar veículos com menos de 2 pontos (sem movimento significativo)
+        return [v for v in vehicles_dict.values() if len(v['trail']) >= 2]
 
 def search_players(query: str) -> List[Dict]:
     """Busca jogadores por nome ou ID"""

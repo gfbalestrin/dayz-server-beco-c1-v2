@@ -286,6 +286,10 @@ def api_vehicles_trails():
     }
     
     for vehicle in vehicles:
+        # Processar apenas veículos com trail válido (já filtrado em get_vehicles_trails)
+        if not vehicle.get('trail') or len(vehicle['trail']) < 2:
+            continue
+        
         trail = []
         for point in vehicle['trail']:
             pixel_coords = dayz_to_pixel(point['x'], point['y'])

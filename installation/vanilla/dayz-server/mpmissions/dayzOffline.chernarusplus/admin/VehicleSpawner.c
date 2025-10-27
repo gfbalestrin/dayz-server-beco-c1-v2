@@ -59,11 +59,11 @@ bool SpawnVehicleWithParts(vector pos, string vehicleType)
             plug = "SparkPlug";
             wheel = "Hatchback_02_Wheel";
             parts = {
-                "Hatchback_02_Door_1_1",
-                "Hatchback_02_Door_1_2",
-                "Hatchback_02_Door_2_1",
-                "Hatchback_02_Door_2_2",
-                "Hatchback_02_Hood_Black"
+                "Hatchback_02_Door_1_1_Black",
+                "Hatchback_02_Door_1_2_Black",
+                "Hatchback_02_Door_2_1_Black",
+                "Hatchback_02_Door_2_2_Black",
+                "Hatchback_02_Hood_Black",
                 "Hatchback_02_Trunk_Black",
                 "CarRadiator",
                 "HeadlightH7",

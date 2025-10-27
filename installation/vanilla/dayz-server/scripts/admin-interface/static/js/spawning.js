@@ -11,6 +11,7 @@ const VEHICLES = [
     { type: 'Sedan_02', name: 'Sedan' },
     { type: 'CivilianSedan', name: 'Sedan Civil' },
     { type: 'Hatchback_02', name: 'Hatchback 02' },
+    { type: 'Hatchback_02_Black', name: 'Hatchback 02 black' },
     { type: 'OffroadHatchback_Blue', name: 'Hatchback Azul' },
     { type: 'Truck_01_Covered', name: 'Caminhão Coberto' },
     { type: 'V3S_Chassis', name: 'V3S' }
