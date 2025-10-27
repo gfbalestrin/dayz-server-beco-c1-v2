@@ -1477,14 +1477,15 @@ class CustomMission: MissionServer
 
 		}
 
-		// Timer de 60 segundos para envio de posições
-		if (m_AdminCheckTimer60 >= m_AdminCheckCooldown60)
-		{
-			m_AdminCheckTimer60 = 0.0;
-			ListActivePlayers();
-			SendPlayersPositions();
-			SendVehiclesPositions();
-		}
+	// Timer de 60 segundos para envio de posições
+	if (m_AdminCheckTimer60 >= m_AdminCheckCooldown60)
+	{
+		m_AdminCheckTimer60 = 0.0;
+		UpdateVehicleTracking(); // Atualiza rastreamento de veículos antes de enviar posições
+		ListActivePlayers();
+		SendPlayersPositions();
+		SendVehiclesPositions();
+	}
 	}
 	
 	void SetRandomHealth(EntityAI itemEnt)
@@ -1600,6 +1601,100 @@ class CustomMission: MissionServer
 	}
 
 	
+	// Atualiza o rastreamento de veículos automaticamente
+	void UpdateVehicleTracking()
+	{
+		if (!m_TrackedVehicles)
+		{
+			m_TrackedVehicles = new array<CarScript>();
+		}
+
+		// Busca todos os veículos no mundo
+		vector center = "7500 0 7500";
+		float radius = 20000;
+
+		array<Object> nearbyObjects = new array<Object>();
+		GetGame().GetObjectsAtPosition(center, radius, nearbyObjects, null);
+
+		// Array temporário para armazenar veículos encontrados no mundo
+		ref array<CarScript> currentVehicles = new array<CarScript>();
+
+		foreach (Object obj : nearbyObjects)
+		{
+			CarScript vehicle = CarScript.Cast(obj);
+			if (vehicle)
+			{
+				currentVehicles.Insert(vehicle);
+			}
+		}
+
+		// Adiciona novos veículos ao array de rastreamento
+		int newVehiclesAdded = 0;
+		foreach (CarScript vehicle : currentVehicles)
+		{
+			if (vehicle)
+			{
+				// Verifica se o veículo já está no array
+				bool exists = false;
+				foreach (CarScript trackedVehicle : m_TrackedVehicles)
+				{
+					if (trackedVehicle == vehicle)
+					{
+						exists = true;
+						break;
+					}
+				}
+
+				// Se não existe, adiciona
+				if (!exists)
+				{
+					m_TrackedVehicles.Insert(vehicle);
+					newVehiclesAdded++;
+				}
+			}
+		}
+
+		// Remove veículos que não existem mais (destruídos/deletados)
+		int removedVehicles = 0;
+		for (int i = m_TrackedVehicles.Count() - 1; i >= 0; i--)
+		{
+			CarScript trackedVehicle = m_TrackedVehicles.Get(i);
+			if (!trackedVehicle)
+			{
+				m_TrackedVehicles.Remove(i);
+				removedVehicles++;
+				continue;
+			}
+
+			// Verifica se o veículo ainda existe no mundo
+			bool stillExists = false;
+			foreach (CarScript currentVehicle : currentVehicles)
+			{
+				if (currentVehicle == trackedVehicle)
+				{
+					stillExists = true;
+					break;
+				}
+			}
+
+			if (!stillExists)
+			{
+				m_TrackedVehicles.Remove(i);
+				removedVehicles++;
+			}
+		}
+
+		if (newVehiclesAdded > 0)
+		{
+			WriteToLog("UpdateVehicleTracking(): " + newVehiclesAdded.ToString() + " novos veículos adicionados ao rastreamento", LogFile.INIT, false, LogType.DEBUG);
+		}
+
+		if (removedVehicles > 0)
+		{
+			WriteToLog("UpdateVehicleTracking(): " + removedVehicles.ToString() + " veículos removidos do rastreamento (destruídos)", LogFile.INIT, false, LogType.DEBUG);
+		}
+	}
+
 	// Envia posições de todos os jogadores ativos via ExternalAction
 	void SendPlayersPositions()
 	{

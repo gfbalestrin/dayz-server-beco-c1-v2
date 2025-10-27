@@ -499,8 +499,28 @@ function toggleTrails() {
 function filterPlayers() {
     currentFilter = $('#playerFilter').val();
     
+    // Se trails estão ativos, limpar todos antes de recarregar
+    if (showTrails) {
+        Object.keys(playerTrails).forEach(function(key) {
+            const trail = playerTrails[key];
+            if (Array.isArray(trail)) {
+                trail.forEach(item => map.removeLayer(item));
+            } else {
+                map.removeLayer(trail);
+            }
+        });
+        playerTrails = {};
+    }
+    
     // Recarregar posições
     loadPositions();
+    
+    // Se trails estavam ativos, recarregar para jogadores visíveis após um delay
+    if (showTrails) {
+        setTimeout(function() {
+            Object.keys(playerMarkers).forEach(loadPlayerTrail);
+        }, 500);
+    }
 }
 
 /**
