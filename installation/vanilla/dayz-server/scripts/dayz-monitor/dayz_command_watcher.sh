@@ -337,6 +337,10 @@ EOF
             echo ">> Recebendo posições dos veículos"
             INSERT_CUSTOM_LOG "Processando posições dos veículos" "INFO" "$ScriptName"
             
+            # Limpar tabela antes de inserir novas posições (mantemos apenas posição atual)
+            sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "DELETE FROM vehicles_tracking;"
+            echo ">> Tabela de tracking limpa"
+            
             # Captura o timestamp atual antes do loop para usar em todos os veículos
             current_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
             
