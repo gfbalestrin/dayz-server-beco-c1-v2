@@ -4,6 +4,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/spawning.css') }}">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 {% endblock %}
 
 {% block content %}
@@ -12,8 +13,29 @@
         <h2><i class="fas fa-magic me-2"></i>Sistema de Spawning</h2>
     </div>
 
-    <!-- Seletor Global de Jogador -->
+    <!-- Seletor de Modo de Spawn -->
     <div class="card mb-4">
+        <div class="card-body">
+            <div class="spawn-mode-selector">
+                <label class="fw-bold me-3">Modo de Spawn:</label>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="spawnMode" id="modePlayer" value="player" checked>
+                    <label class="form-check-label" for="modePlayer">
+                        <i class="fas fa-user me-2"></i>Por Jogador
+                    </label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="spawnMode" id="modeCoords" value="coords">
+                    <label class="form-check-label" for="modeCoords">
+                        <i class="fas fa-map-marked-alt me-2"></i>Por Coordenadas no Mapa
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Seletor Global de Jogador -->
+    <div class="card mb-4" id="playerSelectCard">
         <div class="card-body">
             <div class="row align-items-center">
                 <div class="col-md-2">
@@ -28,6 +50,24 @@
                     <div id="selectedPlayerInfo" class="text-muted">
                         <small>Nenhum jogador selecionado</small>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Seletor de Coordenadas do Mapa -->
+    <div class="card mb-4" id="coordsSelectCard" style="display: none;">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Localização:</label>
+                </div>
+                <div class="col-md-8">
+                    <button class="btn btn-primary btn-lg" id="openMapBtn">
+                        <i class="fas fa-map me-2"></i>
+                        <span id="openMapText">Abrir Mapa e Selecionar Coordenadas</span>
+                        <span id="coordsDisplay" class="coords-display" style="display: none;"></span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -279,14 +319,36 @@
             </div>
             <div class="modal-body">
                 <p><strong>Item:</strong> <span id="confirmItemName"></span></p>
-                <p><strong>Jogador:</strong> <span id="confirmPlayerName"></span></p>
+                <p id="confirmPlayerSection"><strong>Jogador:</strong> <span id="confirmPlayerName"></span></p>
+                <p id="confirmCoordsSection" style="display: none;"><strong>Coordenadas:</strong> <span id="confirmCoords"></span></p>
                 <p><strong>Quantidade:</strong> <span id="confirmQuantity"></span></p>
+                <div id="confirmCoordsDetail" class="spawn-confirm-coords" style="display: none;"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="confirmSpawnBtn">
                     <i class="fas fa-magic me-1"></i>Spawnar
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal do Mapa para Seleção de Coordenadas -->
+<div class="modal fade" id="spawnMapModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-map me-2"></i>Selecione as Coordenadas no Mapa
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="map-instructions">
+                    <i class="fas fa-crosshairs me-2"></i>Clique no mapa para selecionar a localização
+                </div>
+                <div id="spawnMap" data-map-image="{{ url_for('static', filename='img/chernarus.jpeg') }}"></div>
             </div>
         </div>
     </div>
@@ -330,5 +392,6 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="{{ url_for('static', filename='js/spawning.js') }}"></script>
 {% endblock %}

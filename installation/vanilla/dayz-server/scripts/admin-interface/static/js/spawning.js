@@ -5,6 +5,11 @@ let selectedWeapon = null;
 let selectedItem = null;
 let selectedPlayer = null; // Jogador globalmente selecionado
 
+// Variáveis para modo de spawn por coordenadas
+let spawnMode = 'player'; // 'player' ou 'coords'
+let selectedCoords = null; // {x, y, z, pixel: [lat, lng]}
+let spawnMap = null; // Instância do Leaflet
+
 // Lista de veículos comuns
 const VEHICLES = [
     { type: 'OffroadHatchback', name: 'Ada 4x4', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/c/cc/Lada-niva.png' },
@@ -124,8 +129,13 @@ function renderWeaponsGrid(data = weaponsData) {
 }
 
 function selectWeapon(weapon) {
-    if (!selectedPlayer) {
+    // Validar baseado no modo
+    if (spawnMode === 'player' && !selectedPlayer) {
         showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+        return;
+    }
+    if (spawnMode === 'coords' && !selectedCoords) {
+        showToast('Aviso', 'Selecione as coordenadas no mapa primeiro!', 'warning');
         return;
     }
     
@@ -234,8 +244,13 @@ function renderItemsGrid(data = itemsData) {
 }
 
 function selectItem(item) {
-    if (!selectedPlayer) {
+    // Validar baseado no modo
+    if (spawnMode === 'player' && !selectedPlayer) {
         showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+        return;
+    }
+    if (spawnMode === 'coords' && !selectedCoords) {
+        showToast('Aviso', 'Selecione as coordenadas no mapa primeiro!', 'warning');
         return;
     }
     
@@ -268,90 +283,106 @@ function renderVehiclesGrid() {
 }
 
 function spawnVehicle(vehicle) {
-    if (!selectedPlayer) {
+    // Validar baseado no modo
+    if (spawnMode === 'player' && !selectedPlayer) {
         showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
         return;
     }
+    if (spawnMode === 'coords' && !selectedCoords) {
+        showToast('Aviso', 'Selecione as coordenadas no mapa primeiro!', 'warning');
+        return;
+    }
     
-    const player = selectedPlayer;
+    // Confirmar spawn
+    let confirmMsg = '';
+    if (spawnMode === 'player') {
+        confirmMsg = `Spawnar ${vehicle.name} próximo ao jogador ${selectedPlayer.PlayerName}?`;
+    } else {
+        confirmMsg = `Spawnar ${vehicle.name} nas coordenadas X=${selectedCoords.x.toFixed(1)}, Y=${selectedCoords.y.toFixed(1)}?`;
+    }
     
-    if (!confirm(`Spawnar ${vehicle.name} próximo ao jogador ${player.PlayerName}?`)) return;
+    if (!confirm(confirmMsg)) return;
     
-    $.ajax({
-        url: '/api/spawn/vehicle',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({
-            player_id: player.PlayerID,
-            vehicle_type: vehicle.type
-        }),
-        success: function(response) {
-            showToast('Sucesso', response.message, 'success');
-        },
-        error: function(xhr) {
-            const error = xhr.responseJSON || {};
-            showToast('Erro', error.message || 'Erro ao spawnar veículo', 'error');
-        }
-    });
+    if (spawnMode === 'player') {
+        // Spawn próximo ao jogador
+        $.ajax({
+            url: '/api/spawn/vehicle',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                player_id: selectedPlayer.PlayerID,
+                vehicle_type: vehicle.type
+            }),
+            success: function(response) {
+                showToast('Sucesso', response.message, 'success');
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON || {};
+                showToast('Erro', error.message || 'Erro ao spawnar veículo', 'error');
+            }
+        });
+    } else {
+        // Spawn em coordenadas específicas
+        $.ajax({
+            url: '/api/spawn/vehicle-at-coords',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                vehicle_type: vehicle.type,
+                coord_x: selectedCoords.x,
+                coord_y: selectedCoords.y
+            }),
+            success: function(response) {
+                showToast('Sucesso', response.message, 'success');
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON || {};
+                showToast('Erro', error.message || 'Erro ao spawnar veículo', 'error');
+            }
+        });
+    }
 }
 
 // === MODAL DE CONFIRMAÇÃO ===
 
-function showSpawnConfirmModal(type) {
-    let playerId, quantity, itemName, itemType;
-    
-    if (type === 'weapon') {
-        playerId = $('#weaponPlayerSelect').val();
-        quantity = $('#weaponQuantity').val();
-        itemName = selectedWeapon.name;
-        itemType = selectedWeapon.name_type;
-    } else if (type === 'item') {
-        playerId = $('#itemPlayerSelect').val();
-        quantity = $('#itemQuantity').val();
-        itemName = selectedItem.name;
-        itemType = selectedItem.name_type;
-    } else {
-        return;
-    }
-    
-    if (!playerId) {
-        showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
-        return;
-    }
-    
-    const player = playersData.find(p => p.PlayerID === playerId);
-    
-    $('#confirmItemName').text(itemName);
-    $('#confirmPlayerName').text(player.PlayerName);
-    $('#confirmQuantity').text(quantity);
-    
-    // Armazenar dados no botão
-    $('#confirmSpawnBtn').data('type', type);
-    $('#confirmSpawnBtn').data('playerId', playerId);
-    $('#confirmSpawnBtn').data('itemType', itemType);
-    $('#confirmSpawnBtn').data('quantity', quantity);
-    
-    const modal = new bootstrap.Modal(document.getElementById('spawnConfirmModal'));
-    modal.show();
-}
-
 function executeSpawn() {
     const type = $('#confirmSpawnBtn').data('type');
+    const mode = $('#confirmSpawnBtn').data('mode');
     const playerId = $('#confirmSpawnBtn').data('playerId');
     const itemType = $('#confirmSpawnBtn').data('itemType');
     const quantity = $('#confirmSpawnBtn').data('quantity');
+    const coordX = $('#confirmSpawnBtn').data('coordX');
+    const coordY = $('#confirmSpawnBtn').data('coordY');
+    const coordZ = $('#confirmSpawnBtn').data('coordZ');
     
     $('#confirmSpawnBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Spawnando...');
     
-    $.ajax({
-        url: '/api/spawn/item',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({
+    let url, data;
+    
+    if (mode === 'player') {
+        // Spawn próximo ao jogador
+        url = '/api/spawn/item';
+        data = {
             player_id: playerId,
             item_type: itemType,
             quantity: quantity
-        }),
+        };
+    } else {
+        // Spawn em coordenadas específicas
+        url = '/api/spawn/item-at-coords';
+        data = {
+            item_type: itemType,
+            quantity: quantity,
+            coord_x: coordX,
+            coord_y: coordY
+        };
+    }
+    
+    $.ajax({
+        url: url,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
         success: function(response) {
             bootstrap.Modal.getInstance(document.getElementById('spawnConfirmModal')).hide();
             showToast('Sucesso', response.message, 'success');
@@ -363,7 +394,15 @@ function executeSpawn() {
             selectedAmmo = null;
             selectedMagazine = null;
             selectedAttachment = null;
+            if (mode === 'player') {
+                selectedPlayer = null;
+            } else {
+                selectedCoords = null;
+                $('#coordsDisplay').hide().text('');
+                $('#openMapText').text('Abrir Mapa e Selecionar Coordenadas');
+            }
             $('.item-card').removeClass('selected');
+            $('.weapon-card').removeClass('selected');
         },
         error: function(xhr) {
             const error = xhr.responseJSON || {};
@@ -420,6 +459,16 @@ function renderExplosivesGrid() {
 }
 
 function selectExplosive(explosive) {
+    // Validar baseado no modo
+    if (spawnMode === 'player' && !selectedPlayer) {
+        showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+        return;
+    }
+    if (spawnMode === 'coords' && !selectedCoords) {
+        showToast('Aviso', 'Selecione as coordenadas no mapa primeiro!', 'warning');
+        return;
+    }
+    
     selectedExplosive = explosive;
     $('.item-card').removeClass('selected');
     $('.item-card').filter(function() { return $(this).data('explosive')?.id === explosive.id; }).addClass('selected');
@@ -511,6 +560,16 @@ function renderAmmunitionsGrid() {
 }
 
 function selectAmmo(ammo) {
+    // Validar baseado no modo
+    if (spawnMode === 'player' && !selectedPlayer) {
+        showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+        return;
+    }
+    if (spawnMode === 'coords' && !selectedCoords) {
+        showToast('Aviso', 'Selecione as coordenadas no mapa primeiro!', 'warning');
+        return;
+    }
+    
     selectedAmmo = ammo;
     $('.item-card').removeClass('selected');
     $('.item-card').filter(function() { return $(this).data('ammo')?.id === ammo.id; }).addClass('selected');
@@ -566,6 +625,16 @@ function renderMagazinesGrid() {
 }
 
 function selectMagazine(magazine) {
+    // Validar baseado no modo
+    if (spawnMode === 'player' && !selectedPlayer) {
+        showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+        return;
+    }
+    if (spawnMode === 'coords' && !selectedCoords) {
+        showToast('Aviso', 'Selecione as coordenadas no mapa primeiro!', 'warning');
+        return;
+    }
+    
     selectedMagazine = magazine;
     $('.item-card').removeClass('selected');
     $('.item-card').filter(function() { return $(this).data('magazine')?.id === magazine.id; }).addClass('selected');
@@ -639,6 +708,16 @@ function renderAttachmentsGrid() {
 }
 
 function selectAttachment(attachment) {
+    // Validar baseado no modo
+    if (spawnMode === 'player' && !selectedPlayer) {
+        showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+        return;
+    }
+    if (spawnMode === 'coords' && !selectedCoords) {
+        showToast('Aviso', 'Selecione as coordenadas no mapa primeiro!', 'warning');
+        return;
+    }
+    
     selectedAttachment = attachment;
     $('.item-card').removeClass('selected');
     $('.item-card').filter(function() { return $(this).data('attachment')?.id === attachment.id; }).addClass('selected');
@@ -649,12 +728,18 @@ function selectAttachment(attachment) {
 function showSpawnConfirmModal(type, item = null) {
     let playerId, quantity, itemName, itemType;
     
-    // Usar jogador globalmente selecionado
-    playerId = selectedPlayer ? selectedPlayer.PlayerID : null;
-    
-    if (!playerId) {
-        showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
-        return;
+    // Validar baseado no modo
+    if (spawnMode === 'player') {
+        playerId = selectedPlayer ? selectedPlayer.PlayerID : null;
+        if (!playerId) {
+            showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+            return;
+        }
+    } else if (spawnMode === 'coords') {
+        if (!selectedCoords) {
+            showToast('Aviso', 'Selecione as coordenadas no mapa primeiro!', 'warning');
+            return;
+        }
     }
     
     if (type === 'weapon') {
@@ -685,17 +770,40 @@ function showSpawnConfirmModal(type, item = null) {
         return;
     }
     
-    const player = selectedPlayer;
-    
+    // Atualizar modal de confirmação baseado no modo
     $('#confirmItemName').text(itemName);
-    $('#confirmPlayerName').text(player.PlayerName);
     $('#confirmQuantity').text(quantity);
+    
+    if (spawnMode === 'player') {
+        const player = selectedPlayer;
+        $('#confirmPlayerSection').show();
+        $('#confirmCoordsSection').hide();
+        $('#confirmCoordsDetail').hide();
+        $('#confirmPlayerName').text(player.PlayerName);
+    } else {
+        $('#confirmPlayerSection').hide();
+        $('#confirmCoordsSection').show();
+        $('#confirmCoordsDetail').show();
+        $('#confirmCoords').text(`X: ${selectedCoords.x.toFixed(1)}, Y: ${selectedCoords.y.toFixed(1)}, Z: ${selectedCoords.z.toFixed(1)}`);
+        $('#confirmCoordsDetail').html(`
+            <strong>Detalhes:</strong><br>
+            X: ${selectedCoords.x.toFixed(2)}<br>
+            Y: ${selectedCoords.y.toFixed(2)}<br>
+            Z: ${selectedCoords.z.toFixed(2)}
+        `);
+    }
     
     // Armazenar dados no botão
     $('#confirmSpawnBtn').data('type', type);
+    $('#confirmSpawnBtn').data('mode', spawnMode);
     $('#confirmSpawnBtn').data('playerId', playerId);
     $('#confirmSpawnBtn').data('itemType', itemType);
     $('#confirmSpawnBtn').data('quantity', quantity);
+    if (selectedCoords) {
+        $('#confirmSpawnBtn').data('coordX', selectedCoords.x);
+        $('#confirmSpawnBtn').data('coordY', selectedCoords.y);
+        $('#confirmSpawnBtn').data('coordZ', selectedCoords.z);
+    }
     
     const modal = new bootstrap.Modal(document.getElementById('spawnConfirmModal'));
     modal.show();
@@ -745,6 +853,145 @@ function getUrlParameter(name) {
     const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
     const results = regex.exec(location.search);
     return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+}
+
+// === FUNÇÕES DE MODO DE SPAWN POR COORDENADAS ===
+
+/**
+ * Alternar entre modo de spawn por jogador ou por coordenadas
+ */
+function switchSpawnMode(mode) {
+    spawnMode = mode;
+    
+    if (mode === 'player') {
+        // Mostrar seletor de jogador, esconder seletor de coordenadas
+        $('#playerSelectCard').show();
+        $('#coordsSelectCard').hide();
+        $('#openMapBtn').hide();
+        selectedCoords = null;
+        
+        // Limpar coordenadas selecionadas
+        $('#coordsDisplay').hide().text('');
+        $('#openMapText').text('Abrir Mapa e Selecionar Coordenadas');
+    } else if (mode === 'coords') {
+        // Esconder seletor de jogador, mostrar seletor de coordenadas
+        $('#playerSelectCard').hide();
+        $('#coordsSelectCard').show();
+        $('#openMapBtn').show();
+        selectedPlayer = null;
+        
+        // Reset seletor de jogador
+        $('#globalPlayerSelect').val('');
+    }
+}
+
+/**
+ * Inicializar mapa Leaflet no modal
+ */
+function initSpawnMap() {
+    if (spawnMap) {
+        return; // Mapa já inicializado
+    }
+    
+    // Criar mapa
+    spawnMap = L.map('spawnMap', {
+        crs: L.CRS.Simple,
+        minZoom: -2,
+        maxZoom: 3,
+        maxBounds: [[0, 0], [4096, 4096]],
+        maxBoundsViscosity: 1.0,
+        zoom: -2,
+        center: [2048, 2048],
+        zoomControl: true,
+        attributionControl: false
+    });
+    
+    // Obter URL da imagem do mapa
+    const imageUrl = $('#spawnMap').data('map-image');
+    
+    if (!imageUrl) {
+        console.error('URL da imagem do mapa não encontrada!');
+        return;
+    }
+    
+    // Adicionar overlay da imagem
+    L.imageOverlay(imageUrl, [[0, 0], [4096, 4096]], {
+        opacity: 1,
+        interactive: false
+    }).addTo(spawnMap);
+    
+    // Adicionar evento de clique no mapa
+    spawnMap.on('click', function(e) {
+        handleMapClick(e);
+    });
+    
+    console.log('Mapa de spawn inicializado');
+}
+
+/**
+ * Converter coordenadas pixel para DayZ
+ */
+function pixelToDayz(pixelCoords) {
+    // Inverso da conversão dayz_to_pixel
+    // pixel_x = (coord_x / 15360.0) * 4096
+    // pixel_y = (coord_y / 15360.0) * 4096
+    const x = (pixelCoords[1] / 4096) * 15360.0;
+    const y = (pixelCoords[0] / 4096) * 15360.0;
+    return { x: x, y: y };
+}
+
+/**
+ * Handler para clique no mapa de spawn
+ */
+function handleMapClick(e) {
+    if (spawnMode !== 'coords') {
+        return;
+    }
+    
+    // Converter pixel para coordenadas DayZ
+    const pixelCoords = [e.latlng.lat, e.latlng.lng];
+    const dayzCoords = pixelToDayz(pixelCoords);
+    
+    // Salvar coordenadas
+    selectedCoords = {
+        x: dayzCoords.x,
+        y: dayzCoords.y,
+        z: 0, // Será calculado pelo servidor
+        pixel: pixelCoords
+    };
+    
+    // Atualizar UI
+    $('#coordsDisplay').text(`X: ${dayzCoords.x.toFixed(1)}, Y: ${dayzCoords.y.toFixed(1)}`).show();
+    $('#openMapText').text('Coordenadas Selecionadas:');
+    
+    // Fechar modal do mapa
+    bootstrap.Modal.getInstance(document.getElementById('spawnMapModal')).hide();
+    
+    console.log('Coordenadas selecionadas:', selectedCoords);
+}
+
+/**
+ * Abrir modal do mapa
+ */
+function openMapModal() {
+    if (spawnMode !== 'coords') {
+        showToast('Aviso', 'Modo de coordenadas não está ativo', 'warning');
+        return;
+    }
+    
+    // Inicializar mapa se necessário
+    initSpawnMap();
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('spawnMapModal'));
+    modal.show();
+    
+    // Atualizar tamanho do mapa quando modal abrir
+    setTimeout(function() {
+        if (spawnMap) {
+            spawnMap.invalidateSize();
+        }
+    }, 500);
 }
 
 $(document).ready(function() {
@@ -817,6 +1064,15 @@ $(document).ready(function() {
     
     // Botão de confirmação
     $('#confirmSpawnBtn').on('click', executeSpawn);
+    
+    // Event listeners para modo de spawn
+    $('input[name="spawnMode"]').on('change', function() {
+        const mode = $(this).val();
+        switchSpawnMode(mode);
+    });
+    
+    // Event listener para abrir mapa
+    $('#openMapBtn').on('click', openMapModal);
     
     // Carregar dados ao trocar de aba
     $('a[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
