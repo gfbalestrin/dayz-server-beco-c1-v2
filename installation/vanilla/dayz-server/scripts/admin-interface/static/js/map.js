@@ -800,81 +800,36 @@ function showPointActionsMenu(playerId, point, pointNumber) {
 }
 
 /**
- * Mostrar modal de teleporte
- */
-function showTeleportModal(playerId, point, pointNumber) {
-    const playerData = playersData[playerId];
-    const playerName = playerData ? playerData.name : 'Desconhecido';
-    
-    $('#teleportPlayerName').text(playerName);
-    $('#teleportPointNumber').text(pointNumber);
-    $('#teleportCoords').text(`X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}, Z=${point.coord_z ? point.coord_z.toFixed(1) : 'N/A'}`);
-    
-    // Armazenar dados
-    $('#confirmTeleportBtn').data('playerId', playerId);
-    $('#confirmTeleportBtn').data('coordX', point.coord_x);
-    $('#confirmTeleportBtn').data('coordY', point.coord_y);
-    $('#confirmTeleportBtn').data('coordZ', point.coord_z);
-    
-    const modal = new bootstrap.Modal(document.getElementById('teleportModal'));
-    modal.show();
-}
-
-/**
- * Executar teleporte
- */
-function executeTeleport() {
-    const playerId = $('#confirmTeleportBtn').data('playerId');
-    const coordX = $('#confirmTeleportBtn').data('coordX');
-    const coordY = $('#confirmTeleportBtn').data('coordY');
-    const coordZ = $('#confirmTeleportBtn').data('coordZ');
-    
-    if (!playerId || coordX === undefined || coordY === undefined) {
-        showToast('Erro', 'Dados inválidos para teleporte', 'error');
-        return;
-    }
-    
-    $('#confirmTeleportBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Teleportando...');
-    
-    $.ajax({
-        url: `/api/players/${playerId}/teleport`,
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({
-            coord_x: coordX,
-            coord_y: coordY,
-            coord_z: coordZ || 0
-        }),
-        success: function(response) {
-            bootstrap.Modal.getInstance(document.getElementById('teleportModal')).hide();
-            showToast('Sucesso', response.message, 'success');
-            loadPositions();
-        },
-        error: function(xhr) {
-            console.error('Erro ao teleportar:', xhr);
-            const error = xhr.responseJSON || {};
-            const errorMsg = error.message || error.error || 'Erro desconhecido ao teleportar';
-            showToast('Erro', errorMsg, 'error');
-        },
-        complete: function() {
-            $('#confirmTeleportBtn').prop('disabled', false).html('<i class="fas fa-map-marker-alt me-1"></i>Teleportar');
-        }
-    });
-}
-
-/**
  * Mostrar modal de teleporte de jogador para posição de outro jogador
+ * Aceita tanto dados de marcador principal quanto de pontos do trail
  */
 function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
-    // Preencher informações do jogador de destino
-    $('#teleportToTargetPlayerName').text(targetPlayer.player_name);
-    $('#teleportToTargetCoords').text(`X=${targetPlayer.coord_x.toFixed(1)}, Y=${targetPlayer.coord_y.toFixed(1)}, Z=${targetPlayer.coord_z ? targetPlayer.coord_z.toFixed(1) : 'N/A'}`);
+    // Determinar se é marcador principal ou ponto do trail
+    let playerName, coordX, coordY, coordZ;
     
-    // Armazenar dados para teleporte
-    $('#confirmTeleportToPlayerBtn').data('targetPlayerId', targetPlayerId);
-    $('#confirmTeleportToPlayerBtn').data('coordX', targetPlayer.coord_x);
-    $('#confirmTeleportToPlayerBtn').data('coordY', targetPlayer.coord_y);
-    $('#confirmTeleportToPlayerBtn').data('coordZ', targetPlayer.coord_z);
+    if (targetPlayer.player_name !== undefined) {
+        // Dados do marcador principal (player object completo)
+        playerName = targetPlayer.player_name;
+        coordX = targetPlayer.coord_x;
+        coordY = targetPlayer.coord_y;
+        coordZ = targetPlayer.coord_z;
+    } else {
+        // Dados do ponto do trail (currentPointContext)
+        const playerData = playersData[targetPlayerId];
+        playerName = playerData ? playerData.name : 'Desconhecido';
+        coordX = targetPlayer.coord_x;
+        coordY = targetPlayer.coord_y;
+        coordZ = targetPlayer.coord_z;
+    }
+    
+    // Preencher informações do jogador/ponto de destino
+    $('#teleportToTargetPlayerName').text(playerName);
+    $('#teleportToTargetCoords').text(`X=${coordX.toFixed(1)}, Y=${coordY.toFixed(1)}, Z=${coordZ ? coordZ.toFixed(1) : 'N/A'}`);
+    
+    // Armazenar dados para teleporte (não precisa do targetPlayerId)
+    $('#confirmTeleportToPlayerBtn').data('coordX', coordX);
+    $('#confirmTeleportToPlayerBtn').data('coordY', coordY);
+    $('#confirmTeleportToPlayerBtn').data('coordZ', coordZ);
     
     // Limpar e popular dropdown com jogadores online
     const dropdown = $('#teleportToPlayerDropdown');
@@ -905,7 +860,6 @@ function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
  * Executar teleporte de jogador para posição
  */
 function executeTeleportToPlayer() {
-    const targetPlayerId = $('#confirmTeleportToPlayerBtn').data('targetPlayerId');
     const selectedPlayerId = $('#teleportToPlayerDropdown').val();
     const coordX = $('#confirmTeleportToPlayerBtn').data('coordX');
     const coordY = $('#confirmTeleportToPlayerBtn').data('coordY');
@@ -916,7 +870,7 @@ function executeTeleportToPlayer() {
         return;
     }
     
-    if (!targetPlayerId || coordX === undefined || coordY === undefined) {
+    if (coordX === undefined || coordY === undefined) {
         showToast('Erro', 'Dados inválidos para teleporte', 'error');
         return;
     }
@@ -975,17 +929,13 @@ $(document).ready(function() {
             // Fechar menu de ações
             bootstrap.Modal.getInstance(document.getElementById('pointActionsModal')).hide();
             
-            // Abrir modal de teleporte
-            showTeleportModal(
-                currentPointContext.playerId,
+            // Abrir modal de teleporte com dropdown de jogadores
+            showPlayerMarkerActions(
                 currentPointContext.point,
-                currentPointContext.pointNumber
+                currentPointContext.playerId
             );
         }
     });
-    
-    // Botão de teleporte
-    $('#confirmTeleportBtn').on('click', executeTeleport);
     
     // Botão de teleporte entre jogadores
     $('#confirmTeleportToPlayerBtn').on('click', executeTeleportToPlayer);
