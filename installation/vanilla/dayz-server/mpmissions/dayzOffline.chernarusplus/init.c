@@ -124,23 +124,25 @@ class CustomMission: MissionServer
 				if (!firstFoundMan)
 					firstFoundMan = m;
 					
-				WriteToLog("AddOrUpdateActivePlayer(): DETECTADO personagem no mundo #" + duplicateCount + 
+				string detectMsg = "AddOrUpdateActivePlayer(): DETECTADO personagem no mundo #" + duplicateCount.ToString() + 
 					" com PlayerID: " + playerId + " | Nome: " + pb.GetIdentity().GetName() + 
-					" | Pos: " + pb.GetPosition().ToString(), LogFile.INIT, false, LogType.INFO);
+					" | Pos: " + pb.GetPosition().ToString();
+				WriteToLog(detectMsg, LogFile.INIT, false, LogType.INFO);
 			}
 		}
 		
 		if (duplicateCount > 1)
 		{
-			WriteToLog("AddOrUpdateActivePlayer(): ALERTA! Múltiplos personagens detectados (" + 
-				duplicateCount + ") para o mesmo PlayerID!", LogFile.INIT, false, LogType.ERROR);
+			string alertMsg = "AddOrUpdateActivePlayer(): ALERTA! Múltiplos personagens detectados (" + duplicateCount.ToString() + ") para o mesmo PlayerID!";
+			WriteToLog(alertMsg, LogFile.INIT, false, LogType.ERROR);
 		}
 		
 		string playerParamStatus = "NULL";
 		if (player)
 			playerParamStatus = "VÁLIDO";
 		
-		WriteToLog("AddOrUpdateActivePlayer(): Resumo - Duplicados: " + duplicateCount + " | player param: " + playerParamStatus, LogFile.INIT, false, LogType.DEBUG);
+		string resumoMsg = "AddOrUpdateActivePlayer(): Resumo - Duplicados: " + duplicateCount.ToString() + " | player param: " + playerParamStatus;
+		WriteToLog(resumoMsg, LogFile.INIT, false, LogType.DEBUG);
 		
 		if (duplicateCount == 1 && !player)
 		{
