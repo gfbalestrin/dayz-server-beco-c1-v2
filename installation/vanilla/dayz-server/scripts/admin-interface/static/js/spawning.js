@@ -9,6 +9,13 @@ let selectedPlayer = null; // Jogador globalmente selecionado
 let spawnMode = 'player'; // 'player' ou 'coords'
 let selectedCoords = null; // {x, y, z, pixel: [lat, lng]}
 let spawnMap = null; // Instância do Leaflet
+let spawnMapPlayerMarkers = {}; // Marcadores de jogadores no mapa de spawn
+
+// Cores para marcadores de jogadores (reutilizado de map.js)
+const iconColors = [
+    '#ff0000', '#0066ff', '#00cc00', '#ff6600', '#9900ff', '#ff0099',
+    '#ffcc00', '#00cccc', '#cc0000', '#0000cc', '#009900'
+];
 
 // Lista de veículos comuns
 const VEHICLES = [
@@ -858,6 +865,92 @@ function getUrlParameter(name) {
 // === FUNÇÕES DE MODO DE SPAWN POR COORDENADAS ===
 
 /**
+ * Gerar cor única para um jogador
+ */
+function getPlayerColor(playerId) {
+    let hash = 0;
+    for (let i = 0; i < playerId.length; i++) {
+        hash = playerId.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return iconColors[Math.abs(hash) % iconColors.length];
+}
+
+/**
+ * Criar ícone de marcador de jogador
+ */
+function createPlayerMarkerIcon(color) {
+    return L.divIcon({
+        className: 'player-marker',
+        html: `<div style="background-color: ${color}; border: 2px solid white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                 <i class="fas fa-user" style="color: white; font-size: 14px;"></i>
+               </div>`,
+        iconSize: [24, 24]
+    });
+}
+
+/**
+ * Carregar jogadores online no mapa de spawn
+ */
+function loadOnlinePlayersInSpawnMap() {
+    if (!spawnMap) return;
+    
+    $.get('/api/players/online/positions')
+        .done(function(data) {
+            // Limpar marcadores antigos
+            clearPlayerMarkersFromSpawnMap();
+            
+            // Adicionar marcador para cada jogador
+            data.players.forEach(function(player) {
+                const color = getPlayerColor(player.player_id);
+                const lat = player.pixel_coords[0];
+                const lng = player.pixel_coords[1];
+                
+                const marker = L.marker([lat, lng], {
+                    icon: createPlayerMarkerIcon(color),
+                    opacity: 1.0,
+                    zIndexOffset: 1000 // Garantir que fique acima da imagem
+                }).addTo(spawnMap);
+                
+                // Tooltip com informações
+                const tooltipContent = `
+                    <strong>👤 ${player.player_name}${player.steam_name ? ` (${player.steam_name})` : ''}</strong><br>
+                    🟢 <span class="value">Online</span><br>
+                    📍 Coords: <span class="value">X=${player.coord_x.toFixed(1)}, Y=${player.coord_y.toFixed(1)}</span>
+                `;
+                
+                // Direção dinâmica do tooltip baseada na posição
+                let tooltipDirection = 'top';
+                if (lat > 3000) tooltipDirection = 'bottom';
+                if (lng < 2000) tooltipDirection = 'right';
+                else if (lng > 13000) tooltipDirection = 'left';
+                
+                marker.bindTooltip(tooltipContent, {
+                    permanent: false,
+                    direction: tooltipDirection,
+                    className: 'trail-tooltip'
+                });
+                
+                spawnMapPlayerMarkers[player.player_id] = marker;
+            });
+            
+            console.log(`Carregados ${data.players.length} jogadores online no mapa de spawn`);
+        })
+        .fail(function() {
+            console.error('Erro ao carregar jogadores online no mapa de spawn');
+        });
+}
+
+/**
+ * Limpar marcadores de jogadores do mapa de spawn
+ */
+function clearPlayerMarkersFromSpawnMap() {
+    Object.keys(spawnMapPlayerMarkers).forEach(function(key) {
+        spawnMap.removeLayer(spawnMapPlayerMarkers[key]);
+    });
+    spawnMapPlayerMarkers = {};
+}
+
+/**
  * Alternar entre modo de spawn por jogador ou por coordenadas
  */
 function switchSpawnMode(mode) {
@@ -925,6 +1018,9 @@ function initSpawnMap() {
         handleMapClick(e);
     });
     
+    // Carregar jogadores online no mapa
+    loadOnlinePlayersInSpawnMap();
+    
     console.log('Mapa de spawn inicializado');
 }
 
@@ -986,10 +1082,11 @@ function openMapModal() {
     const modal = new bootstrap.Modal(document.getElementById('spawnMapModal'));
     modal.show();
     
-    // Atualizar tamanho do mapa quando modal abrir
+    // Atualizar tamanho do mapa e recarregar jogadores
     setTimeout(function() {
         if (spawnMap) {
             spawnMap.invalidateSize();
+            loadOnlinePlayersInSpawnMap(); // Recarregar posições atualizadas
         }
     }, 500);
 }
