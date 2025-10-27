@@ -108,13 +108,22 @@ class CustomMission: MissionServer
 		// ============================================================================
 		// DEBUG: Verifica se player está presente
 		// ============================================================================
-		WriteToLog("AddOrUpdateActivePlayer(): DEBUG - player=" + (player ? "PRESENTE" : "NULL") + " | PlayerName: " + playerName, LogFile.INIT, false, LogType.DEBUG);
+		string playerStatus = "NULL";
+		if (player)
+			playerStatus = "PRESENTE";
+		
+		WriteToLog("AddOrUpdateActivePlayer(): DEBUG - player=" + playerStatus + " | PlayerName: " + playerName, LogFile.INIT, false, LogType.DEBUG);
 		
 		// Se player é null, tenta buscar manualmente
 		if (!player)
 		{
 			player = FindPlayerManInWorld(playerId);
-			WriteToLog("AddOrUpdateActivePlayer(): DEBUG - Player era null, buscado manualmente: " + (player ? "ENCONTRADO" : "FALHOU"), LogFile.INIT, false, LogType.DEBUG);
+			
+			string searchResult = "FALHOU";
+			if (player)
+				searchResult = "ENCONTRADO";
+			
+			WriteToLog("AddOrUpdateActivePlayer(): DEBUG - Player era null, buscado manualmente: " + searchResult, LogFile.INIT, false, LogType.DEBUG);
 		}
 		
 		// ============================================================================
@@ -123,7 +132,12 @@ class CustomMission: MissionServer
 		if (player)
 		{
 			Man existingManInWorld = FindPlayerManInWorld(playerId);
-			WriteToLog("AddOrUpdateActivePlayer(): DEBUG - FindPlayerManInWorld retornou: " + (existingManInWorld ? "ENCONTRADO" : "NULL"), LogFile.INIT, false, LogType.DEBUG);
+			
+			string foundResult = "NULL";
+			if (existingManInWorld)
+				foundResult = "ENCONTRADO";
+			
+			WriteToLog("AddOrUpdateActivePlayer(): DEBUG - FindPlayerManInWorld retornou: " + foundResult, LogFile.INIT, false, LogType.DEBUG);
 			
 			// Se já existe um personagem no mundo E é diferente do que está sendo adicionado = DUPLICAÇÃO!
 			if (existingManInWorld && existingManInWorld != player)
