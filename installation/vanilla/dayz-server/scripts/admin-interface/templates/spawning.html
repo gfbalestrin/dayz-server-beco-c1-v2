@@ -12,8 +12,13 @@
 
     <ul class="nav nav-tabs mb-4" role="tablist">
         <li class="nav-item">
-            <a class="nav-link active" data-bs-toggle="tab" href="#items-tab">
-                <i class="fas fa-box me-2"></i>Itens e Armas
+            <a class="nav-link active" data-bs-toggle="tab" href="#weapons-tab">
+                <i class="fas fa-crosshairs me-2"></i>Armas
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#items-tab">
+                <i class="fas fa-box me-2"></i>Itens
             </a>
         </li>
         <li class="nav-item">
@@ -24,12 +29,38 @@
     </ul>
 
     <div class="tab-content">
-        <!-- Tab de Itens -->
-        <div id="items-tab" class="tab-pane fade show active">
+        <!-- Aba de Armas -->
+        <div id="weapons-tab" class="tab-pane fade show active">
+            <div class="row mb-3">
+                <div class="col-md-5">
+                    <label>Jogador</label>
+                    <select id="weaponPlayerSelect" class="form-select">
+                        <option value="">Carregando...</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label>Buscar Arma</label>
+                    <input type="text" id="weaponSearch" class="form-control" placeholder="Nome da arma...">
+                </div>
+                <div class="col-md-1">
+                    <label>Qtd</label>
+                    <input type="number" id="weaponQuantity" class="form-control" value="1" min="1" max="99">
+                </div>
+            </div>
+
+            <div id="weaponsGrid" class="items-grid">
+                <div class="text-center p-5">
+                    <i class="fas fa-spinner fa-spin fa-3x"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aba de Itens -->
+        <div id="items-tab" class="tab-pane fade">
             <div class="row mb-3">
                 <div class="col-md-4">
                     <label>Jogador</label>
-                    <select id="playerSelect" class="form-select">
+                    <select id="itemPlayerSelect" class="form-select">
                         <option value="">Carregando...</option>
                     </select>
                 </div>
@@ -40,7 +71,7 @@
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <label>Buscar</label>
+                    <label>Buscar Item</label>
                     <input type="text" id="itemSearch" class="form-control" placeholder="Nome do item...">
                 </div>
                 <div class="col-md-1">
@@ -56,7 +87,7 @@
             </div>
         </div>
 
-        <!-- Tab de Veículos -->
+        <!-- Aba de Veículos -->
         <div id="vehicles-tab" class="tab-pane fade">
             <div class="row mb-3">
                 <div class="col-md-6">
