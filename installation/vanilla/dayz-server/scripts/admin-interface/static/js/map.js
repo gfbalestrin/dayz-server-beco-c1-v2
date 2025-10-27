@@ -257,8 +257,21 @@ function updatePositions(data) {
             ⏰ Atualizado: <span class="value">${player.last_update || 'Desconhecido'}</span>
         `;
         
-        // Direção dinâmica baseada na posição Y (valores altos = norte)
-        const tooltipDirection = lat > 3000 ? 'bottom' : 'top';
+        // Direção dinâmica baseada na posição no mapa
+        let tooltipDirection = 'top'; // padrão (sul)
+        
+        if (lat > 3000) {
+            // Norte - tooltip para baixo
+            tooltipDirection = 'bottom';
+        }
+        
+        if (lng < 2000) {
+            // Oeste (esquerda) - tooltip para direita
+            tooltipDirection = 'right';
+        } else if (lng > 13000) {
+            // Leste (direita) - tooltip para esquerda
+            tooltipDirection = 'left';
+        }
         
         // Adicionar tooltip (aparece ao passar o mouse)
         marker.bindTooltip(tooltipContent, {
@@ -420,7 +433,21 @@ function drawTrail(playerId, trail) {
         
         // Adicionar tooltip (direção dinâmica baseada na posição)
         // Valores altos de Y (pixel_coords[0]) representam o norte do mapa
-        const tooltipDirection = point.pixel_coords[0] > 3000 ? 'bottom' : 'top';
+        let tooltipDirection = 'top'; // padrão (sul)
+        
+        if (point.pixel_coords[0] > 3000) {
+            // Norte - tooltip para baixo
+            tooltipDirection = 'bottom';
+        }
+        
+        if (point.pixel_coords[1] < 2000) {
+            // Oeste (esquerda) - tooltip para direita
+            tooltipDirection = 'right';
+        } else if (point.pixel_coords[1] > 13000) {
+            // Leste (direita) - tooltip para esquerda
+            tooltipDirection = 'left';
+        }
+        
         circleMarker.bindTooltip(tooltipText, {
             permanent: false,
             direction: tooltipDirection,
