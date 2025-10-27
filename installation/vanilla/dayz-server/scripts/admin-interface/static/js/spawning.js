@@ -739,12 +739,29 @@ function loadCompleteWeaponLoadout() {
     });
 }
 
+// Função para obter parâmetro da URL
+function getUrlParameter(name) {
+    name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+    const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+    const results = regex.exec(location.search);
+    return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+}
+
 $(document).ready(function() {
     loadPlayers();
+    loadWeapons(); // Carregar armas na inicialização
     loadCalibersFilter();
     loadWeaponsForFilters();
     loadItemTypes();
     renderVehiclesGrid();
+    
+    // Auto-seleção de jogador via URL
+    setTimeout(function() {
+        const playerIdFromUrl = getUrlParameter('player_id');
+        if (playerIdFromUrl && playersData.length > 0) {
+            $('#globalPlayerSelect').val(playerIdFromUrl).trigger('change');
+        }
+    }, 500);
     
     // Seletor global de jogador
     $('#globalPlayerSelect').on('change', function() {

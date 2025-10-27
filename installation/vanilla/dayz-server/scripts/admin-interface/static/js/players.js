@@ -132,6 +132,11 @@ function createSteamLink(steamId, steamName) {
     return `<a href="${url}" target="_blank">${escapeHtml(steamName)}</a>`;
 }
 
+// Função para redirecionar para spawning
+function redirectToSpawning(playerId) {
+    window.location.href = `/spawning?player_id=${playerId}`;
+}
+
 // Função para renderizar ações
 function renderActions(player) {
     if (!player.IsOnline || player.IsOnline === 0) {
@@ -140,6 +145,9 @@ function renderActions(player) {
     
     return `
         <div class="btn-group btn-group-sm" role="group">
+            <button class="btn btn-primary" onclick="redirectToSpawning('${player.PlayerID}')" title="Spawnar Itens">
+                <i class="fas fa-magic"></i>
+            </button>
             <button class="btn btn-success" onclick="executeAction('${player.PlayerID}', 'heal')" title="Curar">
                 <i class="fas fa-heart"></i>
             </button>
@@ -318,7 +326,7 @@ function renderPlayersTable() {
     tbody.empty();
     
     if (filteredData.length === 0) {
-        tbody.append('<tr><td colspan="8" class="text-center">Nenhum jogador encontrado</td></tr>');
+        tbody.append('<tr><td colspan="7" class="text-center">Nenhum jogador encontrado</td></tr>');
         return;
     }
     
@@ -331,7 +339,6 @@ function renderPlayersTable() {
                 <td>${escapeHtml(player.PlayerName || '-')}</td>
                 <td>${createSteamLink(player.SteamID, player.SteamName)}</td>
                 <td>${renderDateTime(player)}</td>
-                <td>${createMapLink(player.CoordX, player.CoordY)}</td>
                 <td>${createMapViewLink(player.PlayerID)}</td>
                 <td>${renderActions(player)}</td>
             </tr>
@@ -352,7 +359,7 @@ function renderPlayersTable() {
         pageLength: 25,
         responsive: true,
         columnDefs: [
-            { orderable: false, targets: [1, 5, 6, 7] } // Player ID, Localização, Mapa e Ações não são ordenáveis
+            { orderable: false, targets: [1, 5, 6] } // Player ID, Mapa e Ações não são ordenáveis
         ]
     });
 }
@@ -403,6 +410,7 @@ $(document).ready(function() {
     window.copyPlayerId = copyPlayerId;
     window.executeAction = executeAction;
     window.toggleGodMode = toggleGodMode;
+    window.redirectToSpawning = redirectToSpawning;
     
     // Limpar intervalos ao sair da página
     $(window).on('beforeunload', function() {
