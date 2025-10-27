@@ -50,6 +50,7 @@ bool SpawnVehicleWithParts(vector pos, string vehicleType)
             battery = "CarBattery";
             plug = "SparkPlug";
             wheel = "Hatchback_02_Wheel";
+            wheels = 5;
             parts = {
                 "Hatchback_02_Door_1_1",
                 "Hatchback_02_Door_1_2",
@@ -66,6 +67,7 @@ bool SpawnVehicleWithParts(vector pos, string vehicleType)
             battery = "CarBattery";
             plug = "SparkPlug";
             wheel = "Hatchback_02_Wheel";
+            wheels = 5;
             parts = {
                 "Hatchback_02_Door_1_1_Black",
                 "Hatchback_02_Door_1_2_Black",

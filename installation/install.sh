@@ -530,6 +530,8 @@ ScriptName=\$(basename "\$0")
 SEND_DISCORD_WEBHOOK "Servidor reiniciando..." "\$DiscordWebhookLogs" "\$CurrentDate" "\$ScriptName"
 cd -
 
+"$AppFolder/$AppScriptUpdatePlayersOnlineFile" "RESET" 
+
 # Atualiza o servidor via SteamCMD
 echo "[INFO] Atualizando servidor via SteamCMD..."
 cd "$DayzFolder"
@@ -541,6 +543,8 @@ if [ -f "$DayzFolder/scripts/economy_update.sh" ]; then
     cd "$DayzFolder/scripts"
     ./economy_update.sh
 fi
+
+ 
 
 cd "$DayzFolder/mpmissions/$DayzMpmission/"
 

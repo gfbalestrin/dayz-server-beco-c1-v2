@@ -7,10 +7,10 @@ let selectedPlayer = null; // Jogador globalmente selecionado
 
 // Lista de veículos comuns
 const VEHICLES = [
-    { type: 'OffroadHatchback', name: 'OffroadHatchback' },
-    { type: 'Sedan_02', name: 'Sedan_02' },
-    { type: 'CivilianSedan', name: 'CivilianSedan' },
-    { type: 'Hatchback_02', name: 'Hatchback_02' },
+    { type: 'OffroadHatchback', name: 'Ada 4x4' },
+    { type: 'Sedan_02', name: 'Sarka 120' },
+    { type: 'CivilianSedan', name: 'Olga 24' },
+    { type: 'Hatchback_02', name: 'Gunter 2' },
     { type: 'Hatchback_02_Black', name: 'Hatchback_02_Black' },
     { type: 'Truck_01_Covered', name: 'Caminhão Coberto' },
     { type: 'Offroad_02', name: 'humvee' }
