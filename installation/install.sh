@@ -558,7 +558,7 @@ if [ ! -d "\$REPO_DIR" ]; then
     git clone https://github.com/gfbalestrin/dayz-server-beco-c1-v2.git "\$REPO_DIR"
 else
     echo "[INFO] Atualizando repositório existente..."
-    cd "\$REPO_DIR" && git pull && cd -
+    cd "\$REPO_DIR" && git reset --hard HEAD &&git pull && cd -
 fi
 
 # Copia arquivos específicos do vanilla

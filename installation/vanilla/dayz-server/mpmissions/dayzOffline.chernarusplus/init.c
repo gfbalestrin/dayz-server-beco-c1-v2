@@ -172,8 +172,8 @@ class CustomMission: MissionServer
 			// Se era um ghost, adiciona o novo jogador normalmente
 			if (existingPlayerIsGhost)
 			{
-				ActivePlayer newPlayer = new ActivePlayer(identity, player);
-				ActivePlayers.Insert(newPlayer);
+				ActivePlayer newGhostPlayer = new ActivePlayer(identity, player);
+				ActivePlayers.Insert(newGhostPlayer);
 				WriteToLog("AddOrUpdateActivePlayer(): Jogador adicionado após remoção de ghost: " + playerName + " (PlayerID: " + playerId + ", SteamID: " + steamId + ")", LogFile.INIT, false, LogType.INFO);
 			}
 			else
@@ -193,8 +193,8 @@ class CustomMission: MissionServer
 		}
 
 		// Cria e adiciona o novo jogador
-		ActivePlayer newPlayer = new ActivePlayer(identity, player);
-		ActivePlayers.Insert(newPlayer);
+		ActivePlayer newActivePlayer = new ActivePlayer(identity, player);
+		ActivePlayers.Insert(newActivePlayer);
 		WriteToLog("AddOrUpdateActivePlayer(): Jogador adicionado: " + playerName + " (PlayerID: " + playerId + ", SteamID: " + steamId + ")", LogFile.INIT, false, LogType.INFO);
 	}
 	
@@ -361,9 +361,9 @@ class CustomMission: MissionServer
 		
 		for (int i = ActivePlayers.Count() - 1; i >= 0; i--)
 		{
-			ActivePlayer player = ActivePlayers.Get(i);
+			ActivePlayer activePlayerItem = ActivePlayers.Get(i);
 			
-			if (!player || !player.HasIdentity())
+			if (!activePlayerItem || !activePlayerItem.HasIdentity())
 			{
 				// Jogador sem Identity - remove
 				ActivePlayers.Remove(i);
@@ -371,17 +371,17 @@ class CustomMission: MissionServer
 			}
 			else
 			{
-				string playerId = player.GetPlayerId();
+				string playerId = activePlayerItem.GetPlayerId();
 				
 				// Verifica se jogador está em ActivePlayers mas NÃO está no mundo (GHOST!)
 				if (validPlayerIds.Find(playerId) == -1)
 				{
 					// É um ghost! Força desconexão
-					ForceDisconnectGhost(player);
+					ForceDisconnectGhost(activePlayerItem);
 					ActivePlayers.Remove(i);
 					disconnectedCount++;
 					removedCount++;
-					WriteToLog("CleanupInvalidActivePlayers(): Ghost desconectado e removido - " + player.GetPlayerName() + " (ID: " + playerId + ")", LogFile.INIT, false, LogType.INFO);
+					WriteToLog("CleanupInvalidActivePlayers(): Ghost desconectado e removido - " + activePlayerItem.GetPlayerName() + " (ID: " + playerId + ")", LogFile.INIT, false, LogType.INFO);
 				}
 			}
 		}
