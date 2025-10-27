@@ -128,7 +128,9 @@ def get_vehicles_map_positions() -> List[Dict]:
         return [dict(row) for row in cursor.fetchall()]
 
 def get_vehicles_trails(limit_per_vehicle: int = 100) -> List[Dict]:
-    """Retorna histórico de posições (trails) de todos os veículos"""
+    """Retorna histórico de posições (trails) de todos os veículos, filtrando pontos duplicados"""
+    import math
+    
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -142,8 +144,10 @@ def get_vehicles_trails(limit_per_vehicle: int = 100) -> List[Dict]:
             ORDER BY VehicleId, TimeStamp DESC
         """, (limit_per_vehicle,))
         
-        # Agrupar resultados por veículo
+        # Agrupar resultados por veículo e filtrar pontos duplicados
         vehicles_dict = {}
+        MIN_DISTANCE = 5.0  # Mínimo de 5 metros para considerar movimento
+        
         for row in cursor.fetchall():
             vehicle_id = row['VehicleId']
             if vehicle_id not in vehicles_dict:
@@ -152,12 +156,32 @@ def get_vehicles_trails(limit_per_vehicle: int = 100) -> List[Dict]:
                     'vehicle_name': row['VehicleName'],
                     'trail': []
                 }
-            vehicles_dict[vehicle_id]['trail'].append({
+            
+            trail = vehicles_dict[vehicle_id]['trail']
+            new_point = {
                 'x': row['PositionX'],
                 'y': row['PositionY'],
                 'z': row['PositionZ'],
                 'timestamp': row['TimeStamp']
-            })
+            }
+            
+            # Adicionar se for o primeiro ponto, ou se houver diferença significativa do último
+            if len(trail) == 0:
+                trail.append(new_point)
+            else:
+                last_point = trail[0]  # Ponto mais recente (estamos em ordem DESC)
+                # Calcular distância euclidiana
+                dx = new_point['x'] - last_point['x']
+                dy = new_point['y'] - last_point['y']
+                distance = math.sqrt(dx * dx + dy * dy)
+                
+                if distance >= MIN_DISTANCE:
+                    trail.insert(0, new_point)  # Inserir no início (ordem cronológica)
+                # Se a distância for menor que MIN_DISTANCE, ignorar o ponto
+            
+            # Limitar quantidade de pontos por veículo
+            if len(trail) > limit_per_vehicle:
+                trail.pop()  # Remover o mais antigo (último elemento)
         
         return list(vehicles_dict.values())
 

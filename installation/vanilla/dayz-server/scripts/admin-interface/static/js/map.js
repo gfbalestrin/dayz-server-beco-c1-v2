@@ -701,8 +701,26 @@ function updateVehicleTrails(data) {
         const latlngs = [];
         vehicleTrails[vehicleId] = [];
         
+        // Calcular distância total do trail para verificar se houve movimento significativo
+        let totalDistance = 0;
+        let hasMoved = false;
+        
         vehicle.trail.forEach(function(point, i) {
             latlngs.push([point.pixel_coords[0], point.pixel_coords[1]]);
+            
+            // Calcular distância entre pontos consecutivos
+            if (i > 0) {
+                const prevPoint = vehicle.trail[i - 1];
+                const dx = point.x - prevPoint.x;
+                const dy = point.y - prevPoint.y;
+                const segmentDistance = Math.sqrt(dx * dx + dy * dy);
+                totalDistance += segmentDistance;
+                
+                // Se houver movimento de mais de 10 metros, marcar como movido
+                if (segmentDistance > 10) {
+                    hasMoved = true;
+                }
+            }
             
             // Criar marcador circular no ponto
             const circleMarker = L.circleMarker(
@@ -717,9 +735,15 @@ function updateVehicleTrails(data) {
                 }
             ).addTo(map);
             
+            // Determinar status de movimento
+            const statusText = hasMoved ? 
+                `Distância total: ${totalDistance.toFixed(2)}m<br>` :
+                `<span style="color: #ffc107;">⚠️ Veículo parado</span><br>`;
+            
             // Adicionar tooltip com informações do ponto
             const tooltipText = `
                 <strong>${vehicle.vehicle_name}</strong><br>
+                ${statusText}
                 Ponto #${vehicle.trail.length - i}<br>
                 X: ${point.x.toFixed(2)}, Y: ${point.y.toFixed(2)}<br>
                 Altura: ${point.z ? point.z.toFixed(2) : 'N/A'}<br>
@@ -748,15 +772,18 @@ function updateVehicleTrails(data) {
             vehicleTrails[vehicleId].push(circleMarker);
         });
         
-        // Adicionar linha conectando os pontos
-        const polyline = L.polyline(latlngs, {
-            color: '#28a745',
-            weight: 3,
-            opacity: 0.6,
-            interactive: false
-        }).addTo(map);
-        
-        vehicleTrails[vehicleId].push(polyline);
+        // Apenas desenhar linha se o veículo se moveu significativamente
+        // ou se a distância total for maior que 10 metros
+        if (hasMoved || totalDistance > 10) {
+            const polyline = L.polyline(latlngs, {
+                color: '#28a745',
+                weight: 3,
+                opacity: 0.6,
+                interactive: false
+            }).addTo(map);
+            
+            vehicleTrails[vehicleId].push(polyline);
+        }
     });
     
     console.log(`Trails de veículos atualizados: ${data.vehicles.length} veículos`);

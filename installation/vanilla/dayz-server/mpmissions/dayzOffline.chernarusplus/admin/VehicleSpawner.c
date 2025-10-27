@@ -38,6 +38,22 @@ bool SpawnVehicleWithParts(vector pos, string vehicleType)
 
     switch (vehicleType)
     {
+        case "Hatchback_02":
+            battery = "CarBattery";
+            plug = "SparkPlug";
+            wheel = "HatchbackWheel";
+            parts = {
+                "Hatchback_02_Door_1_1",
+                "Hatchback_02_Door_1_2",
+                "Hatchback_02_Door_2_1",
+                "Hatchback_02_Door_2_2",
+                "Hatchback_02_Hood",
+                "Hatchback_02_Trunk",
+                "CarRadiator",
+                "HeadlightH7",
+                "HeadlightH7"
+            };
+            break;
         case "Hatchback_02_Black":
             battery = "CarBattery";
             plug = "SparkPlug";
