@@ -241,6 +241,42 @@
         </div>
     </div>
 </div>
+
+<!-- Modal de Teleporte de Jogador para Posição -->
+<div class="modal fade" id="teleportToPlayerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-map-marker-alt me-2"></i>Teleportar Jogador
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Selecione um jogador para teleportar para a posição indicada.
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Jogador a Teleportar:</label>
+                    <select class="form-select" id="teleportToPlayerDropdown">
+                        <option value="">Carregando jogadores...</option>
+                    </select>
+                </div>
+                <div id="teleportToPlayerInfo">
+                    <p><strong>Jogador de Destino:</strong> <span id="teleportToTargetPlayerName"></span></p>
+                    <p><strong>Coordenadas:</strong> <span id="teleportToTargetCoords"></span></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="confirmTeleportToPlayerBtn">
+                    <i class="fas fa-map-marker-alt me-1"></i>Teleportar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}

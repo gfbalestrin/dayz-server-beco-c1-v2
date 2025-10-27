@@ -256,9 +256,9 @@ function updatePositions(data) {
             className: 'trail-tooltip'
         });
         
-        // Clique continua carregando o trail
+        // Clique abre modal de teleporte entre jogadores
         marker.on('click', function() {
-            loadPlayerTrail(playerId);
+            showPlayerMarkerActions(player, playerId);
         });
         
         playerMarkers[playerId] = marker;
@@ -862,6 +862,94 @@ function executeTeleport() {
     });
 }
 
+/**
+ * Mostrar modal de teleporte de jogador para posição de outro jogador
+ */
+function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
+    // Preencher informações do jogador de destino
+    $('#teleportToTargetPlayerName').text(targetPlayer.player_name);
+    $('#teleportToTargetCoords').text(`X=${targetPlayer.coord_x.toFixed(1)}, Y=${targetPlayer.coord_y.toFixed(1)}, Z=${targetPlayer.coord_z ? targetPlayer.coord_z.toFixed(1) : 'N/A'}`);
+    
+    // Armazenar dados para teleporte
+    $('#confirmTeleportToPlayerBtn').data('targetPlayerId', targetPlayerId);
+    $('#confirmTeleportToPlayerBtn').data('coordX', targetPlayer.coord_x);
+    $('#confirmTeleportToPlayerBtn').data('coordY', targetPlayer.coord_y);
+    $('#confirmTeleportToPlayerBtn').data('coordZ', targetPlayer.coord_z);
+    
+    // Limpar e popular dropdown com jogadores online
+    const dropdown = $('#teleportToPlayerDropdown');
+    dropdown.html('<option value="">Carregando jogadores...</option>');
+    
+    // Buscar jogadores online
+    $.get('/api/players/online/positions')
+        .done(function(data) {
+            dropdown.html('<option value="">Selecione um jogador</option>');
+            
+            data.players.forEach(function(player) {
+                const option = $('<option></option>');
+                option.val(player.player_id);
+                option.text(`${player.player_name}${player.steam_name ? ' (' + player.steam_name + ')' : ''}`);
+                dropdown.append(option);
+            });
+        })
+        .fail(function() {
+            dropdown.html('<option value="">Erro ao carregar jogadores</option>');
+        });
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('teleportToPlayerModal'));
+    modal.show();
+}
+
+/**
+ * Executar teleporte de jogador para posição
+ */
+function executeTeleportToPlayer() {
+    const targetPlayerId = $('#confirmTeleportToPlayerBtn').data('targetPlayerId');
+    const selectedPlayerId = $('#teleportToPlayerDropdown').val();
+    const coordX = $('#confirmTeleportToPlayerBtn').data('coordX');
+    const coordY = $('#confirmTeleportToPlayerBtn').data('coordY');
+    const coordZ = $('#confirmTeleportToPlayerBtn').data('coordZ');
+    
+    if (!selectedPlayerId || selectedPlayerId === '') {
+        showToast('Aviso', 'Selecione um jogador para teleportar', 'warning');
+        return;
+    }
+    
+    if (!targetPlayerId || coordX === undefined || coordY === undefined) {
+        showToast('Erro', 'Dados inválidos para teleporte', 'error');
+        return;
+    }
+    
+    // Desabilitar botão e mostrar loading
+    $('#confirmTeleportToPlayerBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Teleportando...');
+    
+    $.ajax({
+        url: `/api/players/${selectedPlayerId}/teleport`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            coord_x: coordX,
+            coord_y: coordY,
+            coord_z: coordZ || 0
+        }),
+        success: function(response) {
+            bootstrap.Modal.getInstance(document.getElementById('teleportToPlayerModal')).hide();
+            showToast('Sucesso', response.message, 'success');
+            loadPositions();
+        },
+        error: function(xhr) {
+            console.error('Erro ao teleportar:', xhr);
+            const error = xhr.responseJSON || {};
+            const errorMsg = error.message || error.error || 'Erro desconhecido ao teleportar';
+            showToast('Erro', errorMsg, 'error');
+        },
+        complete: function() {
+            $('#confirmTeleportToPlayerBtn').prop('disabled', false).html('<i class="fas fa-map-marker-alt me-1"></i>Teleportar');
+        }
+    });
+}
+
 // Event listeners
 $(document).ready(function() {
     // Botão de restaurar backup
@@ -898,6 +986,9 @@ $(document).ready(function() {
     
     // Botão de teleporte
     $('#confirmTeleportBtn').on('click', executeTeleport);
+    
+    // Botão de teleporte entre jogadores
+    $('#confirmTeleportToPlayerBtn').on('click', executeTeleportToPlayer);
 });
 
 /**
