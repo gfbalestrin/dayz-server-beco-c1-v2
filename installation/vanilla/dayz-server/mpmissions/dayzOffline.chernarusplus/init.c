@@ -82,8 +82,43 @@ class CustomMission: MissionServer
 		// Loop contínuo para aplicar efeitos aos admins
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitAdminLoop, 5000, false); // aguarda 5 segundos
         ActivePlayers = new array<ref ActivePlayer>();
-		
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(LogWoodenCrates, 10000, false);
     }
+
+	void LogWoodenCrates()
+	{
+		if (!GetGame() || !GetGame().IsServer())
+			return;
+
+		array<Object> objects = new array<Object>;
+		GetGame().GetObjectsAtPosition("0 0 0", 999999, objects, NULL);
+
+		int count = 0;
+		foreach (Object obj : objects)
+		{
+			if (!obj)
+				continue;
+
+			// Filtra apenas WoodenCrate (você pode trocar por outro tipo)
+			string type = obj.GetType();
+			if (type == "WoodenCrate")
+			{
+				vector pos = obj.GetPosition();
+				vector ori = obj.GetOrientation();
+
+				string logMsg = string.Format("[CRATE] %1 at X=%2, Y=%3, Z=%4 | Ori=(%5,%6,%7)",
+					type, pos[0], pos[1], pos[2], ori[0], ori[1], ori[2]);
+
+				Print(logMsg);
+				WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
+				count++;
+			}
+		}
+
+		Print("[CRATE SCAN] Total de WoodenCrates encontradas: " + count);
+		WriteToLog("[CRATE SCAN] Total de WoodenCrates encontradas: " + count, LogFile.INIT, false, LogType.INFO);
+	}
+
 
 	void InitAdminLoop()
 	{
