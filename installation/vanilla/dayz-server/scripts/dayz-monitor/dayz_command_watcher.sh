@@ -169,7 +169,7 @@ tail -F "$COMMAND_FILE" | while read -r line; do
             "SELECT PlayerName, SteamID, SteamName FROM players_database WHERE PlayerID = '$PlayerId';")
 
             if [[ -z "$PlayerExists" ]]; then
-                INSERT_CUSTOM_LOG "Player não consta no banco. O player será inserido no banco de dados." "INFO" "$ScriptName"
+                INSERT_CUSTOM_LOG "Player $PlayerId ($PlayerName) ($PlayerSteamId) ($PlayerSteamName) não consta no banco. O player será inserido no banco de dados." "INFO" "$ScriptName"
                 # use variáveis normais se suas funções já fazem escape internamente;
                 # caso contrário, troque para as *SqlEscaped*
                 INSERT_PLAYER_DATABASE "$PlayerId" "$PlayerName" "$PlayerSteamId" "$PlayerSteamName"
@@ -183,7 +183,7 @@ tail -F "$COMMAND_FILE" | while read -r line; do
             PlayerSteamIdCurrent=$(echo "$PlayerExists" | cut -d'|' -f2)
             PlayerSteamNameCurrent=$(echo "$PlayerExists" | cut -d'|' -f3)
 
-            INSERT_CUSTOM_LOG "Player já consta no banco. O player será atualizado no banco de dados." "INFO" "$ScriptName"
+            INSERT_CUSTOM_LOG "Player $PlayerId ($PlayerName) ($PlayerSteamId) ($PlayerSteamName) já consta no banco. O player será atualizado no banco de dados." "INFO" "$ScriptName"
             UPDATE_PLAYER_DATABASE "$PlayerId" "$PlayerName" "$PlayerSteamId" "$PlayerSteamName"
 
             if [[ "$PlayerNameCurrent" != "$PlayerName" ]] \
@@ -309,7 +309,7 @@ VALUES (
 EOF
 
                             if [ $? -eq 0 ]; then
-                                INSERT_CUSTOM_LOG "Backup do personagem realizado com sucesso." "INFO" "$ScriptName"
+                                #INSERT_CUSTOM_LOG "Backup do personagem realizado com sucesso." "INFO" "$ScriptName"
                                 backup_success=true
                                 break
                             else
@@ -335,7 +335,7 @@ EOF
             ;;
         vehicles_positions)
             echo ">> Recebendo posições dos veículos"
-            INSERT_CUSTOM_LOG "Processando posições dos veículos" "INFO" "$ScriptName"
+            #INSERT_CUSTOM_LOG "Processando posições dos veículos" "INFO" "$ScriptName"
             
             # Limpar tabela antes de inserir novas posições (mantemos apenas posição atual)
             sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "DELETE FROM vehicles_tracking;"

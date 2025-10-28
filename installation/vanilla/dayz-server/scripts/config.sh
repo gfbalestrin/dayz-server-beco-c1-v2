@@ -666,7 +666,7 @@ EOF
     # Verifica se foi sucesso (HTTP 200 ou 204)
     if [[ "$http_code" -eq 200 || "$http_code" -eq 204 ]]; then
         echo "✅ Mensagem enviada com sucesso para o Discord."
-        INSERT_CUSTOM_LOG "Enviou evento para o discord!" "INFO" "$source"
+        #INSERT_CUSTOM_LOG "Enviou evento para o discord!" "INFO" "$source"
     else
         INSERT_CUSTOM_LOG "Falha ao enviar evento para discord! Código HTTP: $http_code" "ERROR" "$source"
     fi

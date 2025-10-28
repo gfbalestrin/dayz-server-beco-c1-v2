@@ -19,13 +19,17 @@ const iconColors = [
 
 // Lista de veículos comuns
 const VEHICLES = [
-    { type: 'OffroadHatchback', name: 'Ada 4x4', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/c/cc/Lada-niva.png' },
-    { type: 'Sedan_02', name: 'Sarka 120', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/6/6f/S120.png' },
-    { type: 'CivilianSedan', name: 'Olga 24', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/3/38/Volga.png' },
+    { type: 'OffroadHatchback', name: 'Ada 4x4 verde', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/c/cc/Lada-niva.png' },
+    { type: 'Sedan_02', name: 'Sarka 120 amarelo', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/6/6f/S120.png' },
+    { type: 'CivilianSedan', name: 'Olga 24 cinza', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/3/38/Volga.png' },
+    { type: 'CivilianSedan_Black', name: 'Olga 24 preto', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/3/38/Volga.png' },
+    { type: 'CivilianSedan_Wine', name: 'Olga 24 vinho', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/3/38/Volga.png' },
     { type: 'Hatchback_02', name: 'Gunter 2 vermelho', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/5/53/Hatchback_02.png' },
     { type: 'Hatchback_02_Black', name: 'Gunter 2 preto', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/5/53/Hatchback_02.png' },
-    { type: 'Truck_01_Covered', name: 'Caminhão Coberto', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/0/0d/M3S_Covered.png' },
-    { type: 'Offroad_02', name: 'humvee', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/9/93/M1025.png' }
+    { type: 'Truck_01_Covered', name: 'Caminhão Coberto Marrom', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/0/0d/M3S_Covered.png' },
+    { type: 'Truck_01_Covered_Blue', name: 'Caminhão Coberto Azul', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/0/0d/M3S_Covered.png' },
+    { type: 'Truck_01_Covered_Orange', name: 'Caminhão Coberto Laranja', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/0/0d/M3S_Covered.png' },
+    { type: 'Offroad_02', name: 'Humvee', image: 'https://static.wikia.nocookie.net/dayz_gamepedia/images/9/93/M1025.png' }
 ];
 
 function loadPlayers() {
