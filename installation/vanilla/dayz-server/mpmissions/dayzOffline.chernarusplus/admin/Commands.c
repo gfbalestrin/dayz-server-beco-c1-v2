@@ -598,33 +598,7 @@ bool ExecuteCommand(TStringArray tokens)
             }
             break;
 
-        case "speed":
-            if (!isAdmin)
-            {
-                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
-                return false;
-            }
-
-            if (tokens.Count() >= 3)
-            {
-                float mult = tokens[2].ToFloat();
-
-                if (mult <= 0)
-                {
-                    target.MessageStatus("Valor inválido. Use um número positivo.");
-                    break;
-                }
-
-                g_AdminSpeedMultiplier.Set(playerID, mult);
-                target.MessageStatus("Velocidade ajustada para x" + mult.ToString());
-                WriteToLog("Velocidade ajustada para x" + mult.ToString() + " para " + playerID, LogFile.INIT, false, LogType.INFO);
-            }
-            else
-            {
-                target.MessageStatus("Uso: !speed <valor> (exemplo: !speed 2)");
-            }
-            break;
-
+        
 
         }
 

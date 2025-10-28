@@ -103,18 +103,6 @@ class CustomMission: MissionServer
 				if (player.GetStaminaHandler())
 					player.GetStaminaHandler().SetStamina(player.GetStaminaHandler().GetStaminaCap());
 			}
-
-			// Velocidade aumentada
-			if (g_AdminSpeedMultiplier.Contains(id))
-			{
-				float mult = g_AdminSpeedMultiplier.Get(id);
-				if (mult > 1.0)
-				{
-					vector vel = GetVelocity(player);
-					vel = vel * mult;
-					dBodySetLinearVelocity(player, vel);
-				}
-			}
 		}
 	}
 
