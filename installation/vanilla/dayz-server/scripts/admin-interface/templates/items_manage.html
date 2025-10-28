@@ -18,12 +18,7 @@
             <a class="nav-link active" data-bs-toggle="tab" href="#weapons-tab">
                 <i class="fas fa-crosshairs me-2"></i>Armas
             </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" data-bs-toggle="tab" href="#items-tab">
-                <i class="fas fa-box me-2"></i>Itens
-            </a>
-        </li>
+        </li>        
         <li class="nav-item">
             <a class="nav-link" data-bs-toggle="tab" href="#explosives-tab">
                 <i class="fas fa-bomb me-2"></i>Explosivos
@@ -47,6 +42,11 @@
         <li class="nav-item">
             <a class="nav-link" data-bs-toggle="tab" href="#calibers-tab">
                 <i class="fas fa-ruler me-2"></i>Calibers
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#items-tab">
+                <i class="fas fa-box me-2"></i>Itens gerais
             </a>
         </li>
         <li class="nav-item">
@@ -94,49 +94,6 @@
             <div id="weaponsGrid" class="weapons-grid">
                 <!-- Populated by JS -->
             </div>
-        </div>
-
-        <!-- Aba de Itens -->
-        <div id="items-tab" class="tab-pane fade">
-            <div class="row mb-3">
-                <div class="col-md-3">
-                    <button class="btn btn-success" id="btnAddItem">
-                        <i class="fas fa-plus me-2"></i>Novo Item
-                    </button>
-                </div>
-                <div class="col-md-2">
-                    <input type="text" id="itemSearchInput" class="form-control" placeholder="Buscar item...">
-                </div>
-                <div class="col-md-2">
-                    <select class="form-select" id="filterItemType">
-                        <option value="">Todos Tipos</option>
-                        <!-- Populated by JS -->
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <select class="form-select" id="filterItemLocation">
-                        <option value="">Todas Localizações</option>
-                        <option value="none">Nenhuma</option>
-                        <option value="back">Back</option>
-                        <option value="eyes">Eyes</option>
-                        <option value="face">Face</option>
-                        <option value="foot">Foot</option>
-                        <option value="hands">Hands</option>
-                        <option value="head">Head</option>
-                        <option value="legs">Legs</option>
-                        <option value="torso">Torso</option>
-                        <option value="waist">Waist</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <select class="form-select" id="filterItemStorage">
-                        <option value="">Todos</option>
-                        <option value="with">Com Storage</option>
-                        <option value="without">Sem Storage</option>
-                    </select>
-                </div>
-            </div>
-            <div id="itemsGrid" class="weapons-grid"></div>
         </div>
 
         <!-- Aba de Explosivos -->
@@ -233,6 +190,49 @@
                 </thead>
                 <tbody></tbody>
             </table>
+        </div>
+
+        <!-- Aba de Itens -->
+        <div id="items-tab" class="tab-pane fade">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <button class="btn btn-success" id="btnAddItem">
+                        <i class="fas fa-plus me-2"></i>Novo Item
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <input type="text" id="itemSearchInput" class="form-control" placeholder="Buscar item...">
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterItemType">
+                        <option value="">Todos Tipos</option>
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterItemLocation">
+                        <option value="">Todas Localizações</option>
+                        <option value="none">Nenhuma</option>
+                        <option value="back">Back</option>
+                        <option value="eyes">Eyes</option>
+                        <option value="face">Face</option>
+                        <option value="foot">Foot</option>
+                        <option value="hands">Hands</option>
+                        <option value="head">Head</option>
+                        <option value="legs">Legs</option>
+                        <option value="torso">Torso</option>
+                        <option value="waist">Waist</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterItemStorage">
+                        <option value="">Todos</option>
+                        <option value="with">Com Storage</option>
+                        <option value="without">Sem Storage</option>
+                    </select>
+                </div>
+            </div>
+            <div id="itemsGrid" class="weapons-grid"></div>
         </div>
 
         <!-- Aba de Tipos de Item -->
