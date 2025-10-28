@@ -303,7 +303,14 @@ class CustomMission: MissionServer
 		vector pos = building.GetPosition();
 
 		string posStr = pos[0].ToString() + ", " + pos[1].ToString() + ", " + pos[2].ToString();
-		string logMsg = "[BUILDING DAMAGE] " + className + " - Parte: " + part_name + " | Posição: (" + posStr + ") | Causador: " + (player ? player.GetIdentity().GetName() : "Desconhecido");
+		
+		string causadorName;
+		if (player)
+			causadorName = player.GetIdentity().GetName();
+		else
+			causadorName = "Desconhecido";
+		
+		string logMsg = "[BUILDING DAMAGE] " + className + " - Parte: " + part_name + " | Posição: (" + posStr + ") | Causador: " + causadorName;
 
 		Print(logMsg);
 		WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
