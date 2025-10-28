@@ -405,9 +405,7 @@ function executeSpawn() {
             selectedAmmo = null;
             selectedMagazine = null;
             selectedAttachment = null;
-            if (mode === 'player') {
-                selectedPlayer = null;
-            } else {
+            if (mode === 'coords') {
                 selectedCoords = null;
                 $('#coordsDisplay').hide().text('');
                 $('#openMapText').text('Abrir Mapa e Selecionar Coordenadas');
