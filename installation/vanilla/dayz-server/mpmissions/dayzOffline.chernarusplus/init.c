@@ -82,10 +82,11 @@ class CustomMission: MissionServer
 		// Loop contínuo para aplicar efeitos aos admins
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitAdminLoop, 5000, false); // aguarda 5 segundos
         ActivePlayers = new array<ref ActivePlayer>();
-		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(LogWoodenCrates, 10000, false);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(LogLootContainersDetailed, 10000, false);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(ScanFences, 10000, false);
     }
 
-	void LogWoodenCrates()
+	void LogLootContainers()
 	{
 		if (!GetGame() || !GetGame().IsServer())
 			return;
@@ -94,30 +95,195 @@ class CustomMission: MissionServer
 		GetGame().GetObjectsAtPosition("0 0 0", 999999, objects, NULL);
 
 		int count = 0;
+
+		// Lista de tipos de objetos que armazenam loot
+		TStringArray lootTypes = {
+			"WoodenCrate",
+			"Barrel_Yellow",
+			"Barrel_Red",
+			"Barrel_Blue",
+			"CarTent",
+			"LargeTent",
+			"MediumTent",
+			"PartyTent"
+		};
+
 		foreach (Object obj : objects)
 		{
 			if (!obj)
 				continue;
 
-			// Filtra apenas WoodenCrate (você pode trocar por outro tipo)
 			string type = obj.GetType();
-			if (type == "WoodenCrate")
+
+			// Verifica se o tipo está na lista de interesse
+			foreach (string lootType : lootTypes)
 			{
-				vector pos = obj.GetPosition();
-				vector ori = obj.GetOrientation();
+				if (type == lootType)
+				{
+					vector pos = obj.GetPosition();
+					vector ori = obj.GetOrientation();
 
-				string logMsg = string.Format("[CRATE] %1 at X=%2, Y=%3, Z=%4 | Ori=(%5,%6,%7)",
-					type, pos[0], pos[1], pos[2], ori[0], ori[1], ori[2]);
+					string logMsg = string.Format("[LOOT] %1 at X=%.2f, Y=%.2f, Z=%.2f | Ori=(%.2f, %.2f, %.2f)", type, pos[0], pos[1], pos[2], ori[0], ori[1], ori[2]);
 
-				Print(logMsg);
-				WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
-				count++;
+					Print(logMsg);
+					WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
+					count++;
+					break; // Evita checar outros tipos da lista
+				}
 			}
 		}
 
-		Print("[CRATE SCAN] Total de WoodenCrates encontradas: " + count);
-		WriteToLog("[CRATE SCAN] Total de WoodenCrates encontradas: " + count, LogFile.INIT, false, LogType.INFO);
+		Print("[LOOT SCAN] Total de containers encontrados: " + count);
+		WriteToLog("[LOOT SCAN] Total de containers encontrados: " + count, LogFile.INIT, false, LogType.INFO);
 	}
+
+	void LogLootContainersDetailed()
+	{
+		if (!GetGame() || !GetGame().IsServer())
+			return;
+
+		array<Object> objects = new array<Object>;
+		GetGame().GetObjectsAtPosition("0 0 0", 999999, objects, NULL);
+
+		// Tipos de containers relevantes
+		TStringArray lootTypes = {
+			"WoodenCrate",
+			"Barrel_Yellow",
+			"Barrel_Red",
+			"Barrel_Blue",
+			"CarTent",
+			"LargeTent",
+			"MediumTent",
+			"PartyTent"
+		};
+
+		int totalContainers = 0;
+		int totalItems = 0;
+
+		foreach (Object obj : objects)
+		{
+			if (!obj)
+				continue;
+
+			string type = obj.GetType();
+
+			foreach (string lootType : lootTypes)
+			{
+				if (type == lootType)
+				{
+					totalContainers++;
+
+					vector pos = obj.GetPosition();
+					vector ori = obj.GetOrientation();
+
+					string header = string.Format("[LOOT] %1 at X=%.2f, Y=%.2f, Z=%.2f | Ori=(%.2f, %.2f, %.2f)", type, pos[0], pos[1], pos[2], ori[0], ori[1], ori[2]);
+
+					Print(header);
+					WriteToLog(header, LogFile.INIT, false, LogType.INFO);
+
+					// --- Verifica itens dentro ---
+					EntityAI container = EntityAI.Cast(obj);
+					if (container)
+					{
+						CargoBase cargo = container.GetInventory().GetCargo();
+						if (cargo)
+						{
+							for (int i = 0; i < cargo.GetItemCount(); i++)
+							{
+								EntityAI item = cargo.GetItem(i);
+								if (!item) continue;
+
+								string itemType = item.GetType();
+								float health = item.GetHealth("", "");
+								totalItems++;
+
+								string itemLog = string.Format("    - %1 (Health: %.2f)", itemType, health);
+								Print(itemLog);
+								WriteToLog(itemLog, LogFile.INIT, false, LogType.INFO);
+							}
+						}
+
+						// --- Itens em attachments (ex: slots externos de barris e tendas) ---
+						for (int a = 0; a < container.GetInventory().AttachmentCount(); a++)
+						{
+							EntityAI attachment = container.GetInventory().GetAttachmentFromIndex(a);
+							if (!attachment) continue;
+
+							string attType = attachment.GetType();
+							float attHealth = attachment.GetHealth("", "");
+							totalItems++;
+
+							string attLog = string.Format("    + Attachment: %1 (Health: %.2f)", attType, attHealth);
+							Print(attLog);
+							WriteToLog(attLog, LogFile.INIT, false, LogType.INFO);
+						}
+					}
+
+					break;
+				}
+			}
+		}
+
+		string summary = string.Format("[LOOT SCAN] Containers: %1 | Itens totais: %2", totalContainers, totalItems);
+		Print(summary);
+		WriteToLog(summary, LogFile.INIT, false, LogType.INFO);
+	}
+
+	void ScanFences()
+	{
+		array<Object> objects = new array<Object>;
+		GetGame().GetObjectsAtPosition(Vector(0,0,0), 99999, objects, NULL);
+
+		int count = 0;
+
+		foreach (Object obj : objects)
+		{
+			Fence fence = Fence.Cast(obj);
+			if (fence)
+			{
+				count++;
+				vector pos = fence.GetPosition();
+				vector ori = fence.GetOrientation();
+
+				string openState = "Fechado";
+				if (fence.IsOpened())
+					openState = "Aberto";
+				
+				// Verifica se tem portão construído
+				bool hasGate = fence.HasGate();
+
+				// Coleta anexos (ex: camuflagem, arame farpado, etc.)
+				TStringArray attachments = new TStringArray;
+				if (fence.GetInventory())
+				{
+					for (int i = 0; i < fence.GetInventory().AttachmentCount(); i++)
+					{
+						EntityAI att = fence.GetInventory().GetAttachmentFromIndex(i);
+						if (att)
+							attachments.Insert(att.GetType());
+					}
+				}
+
+				string attachmentList = "Nenhum";
+				if (attachments.Count() > 0)
+					attachmentList = string.Join(", ", attachments);
+				
+				string gateState = "Não";
+				if (hasGate)
+					gateState = "Sim";
+
+				string logMsg = string.Format("[FENCE] Posição=(%.2f, %.2f, %.2f) | Ori=(%.1f, %.1f, %.1f) | Portão: %4 | Estado: %5 | Anexos: %3", pos[0], pos[1], pos[2], ori[0], ori[1], ori[2], gateState, openState, attachmentList);
+
+				Print(logMsg);
+				WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
+			}
+		}
+
+		string summary = "[FENCE SCAN] Total de portões (Fence) encontrados: " + count.ToString();
+		Print(summary);
+		WriteToLog(summary, LogFile.INIT, false, LogType.INFO);
+	}
+
 
 
 	void InitAdminLoop()
