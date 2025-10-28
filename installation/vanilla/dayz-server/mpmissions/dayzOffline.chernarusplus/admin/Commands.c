@@ -581,7 +581,7 @@ bool ExecuteCommand(TStringArray tokens)
                 {
                     if (!g_PlayersWithInfiniteStamina)
                     {
-                        g_PlayersWithInfiniteStamina = new array<ref ActivePlayer>();
+                        g_PlayersWithInfiniteStamina = new array<ActivePlayer>();
                         WriteToLog("ExecuteCommand(): inicializando array g_PlayersWithInfiniteStamina", LogFile.INIT, false, LogType.DEBUG);
                     }
                     
