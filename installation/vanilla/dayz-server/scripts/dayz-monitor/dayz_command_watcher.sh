@@ -369,6 +369,52 @@ EOF
             echo ">> $vehicle_count veículos processados"
             INSERT_CUSTOM_LOG "Total de $vehicle_count veículos rastreados" "INFO" "$ScriptName"
             ;;
+        loot_containers)
+            echo ">> Recebendo containers para loot"
+            #INSERT_CUSTOM_LOG "Processando containers para loot" "INFO" "$ScriptName"
+            
+            # Obtém o array de containers do JSON
+            containers=$(echo "$line" | jq -c '.containers[]')
+            
+            # Itera sobre cada container no array
+            while IFS= read -r container_data; do
+                container_id=$(echo "$container_data" | jq -r '.container_id')
+                container_name=$(echo "$container_data" | jq -r '.container_name')
+                coord_x=$(echo "$container_data" | jq -r '.x')
+                coord_z=$(echo "$container_data" | jq -r '.z')
+                coord_y=$(echo "$container_data" | jq -r '.y')
+                
+                # Insere a posição do container no banco de dados com o timestamp compartilhado
+                ContainerTrackingId=$(INSERT_CONTAINER_POSITION "$container_id" "$container_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp")
+                
+            done <<< "$containers"
+            
+            echo ">> $container_count containers processados"
+            INSERT_CUSTOM_LOG "Total de $container_count containers rastreados" "INFO" "$ScriptName"
+            ;;
+        fences_positions)
+            echo ">> Recebendo posições das portões"
+            #INSERT_CUSTOM_LOG "Processando posições das portões" "INFO" "$ScriptName"
+            
+            # Obtém o array de portões do JSON
+            fences=$(echo "$line" | jq -c '.fences[]')
+            
+            # Itera sobre cada portão no array
+            while IFS= read -r fence_data; do
+                fence_id=$(echo "$fence_data" | jq -r '.fence_id')
+                fence_name=$(echo "$fence_data" | jq -r '.fence_name')
+                coord_x=$(echo "$fence_data" | jq -r '.x')
+                coord_z=$(echo "$fence_data" | jq -r '.z')
+                coord_y=$(echo "$fence_data" | jq -r '.y')
+                
+                # Insere a posição do portão no banco de dados com o timestamp compartilhado
+                FenceTrackingId=$(INSERT_FENCE_POSITION "$fence_id" "$fence_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp")
+                
+            done <<< "$fences"
+            
+            echo ">> $fence_count portões processados"
+            INSERT_CUSTOM_LOG "Total de $fence_count portões rastreados" "INFO" "$ScriptName"
+            ;;
         *)
             echo ">> Ação desconhecida: $action"
             ;;

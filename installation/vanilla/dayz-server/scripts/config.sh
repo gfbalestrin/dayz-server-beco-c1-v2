@@ -609,6 +609,127 @@ EOF
     return 1
 }
 
+INSERT_CONTAINER_POSITION() {
+    local ContainerId="$1"
+    local ContainerName="$2"
+    local CoordX="$3"
+    local CoordZ="$4"
+    local CoordY="$5"
+    local CustomTimestamp="$6"  # Parâmetro opcional para timestamp customizado
+}
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+
+    if [[ -z "$ContainerId" ]]; then
+        echo "Error: ContainerId is required."
+        echo ""
+        return 1
+    fi
+
+    local EscapedContainerId
+    local EscapedContainerName
+    local TimestampValue
+
+    # Escapar aspas simples
+    EscapedContainerId=$(echo "$ContainerId" | sed "s/'/''/g")
+    EscapedContainerName=$(echo "$ContainerName" | sed "s/'/''/g")
+    
+    # Usar timestamp customizado se fornecido, senão usar datetime atual
+    if [[ -n "$CustomTimestamp" ]]; then
+        TimestampValue="'$CustomTimestamp'"
+    else
+        TimestampValue="datetime('now', 'localtime')"
+    fi
+
+    while (( attempt <= max_retries )); do
+        local ContainerTrackingId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+INSERT INTO containers_tracking (ContainerId, ContainerName, PositionX, PositionZ, PositionY, TimeStamp)
+VALUES (
+    '$EscapedContainerId',
+    '$EscapedContainerName',
+    '$CoordX',
+    '$CoordZ',
+    '$CoordY',
+    $TimestampValue
+);
+SELECT last_insert_rowid();
+EOF
+)
+
+        if [[ $? -eq 0 ]]; then
+            echo "$ContainerTrackingId"
+            return 0
+        else
+            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
+            sleep "$retry_delay"
+            attempt=$((attempt + 1))    
+        fi
+    done
+
+    echo "Failed to insert after $max_retries attempts."
+    echo ""
+    return 1
+}
+
+INSERT_FENCE_POSITION() {
+    local FenceId="$1"
+    local FenceName="$2"
+    local CoordX="$3"
+    local CoordZ="$4"
+    local CoordY="$5"
+    local CustomTimestamp="$6"  # Parâmetro opcional para timestamp customizado
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+
+    if [[ -z "$FenceId" ]]; then
+        echo "Error: FenceId is required."
+        echo ""
+        return 1
+    fi
+
+    local EscapedFenceId
+    local EscapedFenceName
+    local TimestampValue
+
+    # Escapar aspas simples
+    EscapedFenceId=$(echo "$FenceId" | sed "s/'/''/g")
+    EscapedFenceName=$(echo "$FenceName" | sed "s/'/''/g")
+
+    # Usar timestamp customizado se fornecido, senão usar datetime atual
+    if [[ -n "$CustomTimestamp" ]]; then
+        TimestampValue="'$CustomTimestamp'"
+    else
+        TimestampValue="datetime('now', 'localtime')"
+    fi
+
+    while (( attempt <= max_retries )); do
+        local FenceTrackingId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+INSERT INTO fences_tracking (FenceId, FenceName, PositionX, PositionZ, PositionY, TimeStamp)
+VALUES (
+    '$EscapedFenceId',
+    '$EscapedFenceName',
+    '$CoordX',
+    '$CoordZ',
+    '$CoordY',
+    $TimestampValue
+);
+SELECT last_insert_rowid();
+EOF
+)
+
+        if [[ $? -eq 0 ]]; then
+            echo "$FenceTrackingId"
+            return 0
+        else
+            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
+            sleep "$retry_delay"
+            attempt=$((attempt + 1))
+        fi
+    done
+}
+
 GET_DAYZ_PLAYER_POSITION(){
     local PlayerID="$1"
     local player=$(sqlite3 "$DayzServerFolder/$DayzPlayerDbFile" "SELECT hex(Data) FROM Players where UID = '$PlayerId';")    

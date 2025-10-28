@@ -109,60 +109,9 @@ class CustomMission: MissionServer
 		// Loop contínuo para aplicar efeitos aos admins
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitAdminLoop, 5000, false); // aguarda 5 segundos
         ActivePlayers = new array<ref ActivePlayer>();
-		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(LogLootContainersDetailed, 10000, false);
-		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(ScanFences, 10000, false);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(LogLootContainersDetailed, 5000, false);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(ScanFences, 5000, false);
     }
-
-	void LogLootContainers()
-	{
-		if (!GetGame() || !GetGame().IsServer())
-			return;
-
-		array<Object> objects = new array<Object>;
-		GetGame().GetObjectsAtPosition("0 0 0", 999999, objects, NULL);
-
-		int count = 0;
-
-		// Lista de tipos de objetos que armazenam loot
-		TStringArray lootTypes = {
-			"WoodenCrate",
-			"Barrel_Yellow",
-			"Barrel_Red",
-			"Barrel_Blue",
-			"CarTent",
-			"LargeTent",
-			"MediumTent",
-			"PartyTent"
-		};
-
-		foreach (Object obj : objects)
-		{
-			if (!obj)
-				continue;
-
-			string type = obj.GetType();
-
-			// Verifica se o tipo está na lista de interesse
-			foreach (string lootType : lootTypes)
-			{
-				if (type == lootType)
-				{
-					vector pos = obj.GetPosition();
-					vector ori = obj.GetOrientation();
-
-					string logMsg = string.Format("[LOOT] %1 at X=%.2f, Y=%.2f, Z=%.2f | Ori=(%.2f, %.2f, %.2f)", type, pos[0], pos[1], pos[2], ori[0], ori[1], ori[2]);
-
-					Print(logMsg);
-					WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
-					count++;
-					break; // Evita checar outros tipos da lista
-				}
-			}
-		}
-
-		Print("[LOOT SCAN] Total de containers encontrados: " + count);
-		WriteToLog("[LOOT SCAN] Total de containers encontrados: " + count, LogFile.INIT, false, LogType.INFO);
-	}
 
 	void LogLootContainersDetailed()
 	{
@@ -186,6 +135,7 @@ class CustomMission: MissionServer
 
 		int totalContainers = 0;
 		int totalItems = 0;
+		string containersJson = "";
 
 		foreach (Object obj : objects)
 		{
@@ -203,11 +153,11 @@ class CustomMission: MissionServer
 					vector pos = obj.GetPosition();
 					vector ori = obj.GetOrientation();
 
-					//string header = string.Format("[LOOT] %1 at X=%.2f, Y=%.2f, Z=%.2f | Ori=(%.2f, %.2f, %.2f)", type, pos[0], pos[1], pos[2], ori[0], ori[1], ori[2]);
-					//Print(header);
-					//WriteToLog(header, LogFile.INIT, false, LogType.INFO);
-
 					WriteToLog("Loot container found: " + type + " at " + pos.ToString() + " with orientation " + ori.ToString(), LogFile.INIT, false, LogType.INFO);
+
+					// Monta JSON do container
+					string containerJson = "";
+					string itemsJson = "";
 
 					// --- Verifica itens dentro ---
 					EntityAI container = EntityAI.Cast(obj);
@@ -225,10 +175,12 @@ class CustomMission: MissionServer
 								float health = item.GetHealth("", "");
 								totalItems++;
 
-								//string itemLog = string.Format("    - %1 (Health: %.2f)", itemType, health);
-								//Print(itemLog);
-								//WriteToLog(itemLog, LogFile.INIT, false, LogType.INFO);
 								WriteToLog("Item found: " + itemType + " with health " + health.ToString(), LogFile.INIT, false, LogType.INFO);
+
+								// Adiciona item ao JSON
+								if (itemsJson != "")
+									itemsJson += ",";
+								itemsJson += "{\"type\":\"" + itemType + "\",\"health\":" + health.ToString() + "}";
 							}
 						}
 
@@ -242,16 +194,34 @@ class CustomMission: MissionServer
 							float attHealth = attachment.GetHealth("", "");
 							totalItems++;
 
-							//string attLog = string.Format("    + Attachment: %1 (Health: %.2f)", attType, attHealth);
-							//Print(attLog);
-							//WriteToLog(attLog, LogFile.INIT, false, LogType.INFO);
 							WriteToLog("Attachment found: " + attType + " with health " + attHealth.ToString(), LogFile.INIT, false, LogType.INFO);
+
+							// Adiciona attachment ao JSON
+							if (itemsJson != "")
+								itemsJson += ",";
+							itemsJson += "{\"type\":\"" + attType + "\",\"health\":" + attHealth.ToString() + "}";
 						}
 					}
+
+					// Monta JSON do container completo
+					containerJson = "{\"container_type\":\"" + type + "\",\"position\":{\"x\":" + pos[0].ToString() + ",\"z\":" + pos[1].ToString() + ",\"y\":" + pos[2].ToString() + "},\"orientation\":{\"x\":" + ori[0].ToString() + ",\"y\":" + ori[1].ToString() + ",\"z\":" + ori[2].ToString() + "},\"items\":[" + itemsJson + "]}";
+
+					// Adiciona ao array de containers
+					if (containersJson != "")
+						containersJson += ",";
+					containersJson += containerJson;
 
 					break;
 				}
 			}
+		}
+
+		// Envia JSON via ExternalAction
+		if (containersJson != "")
+		{
+			string jsonAction = "{\"action\":\"loot_containers\",\"containers\":[" + containersJson + "]}";
+			AppendExternalAction(jsonAction);
+			WriteToLog("LogLootContainersDetailed(): JSON com " + totalContainers.ToString() + " containers e " + totalItems.ToString() + " itens enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
 		}
 
 		string summary = string.Format("[LOOT SCAN] Containers: %1 ", totalContainers);
@@ -265,6 +235,7 @@ class CustomMission: MissionServer
 		GetGame().GetObjectsAtPosition(Vector(0,0,0), 99999, objects, NULL);
 
 		int count = 0;
+		string fencesJson = "";
 
 		foreach (Object obj : objects)
 		{
@@ -298,13 +269,22 @@ class CustomMission: MissionServer
 
 				// Coleta anexos (ex: camonet, arame farpado, cadeado)
 				TStringArray attachments = new TStringArray;
+				string attachmentsJson = "";
 				if (fence.GetInventory())
 				{
 					for (int i = 0; i < fence.GetInventory().AttachmentCount(); i++)
 					{
 						EntityAI att = fence.GetInventory().GetAttachmentFromIndex(i);
 						if (att)
-							attachments.Insert(att.GetType());
+						{
+							string attType = att.GetType();
+							attachments.Insert(attType);
+							
+							// Monta JSON de attachments
+							if (attachmentsJson != "")
+								attachmentsJson += ",";
+							attachmentsJson += "\"" + attType + "\"";
+						}
 					}
 				}
 
@@ -319,14 +299,26 @@ class CustomMission: MissionServer
 				string logMsg = "[FENCE] Posição=(" + posStr + ") | Ori=(" + oriStr + ") | Portão: " + gateState + " | Estado: " + openState + " | Trancado: " + lockedState + " | Anexos: " + attachmentList;
 				Print(logMsg);
 				WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
+
+				// Monta JSON do fence
+				if (fencesJson != "")
+					fencesJson += ",";
+				fencesJson += "{\"position\":{\"x\":" + pos[0].ToString() + ",\"z\":" + pos[1].ToString() + ",\"y\":" + pos[2].ToString() + "},\"orientation\":{\"x\":" + ori[0].ToString() + ",\"y\":" + ori[1].ToString() + ",\"z\":" + ori[2].ToString() + "},\"has_gate\":" + hasGate.ToString() + ",\"is_opened\":" + fence.IsOpened().ToString() + ",\"is_locked\":" + isLocked.ToString() + ",\"attachments\":[" + attachmentsJson + "]}";
 			}
+		}
+
+		// Envia JSON via ExternalAction
+		if (fencesJson != "")
+		{
+			string jsonAction = "{\"action\":\"fences\",\"fences\":[" + fencesJson + "]}";
+			AppendExternalAction(jsonAction);
+			WriteToLog("ScanFences(): JSON com " + count.ToString() + " fences enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
 		}
 
 		string summary = "[FENCE SCAN] Total de estruturas (Fence) encontradas: " + count.ToString();
 		Print(summary);
 		WriteToLog(summary, LogFile.INIT, false, LogType.INFO);
 	}
-
 
 	void InitAdminLoop()
 	{
@@ -1950,7 +1942,6 @@ class CustomMission: MissionServer
 
 		WriteToLog("Total de veículos em rastreamento: " + m_TrackedVehicles.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
 	}
-
 	
 	// Limpa veículos null do array de rastreamento
 	void CleanTrackedVehicles()
