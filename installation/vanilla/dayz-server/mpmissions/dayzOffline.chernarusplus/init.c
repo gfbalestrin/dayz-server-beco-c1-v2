@@ -47,6 +47,33 @@ void main()
 	}
 }
 
+class FenceCustom: Fence
+{
+    void HandleBuildingDamage(BaseBuildingBase building, Man player, string part_name, int action_id)
+    {
+        string className = building.ClassName();
+        vector pos = building.GetPosition();
+        string posStr = pos[0].ToString() + ", " + pos[1].ToString() + ", " + pos[2].ToString();
+        string causadorName;
+
+        if (player)
+            causadorName = player.GetIdentity().GetName();
+        else
+            causadorName = "Desconhecido";
+
+        string logMsg = "[BUILDING DAMAGE] " + className + " - Parte: " + part_name + " | Posição: (" + posStr + ") | Causador: " + causadorName;
+        Print(logMsg);
+        WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
+    }
+
+    override void OnPartDestroyedServer(Man player, string part_name, int action_id, bool destroyed_by_connected_part = false)
+    {
+        super.OnPartDestroyedServer(player, part_name, action_id, destroyed_by_connected_part);
+        // Aqui você chama sua função genérica
+        HandleBuildingDamage(this, player, part_name, action_id);
+    }
+}
+
 class CustomMission: MissionServer
 {
 	ref array<ref ActivePlayer> ActivePlayers;  // Lista de jogadores ativos/conectados
@@ -85,41 +112,6 @@ class CustomMission: MissionServer
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(LogLootContainersDetailed, 10000, false);
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(ScanFences, 10000, false);
     }
-
-	ref map<int, float> buildingHealths = new map<int, float>();
-
-	void MonitorBuildings()
-	{
-		array<Object> objects = {};
-		GetGame().GetObjectsAtPosition(Vector(0,0,0), 99999, objects, null);
-
-		foreach (Object obj : objects)
-		{
-			BaseBuildingBase building = BaseBuildingBase.Cast(obj);
-			if (!building) continue; // ignora objetos que não são BaseBuildingBase
-
-			int id = building.GetID(); // identificador único
-			float prevHealth;
-			if (!buildingHealths.Find(id, prevHealth))
-			{
-				prevHealth = building.GetHealth("", "");
-			}
-
-			float currentHealth = building.GetHealth("", "");
-			if (currentHealth < prevHealth)
-			{
-				string logMsg = "[DANO DETECTADO] " + building.ClassName() + " - Health: " + currentHealth.ToString() + " | Posição: " + building.GetPosition().ToString();
-
-				Print(logMsg);
-				WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
-			}
-
-			buildingHealths.Set(id, currentHealth);
-		}
-
-	}
-
-
 
 	void LogLootContainers()
 	{
