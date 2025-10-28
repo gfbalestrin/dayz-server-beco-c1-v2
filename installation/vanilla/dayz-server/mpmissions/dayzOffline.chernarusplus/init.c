@@ -250,7 +250,7 @@ class CustomMission: MissionServer
 					openState = "Aberto";
 				
 				// Verifica se tem portão construído
-				bool hasGate = fence.HasGate();
+				bool hasGate = true;//fence.HasGate();
 
 				// Coleta anexos (ex: camuflagem, arame farpado, etc.)
 				TStringArray attachments = new TStringArray;
