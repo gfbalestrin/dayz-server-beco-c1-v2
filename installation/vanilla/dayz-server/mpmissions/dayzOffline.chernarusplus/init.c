@@ -133,7 +133,7 @@ class CustomMission: MissionServer
 				ActivePlayer playerWithInfiniteStamina = g_PlayersWithInfiniteStamina.Get(i);
 				if (playerWithInfiniteStamina && playerWithInfiniteStamina.IsSamePlayerById(playerId))
 				{
-					StaminaHandler handler = playerWithInfiniteStamina.GetStaminaHandler();
+					StaminaHandler handler = player.GetStaminaHandler();
 					if (handler)
 						handler.SetStamina(handler.GetStaminaCap());
 					break;
