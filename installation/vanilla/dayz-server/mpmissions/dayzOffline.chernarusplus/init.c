@@ -104,11 +104,11 @@ class CustomMission: MissionServer
 		int appliedCount = 0;
 		if (!g_PlayersWithInfiniteStamina)
 		{
-			WriteToLog("UpdateAdminEffects(): g_PlayersWithInfiniteStamina nulo - inicializando array", LogFile.INIT, false, LogType.DEBUG);
+			//WriteToLog("UpdateAdminEffects(): g_PlayersWithInfiniteStamina nulo - inicializando array", LogFile.INIT, false, LogType.DEBUG);
 			g_PlayersWithInfiniteStamina = new array<ref ActivePlayer>();
 			return;
 		}
-		WriteToLog("UpdateAdminEffects(): tamanho de g_PlayersWithInfiniteStamina = " + g_PlayersWithInfiniteStamina.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
+		//WriteToLog("UpdateAdminEffects(): tamanho de g_PlayersWithInfiniteStamina = " + g_PlayersWithInfiniteStamina.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
 
 		// Sanitiza/remover entradas nulas antes de iterar
 		for (int si = g_PlayersWithInfiniteStamina.Count() - 1; si >= 0; si--)
@@ -116,25 +116,25 @@ class CustomMission: MissionServer
 			ref ActivePlayer ap = g_PlayersWithInfiniteStamina.Get(si);
 			if (!ap || !ap.HasIdentity())
 			{
-				WriteToLog("UpdateAdminEffects(): removendo entrada inválida na lista (índice=" + si.ToString() + ")", LogFile.INIT, false, LogType.DEBUG);
+				//WriteToLog("UpdateAdminEffects(): removendo entrada inválida na lista (índice=" + si.ToString() + ")", LogFile.INIT, false, LogType.DEBUG);
 				g_PlayersWithInfiniteStamina.Remove(si);
 			}
 		}
 
 		if (g_PlayersWithInfiniteStamina.Count() == 0)
 		{
-			WriteToLog("UpdateAdminEffects(): lista de stamina infinita vazia - nada a fazer", LogFile.INIT, false, LogType.DEBUG);
+			//WriteToLog("UpdateAdminEffects(): lista de stamina infinita vazia - nada a fazer", LogFile.INIT, false, LogType.DEBUG);
 			return;
 		}
 
 		array<Man> players = new array<Man>;
 		GetGame().GetPlayers(players);
-		WriteToLog("UpdateAdminEffects(): jogadores no mundo retornados por GetPlayers = " + players.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
+		//WriteToLog("UpdateAdminEffects(): jogadores no mundo retornados por GetPlayers = " + players.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
 
 		// Se não há jogadores conectados, sai
 		if (players.Count() == 0)
 		{
-			WriteToLog("UpdateAdminEffects(): nenhum jogador no mundo - retornando", LogFile.INIT, false, LogType.DEBUG);
+			//WriteToLog("UpdateAdminEffects(): nenhum jogador no mundo - retornando", LogFile.INIT, false, LogType.DEBUG);
 			return;
 		}
 
@@ -147,20 +147,20 @@ class CustomMission: MissionServer
 
 			string playerId = player.GetIdentity().GetId();
 			string playerName = player.GetIdentity().GetName();
-			WriteToLog("UpdateAdminEffects(): processando jogador '" + playerName + "' (ID=" + playerId + ")", LogFile.INIT, false, LogType.DEBUG);
+			//WriteToLog("UpdateAdminEffects(): processando jogador '" + playerName + "' (ID=" + playerId + ")", LogFile.INIT, false, LogType.DEBUG);
 
 			bool foundMatch = false;
-			WriteToLog("UpdateAdminEffects(): procurando ID na lista de stamina infinita -> " + playerId, LogFile.INIT, false, LogType.DEBUG);
+			//WriteToLog("UpdateAdminEffects(): procurando ID na lista de stamina infinita -> " + playerId, LogFile.INIT, false, LogType.DEBUG);
 			for (int i = 0; i < g_PlayersWithInfiniteStamina.Count(); i++)
 			{
 				ref ActivePlayer playerWithInfiniteStamina = g_PlayersWithInfiniteStamina.Get(i);
 				if (!playerWithInfiniteStamina)
 				{
-					WriteToLog("UpdateAdminEffects(): item da lista nulo no índice " + i.ToString(), LogFile.INIT, false, LogType.DEBUG);
+					//WriteToLog("UpdateAdminEffects(): item da lista nulo no índice " + i.ToString(), LogFile.INIT, false, LogType.DEBUG);
 					continue;
 				}
 				string listPid = playerWithInfiniteStamina.GetPlayerId();
-				WriteToLog("UpdateAdminEffects(): verificando índice " + i.ToString() + " da lista (PlayerID=" + listPid + ")", LogFile.INIT, false, LogType.DEBUG);
+				//WriteToLog("UpdateAdminEffects(): verificando índice " + i.ToString() + " da lista (PlayerID=" + listPid + ")", LogFile.INIT, false, LogType.DEBUG);
 				if (playerWithInfiniteStamina.IsSamePlayerById(playerId))
 				{
 					foundMatch = true;
@@ -172,22 +172,22 @@ class CustomMission: MissionServer
 						handler.SetStamina(cap);
 						float after = handler.GetStamina();
 						appliedCount++;
-						WriteToLog("UpdateAdminEffects(): stamina aplicada para '" + playerName + "' (antes=" + before.ToString() + ", depois=" + after.ToString() + ", cap=" + cap.ToString() + ")", LogFile.INIT, false, LogType.DEBUG);
+						//WriteToLog("UpdateAdminEffects(): stamina aplicada para '" + playerName + "' (antes=" + before.ToString() + ", depois=" + after.ToString() + ", cap=" + cap.ToString() + ")", LogFile.INIT, false, LogType.DEBUG);
 					}
 					else
 					{
-						WriteToLog("UpdateAdminEffects(): StaminaHandler nulo para jogador '" + playerName + "' (ID=" + playerId + ")", LogFile.INIT, false, LogType.DEBUG);
+						//WriteToLog("UpdateAdminEffects(): StaminaHandler nulo para jogador '" + playerName + "' (ID=" + playerId + ")", LogFile.INIT, false, LogType.DEBUG);
 					}
 					break;
 				}
 			}
 			if (!foundMatch)
 			{
-				WriteToLog("UpdateAdminEffects(): jogador NÃO encontrado na lista de stamina infinita -> ID=" + playerId, LogFile.INIT, false, LogType.DEBUG);
+				//WriteToLog("UpdateAdminEffects(): jogador NÃO encontrado na lista de stamina infinita -> ID=" + playerId, LogFile.INIT, false, LogType.DEBUG);
 			}
 
 		}
-		WriteToLog("UpdateAdminEffects(): finalizado - stamina aplicada em " + appliedCount.ToString() + " jogador(es)", LogFile.INIT, false, LogType.DEBUG);
+		//WriteToLog("UpdateAdminEffects(): finalizado - stamina aplicada em " + appliedCount.ToString() + " jogador(es)", LogFile.INIT, false, LogType.DEBUG);
 	}
 
 
