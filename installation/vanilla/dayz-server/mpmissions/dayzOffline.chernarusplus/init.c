@@ -91,14 +91,14 @@ class CustomMission: MissionServer
 	void MonitorBuildings()
 	{
 		array<Object> objects = {};
-		GetGame().GetObjectsAtPosition(Vector(0,0,0), 99999, objects, "BaseBuildingBase");
+		GetGame().GetObjectsAtPosition(Vector(0,0,0), 99999, objects, null);
 
 		foreach (Object obj : objects)
 		{
 			BaseBuildingBase building = BaseBuildingBase.Cast(obj);
-			if (!building) continue;
+			if (!building) continue; // ignora objetos que não são BaseBuildingBase
 
-			int id = building.GetID(); // ID único do objeto
+			int id = building.GetID(); // identificador único
 			float prevHealth;
 			if (!buildingHealths.Find(id, prevHealth))
 			{
@@ -108,7 +108,9 @@ class CustomMission: MissionServer
 			float currentHealth = building.GetHealth("", "");
 			if (currentHealth < prevHealth)
 			{
-				string logMsg = "[DANO DETECTADO] " + building.ClassName() + " - Health: " + currentHealth.ToString() + " | Posição: " + building.GetPosition().ToString();
+				string logMsg = "[DANO DETECTADO] " + building.ClassName() +
+								" - Health: " + currentHealth.ToString() +
+								" | Posição: " + building.GetPosition().ToString();
 
 				Print(logMsg);
 				WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
@@ -116,6 +118,7 @@ class CustomMission: MissionServer
 
 			buildingHealths.Set(id, currentHealth);
 		}
+
 	}
 
 
