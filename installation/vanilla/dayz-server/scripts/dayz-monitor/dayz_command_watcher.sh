@@ -265,7 +265,7 @@ tail -F "$COMMAND_FILE" | while read -r line; do
             ;;
         players_positions)
             echo ">> Recebendo posições dos jogadores"
-            INSERT_CUSTOM_LOG "Processando posições dos jogadores" "INFO" "$ScriptName"
+            #INSERT_CUSTOM_LOG "Processando posições dos jogadores" "INFO" "$ScriptName"
             
             # Obtém o array de jogadores do JSON
             players=$(echo "$line" | jq -c '.players[]')
@@ -331,6 +331,9 @@ EOF
                 fi
 
             done <<< "$players"
+
+            player_count=$(echo "$players" | wc -l)
+            INSERT_CUSTOM_LOG "Total de $player_count jogadores rastreados" "INFO" "$ScriptName"
             
             ;;
         vehicles_positions)

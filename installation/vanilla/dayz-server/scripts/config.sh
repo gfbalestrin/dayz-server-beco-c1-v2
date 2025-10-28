@@ -642,7 +642,7 @@ SEND_DISCORD_WEBHOOK() {
     local current_date="${3:-$(date '+%d/%m/%Y %H:%M:%S')}"
     local source="$4"
 
-    INSERT_CUSTOM_LOG "Enviando evento para o discord..." "INFO" "$source"
+    #INSERT_CUSTOM_LOG "Enviando evento para o discord..." "INFO" "$source"
 
     if [[ -z "$content" || -z "$webhook_url" ]]; then
         INSERT_CUSTOM_LOG "Usage: send_discord_webhook_log <content> <webhook_url> [current_date]" "ERROR" "$source"

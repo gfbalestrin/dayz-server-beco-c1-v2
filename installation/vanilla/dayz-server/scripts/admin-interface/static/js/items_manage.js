@@ -1052,6 +1052,7 @@ function editAttachments(id) {
             $('#attachmentName').val(att.name);
             $('#attachmentNameType').val(att.name_type);
             $('#attachmentType').val(att.type);
+            $('#attachmentBattery').prop('checked', att.battery === 1);
             $('#attachmentWidth').val(att.width);
             $('#attachmentHeight').val(att.height);
             $('#attachmentSlots').val(att.slots);
@@ -1081,6 +1082,7 @@ function saveAttachment() {
         name: $('#attachmentName').val(),
         name_type: $('#attachmentNameType').val(),
         type: $('#attachmentType').val(),
+        battery: $('#attachmentBattery').is(':checked') ? 1 : 0,
         width: parseInt($('#attachmentWidth').val()),
         height: parseInt($('#attachmentHeight').val()),
         slots: parseInt($('#attachmentSlots').val()),

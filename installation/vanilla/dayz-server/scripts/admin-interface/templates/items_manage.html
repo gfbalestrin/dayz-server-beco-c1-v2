@@ -668,65 +668,6 @@
     </div>
 </div>
 
-<!-- Modal de Edição de Attachment -->
-<div class="modal fade" id="attachmentModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Editar Attachment</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="attachmentForm">
-                    <input type="hidden" id="attachmentId">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <label>Nome</label>
-                            <input type="text" class="form-control" id="attachmentName" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label>Name Type</label>
-                            <input type="text" class="form-control" id="attachmentNameType" required>
-                        </div>
-                    </div>
-                    <div class="row mt-3">
-                        <div class="col-md-3">
-                            <label>Tipo</label>
-                            <input type="text" class="form-control" id="attachmentType" required>
-                        </div>
-                        <div class="col-md-2">
-                            <label>Bateria</label>
-                            <input type="number" class="form-control" id="attachmentBattery" value="0">
-                        </div>
-                        <div class="col-md-2">
-                            <label>Slots</label>
-                            <input type="number" class="form-control" id="attachmentSlots" required>
-                        </div>
-                        <div class="col-md-5">
-                            <label>Width x Height</label>
-                            <div class="input-group">
-                                <input type="number" class="form-control" id="attachmentWidth" required min="1">
-                                <span class="input-group-text">x</span>
-                                <input type="number" class="form-control" id="attachmentHeight" required min="1">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row mt-3">
-                        <div class="col-md-12">
-                            <label>Imagem (URL)</label>
-                            <input type="text" class="form-control" id="attachmentImg" required>
-                        </div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="btnSaveAttachment">Salvar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Modal de Edição de Calibre -->
 <div class="modal fade" id="caliberModal" tabindex="-1">
     <div class="modal-dialog">
@@ -981,6 +922,14 @@
                                 <option value="suppressor">Suppressor</option>
                             </select>
                         </div>
+                        <div class="col-md-2 d-flex align-items-end mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="attachmentBattery">
+                                <label class="form-check-label" for="attachmentBattery">
+                                    Possui Bateria
+                                </label>
+                            </div>
+                        </div>
                         <div class="col-md-2">
                             <label>Width x Height</label>
                             <div class="input-group">
@@ -993,7 +942,7 @@
                             <label>Slots (auto)</label>
                             <input type="number" class="form-control" id="attachmentSlots" readonly>
                         </div>
-                        <div class="col-md-5">
+                        <div class="col-md-3">
                             <label>Imagem (URL)</label>
                             <input type="text" class="form-control" id="attachmentImg" required>
                         </div>

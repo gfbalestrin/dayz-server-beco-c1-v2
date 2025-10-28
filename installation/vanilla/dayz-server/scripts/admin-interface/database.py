@@ -545,7 +545,7 @@ def get_attachments(search: str = None, type_filter: str = None, weapon_id: int 
         if weapon_id:
             # Filtrar apenas attachments compatíveis com a arma
             query = """
-                SELECT DISTINCT at.id, at.name, at.name_type, at.type, at.slots, at.width, at.height, at.img
+                SELECT DISTINCT at.id, at.name, at.name_type, at.type, at.slots, at.width, at.height, at.img, at.battery
                 FROM attachments at
                 INNER JOIN weapon_attachments wat ON at.id = wat.attachment_id
                 WHERE wat.weapon_id = ?
@@ -564,7 +564,7 @@ def get_attachments(search: str = None, type_filter: str = None, weapon_id: int 
             params.append(limit)
         else:
             # Query original sem filtro de arma
-            query = "SELECT id, name, name_type, type, slots, width, height, img FROM attachments WHERE 1=1"
+            query = "SELECT id, name, name_type, type, slots, width, height, img, battery FROM attachments WHERE 1=1"
             params = []
             
             if type_filter:
@@ -613,7 +613,7 @@ def get_weapon_compatible_items(weapon_id: int) -> Dict:
         
         # Attachments compatíveis
         cursor.execute("""
-            SELECT at.id, at.name, at.name_type, at.type, at.img
+            SELECT at.id, at.name, at.name_type, at.type, at.img, at.battery
             FROM attachments at
             INNER JOIN weapon_attachments wat ON at.id = wat.attachment_id
             WHERE wat.weapon_id = ?
