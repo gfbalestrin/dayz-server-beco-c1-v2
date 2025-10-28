@@ -284,8 +284,9 @@ class CustomMission: MissionServer
 				else
 					attachmentList = "Nenhum";
 
-				string logMsg = "[FENCE] Posição=(" + pos[0].ToString() + ", " + pos[1].ToString() + ", " + pos[2].ToString() +  ") | Ori=(" + ori[0].ToString() + ", " + ori[1].ToString() + ", " + ori[2].ToString() + ") | Portão: " + gateState + " | Estado: " + openState + " | Trancado: " + lockedState + " | Anexos: " + attachmentList;
-
+				string posStr = pos[0].ToString() + ", " + pos[1].ToString() + ", " + pos[2].ToString();
+				string oriStr = ori[0].ToString() + ", " + ori[1].ToString() + ", " + ori[2].ToString();
+				string logMsg = "[FENCE] Posição=(" + posStr + ") | Ori=(" + oriStr + ") | Portão: " + gateState + " | Estado: " + openState + " | Trancado: " + lockedState + " | Anexos: " + attachmentList;
 				Print(logMsg);
 				WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
 			}
