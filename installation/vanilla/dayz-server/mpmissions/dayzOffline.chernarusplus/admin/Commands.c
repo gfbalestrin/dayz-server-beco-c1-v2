@@ -139,6 +139,8 @@ bool ExecuteCommand(TStringArray tokens)
                 SendPrivateMessage(playerID, "!setweather clear -> Altera o tempo para limpo. Opções: clear, cloudy, rain, foggy ou default", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!teleport 100.0 100.0 100.0 -> Teleporta para a posição 100.0, 100.0, 100.0", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!getposition -> Mostra posição atual", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!stamina on/off -> Ativa/Desativa stamina infinita", MessageColor.FRIENDLY);
+                
             }
             break;
         case "teleport":
