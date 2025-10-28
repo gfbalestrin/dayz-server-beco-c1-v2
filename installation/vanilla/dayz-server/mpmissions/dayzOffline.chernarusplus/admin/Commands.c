@@ -575,11 +575,7 @@ bool ExecuteCommand(TStringArray tokens)
                 string mode = tokens[2];
                 mode.ToLower();
                 
-                if (!g_PlayersWithInfiniteStamina)
-                {
-                    WriteToLog("Inicializando array g_AdminInfiniteStamina...", LogFile.INIT, false, LogType.DEBUG);
-                    g_PlayersWithInfiniteStamina = new array<ActivePlayer>();
-                }
+                
 
                 if (mode == "on")
                 {

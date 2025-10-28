@@ -101,6 +101,17 @@ class CustomMission: MissionServer
 
 	void UpdateAdminEffects()
 	{
+		if (!g_PlayersWithInfiniteStamina)
+		{
+			WriteToLog("Inicializando array g_AdminInfiniteStamina...", LogFile.INIT, false, LogType.DEBUG);
+			g_PlayersWithInfiniteStamina = new array<ActivePlayer>();
+			return;
+		}
+		if (g_PlayersWithInfiniteStamina.Count() == 0)
+		{
+			return;
+		}
+
 		array<Man> players = new array<Man>;
 		GetGame().GetPlayers(players);
 
@@ -124,7 +135,7 @@ class CustomMission: MissionServer
 					StaminaHandler handler = player.GetStaminaHandler();
 					if (handler)
                 		handler.SetStamina(handler.GetStaminaCap());
-					
+
 					break;
 				}
 			}			
