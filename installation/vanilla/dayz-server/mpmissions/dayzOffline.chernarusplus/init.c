@@ -1840,7 +1840,6 @@ class CustomMission: MissionServer
 		ListActivePlayers();
 		SendPlayersPositions();
 		SendVehiclesPositions();
-		MonitorBuildings();
 	}
 	}
 	
