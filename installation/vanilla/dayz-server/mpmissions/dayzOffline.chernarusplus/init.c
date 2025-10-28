@@ -303,7 +303,22 @@ class CustomMission: MissionServer
 				// Monta JSON do fence
 				if (fencesJson != "")
 					fencesJson += ",";
-				fencesJson += "{\"position\":{\"x\":" + pos[0].ToString() + ",\"z\":" + pos[1].ToString() + ",\"y\":" + pos[2].ToString() + "},\"orientation\":{\"x\":" + ori[0].ToString() + ",\"y\":" + ori[1].ToString() + ",\"z\":" + ori[2].ToString() + "},\"has_gate\":" + hasGate.ToString() + ",\"is_opened\":" + fence.IsOpened().ToString() + ",\"is_locked\":" + isLocked.ToString() + ",\"attachments\":[" + attachmentsJson + "]}";
+				string posX = pos[0].ToString();
+				string posZ = pos[1].ToString();
+				string posY = pos[2].ToString();
+				string oriX = ori[0].ToString();
+				string oriY = ori[1].ToString();
+				string oriZ = ori[2].ToString();
+				string hasGateStr = hasGate.ToString();
+				string isOpenedStr = fence.IsOpened().ToString();
+				string isLockedStr = isLocked.ToString();
+
+				fencesJson += "{\"position\":{\"x\":" + posX + ",\"z\":" + posZ + ",\"y\":" + posY + "}";
+				fencesJson += ",\"orientation\":{\"x\":" + oriX + ",\"y\":" + oriY + ",\"z\":" + oriZ + "}";
+				fencesJson += ",\"has_gate\":" + hasGateStr;
+				fencesJson += ",\"is_opened\":" + isOpenedStr;
+				fencesJson += ",\"is_locked\":" + isLockedStr;
+				fencesJson += ",\"attachments\":[" + attachmentsJson + "]}";
 			}
 		}
 

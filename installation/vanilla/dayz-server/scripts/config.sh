@@ -616,7 +616,6 @@ INSERT_CONTAINER_POSITION() {
     local CoordZ="$4"
     local CoordY="$5"
     local CustomTimestamp="$6"  # Parâmetro opcional para timestamp customizado
-}
     local max_retries=5
     local retry_delay=0.2
     local attempt=1
