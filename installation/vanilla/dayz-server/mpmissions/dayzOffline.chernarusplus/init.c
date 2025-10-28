@@ -80,10 +80,24 @@ class CustomMission: MissionServer
 		WriteToLog("OnMissionStart(): Servidor reiniciado com sucesso!", LogFile.INIT, false, LogType.INFO);
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SendStartEvent, 5000, false);
 		// Loop contínuo para aplicar efeitos aos admins
-		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(UpdateAdminEffects, 5000, true);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitAdminLoop, 5000, false); // aguarda 5 segundos
         ActivePlayers = new array<ref ActivePlayer>();
 		
     }
+
+	void InitAdminLoop()
+	{
+		if (!GetGame())
+		{
+			Print("[AdminSystem] GetGame() ainda nulo, reagendando...");
+			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitAdminLoop, 5000, false);
+			return;
+		}
+
+		Print("[AdminSystem] Loop de efeitos iniciado com sucesso!");
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(UpdateAdminEffects, 5000, true);
+	}
+
 
 	void UpdateAdminEffects()
 	{
