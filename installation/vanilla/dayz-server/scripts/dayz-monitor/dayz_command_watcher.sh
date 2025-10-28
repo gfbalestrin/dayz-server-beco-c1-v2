@@ -373,47 +373,118 @@ EOF
             echo ">> Recebendo containers para loot: $line"
             #INSERT_CUSTOM_LOG "Processando containers para loot" "INFO" "$ScriptName"
             
+            # Captura o timestamp atual antes do loop
+            current_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+            
+            # Limpar tabela antes de inserir novas posições
+            sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "DELETE FROM containers_tracking;"
+            echo ">> Tabela de containers limpa"
+            
+            # Verifica se existe container_data no JSON
+            if ! echo "$line" | jq -e '.container_data' >/dev/null 2>&1; then
+                echo ">> Nenhum container encontrado no JSON"
+                INSERT_CUSTOM_LOG "JSON de containers vazio ou inválido" "INFO" "$ScriptName"
+                continue
+            fi
+            
             # Obtém o array de containers do JSON
-            containers=$(echo "$line" | jq -c '.containers[]')
+            containers=$(echo "$line" | jq -c '.container_data[]')
+            
+            # Conta quantos containers foram recebidos
+            container_count=$(echo "$line" | jq '.container_data | length')
+            
+            # Inicializa contador
+            processed_count=0
             
             # Itera sobre cada container no array
             while IFS= read -r container_data; do
-                container_id=$(echo "$container_data" | jq -r '.container_id')
-                container_name=$(echo "$container_data" | jq -r '.container_name')
-                coord_x=$(echo "$container_data" | jq -r '.x')
-                coord_z=$(echo "$container_data" | jq -r '.z')
-                coord_y=$(echo "$container_data" | jq -r '.y')
+                if [ -z "$container_data" ]; then
+                    continue
+                fi
                 
-                # Insere a posição do container no banco de dados com o timestamp compartilhado
+                # Extrai os campos corretos
+                container_type=$(echo "$container_data" | jq -r '.container_type')
+                coord_x=$(echo "$container_data" | jq -r '.position.x')
+                coord_z=$(echo "$container_data" | jq -r '.position.z')
+                coord_y=$(echo "$container_data" | jq -r '.position.y')
+                
+                # Gera um ID único baseado nas coordenadas e tipo
+                container_id="${container_type}_${coord_x}_${coord_y}_${coord_z}"
+                container_name="$container_type"
+                
+                # Insere a posição do container no banco de dados
                 ContainerTrackingId=$(INSERT_CONTAINER_POSITION "$container_id" "$container_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp")
+                
+                if [ $? -eq 0 ]; then
+                    ((processed_count++))
+                fi
                 
             done <<< "$containers"
             
-            echo ">> $container_count containers processados"
-            INSERT_CUSTOM_LOG "Total de $container_count containers rastreados" "INFO" "$ScriptName"
+            echo ">> $processed_count containers processados de $container_count totais"
+            INSERT_CUSTOM_LOG "Total de $processed_count containers rastreados" "INFO" "$ScriptName"
             ;;
         fences_positions)
             echo ">> Recebendo posições das portões: $line"
             #INSERT_CUSTOM_LOG "Processando posições das portões" "INFO" "$ScriptName"
             
+            # Captura o timestamp atual antes do loop
+            current_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+            
+            # Limpar tabela antes de inserir novas posições
+            sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "DELETE FROM fences_tracking;"
+            echo ">> Tabela de fences limpa"
+            
+            # Verifica se existe fence_data no JSON
+            if ! echo "$line" | jq -e '.fence_data' >/dev/null 2>&1; then
+                echo ">> Nenhum fence encontrado no JSON"
+                INSERT_CUSTOM_LOG "JSON de fences vazio ou inválido" "INFO" "$ScriptName"
+                continue
+            fi
+            
             # Obtém o array de portões do JSON
-            fences=$(echo "$line" | jq -c '.fences[]')
+            fences=$(echo "$line" | jq -c '.fence_data[]')
+            
+            # Conta quantos fences foram recebidos
+            fence_count=$(echo "$line" | jq '.fence_data | length')
+            
+            # Inicializa contador
+            processed_count=0
             
             # Itera sobre cada portão no array
             while IFS= read -r fence_data; do
-                fence_id=$(echo "$fence_data" | jq -r '.fence_id')
-                fence_name=$(echo "$fence_data" | jq -r '.fence_name')
-                coord_x=$(echo "$fence_data" | jq -r '.x')
-                coord_z=$(echo "$fence_data" | jq -r '.z')
-                coord_y=$(echo "$fence_data" | jq -r '.y')
+                if [ -z "$fence_data" ]; then
+                    continue
+                fi
                 
-                # Insere a posição do portão no banco de dados com o timestamp compartilhado
+                # Extrai os campos corretos
+                coord_x=$(echo "$fence_data" | jq -r '.position.x')
+                coord_z=$(echo "$fence_data" | jq -r '.position.z')
+                coord_y=$(echo "$fence_data" | jq -r '.position.y')
+                has_gate=$(echo "$fence_data" | jq -r '.has_gate')
+                is_opened=$(echo "$fence_data" | jq -r '.is_opened')
+                is_locked=$(echo "$fence_data" | jq -r '.is_locked')
+                
+                # Gera um ID único baseado nas coordenadas
+                fence_id="Fence_${coord_x}_${coord_y}_${coord_z}"
+                
+                # Gera um nome descritivo baseado nas características
+                fence_name="Fence"
+                [ "$has_gate" == "true" ] && fence_name="${fence_name}_Gate"
+                [ "$is_opened" == "true" ] && fence_name="${fence_name}_Open"
+                [ "$is_locked" == "true" ] && fence_name="${fence_name}_Locked"
+                
+                # Insere a posição do portão no banco de dados
                 FenceTrackingId=$(INSERT_FENCE_POSITION "$fence_id" "$fence_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp")
+                
+                if [ $? -eq 0 ]; then
+                    ((processed_count++))
+                fi
                 
             done <<< "$fences"
             
-            echo ">> $fence_count portões processados"
-            INSERT_CUSTOM_LOG "Total de $fence_count portões rastreados" "INFO" "$ScriptName"
+            echo ">> $processed_count portões processados de $fence_count totais"
+            INSERT_CUSTOM_LOG "Total de $processed_count portões rastreados" "INFO" "$ScriptName"
             ;;
         *)
             echo ">> Ação desconhecida: $action"
