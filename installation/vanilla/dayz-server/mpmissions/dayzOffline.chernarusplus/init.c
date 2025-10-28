@@ -108,9 +108,7 @@ class CustomMission: MissionServer
 			float currentHealth = building.GetHealth("", "");
 			if (currentHealth < prevHealth)
 			{
-				string logMsg = "[DANO DETECTADO] " + building.ClassName() +
-								" - Health: " + currentHealth.ToString() +
-								" | Posição: " + building.GetPosition().ToString();
+				string logMsg = "[DANO DETECTADO] " + building.ClassName() + " - Health: " + currentHealth.ToString() + " | Posição: " + building.GetPosition().ToString();
 
 				Print(logMsg);
 				WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
