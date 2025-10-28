@@ -562,7 +562,70 @@ bool ExecuteCommand(TStringArray tokens)
             SendPrivateMessage(playerID, "Rain A/F: " + rainA.ToString() + "/" + rainF.ToString() + " | Overcast A/F: " + overA.ToString() + "/" + overF.ToString() + " | Fog A/F: " + fogA.ToString() + "/" + fogF.ToString() + " | Wind: " + wind.ToString(), MessageColor.FRIENDLY);
             WriteToLog("Admin " + playerID + " ajustou o clima para " + clima, LogFile.INIT, false, LogType.INFO);
             break;
-    }
+    
+        case "stamina":
+            if (!isAdmin)
+            {
+                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
+                return false;
+            }
+
+            if (tokens.Count() >= 3)
+            {
+                string mode = tokens[2];
+                mode.ToLower();
+
+                if (mode == "on")
+                {
+                    target.m_AdminInfiniteStamina = true;
+                    target.MessageStatus("Stamina infinita ativada!");
+                    WriteToLog("Stamina infinita ativada para " + playerID, LogFile.INIT, false, LogType.INFO);
+                }
+                else if (mode == "off")
+                {
+                    target.m_AdminInfiniteStamina = false;
+                    target.MessageStatus("Stamina infinita desativada!");
+                    WriteToLog("Stamina infinita desativada para " + playerID, LogFile.INIT, false, LogType.INFO);
+                }
+                else
+                {
+                    target.MessageStatus("Uso: !stamina on | off");
+                }
+            }
+            else
+            {
+                target.MessageStatus("Uso: !stamina on | off");
+            }
+            break;
+
+        case "speed":
+            if (!isAdmin)
+            {
+                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
+                return false;
+            }
+
+            if (tokens.Count() >= 3)
+            {
+                float mult = tokens[2].ToFloat();
+
+                if (mult <= 0)
+                {
+                    target.MessageStatus("Valor inválido. Use um número positivo.");
+                    break;
+                }
+
+                target.m_AdminSpeedMultiplier = mult;
+                target.MessageStatus("Velocidade ajustada para x" + mult.ToString());
+                WriteToLog("Velocidade ajustada para x" + mult.ToString() + " para " + playerID, LogFile.INIT, false, LogType.INFO);
+            }
+            else
+            {
+                target.MessageStatus("Uso: !speed <valor> (exemplo: !speed 2)");
+            }
+            break;
+
+        }
 
     return true;
 }
