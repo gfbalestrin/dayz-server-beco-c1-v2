@@ -235,6 +235,9 @@ function loadPlayers() {
         method: 'GET',
         success: function(response) {
             playersData = response.players;
+            const onlineCount = playersData.filter(p => p.IsOnline && p.IsOnline !== 0).length;
+            const offlineCount = playersData.length - onlineCount;
+            console.log(`[loadPlayers] Dados carregados: ${playersData.length} total, ${onlineCount} online, ${offlineCount} offline`);
             renderPlayersTable();
         },
         error: function(xhr) {
@@ -339,6 +342,8 @@ function renderPlayersTable() {
     const searchTerm = $('#searchInput').val();
     let filteredData = filterPlayersData(playersData, searchTerm);
     
+    console.log(`[renderPlayersTable] Renderizando tabela com ${filteredData.length} jogadores filtrados`);
+    
     // Atualizar contadores
     const onlineCount = filteredData.filter(p => p.IsOnline && p.IsOnline !== 0).length;
     const totalCount = filteredData.length;
@@ -346,36 +351,40 @@ function renderPlayersTable() {
     $('#onlineCount').text(onlineCount);
     $('#totalCount').text(totalCount);
     
-    // Limpar tabela
+    // Destruir DataTable PRIMEIRO (se existir)
+    if ($.fn.DataTable.isDataTable('#playersTable')) {
+        console.log('[renderPlayersTable] Destruindo DataTable existente...');
+        table.clear();
+        table.destroy();
+        table = null;
+    }
+    
+    // Limpar e preencher tbody
     const tbody = $('#playersTableBody');
     tbody.empty();
     
     if (filteredData.length === 0) {
         tbody.append('<tr><td colspan="7" class="text-center">Nenhum jogador encontrado</td></tr>');
-        return;
+    } else {
+        // Renderizar cada jogador
+        filteredData.forEach(player => {
+            const row = `
+                <tr class="${player.IsOnline && player.IsOnline !== 0 ? 'table-info' : ''}">
+                    <td>${renderStatus(player)}</td>
+                    <td>${renderPlayerId(player.PlayerID)}</td>
+                    <td>${escapeHtml(player.PlayerName || '-')}</td>
+                    <td>${createSteamLink(player.SteamID, player.SteamName)}</td>
+                    <td>${renderDateTime(player)}</td>
+                    <td>${createMapViewLink(player.PlayerID)}</td>
+                    <td>${renderActions(player)}</td>
+                </tr>
+            `;
+            tbody.append(row);
+        });
     }
     
-    // Renderizar cada jogador
-    filteredData.forEach(player => {
-        const row = `
-            <tr class="${player.IsOnline && player.IsOnline !== 0 ? 'table-info' : ''}">
-                <td>${renderStatus(player)}</td>
-                <td>${renderPlayerId(player.PlayerID)}</td>
-                <td>${escapeHtml(player.PlayerName || '-')}</td>
-                <td>${createSteamLink(player.SteamID, player.SteamName)}</td>
-                <td>${renderDateTime(player)}</td>
-                <td>${createMapViewLink(player.PlayerID)}</td>
-                <td>${renderActions(player)}</td>
-            </tr>
-        `;
-        tbody.append(row);
-    });
-    
-    // Inicializar ou destruir e recriar DataTable
-    if ($.fn.DataTable.isDataTable('#playersTable')) {
-        $('#playersTable').DataTable().destroy();
-    }
-    
+    // Recriar DataTable imediatamente (sem setTimeout)
+    console.log('[renderPlayersTable] Recriando DataTable...');
     table = $('#playersTable').DataTable({
         language: {
             url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/pt-BR.json'
@@ -387,6 +396,7 @@ function renderPlayersTable() {
             { orderable: false, targets: [1, 5, 6] } // Player ID, Mapa e Ações não são ordenáveis
         ]
     });
+    console.log('[renderPlayersTable] DataTable recriada com sucesso');
 }
 
 // Inicialização
