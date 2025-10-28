@@ -47,6 +47,17 @@ void main()
 	}
 }
 
+class FenceCustom extends Fence
+{
+    override void OnPartDestroyedServer(Man player, string part_name, int action_id, bool destroyed_by_connected_part = false)
+    {
+        super.OnPartDestroyedServer(player, part_name, action_id, destroyed_by_connected_part);
+
+        // Aqui você chama sua função genérica
+        HandleBuildingDamage(this, player, part_name, action_id);
+    }
+}
+
 class CustomMission: MissionServer
 {
 	ref array<ref ActivePlayer> ActivePlayers;  // Lista de jogadores ativos/conectados
@@ -315,14 +326,6 @@ class CustomMission: MissionServer
 		Print(logMsg);
 		WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
 	}
-
-	override void OnPartDestroyedServer(Man player, string part_name, int action_id, bool destroyed_by_connected_part = false)
-	{
-		super.OnPartDestroyedServer(player, part_name, action_id, destroyed_by_connected_part);
-
-		HandleBuildingDamage(this, player, part_name, action_id);
-	}
-
 
 	void InitAdminLoop()
 	{
@@ -2057,6 +2060,9 @@ class CustomMission: MissionServer
 		WriteToLog("SendVehiclesPositions(): Posições de " + m_TrackedVehicles.Count().ToString() + " veículos enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
 	}
 };
+
+
+
 
 Mission CreateCustomMission(string path)
 {
