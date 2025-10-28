@@ -575,22 +575,64 @@ bool ExecuteCommand(TStringArray tokens)
                 string mode = tokens[2];
                 mode.ToLower();
                 
-                
+                WriteToLog("ExecuteCommand(): comando stamina com mode='" + mode + "' para playerID=" + playerID, LogFile.INIT, false, LogType.DEBUG);
 
                 if (mode == "on")
                 {
-                    g_PlayersWithInfiniteStamina.Insert(new ActivePlayer(target.GetIdentity(), target));
+                    if (!g_PlayersWithInfiniteStamina)
+                    {
+                        g_PlayersWithInfiniteStamina = new array<ref ActivePlayer>();
+                        WriteToLog("ExecuteCommand(): inicializando array g_PlayersWithInfiniteStamina", LogFile.INIT, false, LogType.DEBUG);
+                    }
+                    
+                    if (!target.GetIdentity())
+                    {
+                        WriteToLog("ExecuteCommand(): ERRO - target sem Identity para playerID=" + playerID, LogFile.INIT, false, LogType.ERROR);
+                        target.MessageStatus("Erro: não foi possível obter Identity do jogador");
+                        break;
+                    }
+                    
+                    ActivePlayer newPlayer = new ActivePlayer(target.GetIdentity(), target);
+                    g_PlayersWithInfiniteStamina.Insert(newPlayer);
+                    
+                    WriteToLog("ExecuteCommand(): ActivePlayer criado - array size=" + g_PlayersWithInfiniteStamina.Count().ToString() + " para playerID=" + playerID, LogFile.INIT, false, LogType.DEBUG);
                     
                     SendPrivateMessage(playerID, "Stamina infinita ativada!", MessageColor.FRIENDLY);
                     WriteToLog("Stamina infinita ativada para " + playerID, LogFile.INIT, false, LogType.INFO);
                 }
                 else if (mode == "off")
                 {
+                    if (!g_PlayersWithInfiniteStamina)
+                    {
+                        WriteToLog("ExecuteCommand(): array g_PlayersWithInfiniteStamina é nulo", LogFile.INIT, false, LogType.DEBUG);
+                        target.MessageStatus("Stamina infinita já estava desativada");
+                        break;
+                    }
+                    
+                    WriteToLog("ExecuteCommand(): procurando para remover playerID=" + playerID + " em array com " + g_PlayersWithInfiniteStamina.Count().ToString() + " items", LogFile.INIT, false, LogType.DEBUG);
+                    
                     for (int i = 0; i < g_PlayersWithInfiniteStamina.Count(); i++)
                     {
-                        if (g_PlayersWithInfiniteStamina[i].GetIdentity().GetId() == playerID)
+                        if (!g_PlayersWithInfiniteStamina[i])
+                        {
+                            WriteToLog("ExecuteCommand(): item null no índice " + i.ToString(), LogFile.INIT, false, LogType.DEBUG);
+                            continue;
+                        }
+                        
+                        PlayerIdentity apiIdentity = g_PlayersWithInfiniteStamina[i].GetIdentity();
+                        if (!apiIdentity)
+                        {
+                            WriteToLog("ExecuteCommand(): item no índice " + i.ToString() + " sem Identity", LogFile.INIT, false, LogType.DEBUG);
+                            continue;
+                        }
+                        
+                        string listPid = apiIdentity.GetId();
+                        WriteToLog("ExecuteCommand(): verificando índice " + i.ToString() + " com PlayerID=" + listPid, LogFile.INIT, false, LogType.DEBUG);
+                        
+                        if (listPid == playerID)
                         {
                             g_PlayersWithInfiniteStamina.Remove(i);
+                            WriteToLog("ExecuteCommand(): removido índice " + i.ToString() + " (PlayerID=" + playerID + ")", LogFile.INIT, false, LogType.DEBUG);
                             break;
                         }
                     }

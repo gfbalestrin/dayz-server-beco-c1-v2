@@ -105,7 +105,7 @@ class CustomMission: MissionServer
 		if (!g_PlayersWithInfiniteStamina)
 		{
 			WriteToLog("UpdateAdminEffects(): g_PlayersWithInfiniteStamina nulo - inicializando array", LogFile.INIT, false, LogType.DEBUG);
-			g_PlayersWithInfiniteStamina = new array<ActivePlayer>();
+			g_PlayersWithInfiniteStamina = new array<ref ActivePlayer>();
 			return;
 		}
 		WriteToLog("UpdateAdminEffects(): tamanho de g_PlayersWithInfiniteStamina = " + g_PlayersWithInfiniteStamina.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
