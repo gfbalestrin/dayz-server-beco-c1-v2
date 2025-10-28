@@ -79,9 +79,44 @@ class CustomMission: MissionServer
 
 		WriteToLog("OnMissionStart(): Servidor reiniciado com sucesso!", LogFile.INIT, false, LogType.INFO);
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SendStartEvent, 5000, false);
+		// Loop contínuo para aplicar efeitos aos admins
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(UpdateAdminEffects, 5000, true);
         ActivePlayers = new array<ref ActivePlayer>();
 		
     }
+
+	void UpdateAdminEffects()
+	{
+		array<Man> players = new array<Man>;
+		GetGame().GetPlayers(players);
+
+		foreach (Man man : players)
+		{
+			PlayerBase player = PlayerBase.Cast(man);
+			if (!player || !player.IsAlive() || !player.GetIdentity()) continue;
+
+			string id = player.GetIdentity().GetId();
+
+			// STAMINA infinita
+			if (g_AdminInfiniteStamina.Contains(id) && g_AdminInfiniteStamina.Get(id))
+			{
+				if (player.GetStaminaHandler())
+					player.GetStaminaHandler().SetStamina(player.GetStaminaHandler().GetStaminaCap());
+			}
+
+			// Velocidade aumentada
+			if (g_AdminSpeedMultiplier.Contains(id))
+			{
+				float mult = g_AdminSpeedMultiplier.Get(id);
+				if (mult > 1.0)
+				{
+					vector vel = GetVelocity(player);
+					vel = vel * mult;
+					dBodySetLinearVelocity(player, vel);
+				}
+			}
+		}
+	}
 
 	void SendStartEvent()
 	{

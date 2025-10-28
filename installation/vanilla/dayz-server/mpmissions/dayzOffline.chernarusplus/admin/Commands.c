@@ -577,13 +577,13 @@ bool ExecuteCommand(TStringArray tokens)
 
                 if (mode == "on")
                 {
-                    target.m_AdminInfiniteStamina = true;
+                    g_AdminInfiniteStamina.Set(playerID, true);
                     target.MessageStatus("Stamina infinita ativada!");
                     WriteToLog("Stamina infinita ativada para " + playerID, LogFile.INIT, false, LogType.INFO);
                 }
                 else if (mode == "off")
                 {
-                    target.m_AdminInfiniteStamina = false;
+                    g_AdminInfiniteStamina.Set(playerID, false);
                     target.MessageStatus("Stamina infinita desativada!");
                     WriteToLog("Stamina infinita desativada para " + playerID, LogFile.INIT, false, LogType.INFO);
                 }
@@ -615,7 +615,7 @@ bool ExecuteCommand(TStringArray tokens)
                     break;
                 }
 
-                target.m_AdminSpeedMultiplier = mult;
+                g_AdminSpeedMultiplier.Set(playerID, mult);
                 target.MessageStatus("Velocidade ajustada para x" + mult.ToString());
                 WriteToLog("Velocidade ajustada para x" + mult.ToString() + " para " + playerID, LogFile.INIT, false, LogType.INFO);
             }
@@ -625,7 +625,6 @@ bool ExecuteCommand(TStringArray tokens)
             }
             break;
 
-        }
 
     return true;
 }
