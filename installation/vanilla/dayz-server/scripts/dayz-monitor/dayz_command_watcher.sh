@@ -369,8 +369,8 @@ EOF
             echo ">> $vehicle_count veículos processados"
             INSERT_CUSTOM_LOG "Total de $vehicle_count veículos rastreados" "INFO" "$ScriptName"
             ;;
-        loot_containers)
-            echo ">> Recebendo containers para loot"
+        containers_positions)
+            echo ">> Recebendo containers para loot: $line"
             #INSERT_CUSTOM_LOG "Processando containers para loot" "INFO" "$ScriptName"
             
             # Obtém o array de containers do JSON
@@ -393,7 +393,7 @@ EOF
             INSERT_CUSTOM_LOG "Total de $container_count containers rastreados" "INFO" "$ScriptName"
             ;;
         fences_positions)
-            echo ">> Recebendo posições das portões"
+            echo ">> Recebendo posições das portões: $line"
             #INSERT_CUSTOM_LOG "Processando posições das portões" "INFO" "$ScriptName"
             
             # Obtém o array de portões do JSON

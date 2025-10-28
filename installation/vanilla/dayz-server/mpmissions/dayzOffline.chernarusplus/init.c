@@ -219,7 +219,7 @@ class CustomMission: MissionServer
 		// Envia JSON via ExternalAction
 		if (containersJson != "")
 		{
-			string jsonAction = "{\"action\":\"loot_containers\",\"containers\":[" + containersJson + "]}";
+			string jsonAction = "{\"action\":\"containers_positions\",\"container_data\":[" + containersJson + "]}";
 			AppendExternalAction(jsonAction);
 			WriteToLog("LogLootContainersDetailed(): JSON com " + totalContainers.ToString() + " containers e " + totalItems.ToString() + " itens enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
 		}
@@ -325,7 +325,7 @@ class CustomMission: MissionServer
 		// Envia JSON via ExternalAction
 		if (fencesJson != "")
 		{
-			string jsonAction = "{\"action\":\"fences\",\"fences\":[" + fencesJson + "]}";
+			string jsonAction = "{\"action\":\"fences_positions\",\"fence_data\":[" + fencesJson + "]}";
 			AppendExternalAction(jsonAction);
 			WriteToLog("ScanFences(): JSON com " + count.ToString() + " fences enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
 		}
