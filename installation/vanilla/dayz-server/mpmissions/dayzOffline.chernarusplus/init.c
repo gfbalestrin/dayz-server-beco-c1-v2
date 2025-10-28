@@ -207,6 +207,8 @@ class CustomMission: MissionServer
 					//Print(header);
 					//WriteToLog(header, LogFile.INIT, false, LogType.INFO);
 
+					WriteToLog("Loot container found: " + type + " at " + pos.ToString() + " with orientation " + ori.ToString(), LogFile.INIT, false, LogType.INFO);
+
 					// --- Verifica itens dentro ---
 					EntityAI container = EntityAI.Cast(obj);
 					if (container)
@@ -226,6 +228,7 @@ class CustomMission: MissionServer
 								//string itemLog = string.Format("    - %1 (Health: %.2f)", itemType, health);
 								//Print(itemLog);
 								//WriteToLog(itemLog, LogFile.INIT, false, LogType.INFO);
+								WriteToLog("Item found: " + itemType + " with health " + health.ToString(), LogFile.INIT, false, LogType.INFO);
 							}
 						}
 
@@ -242,6 +245,7 @@ class CustomMission: MissionServer
 							//string attLog = string.Format("    + Attachment: %1 (Health: %.2f)", attType, attHealth);
 							//Print(attLog);
 							//WriteToLog(attLog, LogFile.INIT, false, LogType.INFO);
+							WriteToLog("Attachment found: " + attType + " with health " + attHealth.ToString(), LogFile.INIT, false, LogType.INFO);
 						}
 					}
 
@@ -250,7 +254,7 @@ class CustomMission: MissionServer
 			}
 		}
 
-		string summary = string.Format("[LOOT SCAN] Containers: %1 | Itens totais: %2", totalContainers, totalItems);
+		string summary = string.Format("[LOOT SCAN] Containers: %1 ", totalContainers);
 		Print(summary);
 		WriteToLog(summary, LogFile.INIT, false, LogType.INFO);
 	}
