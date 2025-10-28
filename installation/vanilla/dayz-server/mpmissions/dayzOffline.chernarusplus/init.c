@@ -90,21 +90,32 @@ class CustomMission: MissionServer
 		array<Man> players = new array<Man>;
 		GetGame().GetPlayers(players);
 
+		// Se não há jogadores conectados, sai
+		if (players.Count() == 0)
+			return;
+
 		foreach (Man man : players)
 		{
 			PlayerBase player = PlayerBase.Cast(man);
-			if (!player || !player.IsAlive() || !player.GetIdentity()) continue;
+			if (!player) continue;                   // Garante que player existe
+			if (!player.IsAlive()) continue;         // Ignora mortos
+			if (!player.GetIdentity()) continue;     // Ignora jogadores ainda carregando
 
 			string id = player.GetIdentity().GetId();
 
-			// STAMINA infinita
+			// --- STAMINA infinita ---
 			if (g_AdminInfiniteStamina.Contains(id) && g_AdminInfiniteStamina.Get(id))
 			{
-				if (player.GetStaminaHandler())
-					player.GetStaminaHandler().SetStamina(player.GetStaminaHandler().GetStaminaCap());
+				StaminaHandler handler = player.GetStaminaHandler();
+				if (handler)
+				{
+					handler.SetStamina(handler.GetStaminaCap());
+				}
 			}
+			
 		}
 	}
+
 
 	void SendStartEvent()
 	{
