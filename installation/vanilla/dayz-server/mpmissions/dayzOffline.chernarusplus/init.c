@@ -128,25 +128,18 @@ class CustomMission: MissionServer
 
 			string id = player.GetIdentity().GetId();
 
-			// Protege contra lista nula/vazia e itens sem Identity
-			if (g_PlayersWithInfiniteStamina && g_PlayersWithInfiniteStamina.Count() > 0)
+			for (int i = 0; i < g_PlayersWithInfiniteStamina.Count(); i++)
 			{
-				foreach (ref ActivePlayer playerWithInfiniteStamina : g_PlayersWithInfiniteStamina)
+				ActivePlayer player = g_PlayersWithInfiniteStamina.Get(i);
+				if (player && player.IsSamePlayerById(playerId))
 				{
-					if (!playerWithInfiniteStamina) continue;
-					PlayerIdentity apIdentity = playerWithInfiniteStamina.GetIdentity();
-					if (!apIdentity) continue;
-					
-					if (apIdentity.GetId() == id)
-					{
-						StaminaHandler handler = player.GetStaminaHandler();
-						if (handler)
-	                		handler.SetStamina(handler.GetStaminaCap());
-						
-						break;
-					}
-				}			
+					StaminaHandler handler = player.GetStaminaHandler();
+					if (handler)
+						handler.SetStamina(handler.GetStaminaCap());
+					break;
+				}
 			}
+
 		}
 	}
 
