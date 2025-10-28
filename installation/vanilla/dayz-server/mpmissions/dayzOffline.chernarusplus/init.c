@@ -245,14 +245,28 @@ class CustomMission: MissionServer
 				vector pos = fence.GetPosition();
 				vector ori = fence.GetOrientation();
 
-				string openState = "Fechado";
+				string openState;
 				if (fence.IsOpened())
 					openState = "Aberto";
-				
-				// Verifica se tem portão construído
-				bool hasGate = true;//fence.HasGate();
+				else
+					openState = "Fechado";
 
-				// Coleta anexos (ex: camuflagem, arame farpado, etc.)
+				bool hasGate = fence.HasFullyConstructedGate();
+
+				string gateState;
+				if (hasGate)
+					gateState = "Sim";
+				else
+					gateState = "Não";
+
+				bool isLocked = fence.IsLocked();
+				string lockedState;
+				if (isLocked)
+					lockedState = "Sim";
+				else
+					lockedState = "Não";
+
+				// Coleta anexos (ex: camonet, arame farpado, cadeado)
 				TStringArray attachments = new TStringArray;
 				if (fence.GetInventory())
 				{
@@ -264,25 +278,27 @@ class CustomMission: MissionServer
 					}
 				}
 
-				string attachmentList = "Nenhum";
+				string attachmentList;
 				if (attachments.Count() > 0)
 					attachmentList = string.Join(", ", attachments);
-				
-				string gateState = "Não";
-				if (hasGate)
-					gateState = "Sim";
+				else
+					attachmentList = "Nenhum";
 
-				string logMsg = string.Format("[FENCE] Posição=(%.2f, %.2f, %.2f) | Ori=(%.1f, %.1f, %.1f) | Portão: %4 | Estado: %5 | Anexos: %3", pos[0], pos[1], pos[2], ori[0], ori[1], ori[2], gateState, openState, attachmentList);
+				string logMsg = "[FENCE] Posição=(" + pos[0].ToString() + ", " + pos[1].ToString() + ", " + pos[2].ToString() + 
+								") | Ori=(" + ori[0].ToString() + ", " + ori[1].ToString() + ", " + ori[2].ToString() + 
+								") | Portão: " + gateState + " | Estado: " + openState + " | Trancado: " + lockedState + 
+								" | Anexos: " + attachmentList;
 
 				Print(logMsg);
 				WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
 			}
 		}
 
-		string summary = "[FENCE SCAN] Total de portões (Fence) encontrados: " + count.ToString();
+		string summary = "[FENCE SCAN] Total de estruturas (Fence) encontradas: " + count.ToString();
 		Print(summary);
 		WriteToLog(summary, LogFile.INIT, false, LogType.INFO);
 	}
+
 
 
 
