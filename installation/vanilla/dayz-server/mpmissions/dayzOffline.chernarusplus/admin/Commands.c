@@ -590,11 +590,11 @@ bool ExecuteCommand(TStringArray tokens)
                 }
                 else if (mode == "off")
                 {
-                    foreach (ref ActivePlayer playerWithInfiniteStamina : g_PlayersWithInfiniteStamina)
+                    for (int i = 0; i < g_PlayersWithInfiniteStamina.Count(); i++)
                     {
-                        if (playerWithInfiniteStamina.GetIdentity().GetId() == playerID)
+                        if (g_PlayersWithInfiniteStamina[i].GetIdentity().GetId() == playerID)
                         {
-                            g_PlayersWithInfiniteStamina.Remove(playerWithInfiniteStamina);
+                            g_PlayersWithInfiniteStamina.Remove(i);
                             break;
                         }
                     }
