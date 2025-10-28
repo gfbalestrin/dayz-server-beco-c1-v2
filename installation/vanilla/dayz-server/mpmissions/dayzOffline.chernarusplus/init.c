@@ -126,7 +126,7 @@ class CustomMission: MissionServer
 			if (!player.IsAlive()) continue;         // Ignora mortos
 			if (!player.GetIdentity()) continue;     // Ignora jogadores ainda carregando
 
-			string id = player.GetIdentity().GetId();
+			string playerId = player.GetIdentity().GetId();
 
 			for (int i = 0; i < g_PlayersWithInfiniteStamina.Count(); i++)
 			{
