@@ -91,7 +91,7 @@ class CustomMission: MissionServer
 	void MonitorBuildings()
 	{
 		array<Object> buildings = {};
-		GetGame().GetObjectsAtPosition(Vector(0,0,0), 99999, buildings, BaseBuildingBase);
+		GetGame().GetObjectsAtPosition(Vector(0,0,0), 99999, buildings, NULL);
 
 		foreach (BaseBuildingBase building : buildings)
 		{
