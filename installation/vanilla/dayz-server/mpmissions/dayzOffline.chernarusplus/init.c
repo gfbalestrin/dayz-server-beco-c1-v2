@@ -105,10 +105,22 @@ class CustomMission: MissionServer
 		if (!g_PlayersWithInfiniteStamina)
 		{
 			WriteToLog("UpdateAdminEffects(): g_PlayersWithInfiniteStamina nulo - inicializando array", LogFile.INIT, false, LogType.DEBUG);
-			g_PlayersWithInfiniteStamina = new array<ActivePlayer>();
+			g_PlayersWithInfiniteStamina = new array<ref ActivePlayer>();
 			return;
 		}
 		WriteToLog("UpdateAdminEffects(): tamanho de g_PlayersWithInfiniteStamina = " + g_PlayersWithInfiniteStamina.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
+
+		// Sanitiza/remover entradas nulas antes de iterar
+		for (int si = g_PlayersWithInfiniteStamina.Count() - 1; si >= 0; si--)
+		{
+			ref ActivePlayer ap = g_PlayersWithInfiniteStamina.Get(si);
+			if (!ap || !ap.HasIdentity())
+			{
+				WriteToLog("UpdateAdminEffects(): removendo entrada inválida na lista (índice=" + si.ToString() + ")", LogFile.INIT, false, LogType.DEBUG);
+				g_PlayersWithInfiniteStamina.Remove(si);
+			}
+		}
+
 		if (g_PlayersWithInfiniteStamina.Count() == 0)
 		{
 			WriteToLog("UpdateAdminEffects(): lista de stamina infinita vazia - nada a fazer", LogFile.INIT, false, LogType.DEBUG);
@@ -141,7 +153,7 @@ class CustomMission: MissionServer
 			WriteToLog("UpdateAdminEffects(): procurando ID na lista de stamina infinita -> " + playerId, LogFile.INIT, false, LogType.DEBUG);
 			for (int i = 0; i < g_PlayersWithInfiniteStamina.Count(); i++)
 			{
-				ActivePlayer playerWithInfiniteStamina = g_PlayersWithInfiniteStamina.Get(i);
+				ref ActivePlayer playerWithInfiniteStamina = g_PlayersWithInfiniteStamina.Get(i);
 				if (!playerWithInfiniteStamina)
 				{
 					WriteToLog("UpdateAdminEffects(): item da lista nulo no índice " + i.ToString(), LogFile.INIT, false, LogType.DEBUG);

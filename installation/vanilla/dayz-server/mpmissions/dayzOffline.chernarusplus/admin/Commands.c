@@ -581,7 +581,7 @@ bool ExecuteCommand(TStringArray tokens)
                 {
                     if (!g_PlayersWithInfiniteStamina)
                     {
-                        g_PlayersWithInfiniteStamina = new array<ActivePlayer>();
+                        g_PlayersWithInfiniteStamina = new array<ref ActivePlayer>();
                         WriteToLog("ExecuteCommand(): inicializando array g_PlayersWithInfiniteStamina", LogFile.INIT, false, LogType.DEBUG);
                     }
                     
@@ -592,7 +592,7 @@ bool ExecuteCommand(TStringArray tokens)
                         break;
                     }
                     
-                    ActivePlayer newPlayer = new ActivePlayer(target.GetIdentity(), target);
+                    ref ActivePlayer newPlayer = new ActivePlayer(target.GetIdentity(), target);
                     g_PlayersWithInfiniteStamina.Insert(newPlayer);
                     
                     WriteToLog("ExecuteCommand(): ActivePlayer criado - array size=" + g_PlayersWithInfiniteStamina.Count().ToString() + " para playerID=" + playerID, LogFile.INIT, false, LogType.DEBUG);
