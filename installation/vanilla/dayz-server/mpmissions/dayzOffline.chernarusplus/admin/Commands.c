@@ -574,16 +574,30 @@ bool ExecuteCommand(TStringArray tokens)
             {
                 string mode = tokens[2];
                 mode.ToLower();
+                
+                if (!g_PlayersWithInfiniteStamina)
+                {
+                    WriteToLog("Inicializando array g_AdminInfiniteStamina...", LogFile.INIT, false, LogType.DEBUG);
+                    g_PlayersWithInfiniteStamina = new array<ActivePlayer>();
+                }
 
                 if (mode == "on")
                 {
-                    g_AdminInfiniteStamina.Set(playerID, true);
-                    target.MessageStatus("Stamina infinita ativada!");
+                    g_PlayersWithInfiniteStamina.Insert(new ActivePlayer(target.GetIdentity(), target));
+                    
+                    SendPrivateMessage(playerID, "Stamina infinita ativada!", MessageColor.FRIENDLY);
                     WriteToLog("Stamina infinita ativada para " + playerID, LogFile.INIT, false, LogType.INFO);
                 }
                 else if (mode == "off")
                 {
-                    g_AdminInfiniteStamina.Set(playerID, false);
+                    foreach (ref ActivePlayer player : g_PlayersWithInfiniteStamina)
+                    {
+                        if (player.GetIdentity().GetId() == playerID)
+                        {
+                            g_PlayersWithInfiniteStamina.Remove(player);
+                            break;
+                        }
+                    }
                     target.MessageStatus("Stamina infinita desativada!");
                     WriteToLog("Stamina infinita desativada para " + playerID, LogFile.INIT, false, LogType.INFO);
                 }

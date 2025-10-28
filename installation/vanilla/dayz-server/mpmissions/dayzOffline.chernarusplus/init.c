@@ -117,12 +117,14 @@ class CustomMission: MissionServer
 
 			string id = player.GetIdentity().GetId();
 
-			StaminaHandler handler = player.GetStaminaHandler();
-			if (handler)
+			foreach (ref ActivePlayer playerWithInfiniteStamina : g_PlayersWithInfiniteStamina)
 			{
-				handler.SetStamina(handler.GetStaminaCap());
-			}
-			
+				if (playerWithInfiniteStamina.GetIdentity().GetId() == id)
+				{
+					handler.SetStamina(handler.GetStaminaCap());
+					break;
+				}
+			}			
 		}
 	}
 

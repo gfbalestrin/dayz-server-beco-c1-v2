@@ -43,4 +43,4 @@ bool m_IsProcessingCommands = false;
 const float PLAYER_TIMEOUT = 15.0; // tempo em segundos para considerar desconexão
 ref array<CarScript> m_TrackedVehicles;
 // Controle de admins
-ref map<string, bool> g_AdminInfiniteStamina = new map<string, bool>();
+ref array<ActivePlayer> g_PlayersWithInfiniteStamina;
