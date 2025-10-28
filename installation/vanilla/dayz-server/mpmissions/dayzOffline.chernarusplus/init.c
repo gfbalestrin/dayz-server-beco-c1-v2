@@ -47,37 +47,6 @@ void main()
 	}
 }
 
-class FenceCustom extends Fence
-{
-	
-	void HandleBuildingDamage(BaseBuildingBase building, Man player, string part_name, int action_id)
-	{
-		string className = building.ClassName();
-		vector pos = building.GetPosition();
-
-		string posStr = pos[0].ToString() + ", " + pos[1].ToString() + ", " + pos[2].ToString();
-		
-		string causadorName;
-		if (player)
-			causadorName = player.GetIdentity().GetName();
-		else
-			causadorName = "Desconhecido";
-		
-		string logMsg = "[BUILDING DAMAGE] " + className + " - Parte: " + part_name + " | Posição: (" + posStr + ") | Causador: " + causadorName;
-
-		Print(logMsg);
-		WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
-	}
-	
-    override void OnPartDestroyedServer(Man player, string part_name, int action_id, bool destroyed_by_connected_part = false)
-    {
-        super.OnPartDestroyedServer(player, part_name, action_id, destroyed_by_connected_part);
-
-        // Aqui você chama sua função genérica
-        HandleBuildingDamage(this, player, part_name, action_id);
-    }
-}
-
 class CustomMission: MissionServer
 {
 	ref array<ref ActivePlayer> ActivePlayers;  // Lista de jogadores ativos/conectados
@@ -86,6 +55,8 @@ class CustomMission: MissionServer
 	float m_AdminCheckTimer10 = 0.0;
 	float m_AdminCheckCooldown60 = 60.0;
 	float m_AdminCheckTimer60 = 0.0;
+
+	ref map<BaseBuildingBase, float> buildingHealths;
 
 	void CustomMission()
 	{
@@ -116,6 +87,32 @@ class CustomMission: MissionServer
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(LogLootContainersDetailed, 10000, false);
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(ScanFences, 10000, false);
     }
+
+	void MonitorBuildings()
+	{
+		array<Object> buildings = {};
+		GetGame().GetObjectsAtPosition(Vector(0,0,0), 99999, buildings, BaseBuildingBase);
+
+		foreach (BaseBuildingBase building : buildings)
+		{
+			float prevHealth = buildingHealths.Get(building, building.GetHealth("", ""));
+			float currentHealth = building.GetHealth("", "");
+
+			if (currentHealth < prevHealth)
+			{
+				string logMsg = "[DANO DETECTADO] " + building.ClassName() + " - Health: " + currentHealth.ToString() + " | Posição: " + building.GetPosition().ToString();
+
+				Print(logMsg);
+				WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
+
+				buildingHealths.Set(building, currentHealth);
+			}
+			else
+			{
+				buildingHealths.Set(building, currentHealth);
+			}
+		}
+	}
 
 	void LogLootContainers()
 	{
@@ -207,10 +204,9 @@ class CustomMission: MissionServer
 					vector pos = obj.GetPosition();
 					vector ori = obj.GetOrientation();
 
-					string header = string.Format("[LOOT] %1 at X=%.2f, Y=%.2f, Z=%.2f | Ori=(%.2f, %.2f, %.2f)", type, pos[0], pos[1], pos[2], ori[0], ori[1], ori[2]);
-
-					Print(header);
-					WriteToLog(header, LogFile.INIT, false, LogType.INFO);
+					//string header = string.Format("[LOOT] %1 at X=%.2f, Y=%.2f, Z=%.2f | Ori=(%.2f, %.2f, %.2f)", type, pos[0], pos[1], pos[2], ori[0], ori[1], ori[2]);
+					//Print(header);
+					//WriteToLog(header, LogFile.INIT, false, LogType.INFO);
 
 					// --- Verifica itens dentro ---
 					EntityAI container = EntityAI.Cast(obj);
@@ -228,9 +224,9 @@ class CustomMission: MissionServer
 								float health = item.GetHealth("", "");
 								totalItems++;
 
-								string itemLog = string.Format("    - %1 (Health: %.2f)", itemType, health);
-								Print(itemLog);
-								WriteToLog(itemLog, LogFile.INIT, false, LogType.INFO);
+								//string itemLog = string.Format("    - %1 (Health: %.2f)", itemType, health);
+								//Print(itemLog);
+								//WriteToLog(itemLog, LogFile.INIT, false, LogType.INFO);
 							}
 						}
 
@@ -244,9 +240,9 @@ class CustomMission: MissionServer
 							float attHealth = attachment.GetHealth("", "");
 							totalItems++;
 
-							string attLog = string.Format("    + Attachment: %1 (Health: %.2f)", attType, attHealth);
-							Print(attLog);
-							WriteToLog(attLog, LogFile.INIT, false, LogType.INFO);
+							//string attLog = string.Format("    + Attachment: %1 (Health: %.2f)", attType, attHealth);
+							//Print(attLog);
+							//WriteToLog(attLog, LogFile.INIT, false, LogType.INFO);
 						}
 					}
 
@@ -1837,6 +1833,7 @@ class CustomMission: MissionServer
 		ListActivePlayers();
 		SendPlayersPositions();
 		SendVehiclesPositions();
+		MonitorBuildings();
 	}
 	}
 	
@@ -2062,9 +2059,6 @@ class CustomMission: MissionServer
 		WriteToLog("SendVehiclesPositions(): Posições de " + m_TrackedVehicles.Count().ToString() + " veículos enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
 	}
 };
-
-
-
 
 Mission CreateCustomMission(string path)
 {
