@@ -415,8 +415,33 @@ EOF
                 # Insere a posição do container no banco de dados
                 ContainerTrackingId=$(INSERT_CONTAINER_POSITION "$container_id" "$container_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp")
                 
-                if [ $? -eq 0 ]; then
+                if [ $? -eq 0 ] && [ -n "$ContainerTrackingId" ]; then
                     ((processed_count++))
+                    
+                    # Processa items do container, se houver
+                    items=$(echo "$container_data" | jq -c '.items[]?' 2>/dev/null)
+                    if [ -n "$items" ]; then
+                        item_count=0
+                        while IFS= read -r item_data; do
+                            if [ -z "$item_data" ]; then
+                                continue
+                            fi
+                            
+                            # Extrai dados do item
+                            item_type=$(echo "$item_data" | jq -r '.type')
+                            item_health=$(echo "$item_data" | jq -r '.health // empty')
+                            
+                            # Insere o item no banco de dados
+                            if [ -n "$item_type" ]; then
+                                INSERT_CONTAINER_ITEM "$ContainerTrackingId" "$item_type" "$item_health" "$current_timestamp" >/dev/null
+                                ((item_count++))
+                            fi
+                        done <<< "$items"
+                        
+                        if [ $item_count -gt 0 ]; then
+                            echo "  -> $item_count item(s) inseridos no container $container_id"
+                        fi
+                    fi
                 fi
                 
             done <<< "$containers"

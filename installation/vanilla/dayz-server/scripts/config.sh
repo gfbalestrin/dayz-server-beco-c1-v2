@@ -671,6 +671,62 @@ EOF
     return 1
 }
 
+INSERT_CONTAINER_ITEM() {
+    local ContainerTrackingId="$1"
+    local ItemType="$2"
+    local ItemHealth="$3"
+    local CustomTimestamp="$4"  # Parâmetro opcional para timestamp customizado
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+
+    if [[ -z "$ContainerTrackingId" ]] || [[ -z "$ItemType" ]]; then
+        echo "Error: ContainerTrackingId and ItemType are required."
+        echo ""
+        return 1
+    fi
+
+    local EscapedItemType
+    local TimestampValue
+
+    # Escapar aspas simples
+    EscapedItemType=$(echo "$ItemType" | sed "s/'/''/g")
+    
+    # Usar timestamp customizado se fornecido, senão usar datetime atual
+    if [[ -n "$CustomTimestamp" ]]; then
+        TimestampValue="'$CustomTimestamp'"
+    else
+        TimestampValue="datetime('now', 'localtime')"
+    fi
+
+    while (( attempt <= max_retries )); do
+        local ContainerItemTrackingId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+INSERT INTO container_items_tracking (ContainerTrackingId, ItemType, ItemHealth, TimeStamp)
+VALUES (
+    $ContainerTrackingId,
+    '$EscapedItemType',
+    ${ItemHealth:-NULL},
+    $TimestampValue
+);
+SELECT last_insert_rowid();
+EOF
+)
+
+        if [[ $? -eq 0 ]] && [[ -n "$ContainerItemTrackingId" ]]; then
+            echo "$ContainerItemTrackingId"
+            return 0
+        else
+            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
+            sleep "$retry_delay"
+            attempt=$((attempt + 1))    
+        fi
+    done
+
+    echo "Failed to insert item after $max_retries attempts."
+    echo ""
+    return 1
+}
+
 INSERT_FENCE_POSITION() {
     local FenceId="$1"
     local FenceName="$2"
