@@ -1,6 +1,7 @@
 let playersData = [];
 let table;
 let godModeStatus = {};
+let staminaStatus = {};
 let autoRefreshInterval = null;
 let currentRefreshInterval = 30000; // 30 segundos padrão
 let nextRefreshTime = 0;
@@ -118,6 +119,27 @@ function toggleGodMode(playerId) {
     });
 }
 
+// Função para toggle Stamina Infinita
+function toggleStamina(playerId) {
+    const isActive = staminaStatus[playerId] || false;
+    const action = isActive ? 'stamina off' : 'stamina on';
+    
+    $.ajax({
+        url: `/api/players/${encodeURIComponent(playerId)}/action`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ action: action }),
+        success: function(response) {
+            staminaStatus[playerId] = !isActive;
+            showToast('Sucesso', response.message, 'success');
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            showToast('Erro', error.message || 'Erro ao executar ação', 'error');
+        }
+    });
+}
+
 // Função para criar link de mapa
 function createMapLink(coordX, coordY) {
     if (!coordX || !coordY) return '<span class="text-muted">-</span>';
@@ -153,6 +175,9 @@ function renderActions(player) {
             </button>
             <button class="btn btn-warning" onclick="toggleGodMode('${player.PlayerID}')" title="God Mode">
                 <i class="fas fa-shield-alt"></i>
+            </button>
+            <button class="btn btn-info" onclick="toggleStamina('${player.PlayerID}')" title="Stamina Infinita">
+                <i class="fas fa-bolt"></i>
             </button>
             <button class="btn btn-danger" onclick="executeAction('${player.PlayerID}', 'kill')" title="Matar">
                 <i class="fas fa-skull"></i>
@@ -410,6 +435,7 @@ $(document).ready(function() {
     window.copyPlayerId = copyPlayerId;
     window.executeAction = executeAction;
     window.toggleGodMode = toggleGodMode;
+    window.toggleStamina = toggleStamina;
     window.redirectToSpawning = redirectToSpawning;
     
     // Limpar intervalos ao sair da página

@@ -533,12 +533,13 @@ def api_player_action(player_id):
     
     # Validar ação
     valid_actions = ['heal', 'kill', 'kick', 'godmode', 'ungodmode', 
-                     'ghostmode', 'unghostmode', 'desbug', 'getposition']
+                     'ghostmode', 'unghostmode', 'desbug', 'getposition',
+                     'stamina on', 'stamina off']
     
     if action not in valid_actions:
         return jsonify({'success': False, 'message': 'Ação inválida'}), 400
     
-    # Formato: PlayerID action
+    # Formato: PlayerID action (permite ações com espaços para stamina on/off)
     command_line = f"{player_id} {action}\n"
     
     try:
