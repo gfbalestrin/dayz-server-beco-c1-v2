@@ -56,8 +56,6 @@ class CustomMission: MissionServer
 	float m_AdminCheckCooldown60 = 60.0;
 	float m_AdminCheckTimer60 = 0.0;
 
-	ref map<BaseBuildingBase, float> buildingHealths = new map<BaseBuildingBase, float>;
-
 	void CustomMission()
 	{
 		ResetLog();
@@ -88,6 +86,8 @@ class CustomMission: MissionServer
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(ScanFences, 10000, false);
     }
 
+	ref map<vector, float> buildingHealths = new map<vector, float>();
+
 	void MonitorBuildings()
 	{
 		array<Object> objects = {};
@@ -98,8 +98,10 @@ class CustomMission: MissionServer
 			BaseBuildingBase building = BaseBuildingBase.Cast(obj);
 			if (!building) continue;
 
+			vector pos = building.GetPosition();
+
 			float prevHealth;
-			if (!buildingHealths.Find(building, prevHealth))
+			if (!buildingHealths.Find(pos, prevHealth))
 			{
 				prevHealth = building.GetHealth("", "");
 			}
@@ -107,15 +109,16 @@ class CustomMission: MissionServer
 			float currentHealth = building.GetHealth("", "");
 			if (currentHealth < prevHealth)
 			{
-				string logMsg = "[DANO DETECTADO] " + building.ClassName() + " - Health: " + currentHealth.ToString() + " | Posição: " + building.GetPosition().ToString();
+				string logMsg = "[DANO DETECTADO] " + building.ClassName() + " - Health: " + currentHealth.ToString() + " | Posição: " + pos.ToString();
 
 				Print(logMsg);
 				WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
 			}
 
-			buildingHealths.Set(building, currentHealth);
+			buildingHealths.Set(pos, currentHealth);
 		}
 	}
+
 
 	void LogLootContainers()
 	{
