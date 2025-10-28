@@ -49,6 +49,26 @@ void main()
 
 class FenceCustom extends Fence
 {
+	
+	void HandleBuildingDamage(BaseBuildingBase building, Man player, string part_name, int action_id)
+	{
+		string className = building.ClassName();
+		vector pos = building.GetPosition();
+
+		string posStr = pos[0].ToString() + ", " + pos[1].ToString() + ", " + pos[2].ToString();
+		
+		string causadorName;
+		if (player)
+			causadorName = player.GetIdentity().GetName();
+		else
+			causadorName = "Desconhecido";
+		
+		string logMsg = "[BUILDING DAMAGE] " + className + " - Parte: " + part_name + " | Posição: (" + posStr + ") | Causador: " + causadorName;
+
+		Print(logMsg);
+		WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
+	}
+	
     override void OnPartDestroyedServer(Man player, string part_name, int action_id, bool destroyed_by_connected_part = false)
     {
         super.OnPartDestroyedServer(player, part_name, action_id, destroyed_by_connected_part);
@@ -308,24 +328,6 @@ class CustomMission: MissionServer
 		WriteToLog(summary, LogFile.INIT, false, LogType.INFO);
 	}
 
-	void HandleBuildingDamage(BaseBuildingBase building, Man player, string part_name, int action_id)
-	{
-		string className = building.ClassName();
-		vector pos = building.GetPosition();
-
-		string posStr = pos[0].ToString() + ", " + pos[1].ToString() + ", " + pos[2].ToString();
-		
-		string causadorName;
-		if (player)
-			causadorName = player.GetIdentity().GetName();
-		else
-			causadorName = "Desconhecido";
-		
-		string logMsg = "[BUILDING DAMAGE] " + className + " - Parte: " + part_name + " | Posição: (" + posStr + ") | Causador: " + causadorName;
-
-		Print(logMsg);
-		WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
-	}
 
 	void InitAdminLoop()
 	{
