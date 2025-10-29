@@ -8,6 +8,7 @@ let playerMarkers = {};
 let playerTrails = {};
 let vehicleMarkers = {};
 let containerMarkers = {};
+let fenceMarkers = {};
 let killMarkers = [];
 let playersData = {}; // Armazenar dados dos jogadores
 let currentPointContext = null; // Contexto do ponto para ações
@@ -16,6 +17,7 @@ let autoRefreshInterval = null;
 let showTrails = false;
 let showVehicles = false;
 let showContainers = false;
+let showFences = false;
 let showKills = false;
 let currentMode = 'normal'; // normal, teleport
 let teleportTargetPlayer = null;
@@ -70,6 +72,35 @@ function createContainerIcon(containerType) {
     });
 }
 
+// Ícone customizado para fences baseado no FenceName
+function createFenceIcon(fenceName) {
+    let color, iconClass;
+    
+    if (fenceName && fenceName.includes('Gate')) {
+        // Fence com Gate - Verde
+        color = '#28a745';
+        iconClass = 'fas fa-door-open';
+    } else if (fenceName && fenceName.includes('Open')) {
+        // Fence aberto - Amarelo
+        color = '#ffc107';
+        iconClass = 'fas fa-unlock';
+    } else if (fenceName && fenceName.includes('Locked')) {
+        // Fence trancado - Vermelho
+        color = '#dc3545';
+        iconClass = 'fas fa-lock';
+    } else {
+        // Fence padrão - Cinza
+        color = '#6c757d';
+        iconClass = 'fas fa-border-all';
+    }
+    
+    return L.divIcon({
+        className: 'fence-marker',
+        html: `<div style="background-color: ${color}; border: 2px solid white; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><i class="${iconClass}" style="color: white; font-size: 12px;"></i></div>`,
+        iconSize: [22, 22]
+    });
+}
+
 // Inicializar o mapa quando o documento estiver pronto
 $(document).ready(function() {
     initMap();
@@ -83,6 +114,7 @@ $(document).ready(function() {
     $('#toggleTrailsBtn').on('click', toggleTrails);
     $('#toggleVehiclesBtn').on('click', toggleVehiclesDisplay);
     $('#toggleContainersBtn').on('click', toggleContainersDisplay);
+    $('#toggleFencesBtn').on('click', toggleFencesDisplay);
     $('#toggleKillsBtn').on('click', toggleKills);
     $('#applyTrailFilter').on('click', applyTrailDateFilter);
     
@@ -670,6 +702,9 @@ function toggleAutoRefresh() {
             if (showContainers) {
                 loadContainers();
             }
+            if (showFences) {
+                loadFences();
+            }
             // Recarregar trails se estiverem ativos
             if (showTrails) {
                 Object.keys(playerMarkers).forEach(loadPlayerTrail);
@@ -744,7 +779,11 @@ function updateVehicles(data) {
             </div>
         `;
         
-        marker.bindPopup(popupContent);
+        marker.bindPopup(popupContent, {
+            autoPan: true,
+            autoPanPadding: [50, 50],
+            maxWidth: 300
+        });
         vehicleMarkers[vehicleId] = marker;
     });
     
@@ -820,7 +859,11 @@ function updateContainers(data) {
         
         const popupContent = createContainerPopup(container);
         
-        marker.bindPopup(popupContent);
+        marker.bindPopup(popupContent, {
+            autoPan: true,
+            autoPanPadding: [50, 50],
+            maxWidth: 300
+        });
         containerMarkers[containerId] = marker;
     });
     
@@ -885,6 +928,126 @@ function toggleContainersDisplay() {
         
         // Resetar contador de containers
         $('#containerCount').text('0');
+    }
+}
+
+/**
+ * Carregar posições de fences (construções)
+ */
+function loadFences() {
+    if (!showFences) {
+        return;
+    }
+    
+    $.get('/api/fences/positions')
+        .done(function(data) {
+            updateFences(data);
+        })
+        .fail(function() {
+            console.error('Erro ao carregar fences');
+        });
+}
+
+/**
+ * Atualizar fences no mapa
+ */
+function updateFences(data) {
+    // Limpar fences antigos
+    Object.keys(fenceMarkers).forEach(function(key) {
+        map.removeLayer(fenceMarkers[key]);
+    });
+    fenceMarkers = {};
+    
+    // Atualizar contador de fences
+    $('#fenceCount').text(data.fences.length);
+    
+    if (!showFences) {
+        return;
+    }
+    
+    // Adicionar fences
+    data.fences.forEach(function(fence) {
+        const fenceId = fence.fence_id;
+        const lat = fence.pixel_coords[0];
+        const lng = fence.pixel_coords[1];
+        
+        const marker = L.marker([lat, lng], {
+            icon: createFenceIcon(fence.fence_name),
+            opacity: 1.0
+        }).addTo(map);
+        
+        const popupContent = createFencePopup(fence);
+        
+        marker.bindPopup(popupContent, {
+            autoPan: true,
+            autoPanPadding: [50, 50],
+            maxWidth: 300
+        });
+        fenceMarkers[fenceId] = marker;
+    });
+    
+    console.log(`Fences atualizados: ${data.fences.length} fences`);
+}
+
+/**
+ * Criar popup de fence
+ */
+function createFencePopup(fence) {
+    const features = [];
+    if (fence.fence_name.includes('Gate')) {
+        features.push('Portão');
+    }
+    if (fence.fence_name.includes('Open')) {
+        features.push('Aberto');
+    }
+    if (fence.fence_name.includes('Locked')) {
+        features.push('Trancado');
+    }
+    
+    const featuresText = features.length > 0 ? features.join(', ') : 'Nenhuma característica especial';
+    
+    return `
+        <div class="player-popup">
+            <strong><i class="fas fa-home me-2"></i>Construção (${fence.fence_name})</strong>
+            <div class="info-row">
+                <span class="info-label">ID:</span>
+                <span class="info-value">${fence.fence_id}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Coords:</span>
+                <span class="info-value">X: ${fence.coord_x.toFixed(2)}, Y: ${fence.coord_y.toFixed(2)} (altura: ${fence.coord_z ? fence.coord_z.toFixed(2) : 'N/A'})</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Características:</span>
+                <span class="info-value">${featuresText}</span>
+            </div>
+            <div class="info-row mt-2">
+                <span class="info-label">Atualizado:</span>
+                <span class="info-value">${fence.last_update || 'Desconhecido'}</span>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Toggle mostrar fences
+ */
+function toggleFencesDisplay() {
+    showFences = !showFences;
+    
+    if (showFences) {
+        $('#toggleFencesBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar Construções');
+        loadFences();
+    } else {
+        $('#toggleFencesBtn').html('<i class="fas fa-home me-1"></i>Mostrar Construções');
+        // Remover todos os fences
+        Object.keys(fenceMarkers).forEach(function(key) {
+            map.removeLayer(fenceMarkers[key]);
+        });
+        fenceMarkers = {};
+        
+        // Resetar contador de fences
+        $('#fenceCount').text('0');
     }
 }
 
@@ -968,7 +1131,11 @@ function updateKills(data) {
                 </div>
             </div>
         `;
-        marker.bindPopup(popupContent);
+        marker.bindPopup(popupContent, {
+            autoPan: true,
+            autoPanPadding: [50, 50],
+            maxWidth: 300
+        });
         
         // Linha conectando killer e victim
         const line = L.polyline([

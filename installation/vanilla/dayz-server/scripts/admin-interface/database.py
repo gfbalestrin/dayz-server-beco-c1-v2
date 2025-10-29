@@ -152,6 +152,21 @@ def get_containers_last_position() -> List[Dict]:
         
         return containers
 
+def get_fences_last_position() -> List[Dict]:
+    """Retorna fences do último timestamp de rastreamento"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT ft.IdFenceTracking, ft.FenceId, ft.FenceName,
+                   ft.PositionX, ft.PositionY, ft.PositionZ, ft.TimeStamp
+            FROM fences_tracking ft
+            WHERE ft.TimeStamp = (
+                SELECT MAX(TimeStamp) FROM fences_tracking
+            )
+            ORDER BY ft.FenceName
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
 def get_item_details_from_items_db(name_type: str) -> Optional[Dict]:
     """Busca detalhes de um item no banco dayz_items.db por name_type"""
     try:

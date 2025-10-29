@@ -9,6 +9,7 @@ from database import (
     get_logs_adm, get_logs_custom,     get_vehicles_tracking, get_vehicles_map_positions,
     get_player_by_id, search_players, get_players_last_position,
     get_containers_last_position, get_item_details_from_items_db,
+    get_fences_last_position,
     get_player_trail, get_online_players_positions,
     get_players_positions_by_timerange, dayz_to_pixel,
     get_vehicles_last_position, get_recent_kills, parse_position,
@@ -314,6 +315,33 @@ def api_containers_positions():
             'pixel_coords': pixel_coords,
             'items': items,
             'last_update': container['TimeStamp'] or ''
+        })
+    
+    return jsonify(result)
+
+@app.route('/api/fences/positions')
+@login_required
+def api_fences_positions():
+    """API com posições atuais dos fences (construções)"""
+    fences = get_fences_last_position()
+    
+    result = {
+        'timestamp': datetime.now().isoformat(),
+        'fences': []
+    }
+    
+    for fence in fences:
+        # Converter coordenadas para pixel
+        pixel_coords = dayz_to_pixel(fence['PositionX'], fence['PositionY'])
+        
+        result['fences'].append({
+            'fence_id': fence['FenceId'],
+            'fence_name': fence['FenceName'],
+            'coord_x': fence['PositionX'],
+            'coord_y': fence['PositionY'],  # Sul-Norte (Y do mapa)
+            'coord_z': fence['PositionZ'],  # Altitude
+            'pixel_coords': pixel_coords,
+            'last_update': fence['TimeStamp'] or ''
         })
     
     return jsonify(result)
