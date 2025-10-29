@@ -8,192 +8,202 @@
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <div class="d-flex align-items-center">
-        <h1 class="h2 me-3">
-            <i class="fas fa-map me-2"></i>Mapa do Servidor
-        </h1>
-        <div class="badge bg-success me-2">
+<!-- Topo Minimalista -->
+<div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-2">
+    <h2 class="mb-0">
+        <i class="fas fa-map me-2"></i>Mapa do Servidor
+    </h2>
+    <div class="d-flex gap-2">
+        <div class="badge bg-success">
             <i class="fas fa-circle"></i> <span id="mapOnlineCount">0</span> Online
         </div>
-        <div class="badge bg-secondary me-2">
+        <div class="badge bg-secondary">
             <i class="fas fa-circle"></i> <span id="mapOfflineCount">0</span> Offline
         </div>
-        <div class="badge bg-primary me-2">
+        <div class="badge bg-primary">
             <span id="mapTotalCount">0</span> Total
         </div>
-        <div class="badge bg-info me-2">
+        <div class="badge bg-info">
             <i class="fas fa-car"></i> <span id="vehicleCount">0</span> Veículos
         </div>
-        <div class="badge bg-warning me-2">
+        <div class="badge bg-warning">
             <i class="fas fa-box"></i> <span id="containerCount">0</span> Containers
         </div>
-        <div class="badge bg-danger me-2">
+        <div class="badge bg-danger">
             <i class="fas fa-home"></i> <span id="fenceCount">0</span> Construções
         </div>
     </div>
-    <div class="btn-toolbar" role="toolbar">
-        <div class="btn-group me-2" role="group">
-            <button type="button" class="btn btn-primary" id="refreshBtn">
-                <i class="fas fa-sync-alt me-1"></i>Atualizar
-            </button>
-            <button type="button" class="btn btn-secondary" id="toggleTrailsBtn">
-                <i class="fas fa-route me-1"></i>Mostrar Trails
-            </button>
-            <button type="button" class="btn btn-success" id="toggleVehiclesBtn">
-                <i class="fas fa-car me-1"></i>Mostrar Veículos
-            </button>
-            <button type="button" class="btn btn-info" id="toggleContainersBtn">
-                <i class="fas fa-box me-1"></i>Mostrar Containers
-            </button>
-            <button type="button" class="btn btn-warning" id="toggleFencesBtn">
-                <i class="fas fa-home me-1"></i>Mostrar Construções
-            </button>
-            <button type="button" class="btn btn-danger" id="toggleKillsBtn">
-                <i class="fas fa-skull-crossbones me-1"></i>Mostrar Kills
-            </button>
-        </div>
-        <div class="btn-group" role="group">
-            <button type="button" class="btn btn-outline-primary active" id="btnModeNormal">
-                <i class="fas fa-mouse-pointer me-1"></i>Normal
-            </button>
-            <button type="button" class="btn btn-outline-primary" id="btnModeTeleport">
-                <i class="fas fa-map-marker-alt me-1"></i>Teleporte (usar filtro)
-            </button>
-        </div>
-    </div>
 </div>
 
-<div class="row mb-3" id="teleportInfo" style="display: none;">
-    <div class="col-md-12">
-        <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>
-            <strong>Modo Teleporte Ativo:</strong> Selecione um jogador no filtro acima e clique no mapa para teleportá-lo.
+<!-- Mapa e Sidebar -->
+<div class="row">
+    <!-- Mapa -->
+    <div class="col-lg-9 mb-3">
+        <div class="position-relative">
+            <div id="map" class="map-container" data-map-image="{{ url_for('static', filename='img/chernarus.jpeg') }}"></div>
+            
+            <!-- Alerta de Modo Teleporte -->
+            <div class="position-absolute top-0 start-0 w-100 p-2" style="display: none;" id="teleportInfo">
+                <div class="alert alert-info mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Modo Teleporte Ativo:</strong> Selecione um jogador no filtro e clique no mapa para teleportá-lo.
+                </div>
+            </div>
         </div>
     </div>
-</div>
-
-<div class="row mb-3" id="trailDateFilter" style="display: none;">
-    <div class="col-md-12">
-        <div class="card">
-            <div class="card-body">
-                <h6><i class="fas fa-filter me-2"></i>Filtrar Trails por Data/Hora</h6>
-                
-                <!-- Botões de Atalho -->
-                <div class="row mb-3">
-                    <div class="col-md-12">
-                        <label class="form-label"><i class="fas fa-clock me-1"></i>Atalhos Rápidos:</label>
-                        <div class="btn-group btn-group-sm" role="group">
-                            <button type="button" class="btn btn-outline-secondary" data-filter="1hour">
-                                <i class="fas fa-hourglass-half me-1"></i>Última Hora
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary" data-filter="3hours">
-                                <i class="fas fa-clock me-1"></i>Últimas 3h
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary" data-filter="6hours">
-                                <i class="fas fa-clock me-1"></i>Últimas 6h
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary" data-filter="24hours">
-                                <i class="fas fa-calendar-day me-1"></i>Últimas 24h
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary" data-filter="today">
-                                <i class="fas fa-sun me-1"></i>Hoje
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary" data-filter="yesterday">
-                                <i class="fas fa-calendar-minus me-1"></i>Ontem
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary" data-filter="7days">
-                                <i class="fas fa-calendar-week me-1"></i>Últimos 7 Dias
-                            </button>
-                            <button type="button" class="btn btn-outline-danger" data-filter="clear">
-                                <i class="fas fa-times me-1"></i>Limpar
-                            </button>
-                        </div>
+    
+    <!-- Sidebar Direita com Controles -->
+    <div class="col-lg-3">
+        <!-- Botões de Modo -->
+        <div class="card mb-2 card-modos">
+            <div class="card-header bg-primary">
+                <i class="fas fa-cog me-2"></i>Modos
+            </div>
+            <div class="card-body p-2">
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-outline-primary active" id="btnModeNormal">
+                        <i class="fas fa-mouse-pointer me-1"></i>Normal
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="btnModeTeleport">
+                        <i class="fas fa-map-marker-alt me-1"></i>Teleporte
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Controles de Visualização -->
+        <div class="card mb-2 card-visualizar">
+            <div class="card-header bg-success">
+                <i class="fas fa-eye me-2"></i>Visualizar
+            </div>
+            <div class="card-body p-2">
+                <div class="d-grid gap-1">
+                    <button type="button" class="btn btn-sm btn-primary" id="refreshBtn">
+                        <i class="fas fa-sync-alt me-1"></i>Atualizar
+                    </button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="toggleTrailsBtn">
+                        <i class="fas fa-route me-1"></i>Mostrar Trails
+                    </button>
+                    <button type="button" class="btn btn-sm btn-success" id="toggleVehiclesBtn">
+                        <i class="fas fa-car me-1"></i>Mostrar Veículos
+                    </button>
+                    <button type="button" class="btn btn-sm btn-info" id="toggleContainersBtn">
+                        <i class="fas fa-box me-1"></i>Mostrar Containers
+                    </button>
+                    <button type="button" class="btn btn-sm btn-warning" id="toggleFencesBtn">
+                        <i class="fas fa-home me-1"></i>Mostrar Construções
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger" id="toggleKillsBtn">
+                        <i class="fas fa-skull-crossbones me-1"></i>Mostrar Kills
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Filtros -->
+        <div class="card mb-2 card-filtros">
+            <div class="card-header bg-info">
+                <i class="fas fa-filter me-2"></i>Filtros
+            </div>
+            <div class="card-body p-2">
+                <div class="mb-2">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="onlineOnlyCheck">
+                        <label class="form-check-label" for="onlineOnlyCheck">
+                            <small>Apenas Online</small>
+                        </label>
                     </div>
                 </div>
-                
-                <div class="row">
-                    <div class="col-md-3">
-                        <label class="form-label">Data/Hora Início</label>
-                        <div class="row">
-                            <div class="col-7">
-                                <input type="date" id="trailStartDate" class="form-control">
-                            </div>
-                            <div class="col-5">
-                                <input type="time" id="trailStartTime" class="form-control" step="1">
-                            </div>
-                        </div>
+                <div class="mb-2">
+                    <label class="form-label small">Filtrar Jogador:</label>
+                    <select class="form-select form-select-sm" id="playerFilter">
+                        <option value="">Todos</option>
+                        {% for player in players %}
+                        <option value="{{ player.PlayerID }}">
+                            {{ player.PlayerName or player.PlayerID }}{% if player.SteamName %} ({{ player.SteamName }}){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Auto-Refresh:</label>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="autoRefreshCheck" checked>
+                        <label class="form-check-label" for="autoRefreshCheck">
+                            <small>Ligado</small>
+                        </label>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Data/Hora Fim</label>
-                        <div class="row">
-                            <div class="col-7">
-                                <input type="date" id="trailEndDate" class="form-control">
-                            </div>
-                            <div class="col-5">
-                                <input type="time" id="trailEndTime" class="form-control" step="1">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">&nbsp;</label>
-                        <button class="btn btn-primary w-100" id="applyTrailFilter">
-                            <i class="fas fa-filter me-2"></i>Aplicar
+                </div>
+                <div>
+                    <label class="form-label small">Última Atualização:</label>
+                    <p id="lastUpdate" class="mb-0 text-muted small">--</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Filtro de Trails (Colapsável) -->
+        <div class="card card-trails" id="trailDateFilter" style="display: none;">
+            <div class="card-header bg-secondary text-white">
+                <i class="fas fa-filter me-2"></i>Filtrar Trails
+            </div>
+            <div class="card-body p-2">
+                <div class="mb-2">
+                    <label class="form-label small">Atalhos Rápidos:</label>
+                    <div class="btn-group-vertical btn-group-sm d-grid gap-1">
+                        <button type="button" class="btn btn-outline-secondary" data-filter="1hour">
+                            <i class="fas fa-hourglass-half me-1"></i>Última Hora
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-filter="3hours">
+                            <i class="fas fa-clock me-1"></i>Últimas 3h
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-filter="6hours">
+                            <i class="fas fa-clock me-1"></i>Últimas 6h
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-filter="24hours">
+                            <i class="fas fa-calendar-day me-1"></i>Últimas 24h
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-filter="today">
+                            <i class="fas fa-sun me-1"></i>Hoje
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-filter="yesterday">
+                            <i class="fas fa-calendar-minus me-1"></i>Ontem
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-filter="7days">
+                            <i class="fas fa-calendar-week me-1"></i>Últimos 7 Dias
+                        </button>
+                        <button type="button" class="btn btn-outline-danger" data-filter="clear">
+                            <i class="fas fa-times me-1"></i>Limpar
                         </button>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row mb-3">
-    <div class="col-md-12">
-        <div class="card">
-            <div class="card-body">
+                
                 <div class="row">
-                    <div class="col-md-3">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="onlineOnlyCheck">
-                            <label class="form-check-label" for="onlineOnlyCheck">
-                                Apenas Online
-                            </label>
-                        </div>
+                    <div class="col-6 mb-2">
+                        <label class="form-label small">Data Início:</label>
+                        <input type="date" id="trailStartDate" class="form-control form-control-sm">
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label" for="playerFilter">Filtrar Jogador:</label>
-                        <select class="form-select" id="playerFilter">
-                            <option value="">Todos</option>
-                            {% for player in players %}
-                            <option value="{{ player.PlayerID }}">
-                                {{ player.PlayerName or player.PlayerID }}{% if player.SteamName %} ({{ player.SteamName }}){% endif %}
-                            </option>
-                            {% endfor %}
-                        </select>
+                    <div class="col-6 mb-2">
+                        <label class="form-label small">Hora:</label>
+                        <input type="time" id="trailStartTime" class="form-control form-control-sm" step="1">
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label" for="autoRefreshCheck">Auto-Refresh:</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="autoRefreshCheck" checked>
-                            <label class="form-check-label" for="autoRefreshCheck">Ligado</label>
-                        </div>
+                    <div class="col-6 mb-2">
+                        <label class="form-label small">Data Fim:</label>
+                        <input type="date" id="trailEndDate" class="form-control form-control-sm">
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Última Atualização:</label>
-                        <p id="lastUpdate" class="mb-0 text-muted">--</p>
+                    <div class="col-6 mb-2">
+                        <label class="form-label small">Hora:</label>
+                        <input type="time" id="trailEndTime" class="form-control form-control-sm" step="1">
                     </div>
                 </div>
+                <button class="btn btn-primary btn-sm w-100" id="applyTrailFilter">
+                    <i class="fas fa-filter me-2"></i>Aplicar
+                </button>
             </div>
         </div>
     </div>
 </div>
 
-<div class="row">
-    <div class="col-md-12">
-        <div id="map" class="map-container" data-map-image="{{ url_for('static', filename='img/chernarus.jpeg') }}"></div>
-    </div>
-</div>
-
+<!-- Modals -->
 <!-- Info Modal -->
 <div class="modal fade" id="playerModal" tabindex="-1">
     <div class="modal-dialog">
