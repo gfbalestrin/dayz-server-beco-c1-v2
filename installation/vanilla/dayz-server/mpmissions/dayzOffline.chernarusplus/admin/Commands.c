@@ -64,6 +64,8 @@ bool ExecuteCommand(TStringArray tokens)
                 return ExecuteCreateItem(tokens);
             case "createvehicle":
                 return ExecuteCreateVehicle(tokens);
+            case "createcontainer":
+                return ExecuteCreateContainer(tokens);
             default:
                 WriteToLog("Comando do sistema desconhecido: " + command, LogFile.INIT, false, LogType.ERROR);
                 return false;
@@ -736,6 +738,96 @@ bool ExecuteCreateVehicle(TStringArray tokens)
         WriteToLog("Falha ao criar veículo: " + vehicleType, LogFile.INIT, false, LogType.ERROR);
         return false;
     }
+}
+
+bool ExecuteCreateContainer(TStringArray tokens)
+{
+    // Formato: SYSTEM createcontainer ContainerType CoordX CoordY Item1 Item2 ... ItemN
+    if (tokens.Count() < 6)
+    {
+        WriteToLog("ExecuteCreateContainer(): Parâmetros insuficientes", LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    string containerType = tokens[2];
+    float coordX = tokens[3].ToFloat();
+    float coordY = tokens[4].ToFloat();
+    
+    // Validar tipo de container
+    if (containerType != "WoodenCrate" && 
+        containerType != "Barrel_Yellow" && 
+        containerType != "Barrel_Red" && 
+        containerType != "Barrel_Green" && 
+        containerType != "Barrel_Blue")
+    {
+        WriteToLog("ExecuteCreateContainer(): Tipo de container inválido: " + containerType, LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    // Criar vetor de posição
+    vector containerPos = Vector(coordX, 0, coordY);
+    
+    // Calcular altura do terreno
+    containerPos[1] = GetGame().SurfaceY(containerPos[0], containerPos[2]);
+    
+    // Spawnar container
+    ContainerBase container = ContainerBase.Cast(GetGame().CreateObject(containerType, containerPos, false, true));
+    
+    if (!container)
+    {
+        WriteToLog("Falha ao criar container: " + containerType, LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    WriteToLog("Container " + containerType + " criado em X=" + coordX.ToString() + " Y=" + coordY.ToString(), LogFile.INIT, false, LogType.INFO);
+    
+    // Processar itens
+    int itemsProcessed = 0;
+    int itemsInContainer = 0;
+    int itemsOnGround = 0;
+    
+    for (int i = 5; i < tokens.Count(); i++)
+    {
+        string itemType = tokens[i];
+        itemsProcessed++;
+        
+        // Tentar adicionar no container
+        EntityAI item = container.GetInventory().CreateInInventory(itemType);
+        
+        if (item)
+        {
+            itemsInContainer++;
+            WriteToLog("Item " + itemType + " adicionado ao container", LogFile.INIT, false, LogType.DEBUG);
+        }
+        else
+        {
+            // Criar no chão próximo ao container
+            vector groundPos = containerPos;
+            
+            // Adicionar offset aleatório pequeno (0.5 a 1.5 metros)
+            float offsetX = Math.RandomFloatInclusive(-1.5, 1.5);
+            float offsetZ = Math.RandomFloatInclusive(-1.5, 1.5);
+            
+            groundPos[0] = groundPos[0] + offsetX;
+            groundPos[2] = groundPos[2] + offsetZ;
+            groundPos[1] = GetGame().SurfaceY(groundPos[0], groundPos[2]);
+            
+            EntityAI groundItem = EntityAI.Cast(GetGame().CreateObject(itemType, groundPos, false, true));
+            
+            if (groundItem)
+            {
+                itemsOnGround++;
+                WriteToLog("Item " + itemType + " criado no chão (sem espaço no container)", LogFile.INIT, false, LogType.DEBUG);
+            }
+            else
+            {
+                WriteToLog("Falha ao criar item: " + itemType, LogFile.INIT, false, LogType.ERROR);
+            }
+        }
+    }
+    
+    WriteToLog("Container criado - Itens processados: " + itemsProcessed.ToString() + ", Dentro: " + itemsInContainer.ToString() + ", No chão: " + itemsOnGround.ToString(), LogFile.INIT, false, LogType.INFO);
+    return true;
 }
 
 bool IsInteger(string s)
