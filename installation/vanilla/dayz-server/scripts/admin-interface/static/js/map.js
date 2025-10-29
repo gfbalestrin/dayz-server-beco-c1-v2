@@ -7,6 +7,7 @@ let map;
 let playerMarkers = {};
 let playerTrails = {};
 let vehicleMarkers = {};
+let containerMarkers = {};
 let killMarkers = [];
 let playersData = {}; // Armazenar dados dos jogadores
 let currentPointContext = null; // Contexto do ponto para ações
@@ -14,6 +15,7 @@ let currentFilter = null;
 let autoRefreshInterval = null;
 let showTrails = false;
 let showVehicles = false;
+let showContainers = false;
 let showKills = false;
 let currentMode = 'normal'; // normal, teleport
 let teleportTargetPlayer = null;
@@ -39,6 +41,35 @@ function createVehicleIcon() {
     });
 }
 
+// Ícone customizado para containers baseado no tipo
+function createContainerIcon(containerType) {
+    let color, iconClass;
+    
+    if (containerType && containerType.startsWith('Barrel')) {
+        // Barrels - Azul
+        color = '#007bff';
+        iconClass = 'fas fa-drum';
+    } else if (containerType === 'WoodenCrate' || containerType === 'CargoNet') {
+        // Crates - Marrom
+        color = '#8b4513';
+        iconClass = 'fas fa-box';
+    } else if (containerType && (containerType.includes('Tent') || containerType.includes('CarTent'))) {
+        // Tents - Verde
+        color = '#28a745';
+        iconClass = 'fas fa-campground';
+    } else {
+        // Default - Cinza
+        color = '#6c757d';
+        iconClass = 'fas fa-box';
+    }
+    
+    return L.divIcon({
+        className: 'container-marker',
+        html: `<div style="background-color: ${color}; border: 2px solid white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><i class="${iconClass}" style="color: white; font-size: 12px;"></i></div>`,
+        iconSize: [20, 20]
+    });
+}
+
 // Inicializar o mapa quando o documento estiver pronto
 $(document).ready(function() {
     initMap();
@@ -51,6 +82,7 @@ $(document).ready(function() {
     $('#playerFilter').on('change', filterPlayers);
     $('#toggleTrailsBtn').on('click', toggleTrails);
     $('#toggleVehiclesBtn').on('click', toggleVehiclesDisplay);
+    $('#toggleContainersBtn').on('click', toggleContainersDisplay);
     $('#toggleKillsBtn').on('click', toggleKills);
     $('#applyTrailFilter').on('click', applyTrailDateFilter);
     
@@ -635,6 +667,9 @@ function toggleAutoRefresh() {
             if (showVehicles) {
                 loadVehicles();
             }
+            if (showContainers) {
+                loadContainers();
+            }
             // Recarregar trails se estiverem ativos
             if (showTrails) {
                 Object.keys(playerMarkers).forEach(loadPlayerTrail);
@@ -735,6 +770,121 @@ function toggleVehiclesDisplay() {
         
         // Resetar contador de veículos
         $('#vehicleCount').text('0');
+    }
+}
+
+/**
+ * Carregar posições de containers
+ */
+function loadContainers() {
+    if (!showContainers) {
+        return;
+    }
+    
+    $.get('/api/containers/positions')
+        .done(function(data) {
+            updateContainers(data);
+        })
+        .fail(function() {
+            console.error('Erro ao carregar containers');
+        });
+}
+
+/**
+ * Atualizar containers no mapa
+ */
+function updateContainers(data) {
+    // Limpar containers antigos
+    Object.keys(containerMarkers).forEach(function(key) {
+        map.removeLayer(containerMarkers[key]);
+    });
+    containerMarkers = {};
+    
+    // Atualizar contador de containers
+    $('#containerCount').text(data.containers.length);
+    
+    if (!showContainers) {
+        return;
+    }
+    
+    // Adicionar containers
+    data.containers.forEach(function(container) {
+        const containerId = container.container_id;
+        const lat = container.pixel_coords[0];
+        const lng = container.pixel_coords[1];
+        
+        const marker = L.marker([lat, lng], {
+            icon: createContainerIcon(container.container_type),
+            opacity: 1.0
+        }).addTo(map);
+        
+        const popupContent = createContainerPopup(container);
+        
+        marker.bindPopup(popupContent);
+        containerMarkers[containerId] = marker;
+    });
+    
+    console.log(`Containers atualizados: ${data.containers.length} containers`);
+}
+
+/**
+ * Criar popup de container
+ */
+function createContainerPopup(container) {
+    let itemsHtml = '';
+    const items = container.items || [];
+    
+    if (items.length > 0) {
+        itemsHtml += '<div class="mt-2"><strong>Items:</strong><div class="mt-1">';
+        items.forEach(function(item) {
+            const imgTag = item.img ? `<img src="${item.img}" onerror="this.style.display='none'" style="width: 24px; height: 24px; margin-right: 4px; vertical-align: middle;">` : '';
+            const healthText = item.health ? ` (HP: ${item.health})` : '';
+            itemsHtml += `<div class="item-display">${imgTag}<span>${item.name || item.type}${healthText}</span></div>`;
+        });
+        itemsHtml += '</div></div>';
+    } else {
+        itemsHtml = '<div class="text-muted mt-2">Container vazio</div>';
+    }
+    
+    return `
+        <div class="player-popup">
+            <strong><i class="fas fa-box me-2"></i>${container.container_type}</strong>
+            <div class="info-row">
+                <span class="info-label">ID:</span>
+                <span class="info-value">${container.container_id}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Coords:</span>
+                <span class="info-value">X: ${container.coord_x.toFixed(2)}, Y: ${container.coord_y.toFixed(2)} (altura: ${container.coord_z ? container.coord_z.toFixed(2) : 'N/A'})</span>
+            </div>
+            ${itemsHtml}
+            <div class="info-row mt-2">
+                <span class="info-label">Atualizado:</span>
+                <span class="info-value">${container.last_update || 'Desconhecido'}</span>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Toggle mostrar containers
+ */
+function toggleContainersDisplay() {
+    showContainers = !showContainers;
+    
+    if (showContainers) {
+        $('#toggleContainersBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar Containers');
+        loadContainers();
+    } else {
+        $('#toggleContainersBtn').html('<i class="fas fa-box me-1"></i>Mostrar Containers');
+        // Remover todos os containers
+        Object.keys(containerMarkers).forEach(function(key) {
+            map.removeLayer(containerMarkers[key]);
+        });
+        containerMarkers = {};
+        
+        // Resetar contador de containers
+        $('#containerCount').text('0');
     }
 }
 

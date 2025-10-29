@@ -123,6 +123,53 @@ def get_vehicles_map_positions() -> List[Dict]:
         """)
         return [dict(row) for row in cursor.fetchall()]
 
+def get_containers_last_position() -> List[Dict]:
+    """Retorna containers do último timestamp de rastreamento com seus items"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT ct.IdContainerTracking, ct.ContainerId, ct.ContainerName, 
+                   ct.PositionX, ct.PositionY, ct.PositionZ, ct.TimeStamp
+            FROM containers_tracking ct
+            WHERE ct.TimeStamp = (
+                SELECT MAX(TimeStamp) FROM containers_tracking
+            )
+            ORDER BY ct.ContainerName
+        """)
+        containers = [dict(row) for row in cursor.fetchall()]
+        
+        # Para cada container, buscar seus items
+        for container in containers:
+            container_id = container['IdContainerTracking']
+            cursor.execute("""
+                SELECT ItemType, ItemHealth, TimeStamp
+                FROM container_items_tracking
+                WHERE ContainerTrackingId = ?
+                ORDER BY TimeStamp
+            """, (container_id,))
+            items = [dict(row) for row in cursor.fetchall()]
+            container['items'] = items
+        
+        return containers
+
+def get_item_details_from_items_db(name_type: str) -> Optional[Dict]:
+    """Busca detalhes de um item no banco dayz_items.db por name_type"""
+    try:
+        with DatabaseConnection(config.DB_ITEMS) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, name, name_type, img
+                FROM item
+                WHERE name_type = ?
+            """, (name_type,))
+            row = cursor.fetchone()
+            if row:
+                return dict(row)
+            return None
+    except Exception as e:
+        print(f"Erro ao buscar item {name_type}: {e}")
+        return None
+
 def search_players(query: str) -> List[Dict]:
     """Busca jogadores por nome ou ID"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:

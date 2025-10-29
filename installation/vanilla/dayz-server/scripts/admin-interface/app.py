@@ -8,6 +8,7 @@ from database import (
     get_all_players, get_player_coords, get_player_coords_backup,
     get_logs_adm, get_logs_custom,     get_vehicles_tracking, get_vehicles_map_positions,
     get_player_by_id, search_players, get_players_last_position,
+    get_containers_last_position, get_item_details_from_items_db,
     get_player_trail, get_online_players_positions,
     get_players_positions_by_timerange, dayz_to_pixel,
     get_vehicles_last_position, get_recent_kills, parse_position,
@@ -270,6 +271,49 @@ def api_vehicles_map_positions():
             'coord_z': veh['PositionZ'],  # Altitude
             'pixel_coords': pixel_coords,
             'last_update': veh['TimeStamp'] or ''
+        })
+    
+    return jsonify(result)
+
+@app.route('/api/containers/positions')
+@login_required
+def api_containers_positions():
+    """API com posições atuais dos containers com seus items"""
+    containers = get_containers_last_position()
+    
+    result = {
+        'timestamp': datetime.now().isoformat(),
+        'containers': []
+    }
+    
+    for container in containers:
+        # Converter coordenadas para pixel
+        pixel_coords = dayz_to_pixel(container['PositionX'], container['PositionY'])
+        
+        # Processar items do container
+        items = []
+        for item in container.get('items', []):
+            # Buscar detalhes do item no banco dayz_items.db
+            item_details = get_item_details_from_items_db(item['ItemType'])
+            
+            item_data = {
+                'type': item['ItemType'],
+                'health': item.get('ItemHealth'),
+                'name': item_details['name'] if item_details else item['ItemType'],
+                'img': item_details['img'] if item_details else ''
+            }
+            items.append(item_data)
+        
+        result['containers'].append({
+            'container_id': container['ContainerId'],
+            'container_name': container['ContainerName'],
+            'container_type': container['ContainerName'],
+            'coord_x': container['PositionX'],
+            'coord_y': container['PositionY'],  # Sul-Norte (Y do mapa)
+            'coord_z': container['PositionZ'],  # Altitude
+            'pixel_coords': pixel_coords,
+            'items': items,
+            'last_update': container['TimeStamp'] or ''
         })
     
     return jsonify(result)
