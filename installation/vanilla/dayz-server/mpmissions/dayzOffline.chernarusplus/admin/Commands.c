@@ -767,7 +767,7 @@ bool ExecuteCreateContainer(TStringArray tokens)
     containerPos[1] = GetGame().SurfaceY(containerPos[0], containerPos[2]);
     
     // Spawnar container
-    ContainerBase container = ContainerBase.Cast(GetGame().CreateObject(containerType, containerPos, false, true));
+    EntityAI container = EntityAI.Cast(GetGame().CreateObject(containerType, containerPos, false, true));
     
     if (!container)
     {
