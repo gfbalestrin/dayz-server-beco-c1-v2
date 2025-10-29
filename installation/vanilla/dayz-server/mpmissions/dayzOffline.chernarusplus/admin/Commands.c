@@ -754,11 +754,7 @@ bool ExecuteCreateContainer(TStringArray tokens)
     float coordY = tokens[4].ToFloat();
     
     // Validar tipo de container
-    if (containerType != "WoodenCrate" && 
-        containerType != "Barrel_Yellow" && 
-        containerType != "Barrel_Red" && 
-        containerType != "Barrel_Green" && 
-        containerType != "Barrel_Blue")
+    if (containerType != "WoodenCrate" && containerType != "Barrel_Yellow" && containerType != "Barrel_Red" && containerType != "Barrel_Green" && containerType != "Barrel_Blue")
     {
         WriteToLog("ExecuteCreateContainer(): Tipo de container inválido: " + containerType, LogFile.INIT, false, LogType.ERROR);
         return false;
