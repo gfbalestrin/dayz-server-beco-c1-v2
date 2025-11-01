@@ -793,10 +793,66 @@ bool ExecuteCreateContainer(TStringArray tokens)
     for (int i = 5; i < tokens.Count(); i++)
     {
         string token = tokens[i];
+        
+        // Verifica se é JSON (começa com { ou contém estrutura JSON completa)
+        bool isJsonToken = false;
+        bool hasOpenBrace = false;
+        bool hasCloseBrace = false;
+        bool hasColon = false;
+        bool hasQuote = false;
+        
+        if (token.Length() > 0)
+        {
+            if (token.Get(0) == "{")
+            {
+                isJsonToken = true;
+                hasOpenBrace = true;
+            }
+            
+            // Verifica se tem caracteres JSON
+            for (int checkIdx = 0; checkIdx < token.Length(); checkIdx++)
+            {
+                string checkChr = token.Get(checkIdx);
+                if (checkChr == "{")
+                    hasOpenBrace = true;
+                else if (checkChr == "}")
+                    hasCloseBrace = true;
+                else if (checkChr == ":")
+                    hasColon = true;
+                else if (checkChr == "\"")
+                    hasQuote = true;
+            }
+            
+            // Se tem estrutura JSON típica mas não começa com {, pode ser continuação ou JSON completo em um token
+            if (!isJsonToken && (hasColon || hasQuote || hasOpenBrace || hasCloseBrace))
+            {
+                // Verifica se tem estrutura completa de JSON (tem : e ")
+                if (hasColon && hasQuote)
+                {
+                    // Pode ser continuação de JSON anterior
+                    if (i > 5)
+                    {
+                        for (int backIdx = i - 1; backIdx >= 5; backIdx--)
+                        {
+                            string prevToken = tokens[backIdx];
+                            if (prevToken.Length() > 0)
+                            {
+                                if (prevToken.Get(0) == "{")
+                                {
+                                    // É continuação, será processado junto
+                                    WriteToLog("Token JSON continuação detectado, ignorando: " + token, LogFile.INIT, false, LogType.DEBUG);
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
         itemsProcessed++;
         
-        // Verifica se é JSON (começa com {)
-        if (token.Length() > 0 && token.Get(0) == "{")
+        if (isJsonToken)
         {
             // Processa JSON - pode ser multi-token, então precisa reconstruir
             string jsonString = token;
@@ -832,12 +888,14 @@ bool ExecuteCreateContainer(TStringArray tokens)
             i = tokenIdx;
             
             // Parse JSON
+            WriteToLog("ExecuteCreateContainer(): Parseando JSON: " + jsonString, LogFile.INIT, false, LogType.DEBUG);
             int jsonPos = 0;
             int nextJsonPos = 0;
             ref ItemAttachmentData itemData = ParseItemJson(jsonString, jsonPos, nextJsonPos);
             
             if (itemData && itemData.type != "")
             {
+                WriteToLog("ExecuteCreateContainer(): JSON parseado com sucesso. Tipo: " + itemData.type, LogFile.INIT, false, LogType.DEBUG);
                 EntityAI jsonItem = CreateItemWithAttachments(itemData, container, groundPos);
                 
                 if (jsonItem)
@@ -853,7 +911,7 @@ bool ExecuteCreateContainer(TStringArray tokens)
             }
             else
             {
-                WriteToLog("Falha ao parsear JSON de item: " + token, LogFile.INIT, false, LogType.ERROR);
+                WriteToLog("Falha ao parsear JSON de item. JSON recebido: " + jsonString + " | Token original: " + token, LogFile.INIT, false, LogType.ERROR);
             }
         }
         else
