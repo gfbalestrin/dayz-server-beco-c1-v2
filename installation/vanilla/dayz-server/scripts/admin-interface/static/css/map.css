@@ -316,6 +316,12 @@
     padding: 0 !important;
 }
 
+.kill-icon-overlay {
+    background: transparent !important;
+    border: none !important;
+    pointer-events: none !important;
+}
+
 @keyframes pulse {
     0%, 100% { 
         opacity: 1; 
