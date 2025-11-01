@@ -803,12 +803,12 @@ bool ExecuteCreateContainer(TStringArray tokens)
             
             // Se o JSON está dividido em múltiplos tokens, reconstrói
             int openBraces = 0;
-            for (int j = 0; j < jsonString.Length(); j++)
+            for (int idx = 0; idx < jsonString.Length(); idx++)
             {
-                string ch = jsonString.Get(j);
-                if (ch == "{")
+                string chr = jsonString.Get(idx);
+                if (chr == "{")
                     openBraces++;
-                else if (ch == "}")
+                else if (chr == "}")
                     openBraces--;
             }
             
@@ -818,12 +818,12 @@ bool ExecuteCreateContainer(TStringArray tokens)
             {
                 tokenIdx++;
                 jsonString = jsonString + " " + tokens[tokenIdx];
-                for (int j = 0; j < tokens[tokenIdx].Length(); j++)
+                for (int idx2 = 0; idx2 < tokens[tokenIdx].Length(); idx2++)
                 {
-                    string ch = tokens[tokenIdx].Get(j);
-                    if (ch == "{")
+                    string chr2 = tokens[tokenIdx].Get(idx2);
+                    if (chr2 == "{")
                         openBraces++;
-                    else if (ch == "}")
+                    else if (chr2 == "}")
                         openBraces--;
                 }
             }
@@ -838,9 +838,9 @@ bool ExecuteCreateContainer(TStringArray tokens)
             
             if (itemData && itemData.type != "")
             {
-                EntityAI item = CreateItemWithAttachments(itemData, container, groundPos);
+                EntityAI jsonItem = CreateItemWithAttachments(itemData, container, groundPos);
                 
-                if (item)
+                if (jsonItem)
                 {
                     itemsInContainer++;
                     WriteToLog("Item JSON " + itemData.type + " adicionado ao container", LogFile.INIT, false, LogType.DEBUG);
@@ -862,9 +862,9 @@ bool ExecuteCreateContainer(TStringArray tokens)
             string itemType = token;
             
             // Tentar adicionar no container
-            EntityAI item = container.GetInventory().CreateInInventory(itemType);
+            EntityAI simpleItem = container.GetInventory().CreateInInventory(itemType);
             
-            if (item)
+            if (simpleItem)
             {
                 itemsInContainer++;
                 WriteToLog("Item " + itemType + " adicionado ao container", LogFile.INIT, false, LogType.DEBUG);
