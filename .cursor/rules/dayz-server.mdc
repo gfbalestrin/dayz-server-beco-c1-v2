@@ -1,0 +1,24 @@
+---
+alwaysApply: true
+---
+
+# Servidores DayZ - Beco Gaming
+
+## Contexto
+Você está trabalhando em dois servidores DayZ customizados em Enforce Script:
+- **deathmatch/**: Servidor PvP com funcionalidades avançadas (ignorado por enquanto)
+- **vanilla/**: Servidor tradicional com admin básico 
+
+## Linguagem
+- **Enforce Script** (sintaxe similar a C++)
+- Engine: Enfusion (Bohemia Interactive)
+- Não use IF/ELSE ternário
+- Evite realizar concatenação de string em multilinha
+
+## Estrutura do Projeto
+
+### Arquivos Principais
+- `init.c`: Inicialização do servidor
+
+## Respostas
+Sempre responder em **português do Brasil**.

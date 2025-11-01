@@ -1980,6 +1980,102 @@ class CustomMission: MissionServer
 		}
 	}
 
+	// Função auxiliar para sanitizar strings para uso seguro em JSON
+	string SanitizeForJson(string input)
+	{
+		if (!input)
+			return "";
+		
+		string sanitized = input;
+		TStringArray unsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
+		foreach (string ch : unsafeChars)
+		{
+			sanitized.Replace(ch, "-");
+		}
+		sanitized.Replace("\n", "");
+		sanitized.Replace("\r", "");
+		sanitized.Replace("\t", "");
+		if (sanitized.Length() > 64)
+			sanitized = sanitized.Substring(0, 64);
+		
+		return sanitized;
+	}
+
+	// Função auxiliar para coletar itens nas mãos do jogador
+	string GetItemsInHands(PlayerBase player)
+	{
+		string itemsJson = "";
+		if (!player)
+			return itemsJson;
+
+		HumanInventory inventory = player.GetHumanInventory();
+		if (!inventory)
+			return itemsJson;
+
+		for (int i = 0; i < inventory.AttachmentCount(); i++)
+		{
+			EntityAI item = inventory.GetAttachmentFromIndex(i);
+			if (!item)
+				continue;
+
+			string itemType = item.GetType();
+			string safeItemType = SanitizeForJson(itemType);
+			
+			if (itemsJson != "")
+				itemsJson += ",";
+			itemsJson += "\"" + safeItemType + "\"";
+		}
+
+		return itemsJson;
+	}
+
+	// Função auxiliar para coletar itens principais do inventário
+	string GetMainItems(PlayerBase player, int maxItems)
+	{
+		string itemsJson = "";
+		int itemCount = 0;
+		
+		if (!player)
+			return itemsJson;
+
+		// Itera pelos itens do inventário principal (attachments)
+		int attachmentCount = player.GetInventory().AttachmentCount();
+		for (int i = 0; i < attachmentCount && itemCount < maxItems; i++)
+		{
+			EntityAI item = player.GetInventory().GetAttachmentFromIndex(i);
+			if (!item)
+				continue;
+
+			string itemType = item.GetType();
+			string safeItemType = SanitizeForJson(itemType);
+			
+			if (itemsJson != "")
+				itemsJson += ",";
+			itemsJson += "\"" + safeItemType + "\"";
+			itemCount++;
+		}
+
+		return itemsJson;
+	}
+
+	// Função auxiliar para contar total de itens no inventário
+	int CountInventoryItems(PlayerBase player)
+	{
+		int count = 0;
+		if (!player)
+			return count;
+
+		// Conta attachments do inventário principal
+		count += player.GetInventory().AttachmentCount();
+
+		// Conta itens nas mãos
+		HumanInventory humanInv = player.GetHumanInventory();
+		if (humanInv)
+			count += humanInv.AttachmentCount();
+
+		return count;
+	}
+
 	// Envia posições de todos os jogadores ativos via ExternalAction
 	void SendPlayersPositions()
 	{
@@ -2006,22 +2102,65 @@ class CustomMission: MissionServer
 			vector position = player.GetPosition();
 
 			// Sanitiza o nome do jogador para uso seguro em JSON
-			string safeName = playerName;
-			TStringArray unsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
-			foreach (string ch : unsafeChars)
-			{
-				safeName.Replace(ch, "-");
-			}
-			safeName.Replace("\n", "");
-			safeName.Replace("\r", "");
-			safeName.Replace("\t", "");
+			string safeName = SanitizeForJson(playerName);
 			if (safeName.Length() > 32)
 				safeName = safeName.Substring(0, 32);
 
+			// Extrai informações de vitalidade
+			float health = player.GetHealth("", "");
+			float blood = player.GetHealth("GlobalHealth", "Blood");
+			float shock = player.GetHealth("GlobalHealth", "Shock");
+			float energy = 0.0;
+			float water = 0.0;
+			
+			if (player.GetStatEnergy())
+				energy = player.GetStatEnergy().Get();
+			if (player.GetStatWater())
+				water = player.GetStatWater().Get();
+
+			// Extrai status do jogador
+			bool isAlive = player.IsAlive();
+			bool isAdmin = CheckIfIsAdmin(playerId);
+			//bool hasGodmode = false; // Não descobri como verificar se o jogador tem god mode
+
+			// Extrai informações de stamina
+			float stamina = 0.0;
+			float staminaMax = 0.0;
+			StaminaHandler staminaHandler = player.GetStaminaHandler();
+			if (staminaHandler)
+			{
+				stamina = staminaHandler.GetStamina();
+				staminaMax = staminaHandler.GetStaminaMax();
+			}
+
+			// Extrai informações do inventário
+			string itemsInHands = GetItemsInHands(player);
+			string mainItems = GetMainItems(player, 10);
+			int itemsCount = CountInventoryItems(player);
+
+			// Constrói JSON do jogador
 			if (playersJson != "")
 				playersJson += ",";
 			
-			playersJson += "{\"player_id\":\"" + playerId + "\",\"player_name\":\"" + safeName + "\",\"x\":" + position[0].ToString() + ",\"z\":" + position[1].ToString() + ",\"y\":" + position[2].ToString() + "}";
+			playersJson += "{";
+			playersJson += "\"player_id\":\"" + playerId + "\"";
+			playersJson += ",\"player_name\":\"" + safeName + "\"";
+			playersJson += ",\"x\":" + position[0].ToString();
+			playersJson += ",\"z\":" + position[1].ToString();
+			playersJson += ",\"y\":" + position[2].ToString();
+			playersJson += ",\"health\":" + health.ToString();
+			playersJson += ",\"blood\":" + blood.ToString();
+			playersJson += ",\"shock\":" + shock.ToString();
+			playersJson += ",\"energy\":" + energy.ToString();
+			playersJson += ",\"water\":" + water.ToString();
+			playersJson += ",\"is_alive\":" + (isAlive ? "true" : "false");
+			playersJson += ",\"is_admin\":" + (isAdmin ? "true" : "false");
+			playersJson += ",\"stamina\":" + stamina.ToString();
+			playersJson += ",\"stamina_max\":" + staminaMax.ToString();
+			playersJson += ",\"items_in_hands\":[" + itemsInHands + "]";
+			playersJson += ",\"items_count\":" + itemsCount.ToString();
+			playersJson += ",\"main_items\":[" + mainItems + "]";
+			playersJson += "}";
 		}
 
 		string jsonAction = "{\"action\":\"players_positions\",\"players\":[" + playersJson + "]}";
