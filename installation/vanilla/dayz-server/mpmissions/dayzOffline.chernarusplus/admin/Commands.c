@@ -932,7 +932,7 @@ class ItemAttachmentData
 }
 
 // Parser JSON simplificado - extrai string entre aspas
-string ExtractJsonString(ref string json, ref int pos)
+string ExtractJsonString(string json, ref int pos)
 {
     string result = "";
     if (pos >= json.Length())
@@ -962,7 +962,7 @@ string ExtractJsonString(ref string json, ref int pos)
 }
 
 // Pula espaços e vírgulas
-void SkipWhitespaceAndCommas(ref string json, ref int pos)
+void SkipWhitespaceAndCommas(string json, ref int pos)
 {
     while (pos < json.Length())
     {
@@ -975,7 +975,7 @@ void SkipWhitespaceAndCommas(ref string json, ref int pos)
 }
 
 // Parse JSON array de attachments
-void ParseAttachmentsArray(ref string json, ref int pos, ref array<ref ItemAttachmentData> attachments)
+void ParseAttachmentsArray(string json, ref int pos, array<ref ItemAttachmentData> attachments)
 {
     if (pos >= json.Length())
         return;
@@ -1014,7 +1014,7 @@ void ParseAttachmentsArray(ref string json, ref int pos, ref array<ref ItemAttac
 }
 
 // Parse objeto JSON de item
-ref ItemAttachmentData ParseItemJson(ref string json, ref int pos)
+ref ItemAttachmentData ParseItemJson(string json, ref int pos)
 {
     ref ItemAttachmentData item = new ItemAttachmentData;
     
@@ -1069,7 +1069,7 @@ ref ItemAttachmentData ParseItemJson(ref string json, ref int pos)
 }
 
 // Função recursiva para criar item com attachments
-EntityAI CreateItemWithAttachments(ref ItemAttachmentData itemData, EntityAI container, vector fallbackPos)
+EntityAI CreateItemWithAttachments(ItemAttachmentData itemData, EntityAI container, vector fallbackPos)
 {
     if (!itemData || !itemData.type || itemData.type == "")
         return null;
@@ -1102,7 +1102,7 @@ EntityAI CreateItemWithAttachments(ref ItemAttachmentData itemData, EntityAI con
 }
 
 // Função auxiliar para processar recursivamente attachments profundos
-void ProcessAttachmentsRecursive(EntityAI parentItem, ref array<ref ItemAttachmentData> attachments)
+void ProcessAttachmentsRecursive(EntityAI parentItem, array<ref ItemAttachmentData> attachments)
 {
     if (!parentItem || !attachments)
         return;
