@@ -1211,15 +1211,15 @@ string NormalizeJsonString(string json)
         if ((ch == "}" || ch == "]") && lastChar != "," && lastChar != "{" && lastChar != "[")
         {
             // Verifica próximo caractere não-espaço
-            int nextIdx = i + 1;
-            while (nextIdx < json.Length() && (json.Get(nextIdx) == " " || json.Get(nextIdx) == "\t" || json.Get(nextIdx) == "\n" || json.Get(nextIdx) == "\r"))
-                nextIdx++;
+            int nextIdx2 = i + 1;
+            while (nextIdx2 < json.Length() && (json.Get(nextIdx2) == " " || json.Get(nextIdx2) == "\t" || json.Get(nextIdx2) == "\n" || json.Get(nextIdx2) == "\r"))
+                nextIdx2++;
             
-            if (nextIdx < json.Length())
+            if (nextIdx2 < json.Length())
             {
-                string nextCh = json.Get(nextIdx);
+                string nextCh2 = json.Get(nextIdx2);
                 // Se próximo é { ou " (início de propriedade/objeto), adiciona vírgula
-                if (nextCh == "{" || (nextCh == "\"" && ch != "{"))
+                if (nextCh2 == "{" || (nextCh2 == "\"" && ch != "{"))
                 {
                     result += ch + ",";
                     lastChar = ",";
