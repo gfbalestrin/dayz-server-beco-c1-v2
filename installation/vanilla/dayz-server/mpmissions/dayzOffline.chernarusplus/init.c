@@ -2138,6 +2138,15 @@ class CustomMission: MissionServer
 			string mainItems = GetMainItems(player, 10);
 			int itemsCount = CountInventoryItems(player);
 
+			// Converte booleanos para string
+			string isAliveStr = "false";
+			if (isAlive)
+				isAliveStr = "true";
+			
+			string isAdminStr = "false";
+			if (isAdmin)
+				isAdminStr = "true";
+
 			// Constrói JSON do jogador
 			if (playersJson != "")
 				playersJson += ",";
@@ -2153,8 +2162,8 @@ class CustomMission: MissionServer
 			playersJson += ",\"shock\":" + shock.ToString();
 			playersJson += ",\"energy\":" + energy.ToString();
 			playersJson += ",\"water\":" + water.ToString();
-			playersJson += ",\"is_alive\":" + (isAlive ? "true" : "false");
-			playersJson += ",\"is_admin\":" + (isAdmin ? "true" : "false");
+			playersJson += ",\"is_alive\":" + isAliveStr;
+			playersJson += ",\"is_admin\":" + isAdminStr;
 			playersJson += ",\"stamina\":" + stamina.ToString();
 			playersJson += ",\"stamina_max\":" + staminaMax.ToString();
 			playersJson += ",\"items_in_hands\":[" + itemsInHands + "]";
