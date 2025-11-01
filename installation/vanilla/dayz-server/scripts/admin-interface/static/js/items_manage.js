@@ -77,22 +77,26 @@ $(document).ready(function() {
     // Event listeners - Explosivos
     $('#btnAddExplosive').on('click', showAddExplosiveModal);
     $('#btnSaveExplosive').on('click', saveExplosive);
+    $('#btnValidateExplosiveType').on('click', validateExplosiveNameType);
     $('#explosiveWidth, #explosiveHeight').on('input', calculateExplosiveSlots);
     
     // Event listeners - Munições
     $('#btnAddAmmunition').on('click', showAddAmmunitionModal);
     $('#btnSaveAmmunition').on('click', saveAmmunition);
+    $('#btnValidateAmmunitionType').on('click', validateAmmunitionNameType);
     $('#ammunitionWidth, #ammunitionHeight').on('input', calculateAmmunitionSlots);
     
     // Event listeners - Magazines
     $('#btnAddMagazine').on('click', showAddMagazineModal);
     $('#btnSaveMagazine').on('click', saveMagazine);
+    $('#btnValidateMagazineType').on('click', validateMagazineNameType);
     $('#magazineWidth, #magazineHeight').on('input', calculateMagazineSlots);
     $('#magazineWeaponSearch').on('input', filterMagazineWeapons);
     
     // Event listeners - Attachments
     $('#btnAddAttachment').on('click', showAddAttachmentModal);
     $('#btnSaveAttachment').on('click', saveAttachment);
+    $('#btnValidateAttachmentType').on('click', validateAttachmentNameType);
     $('#attachmentWidth, #attachmentHeight').on('input', calculateAttachmentSlots);
     $('#attachmentWeaponSearch').on('input', filterAttachmentWeapons);
     $('#attachmentSearchInput').on('input', applyAttachmentFilters);
@@ -1395,6 +1399,110 @@ function validateItemNameType() {
                     .addClass('valid');
             } else {
                 $('#itemTypeValidationFeedback')
+                    .text('✗ Name type não encontrado no types.xml')
+                    .removeClass('valid')
+                    .addClass('invalid');
+            }
+        }
+    });
+}
+
+function validateExplosiveNameType() {
+    const nameType = $('#explosiveNameType').val();
+    if (!nameType) {
+        $('#explosiveTypeValidationFeedback').text('Digite um name_type').removeClass('valid invalid');
+        return;
+    }
+    
+    $.ajax({
+        url: `/api/validate/item-type/${encodeURIComponent(nameType)}`,
+        method: 'GET',
+        success: function(response) {
+            if (response.valid) {
+                $('#explosiveTypeValidationFeedback')
+                    .text('✓ Name type válido!')
+                    .removeClass('invalid')
+                    .addClass('valid');
+            } else {
+                $('#explosiveTypeValidationFeedback')
+                    .text('✗ Name type não encontrado no types.xml')
+                    .removeClass('valid')
+                    .addClass('invalid');
+            }
+        }
+    });
+}
+
+function validateAmmunitionNameType() {
+    const nameType = $('#ammunitionNameType').val();
+    if (!nameType) {
+        $('#ammunitionTypeValidationFeedback').text('Digite um name_type').removeClass('valid invalid');
+        return;
+    }
+    
+    $.ajax({
+        url: `/api/validate/item-type/${encodeURIComponent(nameType)}`,
+        method: 'GET',
+        success: function(response) {
+            if (response.valid) {
+                $('#ammunitionTypeValidationFeedback')
+                    .text('✓ Name type válido!')
+                    .removeClass('invalid')
+                    .addClass('valid');
+            } else {
+                $('#ammunitionTypeValidationFeedback')
+                    .text('✗ Name type não encontrado no types.xml')
+                    .removeClass('valid')
+                    .addClass('invalid');
+            }
+        }
+    });
+}
+
+function validateMagazineNameType() {
+    const nameType = $('#magazineNameType').val();
+    if (!nameType) {
+        $('#magazineTypeValidationFeedback').text('Digite um name_type').removeClass('valid invalid');
+        return;
+    }
+    
+    $.ajax({
+        url: `/api/validate/item-type/${encodeURIComponent(nameType)}`,
+        method: 'GET',
+        success: function(response) {
+            if (response.valid) {
+                $('#magazineTypeValidationFeedback')
+                    .text('✓ Name type válido!')
+                    .removeClass('invalid')
+                    .addClass('valid');
+            } else {
+                $('#magazineTypeValidationFeedback')
+                    .text('✗ Name type não encontrado no types.xml')
+                    .removeClass('valid')
+                    .addClass('invalid');
+            }
+        }
+    });
+}
+
+function validateAttachmentNameType() {
+    const nameType = $('#attachmentNameType').val();
+    if (!nameType) {
+        $('#attachmentTypeValidationFeedback').text('Digite um name_type').removeClass('valid invalid');
+        return;
+    }
+    
+    $.ajax({
+        url: `/api/validate/item-type/${encodeURIComponent(nameType)}`,
+        method: 'GET',
+        success: function(response) {
+            if (response.valid) {
+                $('#attachmentTypeValidationFeedback')
+                    .text('✓ Name type válido!')
+                    .removeClass('invalid')
+                    .addClass('valid');
+            } else {
+                $('#attachmentTypeValidationFeedback')
                     .text('✗ Name type não encontrado no types.xml')
                     .removeClass('valid')
                     .addClass('invalid');
