@@ -319,7 +319,9 @@ def get_recent_kills(limit: int = 100) -> List[Dict]:
                 k.PosKiller,
                 k.PosKilled,
                 killer.PlayerName as KillerName,
-                victim.PlayerName as VictimName
+                killer.SteamName as KillerSteamName,
+                victim.PlayerName as VictimName,
+                victim.SteamName as VictimSteamName
             FROM players_killfeed k
             LEFT JOIN players_database killer ON k.PlayerIDKiller = killer.PlayerID
             LEFT JOIN players_database victim ON k.PlayerIDKilled = victim.PlayerID

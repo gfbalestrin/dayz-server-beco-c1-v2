@@ -542,37 +542,53 @@ def api_kills():
     }
     
     for kill in kills:
-        # Parse posições
+        # Parse posições (pode retornar None se não puder ser parseada)
         pos_killer = parse_position(kill['PosKiller'])
         pos_killed = parse_position(kill['PosKilled'])
         
-        if pos_killer and pos_killed:
-            # Converter para pixels
+        # Processar posição do killer
+        if pos_killer:
+            # Converter coordenadas para pixel
             pixel_killer = dayz_to_pixel(pos_killer[0], pos_killer[1])
+            killer_pos = {
+                'x': pos_killer[0],  # Leste-Oeste
+                'y': pos_killer[1],  # Sul-Norte (Y do mapa)
+                'z': pos_killer[2],  # Altitude
+                'pixel_coords': pixel_killer
+            }
+        else:
+            pixel_killer = None
+            killer_pos = None
+        
+        # Processar posição da vítima
+        if pos_killed:
+            # Converter coordenadas para pixel
             pixel_killed = dayz_to_pixel(pos_killed[0], pos_killed[1])
-            
-            result['events'].append({
-                'id': kill['Id'],
-                'killer_id': kill['PlayerIDKiller'],
-                'killer_name': kill['KillerName'] or 'Desconhecido',
-                'victim_id': kill['PlayerIDKilled'],
-                'victim_name': kill['VictimName'] or 'Desconhecido',
-                'weapon': kill['Weapon'] or 'Desconhecido',
-                'distance': kill['DistanceMeter'] or 0,
-                'timestamp': kill['Data'],
-                'killer_pos': {
-                    'x': pos_killer[0],
-                    'y': pos_killer[1],
-                    'z': pos_killer[2],
-                    'pixel_coords': pixel_killer
-                },
-                'victim_pos': {
-                    'x': pos_killed[0],
-                    'y': pos_killed[1],
-                    'z': pos_killed[2],
-                    'pixel_coords': pixel_killed
-                }
-            })
+            victim_pos = {
+                'x': pos_killed[0],  # Leste-Oeste
+                'y': pos_killed[1],  # Sul-Norte (Y do mapa)
+                'z': pos_killed[2],  # Altitude
+                'pixel_coords': pixel_killed
+            }
+        else:
+            pixel_killed = None
+            victim_pos = None
+        
+        # Sempre adicionar evento ao resultado (mesmo se posições não puderem ser parseadas)
+        result['events'].append({
+            'id': kill['Id'],
+            'killer_id': kill['PlayerIDKiller'],
+            'killer_name': kill['KillerName'] or 'Desconhecido',
+            'killer_steam_name': kill.get('KillerSteamName') or None,
+            'victim_id': kill['PlayerIDKilled'],
+            'victim_name': kill['VictimName'] or 'Desconhecido',
+            'victim_steam_name': kill.get('VictimSteamName') or None,
+            'weapon': kill['Weapon'] or 'Desconhecido',
+            'distance': kill['DistanceMeter'] or 0,
+            'timestamp': kill['Data'],
+            'killer_pos': killer_pos,
+            'victim_pos': victim_pos
+        })
     
     return jsonify(result)
 

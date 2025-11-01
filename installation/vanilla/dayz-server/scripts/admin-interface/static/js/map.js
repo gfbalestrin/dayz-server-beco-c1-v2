@@ -231,10 +231,11 @@ function createMarkerIcon(color) {
 function createKillIcon() {
     return L.divIcon({
         className: 'kill-marker',
-        html: `<div style="background-color: #dc3545; border: 2px solid white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                 <i class="fas fa-skull-crossbones" style="color: white; font-size: 10px;"></i>
+        html: `<div style="width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;">
+                 <i class="fas fa-skull-crossbones" style="color: white; font-size: 12px; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);"></i>
                </div>`,
-        iconSize: [20, 20]
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]  // Centralizar o ícone no círculo
     });
 }
 
@@ -1096,59 +1097,111 @@ function updateKills(data) {
     });
     killMarkers = [];
     
-    if (!showKills) return;
+    if (!showKills) {
+        return;
+    }
     
+    // Adicionar kills
     data.events.forEach(function(event) {
-        // Marcador na posição da vítima
-        const marker = L.marker(
-            [event.victim_pos.pixel_coords[0], event.victim_pos.pixel_coords[1]],
-            { icon: createKillIcon() }
-        ).addTo(map);
+        // Verificar se posições são válidas
+        const killerPos = event.killer_pos;
+        const victimPos = event.victim_pos;
         
-        // Popup com informações
-        const popupContent = `
-            <div class="event-popup">
-                <strong>💀 Kill Event</strong>
-                <div class="info-row">
-                    <span class="info-label">Killer:</span>
-                    <span class="info-value">${event.killer_name}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Victim:</span>
-                    <span class="info-value">${event.victim_name}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Weapon:</span>
-                    <span class="info-value">${event.weapon}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Distance:</span>
-                    <span class="info-value">${event.distance.toFixed(0)}m</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Time:</span>
-                    <span class="info-value">${event.timestamp}</span>
-                </div>
-            </div>
-        `;
-        marker.bindPopup(popupContent, {
-            autoPan: true,
-            autoPanPadding: [50, 50],
-            maxWidth: 300
-        });
+        // Se ambas as posições são null, pular evento
+        if (!killerPos && !victimPos) {
+            return;
+        }
         
-        // Linha conectando killer e victim
-        const line = L.polyline([
-            [event.killer_pos.pixel_coords[0], event.killer_pos.pixel_coords[1]],
-            [event.victim_pos.pixel_coords[0], event.victim_pos.pixel_coords[1]]
-        ], {
-            color: '#dc3545',
-            weight: 2,
-            opacity: 0.6,
-            dashArray: '5, 10'
-        }).addTo(map);
+        let marker = null;
+        let line = null;
         
-        killMarkers.push({ marker, line });
+        // Criar marcador na posição da vítima (se disponível)
+        if (victimPos && victimPos.pixel_coords) {
+            const lat = victimPos.pixel_coords[0];
+            const lng = victimPos.pixel_coords[1];
+            
+            // Debug: verificar coordenadas
+            console.log(`Kill marker - Event ID: ${event.id}, pixel_coords: [${lat}, ${lng}], x: ${victimPos.x}, y: ${victimPos.y}`);
+            
+            // Usar circleMarker como base (funciona corretamente)
+            marker = L.circleMarker([lat, lng], {
+                radius: 10,
+                fillColor: '#dc3545',
+                color: '#ffffff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).addTo(map);
+            
+            // Adicionar ícone de caveira como tooltip permanente no centro do círculo
+            marker.bindTooltip('<i class="fas fa-skull-crossbones" style="color: white; font-size: 12px; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);"></i>', {
+                permanent: true,
+                direction: 'center',
+                className: 'kill-icon-tooltip',
+                interactive: false,
+                offset: [0, 0]
+            });
+            
+            console.log(`Kill circleMarker com ícone criado na posição [${lat}, ${lng}]`);
+            
+            // Popup com informações
+            const popupContent = `
+                <div class="event-popup">
+                    <strong>💀 Kill Event</strong>
+                    <div class="info-row">
+                        <span class="info-label">Killer:</span>
+                        <span class="info-value">${event.killer_name}${event.killer_steam_name ? ` (${event.killer_steam_name})` : ''}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Victim:</span>
+                        <span class="info-value">${event.victim_name}${event.victim_steam_name ? ` (${event.victim_steam_name})` : ''}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Weapon:</span>
+                        <span class="info-value">${event.weapon}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Distance:</span>
+                        <span class="info-value">${event.distance ? event.distance.toFixed(0) + 'm' : 'N/A'}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Time:</span>
+                        <span class="info-value">${event.timestamp || 'Desconhecido'}</span>
+                    </div>
+                </div>
+            `;
+            marker.bindPopup(popupContent, {
+                autoPan: true,
+                autoPanPadding: [50, 50],
+                maxWidth: 300
+            });
+        }
+        
+        // Criar linha conectando killer e victim (apenas se ambas posições são válidas)
+        if (killerPos && killerPos.pixel_coords && victimPos && victimPos.pixel_coords) {
+            const killerLat = killerPos.pixel_coords[0];
+            const killerLng = killerPos.pixel_coords[1];
+            const victimLat = victimPos.pixel_coords[0];
+            const victimLng = victimPos.pixel_coords[1];
+            
+            // Debug: verificar coordenadas da linha (que funciona corretamente)
+            console.log(`Kill line - Killer: [${killerLat}, ${killerLng}], Victim: [${victimLat}, ${victimLng}]`);
+            
+            line = L.polyline([
+                [killerLat, killerLng],
+                [victimLat, victimLng]
+            ], {
+                color: '#dc3545',
+                weight: 2,
+                opacity: 0.6,
+                dashArray: '5, 10'
+            }).addTo(map);
+        }
+        
+        // Adicionar ao array apenas se tiver marker ou line
+        if (marker || line) {
+            killMarkers.push({ marker, line });
+        }
     });
     
     console.log(`Kills carregados: ${data.events.length}`);

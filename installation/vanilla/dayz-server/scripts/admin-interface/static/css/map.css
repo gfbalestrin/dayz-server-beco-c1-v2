@@ -308,6 +308,14 @@
     animation: pulse 2s infinite;
 }
 
+.kill-icon-tooltip {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    pointer-events: none !important;
+    padding: 0 !important;
+}
+
 @keyframes pulse {
     0%, 100% { 
         opacity: 1; 
