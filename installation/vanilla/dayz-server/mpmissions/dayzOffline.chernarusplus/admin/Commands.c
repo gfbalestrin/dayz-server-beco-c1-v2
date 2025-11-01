@@ -801,6 +801,8 @@ bool ExecuteCreateContainer(TStringArray tokens)
         bool isJsonToken = false;
         bool hasOpenBrace = false;
         bool hasCloseBrace = false;
+        bool hasOpenBracket = false;
+        bool hasCloseBracket = false;
         bool hasColon = false;
         bool hasQuote = false;
         
@@ -820,6 +822,10 @@ bool ExecuteCreateContainer(TStringArray tokens)
                     hasOpenBrace = true;
                 else if (checkChr == "}")
                     hasCloseBrace = true;
+                else if (checkChr == "[")
+                    hasOpenBracket = true;
+                else if (checkChr == "]")
+                    hasCloseBracket = true;
                 else if (checkChr == ":")
                     hasColon = true;
                 else if (checkChr == "\"")
@@ -827,7 +833,10 @@ bool ExecuteCreateContainer(TStringArray tokens)
             }
             
             // Se tem estrutura JSON típica mas não começa com {, pode ser continuação
-            if (!isJsonToken && hasColon && (hasQuote || hasOpenBrace || hasCloseBrace))
+            // Detectar JSON mesmo sem aspas: tem : e ( {, }, [, ] )
+            bool looksLikeJson = hasColon && (hasOpenBrace || hasCloseBrace || hasOpenBracket || hasCloseBracket);
+            
+            if (!isJsonToken && looksLikeJson)
             {
                 // Procura para trás para ver se há JSON iniciado
                 bool foundJsonStart = false;
@@ -840,6 +849,7 @@ bool ExecuteCreateContainer(TStringArray tokens)
                         bool prevHasOpenBrace = false;
                         bool prevHasColon = false;
                         bool prevHasQuote = false;
+                        bool prevHasBracket = false;
                         
                         if (prevToken.Get(0) == "{")
                             prevHasOpenBrace = true;
@@ -849,13 +859,17 @@ bool ExecuteCreateContainer(TStringArray tokens)
                             string prevChr = prevToken.Get(prevIdx);
                             if (prevChr == "{")
                                 prevHasOpenBrace = true;
+                            else if (prevChr == "[")
+                                prevHasBracket = true;
                             else if (prevChr == ":")
                                 prevHasColon = true;
                             else if (prevChr == "\"")
                                 prevHasQuote = true;
                         }
                         
-                        if (prevHasOpenBrace || (prevHasColon && prevHasQuote))
+                        // JSON anterior se tem { ou [ ou tem : e estrutura JSON
+                        bool prevLooksLikeJson = prevHasOpenBrace || prevHasBracket || (prevHasColon && (prevHasQuote || prevHasOpenBrace || prevHasBracket));
+                        if (prevLooksLikeJson)
                         {
                             foundJsonStart = true;
                             break;
@@ -874,20 +888,22 @@ bool ExecuteCreateContainer(TStringArray tokens)
         
         itemsProcessed++;
         
-        // Verifica se é JSON (começa com { ou tem estrutura JSON completa)
-        bool isJsonStart = isJsonToken || (hasColon && hasQuote && !hasOpenBrace && i == 5);
+        // Verifica se é JSON: começa com { ou tem : e estrutura JSON ({, }, [, ])
+        bool looksLikeJsonToken = hasColon && (hasOpenBrace || hasCloseBrace || hasOpenBracket || hasCloseBracket);
+        bool isJsonStart = isJsonToken || looksLikeJsonToken;
         
-        if (isJsonStart || (hasColon && hasQuote && (hasOpenBrace || hasCloseBrace)))
+        if (isJsonStart)
         {
             // Processa JSON - pode ser multi-token, então precisa reconstruir
             string jsonString = token;
             
             // Se o token tem estrutura JSON mas não começa com {, pode ser que { foi perdido
             // Nesse caso, tentamos adicionar no início se necessário
-            if (!isJsonToken && hasColon && hasQuote)
+            if (!isJsonToken)
             {
                 // Verifica se precisa adicionar { no início
                 int braceCount = 0;
+                int bracketCount = 0;
                 for (int braceIdx = 0; braceIdx < jsonString.Length(); braceIdx++)
                 {
                     string braceChr = jsonString.Get(braceIdx);
@@ -895,18 +911,23 @@ bool ExecuteCreateContainer(TStringArray tokens)
                         braceCount++;
                     else if (braceChr == "}")
                         braceCount--;
+                    else if (braceChr == "[")
+                        bracketCount++;
+                    else if (braceChr == "]")
+                        bracketCount--;
                 }
                 
-                // Se não tem chave de abertura mas tem fechamento, adiciona {
-                if (braceCount < 0 || (braceCount == 0 && !hasOpenBrace))
+                // Se não tem chave de abertura mas tem estrutura JSON, adiciona {
+                if (!hasOpenBrace && (hasColon || hasOpenBracket || hasCloseBrace || hasCloseBracket))
                 {
                     jsonString = "{" + jsonString;
                     WriteToLog("ExecuteCreateContainer(): Adicionando { no início do JSON: " + jsonString, LogFile.INIT, false, LogType.DEBUG);
                 }
             }
             
-            // Calcula chaves abertas/fechadas
+            // Calcula chaves e colchetes abertos/fechados
             int openBraces = 0;
+            int openBrackets = 0;
             for (int braceIdx2 = 0; braceIdx2 < jsonString.Length(); braceIdx2++)
             {
                 string braceChr2 = jsonString.Get(braceIdx2);
@@ -914,11 +935,15 @@ bool ExecuteCreateContainer(TStringArray tokens)
                     openBraces++;
                 else if (braceChr2 == "}")
                     openBraces--;
+                else if (braceChr2 == "[")
+                    openBrackets++;
+                else if (braceChr2 == "]")
+                    openBrackets--;
             }
             
             // Se não está completo, junta tokens até completar
             int tokenIdx = i;
-            while (openBraces > 0 && tokenIdx < tokens.Count() - 1)
+            while ((openBraces > 0 || openBrackets > 0) && tokenIdx < tokens.Count() - 1)
             {
                 tokenIdx++;
                 jsonString = jsonString + " " + tokens[tokenIdx];
@@ -929,21 +954,35 @@ bool ExecuteCreateContainer(TStringArray tokens)
                         openBraces++;
                     else if (chr2 == "}")
                         openBraces--;
+                    else if (chr2 == "[")
+                        openBrackets++;
+                    else if (chr2 == "]")
+                        openBrackets--;
                 }
             }
             
-            // Se ainda não fechou todas as chaves, pode faltar }
-            if (openBraces > 0)
+            // Se ainda não fechou todas as chaves/colchetes, adiciona os que faltam
+            while (openBrackets > 0)
+            {
+                jsonString = jsonString + "]";
+                openBrackets--;
+                WriteToLog("ExecuteCreateContainer(): Adicionando ] no final do JSON", LogFile.INIT, false, LogType.DEBUG);
+            }
+            while (openBraces > 0)
             {
                 jsonString = jsonString + "}";
+                openBraces--;
                 WriteToLog("ExecuteCreateContainer(): Adicionando } no final do JSON", LogFile.INIT, false, LogType.DEBUG);
             }
             
             // Pula tokens já processados
             i = tokenIdx;
             
+            // Normaliza JSON: adiciona aspas onde necessário
+            jsonString = NormalizeJsonString(jsonString);
+            
             // Parse JSON
-            WriteToLog("ExecuteCreateContainer(): Parseando JSON reconstruído: " + jsonString, LogFile.INIT, false, LogType.DEBUG);
+            WriteToLog("ExecuteCreateContainer(): Parseando JSON reconstruído e normalizado: " + jsonString, LogFile.INIT, false, LogType.DEBUG);
             int jsonPos = 0;
             int nextJsonPos = 0;
             ref ItemAttachmentData itemData = ParseItemJson(jsonString, jsonPos, nextJsonPos);
@@ -1046,6 +1085,100 @@ class ItemAttachmentData
 }
 
 // Parser JSON simplificado - extrai string entre aspas
+// Normaliza JSON: adiciona aspas onde necessário para tokens sem aspas
+// Converte patterns como "type:AKM" para ""type":"AKM""
+string NormalizeJsonString(string json)
+{
+    string result = "";
+    int i = 0;
+    bool inQuotes = false;
+    
+    while (i < json.Length())
+    {
+        string ch = json.Get(i);
+        
+        // Detecta aspas existentes
+        if (ch == "\"")
+        {
+            inQuotes = !inQuotes;
+            result += ch;
+            i++;
+            continue;
+        }
+        
+        // Dentro de aspas, copia diretamente
+        if (inQuotes)
+        {
+            result += ch;
+            i++;
+            continue;
+        }
+        
+        // Detecta padrão chave:valor sem aspas (ex: type:AKM)
+        if (ch != "{" && ch != "}" && ch != "[" && ch != "]" && ch != "," && ch != ":" && ch != " " && ch != "\t" && ch != "\n" && ch != "\r")
+        {
+            // Início de uma palavra (chave ou valor sem aspas)
+            string word = "";
+            
+            // Coleta a palavra até encontrar : ou , ou } ou ] ou espaço
+            while (i < json.Length())
+            {
+                ch = json.Get(i);
+                if (ch == ":" || ch == "," || ch == "}" || ch == "]" || ch == "{" || ch == "[" || ch == " " || ch == "\t" || ch == "\n" || ch == "\r")
+                    break;
+                word += ch;
+                i++;
+            }
+            
+            // Verifica se é chave ou valor
+            if (i < json.Length() && json.Get(i) == ":")
+            {
+                // É uma chave: adiciona aspas
+                result += "\"" + word + "\"";
+            }
+            else
+            {
+                // É um valor: verifica contexto
+                // Se o último caractere antes era :, então é valor
+                bool isValue = false;
+                int backPos = result.Length() - 1;
+                while (backPos >= 0)
+                {
+                    string backCh = result.Get(backPos);
+                    if (backCh == ":")
+                    {
+                        isValue = true;
+                        break;
+                    }
+                    if (backCh != " " && backCh != "\t" && backCh != "\n" && backCh != "\r")
+                        break;
+                    backPos--;
+                }
+                
+                if (isValue)
+                {
+                    // É valor: adiciona aspas
+                    result += "\"" + word + "\"";
+                }
+                else
+                {
+                    // Não é claro, mas provavelmente é chave seguida de algo
+                    result += "\"" + word + "\"";
+                }
+            }
+            
+            // Continua processando a partir do caractere atual (que não foi incluído na palavra)
+            continue;
+        }
+        
+        // Caracteres de estrutura JSON são copiados diretamente
+        result += ch;
+        i++;
+    }
+    
+    return result;
+}
+
 string ExtractJsonString(string json, int pos, out int newPos)
 {
     string result = "";
