@@ -1136,6 +1136,7 @@ function loadWeaponsForAttachment() {
         success: function(response) {
             allWeaponsForRelationship = response.weapons;
             renderAttachmentWeaponGrid();
+            renderSelectedWeaponsForAttachment();
         }
     });
 }
