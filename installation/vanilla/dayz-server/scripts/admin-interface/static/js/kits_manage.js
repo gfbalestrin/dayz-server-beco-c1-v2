@@ -1,0 +1,1426 @@
+// ============================================================================
+// VARIÁVEIS GLOBAIS
+// ============================================================================
+
+let weaponKitsData = [];
+let lootKitsData = [];
+
+// Para Weapon Kits
+let allWeapons = [];
+let allMagazines = [];
+let allAttachments = [];
+let selectedAttachmentIds = [];
+
+// Para Loot Kits
+let allItems = [];
+let allStorageContainers = [];
+let selectedLootItems = []; // Array de {item_id, quantity}
+let selectedLootWeaponKits = []; // Array de {weapon_kit_id, quantity}
+let currentLootKitContainer = null;
+
+let allWeaponKitsForLoot = [];
+// Novos tipos de itens para loot kits
+let allExplosives = [];
+let allAmmunitions = [];
+let allMagazinesForLoot = []; // Para evitar conflito com allMagazines de Weapon Kits
+let allAttachmentsForLoot = []; // Para evitar conflito com allAttachments de Weapon Kits
+let selectedLootExplosives = []; // Array de {explosive_id, quantity}
+let selectedLootAmmunitions = []; // Array de {ammunition_id, quantity}
+let selectedLootMagazines = []; // Array de {magazine_id, quantity}
+let selectedLootAttachments = []; // Array de {attachment_id, quantity}
+
+let deleteConfirmCallback = null;
+
+// ============================================================================
+// INICIALIZAÇÃO
+// ============================================================================
+
+$(document).ready(function() {
+    // Event listeners - Weapon Kits
+    $('#btnAddWeaponKit').on('click', showAddWeaponKitModal);
+    $('#btnSaveWeaponKit').on('click', saveWeaponKit);
+    $('#weaponKitSearchInput').on('input', applyWeaponKitFilters);
+    $('#attachmentSearchInput').on('input', filterAttachments);
+    
+    // Event listeners - Loot Kits
+    $('#btnAddLootKit').on('click', showAddLootKitModal);
+    $('#btnSaveLootKit').on('click', saveLootKit);
+    $('#lootKitSearchInput').on('input', applyLootKitFilters);
+    $('#lootItemSearchInput').on('input', filterLootItems);
+    $('#lootWeaponKitSearchInput').on('input', filterLootWeaponKits);
+    $('#lootExplosiveSearchInput').on('input', filterExplosives);
+    $('#lootAmmunitionSearchInput').on('input', filterAmmunitions);
+    $('#lootMagazineSearchInput').on('input', filterMagazines);
+    $('#lootAttachmentSearchInput').on('input', filterAttachmentsForLoot);
+    
+    // Lazy load tabs
+    $('a[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
+        const target = $(e.target).attr('href');
+        if (target === '#weapon-kits-tab' && weaponKitsData.length === 0) {
+            loadWeaponKits();
+        } else if (target === '#loot-kits-tab' && lootKitsData.length === 0) {
+            loadLootKits();
+        }
+    });
+    
+    // Carregar dados iniciais da primeira aba
+    if ($('#weapon-kits-tab').hasClass('active')) {
+        loadWeaponKits();
+    }
+});
+
+// ============================================================================
+// WEAPON KITS
+// ============================================================================
+
+function loadWeaponKits() {
+    $.ajax({
+        url: '/api/kits/weapons',
+        method: 'GET',
+        success: function(response) {
+            weaponKitsData = response.kits;
+            applyWeaponKitFilters();
+        }
+    });
+}
+
+function renderWeaponKitsGrid(data = weaponKitsData) {
+    const grid = $('#weaponKitsGrid');
+    grid.empty();
+    
+    if (data.length === 0) {
+        grid.html('<div class="text-center p-5">Nenhum kit de arma encontrado</div>');
+        return;
+    }
+    
+    data.forEach(kit => {
+        const attCount = kit.attachments ? kit.attachments.length : 0;
+        const card = $(`
+            <div class="weapon-card">
+                <div class="weapon-actions">
+                    <button class="btn btn-sm btn-primary me-1" onclick="editWeaponKit(${kit.id})">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteWeaponKit(${kit.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+                <img src="${kit.weapon_img || 'https://via.placeholder.com/120?text=No+Image'}" alt="${kit.weapon_name}" onerror="this.src='https://via.placeholder.com/120?text=No+Image'">
+                <div class="weapon-name">${kit.name}</div>
+                <div class="weapon-info">
+                    ${kit.weapon_name || 'N/A'}<br>
+                    ${kit.magazine_name ? 'Magazine: ' + kit.magazine_name : 'Sem magazine'}<br>
+                    ${attCount} attachments
+                </div>
+            </div>
+        `);
+        grid.append(card);
+    });
+}
+
+function applyWeaponKitFilters() {
+    const searchTerm = $('#weaponKitSearchInput').val().toLowerCase();
+    const filtered = weaponKitsData.filter(kit =>
+        !searchTerm ||
+        kit.name.toLowerCase().includes(searchTerm) ||
+        (kit.weapon_name && kit.weapon_name.toLowerCase().includes(searchTerm))
+    );
+    renderWeaponKitsGrid(filtered);
+}
+
+function showAddWeaponKitModal() {
+    $('#weaponKitId').val('');
+    $('#weaponKitForm')[0].reset();
+    selectedAttachmentIds = [];
+    loadWeaponKitOptions();
+    $('#weaponKitModal').modal('show');
+}
+
+function loadWeaponKitOptions(callback) {
+    $.get('/api/manage/weapons', { limit: 1000 }).done(function(weaponsResp) {
+        allWeapons = weaponsResp.weapons;
+        
+        // Popular dropdown de armas
+        const weaponSelect = $('#weaponKitWeaponId');
+        weaponSelect.empty().append('<option value="">Selecione uma arma...</option>');
+        allWeapons.forEach(w => weaponSelect.append(`<option value="${w.id}">${w.name}</option>`));
+        
+        // Adicionar event listener para mudança de arma
+        weaponSelect.off('change').on('change', function() {
+            const weaponId = $(this).val();
+            updateMagazinesAndAttachmentsForWeapon(weaponId);
+        });
+        
+        // Inicializar magazine select vazio
+        const magSelect = $('#weaponKitMagazineId');
+        magSelect.empty().append('<option value="">Nenhum</option>');
+        
+        // Inicializar attachments grid vazio
+        $('#attachmentsGrid').empty();
+        $('#attachmentsGrid').html('<div class="text-center p-4 text-muted">Selecione uma arma para ver os magazines e attachments compatíveis</div>');
+        
+        if (callback) callback();
+    });
+}
+
+function updateMagazinesAndAttachmentsForWeapon(weaponId, callback) {
+    if (!weaponId) {
+        // Limpar dropdowns e grids
+        const magSelect = $('#weaponKitMagazineId');
+        magSelect.empty().append('<option value="">Nenhum</option>');
+        
+        $('#attachmentsGrid').empty();
+        $('#attachmentsGrid').html('<div class="text-center p-4 text-muted">Selecione uma arma para ver os magazines e attachments compatíveis</div>');
+        
+        if (callback) callback();
+        return;
+    }
+    
+    // Buscar magazines e attachments compatíveis com a arma
+    $.when(
+        $.get('/api/items/magazines', { weapon_id: weaponId, limit: 500 }),
+        $.get('/api/items/attachments', { weapon_id: weaponId, limit: 500 })
+    ).done(function(magsResp, attsResp) {
+        allMagazines = magsResp[0].magazines;
+        allAttachments = attsResp[0].attachments;
+        
+        // Popular dropdown de magazines
+        const magSelect = $('#weaponKitMagazineId');
+        const currentMagId = magSelect.val();
+        magSelect.empty().append('<option value="">Nenhum</option>');
+        allMagazines.forEach(m => magSelect.append(`<option value="${m.id}">${m.name}</option>`));
+        
+        // Se havia um magazine selecionado, verificar se ainda é compatível
+        if (currentMagId && !allMagazines.find(m => m.id == currentMagId)) {
+            magSelect.val('');
+            showToast('Aviso', 'O magazine selecionado não é compatível com a nova arma', 'warning');
+        } else {
+            magSelect.val(currentMagId);
+        }
+        
+        // Verificar e remover attachments incompatíveis
+        const incompatibleAttachments = selectedAttachmentIds.filter(attId => 
+            !allAttachments.find(att => att.id == attId)
+        );
+        
+        if (incompatibleAttachments.length > 0) {
+            incompatibleAttachments.forEach(attId => {
+                selectedAttachmentIds.splice(selectedAttachmentIds.indexOf(attId), 1);
+            });
+            showToast('Aviso', `${incompatibleAttachments.length} attachment(s) incompatível(is) removido(s)`, 'warning');
+        }
+        
+        // Renderizar attachments
+        renderAttachmentsGrid();
+        
+        if (callback) callback();
+    });
+}
+
+function renderAttachmentsGrid() {
+    const grid = $('#attachmentsGrid');
+    grid.empty();
+    
+    allAttachments.forEach(att => {
+        const isSelected = selectedAttachmentIds.includes(att.id);
+        const card = $(`
+            <div class="relationship-item ${isSelected ? 'selected' : ''}" data-id="${att.id}">
+                <div class="checkbox-indicator"></div>
+                <img src="${att.img || 'https://via.placeholder.com/80?text=No+Image'}" alt="${att.name}" onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                <div class="item-name" title="${att.name}">${att.name}</div>
+            </div>
+        `);
+        
+        card.on('click', function() {
+            toggleAttachmentSelection(att.id, att.type);
+        });
+        
+        grid.append(card);
+    });
+    
+    updateSelectedAttachments();
+}
+
+function toggleAttachmentSelection(attachmentId, attachmentType) {
+    const index = selectedAttachmentIds.indexOf(attachmentId);
+    
+    if (index > -1) {
+        // Remover
+        selectedAttachmentIds.splice(index, 1);
+    } else {
+        // Adicionar com validação
+        // Verificar se já existe um attachment do mesmo tipo
+        const selected = allAttachments.filter(a => selectedAttachmentIds.includes(a.id));
+        const hasSameType = selected.some(a => a.type === attachmentType);
+        
+        if (hasSameType) {
+            showToast('Aviso', `Já existe um attachment do tipo "${attachmentType}". Apenas 1 por tipo é permitido.`, 'warning');
+            return;
+        }
+        
+        selectedAttachmentIds.push(attachmentId);
+    }
+    
+    renderAttachmentsGrid();
+}
+
+function updateSelectedAttachments() {
+    const section = $('#selectedAttachments .selected-items-grid');
+    section.empty();
+    
+    if (selectedAttachmentIds.length === 0) {
+        section.html('<span class="text-muted">Nenhum attachment selecionado</span>');
+        return;
+    }
+    
+    selectedAttachmentIds.forEach(id => {
+        const att = allAttachments.find(a => a.id === id);
+        if (att) {
+            const badge = $(`
+                <div class="selected-item-badge">
+                    ${att.name}
+                    <span class="remove-btn" data-id="${id}">×</span>
+                </div>
+            `);
+            
+            badge.find('.remove-btn').on('click', function(e) {
+                e.stopPropagation();
+                toggleAttachmentSelection(id, att.type);
+            });
+            
+            section.append(badge);
+        }
+    });
+}
+
+function filterAttachments() {
+    const searchTerm = $('#attachmentSearchInput').val().toLowerCase();
+    const filtered = allAttachments.filter(att =>
+        !searchTerm ||
+        att.name.toLowerCase().includes(searchTerm) ||
+        att.name_type.toLowerCase().includes(searchTerm)
+    );
+    
+    const grid = $('#attachmentsGrid');
+    grid.empty();
+    
+    filtered.forEach(att => {
+        const isSelected = selectedAttachmentIds.includes(att.id);
+        const card = $(`
+            <div class="relationship-item ${isSelected ? 'selected' : ''}" data-id="${att.id}">
+                <div class="checkbox-indicator"></div>
+                <img src="${att.img || 'https://via.placeholder.com/80?text=No+Image'}" alt="${att.name}" onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                <div class="item-name" title="${att.name}">${att.name}</div>
+            </div>
+        `);
+        
+        card.on('click', function() {
+            toggleAttachmentSelection(att.id, att.type);
+        });
+        
+        grid.append(card);
+    });
+}
+
+function editWeaponKit(kitId) {
+    $.ajax({
+        url: `/api/kits/weapons/${kitId}`,
+        method: 'GET',
+        success: function(response) {
+            const kit = response.kit;
+            
+            $('#weaponKitId').val(kit.id);
+            $('#weaponKitName').val(kit.name);
+            
+            loadWeaponKitOptions(function() {
+                $('#weaponKitWeaponId').val(kit.weapon_id);
+                selectedAttachmentIds = kit.attachments ? kit.attachments.map(a => a.id) : [];
+                
+                // Carregar magazines e attachments compatíveis com a arma do kit
+                if (kit.weapon_id) {
+                    updateMagazinesAndAttachmentsForWeapon(kit.weapon_id, function() {
+                        $('#weaponKitMagazineId').val(kit.magazine_id);
+                    });
+                }
+            });
+            
+            $('#weaponKitModal').modal('show');
+        }
+    });
+}
+
+function saveWeaponKit() {
+    const kitId = $('#weaponKitId').val();
+    const isNew = !kitId;
+    
+    const kitData = {
+        name: $('#weaponKitName').val(),
+        weapon_id: parseInt($('#weaponKitWeaponId').val()),
+        magazine_id: $('#weaponKitMagazineId').val() ? parseInt($('#weaponKitMagazineId').val()) : null,
+        attachments: selectedAttachmentIds
+    };
+    
+    if (!kitData.name || !kitData.weapon_id) {
+        showToast('Erro', 'Preencha todos os campos obrigatórios', 'error');
+        return;
+    }
+    
+    const url = isNew ? '/api/kits/weapons' : `/api/kits/weapons/${kitId}`;
+    const method = isNew ? 'POST' : 'PUT';
+    
+    $.ajax({
+        url: url,
+        method: method,
+        contentType: 'application/json',
+        data: JSON.stringify(kitData),
+        success: function() {
+            showToast('Sucesso', 'Kit de arma salvo com sucesso!', 'success');
+            $('#weaponKitModal').modal('hide');
+            loadWeaponKits();
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            showToast('Erro', error.error || 'Erro ao salvar kit de arma', 'error');
+        }
+    });
+}
+
+function deleteWeaponKit(kitId) {
+    if (!confirm('Tem certeza que deseja excluir este kit de arma?')) return;
+    
+    $.ajax({
+        url: `/api/kits/weapons/${kitId}`,
+        method: 'DELETE',
+        success: function() {
+            showToast('Sucesso', 'Kit de arma excluído com sucesso!', 'success');
+            loadWeaponKits();
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            showToast('Erro', error.error || 'Erro ao excluir kit de arma', 'error');
+        }
+    });
+}
+
+// ============================================================================
+// LOOT KITS
+// ============================================================================
+
+function loadLootKits() {
+    $.ajax({
+        url: '/api/kits/loot',
+        method: 'GET',
+        success: function(response) {
+            lootKitsData = response.kits;
+            applyLootKitFilters();
+        }
+    });
+}
+
+function renderLootKitsGrid(data = lootKitsData) {
+    const grid = $('#lootKitsGrid');
+    grid.empty();
+    
+    if (data.length === 0) {
+        grid.html('<div class="text-center p-5">Nenhum kit de loot encontrado</div>');
+        return;
+    }
+    
+    data.forEach(kit => {
+        const card = $(`
+            <div class="weapon-card">
+                <div class="weapon-actions">
+                    <button class="btn btn-sm btn-primary me-1" onclick="editLootKit(${kit.id})">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteLootKit(${kit.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+                <img src="${kit.container_img || 'https://via.placeholder.com/120?text=No+Image'}" alt="${kit.container_name}" onerror="this.src='https://via.placeholder.com/120?text=No+Image'">
+                <div class="weapon-name">${kit.name}</div>
+                <div class="weapon-info">
+                    ${kit.container_name || 'N/A'}<br>
+                    ${kit.storage_slots || 0} slots<br>
+                    ${kit.items ? kit.items.length : 0} itens
+                </div>
+            </div>
+        `);
+        grid.append(card);
+    });
+}
+
+function applyLootKitFilters() {
+    const searchTerm = $('#lootKitSearchInput').val().toLowerCase();
+    const filtered = lootKitsData.filter(kit =>
+        !searchTerm ||
+        kit.name.toLowerCase().includes(searchTerm) ||
+        (kit.container_name && kit.container_name.toLowerCase().includes(searchTerm))
+    );
+    renderLootKitsGrid(filtered);
+}
+
+function showAddLootKitModal() {
+    $('#lootKitId').val('');
+    $('#lootKitForm')[0].reset();
+    selectedLootItems = [];
+    selectedLootWeaponKits = [];
+    selectedLootExplosives = [];
+    selectedLootAmmunitions = [];
+    selectedLootMagazines = [];
+    selectedLootAttachments = [];
+    currentLootKitContainer = null;
+    loadLootKitOptions();
+    $('#lootKitModal').modal('show');
+}
+
+function loadLootKitOptions(callback) {
+    $.when(
+        $.get('/api/kits/storage-containers'),
+        $.get('/api/manage/items', { limit: 1000 }),
+        $.get('/api/kits/weapons', { limit: 1000 }),
+        $.get('/api/items/all-explosives'),
+        $.get('/api/items/all-ammunitions'),
+        $.get('/api/items/all-magazines'),
+        $.get('/api/items/all-attachments')
+    ).done(function(containersResp, itemsResp, weaponKitsResp, explosivesResp, ammunitionsResp, magazinesResp, attachmentsResp) {
+        allStorageContainers = containersResp[0].containers;
+        allItems = itemsResp[0].items;
+        allWeaponKitsForLoot = weaponKitsResp[0].kits;
+        allExplosives = explosivesResp[0].explosives;
+        allAmmunitions = ammunitionsResp[0].ammunitions;
+        allMagazinesForLoot = magazinesResp[0].magazines;
+        allAttachmentsForLoot = attachmentsResp[0].attachments;
+        
+        // Popular dropdown de containers
+        const containerSelect = $('#lootKitContainerId');
+        containerSelect.empty().append('<option value="">Selecione um container...</option>');
+        allStorageContainers.forEach(c => containerSelect.append(`<option value="${c.id}">${c.name}</option>`));
+        
+        // Listener para mudança de container
+        containerSelect.off('change').on('change', function() {
+            const containerId = $(this).val();
+            if (containerId) {
+                currentLootKitContainer = allStorageContainers.find(c => c.id == containerId);
+                $('#lootKitAvailableSpace').val(currentLootKitContainer.storage_slots || 0);
+                updateLootKitSpace();
+            } else {
+                currentLootKitContainer = null;
+                $('#lootKitAvailableSpace').val('');
+            }
+        });
+        
+        // Renderizar grids
+        renderLootItemsGrid();
+        renderLootWeaponKitsGrid();
+        renderExplosivesGrid();
+        renderAmmunitionsGrid();
+        renderMagazinesGrid();
+        renderLootAttachmentsGrid();
+        
+        if (callback) callback();
+    });
+}
+
+function renderLootItemsGrid() {
+    const grid = $('#lootItemsGrid');
+    grid.empty();
+    
+    allItems.forEach(item => {
+        const isSelected = selectedLootItems.some(i => i.item_id === item.id);
+        const card = $(`
+            <div class="relationship-item ${isSelected ? 'selected' : ''}" data-id="${item.id}">
+                <div class="checkbox-indicator"></div>
+                <img src="${item.img || 'https://via.placeholder.com/80?text=No+Image'}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                <div class="item-name" title="${item.name}">${item.name}</div>
+            </div>
+        `);
+        
+        card.on('click', function() {
+            toggleLootItemSelection(item.id);
+        });
+        
+        grid.append(card);
+    });
+    
+    updateSelectedLootItems();
+}
+
+function toggleLootItemSelection(itemId) {
+    const index = selectedLootItems.findIndex(i => i.item_id === itemId);
+    
+    if (index > -1) {
+        selectedLootItems.splice(index, 1);
+    } else {
+        selectedLootItems.push({ item_id: itemId, quantity: 1 });
+    }
+    
+    renderLootItemsGrid();
+    updateLootKitSpace();
+}
+
+function updateSelectedLootItems() {
+    const list = $('#selectedLootItemsList');
+    list.empty();
+    
+    if (selectedLootItems.length === 0) {
+        list.html('<span class="text-muted">Nenhum item selecionado</span>');
+        $('#itemsCount').text(0);
+        return;
+    }
+    
+    selectedLootItems.forEach((item, index) => {
+        const fullItem = allItems.find(i => i.id === item.item_id);
+        if (!fullItem) return;
+        
+        const listItem = $(`
+            <div class="selected-items-list-item">
+                <div class="item-info">
+                    <img src="${fullItem.img || 'https://via.placeholder.com/40?text=No+Img'}" alt="${fullItem.name}" onerror="this.src='https://via.placeholder.com/40?text=No+Img'">
+                    <span class="item-name">${fullItem.name}</span>
+                </div>
+                <div class="quantity-input-group">
+                    <label class="me-2">Qtd:</label>
+                    <input type="number" class="form-control quantity-input" value="${item.quantity}" min="1" style="display: inline-block; width: 70px;">
+                    <button class="btn btn-sm btn-danger ms-2" onclick="removeLootItem(${index})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `);
+        
+        listItem.find('.quantity-input').on('change', function() {
+            item.quantity = parseInt($(this).val()) || 1;
+            updateLootKitSpace();
+        });
+        
+        list.append(listItem);
+    });
+    
+    $('#itemsCount').text(selectedLootItems.length);
+}
+
+function removeLootItem(index) {
+    selectedLootItems.splice(index, 1);
+    renderLootItemsGrid();
+    updateLootKitSpace();
+}
+
+function renderLootWeaponKitsGrid() {
+    const grid = $('#lootWeaponKitsGrid');
+    grid.empty();
+    
+    allWeaponKitsForLoot.forEach(kit => {
+        const isSelected = selectedLootWeaponKits.some(k => k.weapon_kit_id === kit.id);
+        const card = $(`
+            <div class="relationship-item ${isSelected ? 'selected' : ''}" data-id="${kit.id}">
+                <div class="checkbox-indicator"></div>
+                <img src="${kit.weapon_img || 'https://via.placeholder.com/80?text=No+Image'}" alt="${kit.name}" onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                <div class="item-name" title="${kit.name}">${kit.name}</div>
+            </div>
+        `);
+        
+        card.on('click', function() {
+            toggleLootWeaponKitSelection(kit.id);
+        });
+        
+        grid.append(card);
+    });
+    
+    updateSelectedLootWeaponKits();
+}
+
+function toggleLootWeaponKitSelection(kitId) {
+    const index = selectedLootWeaponKits.findIndex(k => k.weapon_kit_id === kitId);
+    
+    if (index > -1) {
+        selectedLootWeaponKits.splice(index, 1);
+    } else {
+        selectedLootWeaponKits.push({ weapon_kit_id: kitId, quantity: 1 });
+    }
+    
+    renderLootWeaponKitsGrid();
+    updateLootKitSpace();
+}
+
+function updateSelectedLootWeaponKits() {
+    const list = $('#selectedLootWeaponKitsList');
+    list.empty();
+    
+    if (selectedLootWeaponKits.length === 0) {
+        list.html('<span class="text-muted">Nenhum kit de arma selecionado</span>');
+        $('#weaponKitsCount').text(0);
+        return;
+    }
+    
+    selectedLootWeaponKits.forEach((kit, index) => {
+        const fullKit = allWeaponKitsForLoot.find(k => k.id === kit.weapon_kit_id);
+        if (!fullKit) return;
+        
+        const listItem = $(`
+            <div class="selected-items-list-item">
+                <div class="item-info">
+                    <img src="${fullKit.weapon_img || 'https://via.placeholder.com/40?text=No+Img'}" alt="${fullKit.name}" onerror="this.src='https://via.placeholder.com/40?text=No+Img'">
+                    <span class="item-name">${fullKit.name}</span>
+                </div>
+                <div class="quantity-input-group">
+                    <label class="me-2">Qtd:</label>
+                    <input type="number" class="form-control quantity-input" value="${kit.quantity}" min="1" style="display: inline-block; width: 70px;">
+                    <button class="btn btn-sm btn-danger ms-2" onclick="removeLootWeaponKit(${index})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `);
+        
+        listItem.find('.quantity-input').on('change', function() {
+            kit.quantity = parseInt($(this).val()) || 1;
+            updateLootKitSpace();
+        });
+        
+        list.append(listItem);
+    });
+    
+    $('#weaponKitsCount').text(selectedLootWeaponKits.length);
+}
+
+function removeLootWeaponKit(index) {
+    selectedLootWeaponKits.splice(index, 1);
+    renderLootWeaponKitsGrid();
+    updateLootKitSpace();
+}
+
+function filterLootItems() {
+    const searchTerm = $('#lootItemSearchInput').val().toLowerCase();
+    const filtered = allItems.filter(item =>
+        !searchTerm ||
+        item.name.toLowerCase().includes(searchTerm) ||
+        item.name_type.toLowerCase().includes(searchTerm)
+    );
+    
+    const grid = $('#lootItemsGrid');
+    grid.empty();
+    
+    filtered.forEach(item => {
+        const isSelected = selectedLootItems.some(i => i.item_id === item.id);
+        const card = $(`
+            <div class="relationship-item ${isSelected ? 'selected' : ''}" data-id="${item.id}">
+                <div class="checkbox-indicator"></div>
+                <img src="${item.img || 'https://via.placeholder.com/80?text=No+Image'}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                <div class="item-name" title="${item.name}">${item.name}</div>
+            </div>
+        `);
+        
+        card.on('click', function() {
+            toggleLootItemSelection(item.id);
+        });
+        
+        grid.append(card);
+    });
+}
+
+function filterLootWeaponKits() {
+    const searchTerm = $('#lootWeaponKitSearchInput').val().toLowerCase();
+    const filtered = allWeaponKitsForLoot.filter(kit =>
+        !searchTerm ||
+        kit.name.toLowerCase().includes(searchTerm)
+    );
+    
+    const grid = $('#lootWeaponKitsGrid');
+    grid.empty();
+    
+    filtered.forEach(kit => {
+        const isSelected = selectedLootWeaponKits.some(k => k.weapon_kit_id === kit.id);
+        const card = $(`
+            <div class="relationship-item ${isSelected ? 'selected' : ''}" data-id="${kit.id}">
+                <div class="checkbox-indicator"></div>
+                <img src="${kit.weapon_img || 'https://via.placeholder.com/80?text=No+Image'}" alt="${kit.name}" onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                <div class="item-name" title="${kit.name}">${kit.name}</div>
+            </div>
+        `);
+        
+        card.on('click', function() {
+            toggleLootWeaponKitSelection(kit.id);
+        });
+        
+        grid.append(card);
+    });
+}
+
+// Funções de filtro para novos tipos
+function filterExplosives() {
+    const searchTerm = $('#lootExplosiveSearchInput').val().toLowerCase();
+    const filtered = allExplosives.filter(exp =>
+        !searchTerm ||
+        exp.name.toLowerCase().includes(searchTerm) ||
+        exp.name_type.toLowerCase().includes(searchTerm)
+    );
+    
+    const grid = $('#lootExplosivesGrid');
+    grid.empty();
+    
+    filtered.forEach(exp => {
+        const isSelected = selectedLootExplosives.some(e => e.explosive_id === exp.id);
+        const card = $(`
+            <div class="relationship-item ${isSelected ? 'selected' : ''}" data-id="${exp.id}">
+                <div class="checkbox-indicator"></div>
+                <img src="${exp.img || 'https://via.placeholder.com/80?text=No+Image'}" alt="${exp.name}" onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                <div class="item-name" title="${exp.name}">${exp.name}</div>
+            </div>
+        `);
+        
+        card.on('click', function() {
+            toggleExplosiveSelection(exp.id);
+        });
+        
+        grid.append(card);
+    });
+}
+
+function filterAmmunitions() {
+    const searchTerm = $('#lootAmmunitionSearchInput').val().toLowerCase();
+    const filtered = allAmmunitions.filter(ammo =>
+        !searchTerm ||
+        ammo.name.toLowerCase().includes(searchTerm) ||
+        ammo.name_type.toLowerCase().includes(searchTerm)
+    );
+    
+    const grid = $('#lootAmmunitionsGrid');
+    grid.empty();
+    
+    filtered.forEach(ammo => {
+        const isSelected = selectedLootAmmunitions.some(a => a.ammunition_id === ammo.id);
+        const card = $(`
+            <div class="relationship-item ${isSelected ? 'selected' : ''}" data-id="${ammo.id}">
+                <div class="checkbox-indicator"></div>
+                <img src="${ammo.img || 'https://via.placeholder.com/80?text=No+Image'}" alt="${ammo.name}" onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                <div class="item-name" title="${ammo.name}">${ammo.name}</div>
+            </div>
+        `);
+        
+        card.on('click', function() {
+            toggleAmmunitionSelection(ammo.id);
+        });
+        
+        grid.append(card);
+    });
+}
+
+function filterMagazines() {
+    const searchTerm = $('#lootMagazineSearchInput').val().toLowerCase();
+    const filtered = allMagazinesForLoot.filter(mag =>
+        !searchTerm ||
+        mag.name.toLowerCase().includes(searchTerm) ||
+        mag.name_type.toLowerCase().includes(searchTerm)
+    );
+    
+    const grid = $('#lootMagazinesGrid');
+    grid.empty();
+    
+    filtered.forEach(mag => {
+        const isSelected = selectedLootMagazines.some(m => m.magazine_id === mag.id);
+        const card = $(`
+            <div class="relationship-item ${isSelected ? 'selected' : ''}" data-id="${mag.id}">
+                <div class="checkbox-indicator"></div>
+                <img src="${mag.img || 'https://via.placeholder.com/80?text=No+Image'}" alt="${mag.name}" onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                <div class="item-name" title="${mag.name}">${mag.name}</div>
+            </div>
+        `);
+        
+        card.on('click', function() {
+            toggleMagazineSelection(mag.id);
+        });
+        
+        grid.append(card);
+    });
+}
+
+function filterAttachmentsForLoot() {
+    const searchTerm = $('#lootAttachmentSearchInput').val().toLowerCase();
+    const filtered = allAttachmentsForLoot.filter(att =>
+        !searchTerm ||
+        att.name.toLowerCase().includes(searchTerm) ||
+        att.name_type.toLowerCase().includes(searchTerm)
+    );
+    
+    const grid = $('#lootAttachmentsGrid');
+    grid.empty();
+    
+    filtered.forEach(att => {
+        const isSelected = selectedLootAttachments.some(a => a.attachment_id === att.id);
+        const card = $(`
+            <div class="relationship-item ${isSelected ? 'selected' : ''}" data-id="${att.id}">
+                <div class="checkbox-indicator"></div>
+                <img src="${att.img || 'https://via.placeholder.com/80?text=No+Image'}" alt="${att.name}" onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                <div class="item-name" title="${att.name}">${att.name}</div>
+            </div>
+        `);
+        
+        card.on('click', function() {
+            toggleLootAttachmentSelection(att.id);
+        });
+        
+        grid.append(card);
+    });
+}
+
+// Funções para Explosivos
+function renderExplosivesGrid() {
+    const grid = $('#lootExplosivesGrid');
+    grid.empty();
+    
+    allExplosives.forEach(exp => {
+        const isSelected = selectedLootExplosives.some(e => e.explosive_id === exp.id);
+        const card = $(`
+            <div class="relationship-item ${isSelected ? 'selected' : ''}" data-id="${exp.id}">
+                <div class="checkbox-indicator"></div>
+                <img src="${exp.img || 'https://via.placeholder.com/80?text=No+Image'}" alt="${exp.name}" onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                <div class="item-name" title="${exp.name}">${exp.name}</div>
+            </div>
+        `);
+        
+        card.on('click', function() {
+            toggleExplosiveSelection(exp.id);
+        });
+        
+        grid.append(card);
+    });
+    
+    updateSelectedExplosives();
+}
+
+function toggleExplosiveSelection(expId) {
+    const index = selectedLootExplosives.findIndex(e => e.explosive_id === expId);
+    
+    if (index > -1) {
+        selectedLootExplosives.splice(index, 1);
+    } else {
+        selectedLootExplosives.push({ explosive_id: expId, quantity: 1 });
+    }
+    
+    renderExplosivesGrid();
+    updateLootKitSpace();
+}
+
+function updateSelectedExplosives() {
+    const list = $('#selectedLootExplosivesList');
+    list.empty();
+    
+    if (selectedLootExplosives.length === 0) {
+        list.html('<span class="text-muted">Nenhum explosivo selecionado</span>');
+        return;
+    }
+    
+    selectedLootExplosives.forEach((exp, index) => {
+        const fullExp = allExplosives.find(e => e.id === exp.explosive_id);
+        if (!fullExp) return;
+        
+        const listItem = $(`
+            <div class="selected-items-list-item">
+                <div class="item-info">
+                    <img src="${fullExp.img || 'https://via.placeholder.com/40?text=No+Img'}" alt="${fullExp.name}" onerror="this.src='https://via.placeholder.com/40?text=No+Img'">
+                    <span class="item-name">${fullExp.name}</span>
+                </div>
+                <div class="quantity-input-group">
+                    <label class="me-2">Qtd:</label>
+                    <input type="number" class="form-control quantity-input" value="${exp.quantity}" min="1" style="display: inline-block; width: 70px;">
+                    <button class="btn btn-sm btn-danger ms-2" onclick="removeExplosive(${index})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `);
+        
+        listItem.find('.quantity-input').on('change', function() {
+            exp.quantity = parseInt($(this).val()) || 1;
+            updateLootKitSpace();
+        });
+        
+        list.append(listItem);
+    });
+}
+
+function removeExplosive(index) {
+    selectedLootExplosives.splice(index, 1);
+    renderExplosivesGrid();
+    updateLootKitSpace();
+}
+
+// Funções para Munições
+function renderAmmunitionsGrid() {
+    const grid = $('#lootAmmunitionsGrid');
+    grid.empty();
+    
+    allAmmunitions.forEach(ammo => {
+        const isSelected = selectedLootAmmunitions.some(a => a.ammunition_id === ammo.id);
+        const card = $(`
+            <div class="relationship-item ${isSelected ? 'selected' : ''}" data-id="${ammo.id}">
+                <div class="checkbox-indicator"></div>
+                <img src="${ammo.img || 'https://via.placeholder.com/80?text=No+Image'}" alt="${ammo.name}" onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                <div class="item-name" title="${ammo.name}">${ammo.name}</div>
+            </div>
+        `);
+        
+        card.on('click', function() {
+            toggleAmmunitionSelection(ammo.id);
+        });
+        
+        grid.append(card);
+    });
+    
+    updateSelectedAmmunitions();
+}
+
+function toggleAmmunitionSelection(ammoId) {
+    const index = selectedLootAmmunitions.findIndex(a => a.ammunition_id === ammoId);
+    
+    if (index > -1) {
+        selectedLootAmmunitions.splice(index, 1);
+    } else {
+        selectedLootAmmunitions.push({ ammunition_id: ammoId, quantity: 1 });
+    }
+    
+    renderAmmunitionsGrid();
+    updateLootKitSpace();
+}
+
+function updateSelectedAmmunitions() {
+    const list = $('#selectedLootAmmunitionsList');
+    list.empty();
+    
+    if (selectedLootAmmunitions.length === 0) {
+        list.html('<span class="text-muted">Nenhuma munição selecionada</span>');
+        return;
+    }
+    
+    selectedLootAmmunitions.forEach((ammo, index) => {
+        const fullAmmo = allAmmunitions.find(a => a.id === ammo.ammunition_id);
+        if (!fullAmmo) return;
+        
+        const listItem = $(`
+            <div class="selected-items-list-item">
+                <div class="item-info">
+                    <img src="${fullAmmo.img || 'https://via.placeholder.com/40?text=No+Img'}" alt="${fullAmmo.name}" onerror="this.src='https://via.placeholder.com/40?text=No+Img'">
+                    <span class="item-name">${fullAmmo.name}</span>
+                </div>
+                <div class="quantity-input-group">
+                    <label class="me-2">Qtd:</label>
+                    <input type="number" class="form-control quantity-input" value="${ammo.quantity}" min="1" style="display: inline-block; width: 70px;">
+                    <button class="btn btn-sm btn-danger ms-2" onclick="removeAmmunition(${index})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `);
+        
+        listItem.find('.quantity-input').on('change', function() {
+            ammo.quantity = parseInt($(this).val()) || 1;
+            updateLootKitSpace();
+        });
+        
+        list.append(listItem);
+    });
+}
+
+function removeAmmunition(index) {
+    selectedLootAmmunitions.splice(index, 1);
+    renderAmmunitionsGrid();
+    updateLootKitSpace();
+}
+
+// Funções para Magazines
+function renderMagazinesGrid() {
+    const grid = $('#lootMagazinesGrid');
+    grid.empty();
+    
+    allMagazinesForLoot.forEach(mag => {
+        const isSelected = selectedLootMagazines.some(m => m.magazine_id === mag.id);
+        const card = $(`
+            <div class="relationship-item ${isSelected ? 'selected' : ''}" data-id="${mag.id}">
+                <div class="checkbox-indicator"></div>
+                <img src="${mag.img || 'https://via.placeholder.com/80?text=No+Image'}" alt="${mag.name}" onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                <div class="item-name" title="${mag.name}">${mag.name}</div>
+            </div>
+        `);
+        
+        card.on('click', function() {
+            toggleMagazineSelection(mag.id);
+        });
+        
+        grid.append(card);
+    });
+    
+    updateSelectedMagazines();
+}
+
+function toggleMagazineSelection(magId) {
+    const index = selectedLootMagazines.findIndex(m => m.magazine_id === magId);
+    
+    if (index > -1) {
+        selectedLootMagazines.splice(index, 1);
+    } else {
+        selectedLootMagazines.push({ magazine_id: magId, quantity: 1 });
+    }
+    
+    renderMagazinesGrid();
+    updateLootKitSpace();
+}
+
+function updateSelectedMagazines() {
+    const list = $('#selectedLootMagazinesList');
+    list.empty();
+    
+    if (selectedLootMagazines.length === 0) {
+        list.html('<span class="text-muted">Nenhum magazine selecionado</span>');
+        return;
+    }
+    
+    selectedLootMagazines.forEach((mag, index) => {
+        const fullMag = allMagazinesForLoot.find(m => m.id === mag.magazine_id);
+        if (!fullMag) return;
+        
+        const listItem = $(`
+            <div class="selected-items-list-item">
+                <div class="item-info">
+                    <img src="${fullMag.img || 'https://via.placeholder.com/40?text=No+Img'}" alt="${fullMag.name}" onerror="this.src='https://via.placeholder.com/40?text=No+Img'">
+                    <span class="item-name">${fullMag.name}</span>
+                </div>
+                <div class="quantity-input-group">
+                    <label class="me-2">Qtd:</label>
+                    <input type="number" class="form-control quantity-input" value="${mag.quantity}" min="1" style="display: inline-block; width: 70px;">
+                    <button class="btn btn-sm btn-danger ms-2" onclick="removeMagazine(${index})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `);
+        
+        listItem.find('.quantity-input').on('change', function() {
+            mag.quantity = parseInt($(this).val()) || 1;
+            updateLootKitSpace();
+        });
+        
+        list.append(listItem);
+    });
+}
+
+function removeMagazine(index) {
+    selectedLootMagazines.splice(index, 1);
+    renderMagazinesGrid();
+    updateLootKitSpace();
+}
+
+// Funções para Attachments
+function renderLootAttachmentsGrid() {
+    const grid = $('#lootAttachmentsGrid');
+    grid.empty();
+    
+    allAttachmentsForLoot.forEach(att => {
+        const isSelected = selectedLootAttachments.some(a => a.attachment_id === att.id);
+        const card = $(`
+            <div class="relationship-item ${isSelected ? 'selected' : ''}" data-id="${att.id}">
+                <div class="checkbox-indicator"></div>
+                <img src="${att.img || 'https://via.placeholder.com/80?text=No+Image'}" alt="${att.name}" onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                <div class="item-name" title="${att.name}">${att.name}</div>
+            </div>
+        `);
+        
+        card.on('click', function() {
+            toggleLootAttachmentSelection(att.id);
+        });
+        
+        grid.append(card);
+    });
+    
+    updateSelectedLootAttachments();
+}
+
+function toggleLootAttachmentSelection(attId) {
+    const index = selectedLootAttachments.findIndex(a => a.attachment_id === attId);
+    
+    if (index > -1) {
+        selectedLootAttachments.splice(index, 1);
+    } else {
+        selectedLootAttachments.push({ attachment_id: attId, quantity: 1 });
+    }
+    
+    renderLootAttachmentsGrid();
+    updateLootKitSpace();
+}
+
+function updateSelectedLootAttachments() {
+    const list = $('#selectedLootAttachmentsList');
+    list.empty();
+    
+    if (selectedLootAttachments.length === 0) {
+        list.html('<span class="text-muted">Nenhum attachment selecionado</span>');
+        return;
+    }
+    
+    selectedLootAttachments.forEach((att, index) => {
+        const fullAtt = allAttachmentsForLoot.find(a => a.id === att.attachment_id);
+        if (!fullAtt) return;
+        
+        const listItem = $(`
+            <div class="selected-items-list-item">
+                <div class="item-info">
+                    <img src="${fullAtt.img || 'https://via.placeholder.com/40?text=No+Img'}" alt="${fullAtt.name}" onerror="this.src='https://via.placeholder.com/40?text=No+Img'">
+                    <span class="item-name">${fullAtt.name}</span>
+                </div>
+                <div class="quantity-input-group">
+                    <label class="me-2">Qtd:</label>
+                    <input type="number" class="form-control quantity-input" value="${att.quantity}" min="1" style="display: inline-block; width: 70px;">
+                    <button class="btn btn-sm btn-danger ms-2" onclick="removeLootAttachment(${index})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `);
+        
+        listItem.find('.quantity-input').on('change', function() {
+            att.quantity = parseInt($(this).val()) || 1;
+            updateLootKitSpace();
+        });
+        
+        list.append(listItem);
+    });
+}
+
+function removeLootAttachment(index) {
+    selectedLootAttachments.splice(index, 1);
+    renderLootAttachmentsGrid();
+    updateLootKitSpace();
+}
+
+function updateLootKitSpace() {
+    if (!currentLootKitContainer) {
+        $('#lootKitUsedSpace').val('');
+        $('#lootKitRemainingSpace').val('');
+        return;
+    }
+    
+    let usedSpace = 0;
+    
+    // Calcular espaço dos itens avulsos
+    selectedLootItems.forEach(selected => {
+        const item = allItems.find(i => i.id === selected.item_id);
+        if (item) {
+            usedSpace += item.slots * selected.quantity;
+        }
+    });
+    
+    // Calcular espaço dos kits de arma (arma + magazine + attachments)
+    selectedLootWeaponKits.forEach(selected => {
+        const kit = allWeaponKitsForLoot.find(k => k.id === selected.weapon_kit_id);
+        if (kit) {
+            let kitSpace = 0;
+            
+            // Espaço da arma
+            kitSpace += kit.weapon_slots || 0;
+            
+            // Espaço do magazine (se houver)
+            if (kit.magazine_slots) {
+                kitSpace += kit.magazine_slots;
+            }
+            
+            // Espaço dos attachments
+            if (kit.attachments && kit.attachments.length > 0) {
+                kit.attachments.forEach(att => {
+                    kitSpace += att.slots || 0;
+                });
+            }
+            
+            usedSpace += kitSpace * selected.quantity;
+        }
+    });
+    
+    // Calcular espaço dos explosivos
+    selectedLootExplosives.forEach(selected => {
+        const exp = allExplosives.find(e => e.id === selected.explosive_id);
+        if (exp) {
+            usedSpace += exp.slots * selected.quantity;
+        }
+    });
+    
+    // Calcular espaço das munições
+    selectedLootAmmunitions.forEach(selected => {
+        const ammo = allAmmunitions.find(a => a.id === selected.ammunition_id);
+        if (ammo) {
+            usedSpace += ammo.slots * selected.quantity;
+        }
+    });
+    
+    // Calcular espaço dos magazines
+    selectedLootMagazines.forEach(selected => {
+        const mag = allMagazinesForLoot.find(m => m.id === selected.magazine_id);
+        if (mag) {
+            usedSpace += mag.slots * selected.quantity;
+        }
+    });
+    
+    // Calcular espaço dos attachments
+    selectedLootAttachments.forEach(selected => {
+        const att = allAttachmentsForLoot.find(a => a.id === selected.attachment_id);
+        if (att) {
+            usedSpace += att.slots * selected.quantity;
+        }
+    });
+    
+    const available = currentLootKitContainer.storage_slots || 0;
+    const remaining = available - usedSpace;
+    
+    $('#lootKitUsedSpace').val(usedSpace);
+    $('#lootKitRemainingSpace').val(remaining);
+    
+    // Alerta visual se exceder
+    const indicator = $('#lootKitRemainingSpace');
+    indicator.removeClass('is-invalid is-valid');
+    
+    if (remaining < 0) {
+        indicator.addClass('is-invalid');
+    } else if (remaining === 0) {
+        indicator.addClass('is-valid');
+    }
+}
+
+function editLootKit(kitId) {
+    $.ajax({
+        url: `/api/kits/loot/${kitId}`,
+        method: 'GET',
+        success: function(response) {
+            const kit = response.kit;
+            
+            $('#lootKitId').val(kit.id);
+            $('#lootKitName').val(kit.name);
+            
+            loadLootKitOptions(function() {
+                $('#lootKitContainerId').val(kit.container_item_id);
+                currentLootKitContainer = allStorageContainers.find(c => c.id == kit.container_item_id);
+                $('#lootKitAvailableSpace').val(currentLootKitContainer.storage_slots || 0);
+                
+                selectedLootItems = kit.items ? kit.items.map(i => ({
+                    item_id: i.id,
+                    quantity: i.quantity
+                })) : [];
+                
+                selectedLootWeaponKits = kit.weapon_kits ? kit.weapon_kits.map(k => ({
+                    weapon_kit_id: k.id,
+                    quantity: k.quantity
+                })) : [];
+                
+                selectedLootExplosives = kit.explosives ? kit.explosives.map(e => ({
+                    explosive_id: e.id,
+                    quantity: e.quantity
+                })) : [];
+                
+                selectedLootAmmunitions = kit.ammunitions ? kit.ammunitions.map(a => ({
+                    ammunition_id: a.id,
+                    quantity: a.quantity
+                })) : [];
+                
+                selectedLootMagazines = kit.magazines ? kit.magazines.map(m => ({
+                    magazine_id: m.id,
+                    quantity: m.quantity
+                })) : [];
+                
+                selectedLootAttachments = kit.attachments ? kit.attachments.map(a => ({
+                    attachment_id: a.id,
+                    quantity: a.quantity
+                })) : [];
+                
+                renderLootItemsGrid();
+                renderLootWeaponKitsGrid();
+                renderExplosivesGrid();
+                renderAmmunitionsGrid();
+                renderMagazinesGrid();
+                renderLootAttachmentsGrid();
+                updateLootKitSpace();
+            });
+            
+            $('#lootKitModal').modal('show');
+        }
+    });
+}
+
+function saveLootKit() {
+    const kitId = $('#lootKitId').val();
+    const isNew = !kitId;
+    
+    const kitData = {
+        name: $('#lootKitName').val(),
+        container_item_id: parseInt($('#lootKitContainerId').val()),
+        items: selectedLootItems,
+        weapon_kits: selectedLootWeaponKits,
+        explosives: selectedLootExplosives,
+        ammunitions: selectedLootAmmunitions,
+        magazines: selectedLootMagazines,
+        attachments: selectedLootAttachments
+    };
+    
+    if (!kitData.name || !kitData.container_item_id) {
+        showToast('Erro', 'Preencha todos os campos obrigatórios', 'error');
+        return;
+    }
+    
+    // Verificar espaço
+    const available = currentLootKitContainer ? currentLootKitContainer.storage_slots : 0;
+    let usedSpace = 0;
+    selectedLootItems.forEach(selected => {
+        const item = allItems.find(i => i.id === selected.item_id);
+        if (item) usedSpace += item.slots * selected.quantity;
+    });
+    selectedLootWeaponKits.forEach(selected => {
+        usedSpace += 10 * selected.quantity; // Simplificado
+    });
+    
+    if (usedSpace > available) {
+        if (!confirm(`Aviso: O espaço usado (${usedSpace}) excede o disponível (${available}). Deseja continuar mesmo assim?`)) {
+            return;
+        }
+    }
+    
+    const url = isNew ? '/api/kits/loot' : `/api/kits/loot/${kitId}`;
+    const method = isNew ? 'POST' : 'PUT';
+    
+    $.ajax({
+        url: url,
+        method: method,
+        contentType: 'application/json',
+        data: JSON.stringify(kitData),
+        success: function() {
+            showToast('Sucesso', 'Kit de loot salvo com sucesso!', 'success');
+            $('#lootKitModal').modal('hide');
+            loadLootKits();
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            showToast('Erro', error.error || 'Erro ao salvar kit de loot', 'error');
+        }
+    });
+}
+
+function deleteLootKit(kitId) {
+    if (!confirm('Tem certeza que deseja excluir este kit de loot?')) return;
+    
+    $.ajax({
+        url: `/api/kits/loot/${kitId}`,
+        method: 'DELETE',
+        success: function() {
+            showToast('Sucesso', 'Kit de loot excluído com sucesso!', 'success');
+            loadLootKits();
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            showToast('Erro', error.error || 'Erro ao excluir kit de loot', 'error');
+        }
+    });
+}
+
+// Exportar funções para onclick
+window.editWeaponKit = editWeaponKit;
+window.deleteWeaponKit = deleteWeaponKit;
+window.editLootKit = editLootKit;
+window.deleteLootKit = deleteLootKit;
+window.removeLootItem = removeLootItem;
+window.removeLootWeaponKit = removeLootWeaponKit;
+

@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}Gerenciar Kits{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/kits_manage.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-box-open me-2"></i>Gerenciar Kits</h2>
+    </div>
+
+    <ul class="nav nav-tabs mb-4" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" data-bs-toggle="tab" href="#weapon-kits-tab">
+                <i class="fas fa-crosshairs me-2"></i>Kit Armas
+            </a>
+        </li>        
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#loot-kits-tab">
+                <i class="fas fa-box me-2"></i>Kit Loot
+            </a>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- Aba de Kits de Arma -->
+        <div id="weapon-kits-tab" class="tab-pane fade show active">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <button class="btn btn-success" id="btnAddWeaponKit">
+                        <i class="fas fa-plus me-2"></i>Novo Kit de Arma
+                    </button>
+                </div>
+                <div class="col-md-9">
+                    <input type="text" id="weaponKitSearchInput" class="form-control" placeholder="Buscar kit de arma...">
+                </div>
+            </div>
+            
+            <div id="weaponKitsGrid" class="weapons-grid">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Aba de Kits de Loot -->
+        <div id="loot-kits-tab" class="tab-pane fade">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <button class="btn btn-success" id="btnAddLootKit">
+                        <i class="fas fa-plus me-2"></i>Novo Kit de Loot
+                    </button>
+                </div>
+                <div class="col-md-9">
+                    <input type="text" id="lootKitSearchInput" class="form-control" placeholder="Buscar kit de loot...">
+                </div>
+            </div>
+            <div id="lootKitsGrid" class="weapons-grid"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Kit de Arma -->
+<div class="modal fade" id="weaponKitModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Kit de Arma</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="weaponKitForm">
+                    <input type="hidden" id="weaponKitId">
+                    
+                    <!-- Campos básicos -->
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label>Nome do Kit</label>
+                            <input type="text" class="form-control" id="weaponKitName" required>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <label>Arma</label>
+                            <select class="form-select" id="weaponKitWeaponId" required>
+                                <option value="">Selecione uma arma...</option>
+                                <!-- Populated by JS -->
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Magazine (opcional, máximo 1)</label>
+                            <select class="form-select" id="weaponKitMagazineId">
+                                <option value="">Nenhum</option>
+                                <!-- Populated by JS -->
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Attachments -->
+                    <h6 class="mt-4">Attachments (apenas 1 por tipo)</h6>
+                    <div class="selected-attachments mb-3" id="selectedAttachments">
+                        <h6>Selecionados:</h6>
+                        <div class="selected-items-grid"></div>
+                    </div>
+                    <input type="text" class="form-control mb-2" id="attachmentSearchInput" placeholder="Buscar attachment...">
+                    <div id="attachmentsGrid" class="relationship-grid"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveWeaponKit">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Kit de Loot -->
+<div class="modal fade" id="lootKitModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Kit de Loot</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="lootKitForm">
+                    <input type="hidden" id="lootKitId">
+                    
+                    <!-- Campos básicos -->
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label>Nome do Kit</label>
+                            <input type="text" class="form-control" id="lootKitName" required>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <label>Container</label>
+                            <select class="form-select" id="lootKitContainerId" required>
+                                <option value="">Selecione um container...</option>
+                                <!-- Populated by JS -->
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Espaço disponível</label>
+                            <input type="text" class="form-control" id="lootKitAvailableSpace" readonly>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-2">
+                        <div class="col-md-6">
+                            <label>Espaço usado</label>
+                            <input type="text" class="form-control" id="lootKitUsedSpace" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Espaço restante</label>
+                            <input type="text" class="form-control" id="lootKitRemainingSpace" readonly>
+                        </div>
+                    </div>
+                    
+                    <!-- Itens gerais e kits de arma -->
+                    <ul class="nav nav-pills mb-3 mt-4" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#lootItems">
+                                Itens gerais <span class="badge bg-primary" id="itemsCount">0</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#lootWeaponKits">
+                                Kits de Arma <span class="badge bg-primary" id="weaponKitsCount">0</span>
+                            </a>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content">
+                        <!-- Itens gerais -->
+                        <div id="lootItems" class="tab-pane fade show active">
+                            <!-- Sub-abas para tipos de itens -->
+                            <ul class="nav nav-pills mb-3" role="tablist">
+                                <li class="nav-item">
+                                    <a class="nav-link active" data-bs-toggle="pill" href="#generalItems">Itens</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" data-bs-toggle="pill" href="#explosivesItems">Explosivos</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" data-bs-toggle="pill" href="#ammunitionsItems">Munições</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" data-bs-toggle="pill" href="#magazinesItems">Magazines</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" data-bs-toggle="pill" href="#attachmentsItems">Attachments</a>
+                                </li>
+                            </ul>
+                            
+                            <div class="tab-content">
+                                <!-- Itens -->
+                                <div id="generalItems" class="tab-pane fade show active">
+                                    <div class="selected-items-list mb-3" id="selectedLootItems">
+                                        <h6>Itens Selecionados:</h6>
+                                        <div id="selectedLootItemsList"></div>
+                                    </div>
+                                    <input type="text" class="form-control mb-2" id="lootItemSearchInput" placeholder="Buscar item...">
+                                    <div id="lootItemsGrid" class="relationship-grid"></div>
+                                </div>
+                                
+                                <!-- Explosivos -->
+                                <div id="explosivesItems" class="tab-pane fade">
+                                    <div class="selected-items-list mb-3" id="selectedLootExplosives">
+                                        <h6>Explosivos Selecionados:</h6>
+                                        <div id="selectedLootExplosivesList"></div>
+                                    </div>
+                                    <input type="text" class="form-control mb-2" id="lootExplosiveSearchInput" placeholder="Buscar explosivo...">
+                                    <div id="lootExplosivesGrid" class="relationship-grid"></div>
+                                </div>
+                                
+                                <!-- Munições -->
+                                <div id="ammunitionsItems" class="tab-pane fade">
+                                    <div class="selected-items-list mb-3" id="selectedLootAmmunitions">
+                                        <h6>Munições Selecionadas:</h6>
+                                        <div id="selectedLootAmmunitionsList"></div>
+                                    </div>
+                                    <input type="text" class="form-control mb-2" id="lootAmmunitionSearchInput" placeholder="Buscar munição...">
+                                    <div id="lootAmmunitionsGrid" class="relationship-grid"></div>
+                                </div>
+                                
+                                <!-- Magazines -->
+                                <div id="magazinesItems" class="tab-pane fade">
+                                    <div class="selected-items-list mb-3" id="selectedLootMagazines">
+                                        <h6>Magazines Selecionados:</h6>
+                                        <div id="selectedLootMagazinesList"></div>
+                                    </div>
+                                    <input type="text" class="form-control mb-2" id="lootMagazineSearchInput" placeholder="Buscar magazine...">
+                                    <div id="lootMagazinesGrid" class="relationship-grid"></div>
+                                </div>
+                                
+                                <!-- Attachments -->
+                                <div id="attachmentsItems" class="tab-pane fade">
+                                    <div class="selected-items-list mb-3" id="selectedLootAttachments">
+                                        <h6>Attachments Selecionados:</h6>
+                                        <div id="selectedLootAttachmentsList"></div>
+                                    </div>
+                                    <input type="text" class="form-control mb-2" id="lootAttachmentSearchInput" placeholder="Buscar attachment...">
+                                    <div id="lootAttachmentsGrid" class="relationship-grid"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Kits de Arma -->
+                        <div id="lootWeaponKits" class="tab-pane fade">
+                            <div class="selected-items-list mb-3" id="selectedLootWeaponKits">
+                                <h6>Kits de Arma Selecionados:</h6>
+                                <div id="selectedLootWeaponKitsList"></div>
+                            </div>
+                            <input type="text" class="form-control mb-2" id="lootWeaponKitSearchInput" placeholder="Buscar kit de arma...">
+                            <div id="lootWeaponKitsGrid" class="relationship-grid"></div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveLootKit">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir este kit?</p>
+                <p class="text-danger"><strong>Esta ação não pode ser desfeita!</strong></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="btnConfirmDelete">Excluir</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="{{ url_for('static', filename='js/kits_manage.js') }}"></script>
+{% endblock %}
+

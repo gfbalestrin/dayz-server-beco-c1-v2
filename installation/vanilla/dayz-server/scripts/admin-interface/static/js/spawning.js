@@ -4,6 +4,8 @@ let itemsData = [];
 let selectedWeapon = null;
 let selectedItem = null;
 let selectedPlayer = null; // Jogador globalmente selecionado
+let weaponKitsData = [];
+let lootKitsData = [];
 
 // Variáveis para modo de spawn por coordenadas
 let spawnMode = 'player'; // 'player' ou 'coords'
@@ -362,6 +364,7 @@ function executeSpawn() {
     const playerId = $('#confirmSpawnBtn').data('playerId');
     const itemType = $('#confirmSpawnBtn').data('itemType');
     const quantity = $('#confirmSpawnBtn').data('quantity');
+    const kitId = $('#confirmSpawnBtn').data('kitId');
     const coordX = $('#confirmSpawnBtn').data('coordX');
     const coordY = $('#confirmSpawnBtn').data('coordY');
     const coordZ = $('#confirmSpawnBtn').data('coordZ');
@@ -370,7 +373,21 @@ function executeSpawn() {
     
     let url, data;
     
-    if (mode === 'player') {
+    // Verificar se é um kit
+    if (type === 'weapon-kit' || type === 'loot-kit') {
+        if (mode === 'player') {
+            url = type === 'weapon-kit' ? '/api/spawn/weapon-kit' : '/api/spawn/loot-kit';
+            data = {
+                player_id: playerId,
+                kit_id: kitId
+            };
+        } else {
+            // Para kits em coordenadas, usar implementação futura ou simplificada
+            showToast('Aviso', 'Spawn de kits em coordenadas ainda não implementado', 'warning');
+            $('#confirmSpawnBtn').prop('disabled', false).html('<i class="fas fa-magic me-1"></i>Spawnar');
+            return;
+        }
+    } else if (mode === 'player') {
         // Spawn próximo ao jogador
         url = '/api/spawn/item';
         data = {
@@ -856,6 +873,231 @@ function loadCompleteWeaponLoadout() {
     });
 }
 
+// === ABA DE WEAPON KITS ===
+function loadWeaponKits() {
+    $('#weaponKitsSpawnGrid').html('<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i></div>');
+    
+    $.ajax({
+        url: '/api/kits/weapons',
+        method: 'GET',
+        success: function(response) {
+            weaponKitsData = response.kits;
+            applyWeaponKitSpawnFilters();
+        },
+        error: function() {
+            $('#weaponKitsSpawnGrid').html('<div class="text-center p-5 text-danger">Erro ao carregar kits de arma</div>');
+        }
+    });
+}
+
+function applyWeaponKitSpawnFilters() {
+    const searchTerm = $('#weaponKitSpawnSearchInput').val().toLowerCase();
+    const filtered = weaponKitsData.filter(kit =>
+        !searchTerm ||
+        kit.name.toLowerCase().includes(searchTerm) ||
+        (kit.weapon_name && kit.weapon_name.toLowerCase().includes(searchTerm))
+    );
+    renderWeaponKitsSpawnGrid(filtered);
+}
+
+function renderWeaponKitsSpawnGrid(data = weaponKitsData) {
+    const grid = $('#weaponKitsSpawnGrid');
+    grid.empty();
+    
+    if (data.length === 0) {
+        grid.html('<div class="text-center p-5">Nenhum kit de arma encontrado</div>');
+        return;
+    }
+    
+    data.forEach(kit => {
+        const attCount = kit.attachments ? kit.attachments.length : 0;
+        const card = $('<div class="item-card"></div>');
+        card.data('weaponKit', kit);
+        card.html(`
+            <img src="${kit.weapon_img || 'https://via.placeholder.com/100?text=No+Image'}" alt="${kit.name}" onerror="this.src='https://via.placeholder.com/100?text=No+Image'">
+            <div class="item-name" title="${kit.name}">${kit.name}</div>
+            <small class="text-muted">${kit.weapon_name || 'N/A'} | ${attCount} att.</small>
+        `);
+        card.on('click', function() {
+            selectWeaponKit(kit);
+        });
+        grid.append(card);
+    });
+}
+
+function selectWeaponKit(kit) {
+    if (spawnMode === 'player' && !selectedPlayer) {
+        showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+        return;
+    }
+    if (spawnMode === 'coords' && !selectedCoords) {
+        showToast('Aviso', 'Selecione as coordenadas no mapa primeiro!', 'warning');
+        return;
+    }
+    
+    $('.item-card').removeClass('selected');
+    $('.item-card').filter(function() { return $(this).data('weaponKit')?.id === kit.id; }).addClass('selected');
+    showWeaponKitSpawnConfirmModal(kit);
+}
+
+function showWeaponKitSpawnConfirmModal(kit) {
+    const quantity = parseInt($('#weaponKitSpawnQuantity').val()) || 1;
+    let playerId = null;
+    
+    if (spawnMode === 'player') {
+        playerId = selectedPlayer ? selectedPlayer.PlayerID : null;
+        if (!playerId) {
+            showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+            return;
+        }
+    } else {
+        if (!selectedCoords) {
+            showToast('Aviso', 'Selecione as coordenadas primeiro!', 'warning');
+            return;
+        }
+    }
+    
+    $('#confirmItemName').text(kit.name);
+    $('#confirmPlayerSection').show();
+    $('#confirmCoordsSection').hide();
+    
+    if (spawnMode === 'player') {
+        $('#confirmPlayerName').text(`${selectedPlayer.PlayerName} (${selectedPlayer.SteamName})`);
+    } else {
+        $('#confirmCoords').text(`X: ${selectedCoords.x.toFixed(2)}, Y: ${selectedCoords.y.toFixed(2)}`);
+        $('#confirmCoordsSection').show();
+        $('#confirmPlayerSection').hide();
+    }
+    
+    $('#confirmQuantity').text(quantity);
+    
+    $('#confirmSpawnBtn').data('type', 'weapon-kit');
+    $('#confirmSpawnBtn').data('kitId', kit.id);
+    $('#confirmSpawnBtn').data('quantity', quantity);
+    $('#confirmSpawnBtn').data('playerId', playerId);
+    if (selectedCoords) {
+        $('#confirmSpawnBtn').data('coordX', selectedCoords.x);
+        $('#confirmSpawnBtn').data('coordY', selectedCoords.y);
+        $('#confirmSpawnBtn').data('coordZ', selectedCoords.z);
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('spawnConfirmModal'));
+    modal.show();
+}
+
+// === ABA DE LOOT KITS ===
+function loadLootKits() {
+    $('#lootKitsSpawnGrid').html('<div class="text-center p-5"><i class="fas fa-spinner fa-spin fa-3x"></i></div>');
+    
+    $.ajax({
+        url: '/api/kits/loot',
+        method: 'GET',
+        success: function(response) {
+            lootKitsData = response.kits;
+            applyLootKitSpawnFilters();
+        },
+        error: function() {
+            $('#lootKitsSpawnGrid').html('<div class="text-center p-5 text-danger">Erro ao carregar kits de loot</div>');
+        }
+    });
+}
+
+function applyLootKitSpawnFilters() {
+    const searchTerm = $('#lootKitSpawnSearchInput').val().toLowerCase();
+    const filtered = lootKitsData.filter(kit =>
+        !searchTerm ||
+        kit.name.toLowerCase().includes(searchTerm) ||
+        (kit.container_name && kit.container_name.toLowerCase().includes(searchTerm))
+    );
+    renderLootKitsSpawnGrid(filtered);
+}
+
+function renderLootKitsSpawnGrid(data = lootKitsData) {
+    const grid = $('#lootKitsSpawnGrid');
+    grid.empty();
+    
+    if (data.length === 0) {
+        grid.html('<div class="text-center p-5">Nenhum kit de loot encontrado</div>');
+        return;
+    }
+    
+    data.forEach(kit => {
+        const itemCount = kit.items ? kit.items.length : 0;
+        const kitCount = kit.weapon_kits ? kit.weapon_kits.length : 0;
+        const card = $('<div class="item-card"></div>');
+        card.data('lootKit', kit);
+        card.html(`
+            <img src="${kit.container_img || 'https://via.placeholder.com/100?text=No+Image'}" alt="${kit.name}" onerror="this.src='https://via.placeholder.com/100?text=No+Image'">
+            <div class="item-name" title="${kit.name}">${kit.name}</div>
+            <small class="text-muted">${itemCount} itens, ${kitCount} kits</small>
+        `);
+        card.on('click', function() {
+            selectLootKit(kit);
+        });
+        grid.append(card);
+    });
+}
+
+function selectLootKit(kit) {
+    if (spawnMode === 'player' && !selectedPlayer) {
+        showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+        return;
+    }
+    if (spawnMode === 'coords' && !selectedCoords) {
+        showToast('Aviso', 'Selecione as coordenadas no mapa primeiro!', 'warning');
+        return;
+    }
+    
+    $('.item-card').removeClass('selected');
+    $('.item-card').filter(function() { return $(this).data('lootKit')?.id === kit.id; }).addClass('selected');
+    showLootKitSpawnConfirmModal(kit);
+}
+
+function showLootKitSpawnConfirmModal(kit) {
+    const quantity = parseInt($('#lootKitSpawnQuantity').val()) || 1;
+    let playerId = null;
+    
+    if (spawnMode === 'player') {
+        playerId = selectedPlayer ? selectedPlayer.PlayerID : null;
+        if (!playerId) {
+            showToast('Aviso', 'Selecione um jogador primeiro!', 'warning');
+            return;
+        }
+    } else {
+        if (!selectedCoords) {
+            showToast('Aviso', 'Selecione as coordenadas primeiro!', 'warning');
+            return;
+        }
+    }
+    
+    $('#confirmItemName').text(kit.name);
+    $('#confirmPlayerSection').show();
+    $('#confirmCoordsSection').hide();
+    
+    if (spawnMode === 'player') {
+        $('#confirmPlayerName').text(`${selectedPlayer.PlayerName} (${selectedPlayer.SteamName})`);
+    } else {
+        $('#confirmCoords').text(`X: ${selectedCoords.x.toFixed(2)}, Y: ${selectedCoords.y.toFixed(2)}`);
+        $('#confirmCoordsSection').show();
+        $('#confirmPlayerSection').hide();
+    }
+    
+    $('#confirmQuantity').text(quantity);
+    
+    $('#confirmSpawnBtn').data('type', 'loot-kit');
+    $('#confirmSpawnBtn').data('kitId', kit.id);
+    $('#confirmSpawnBtn').data('quantity', quantity);
+    $('#confirmSpawnBtn').data('playerId', playerId);
+    if (selectedCoords) {
+        $('#confirmSpawnBtn').data('coordX', selectedCoords.x);
+        $('#confirmSpawnBtn').data('coordY', selectedCoords.y);
+        $('#confirmSpawnBtn').data('coordZ', selectedCoords.z);
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('spawnConfirmModal'));
+    modal.show();
+}
+
 // Função para obter parâmetro da URL
 function getUrlParameter(name) {
     name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
@@ -1188,6 +1430,16 @@ $(document).ready(function() {
             loadMagazines();
         } else if (target === '#attachments-tab' && attachmentsData.length === 0) {
             loadAttachmentTypes();
+        } else if (target === '#weapon-kits-tab' && weaponKitsData.length === 0) {
+            loadWeaponKits();
+        } else if (target === '#loot-kits-tab' && lootKitsData.length === 0) {
+            loadLootKits();
         }
     });
+    
+    // Event listeners para weapon kits
+    $('#weaponKitSpawnSearchInput').on('input', applyWeaponKitSpawnFilters);
+    
+    // Event listeners para loot kits
+    $('#lootKitSpawnSearchInput').on('input', applyLootKitSpawnFilters);
 });

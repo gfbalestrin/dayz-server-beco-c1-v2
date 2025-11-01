@@ -109,6 +109,16 @@
                 <i class="fas fa-car me-2"></i>Veículos
             </a>
         </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#weapon-kits-tab">
+                <i class="fas fa-crosshairs me-2"></i>Kit Armas
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#loot-kits-tab">
+                <i class="fas fa-box me-2"></i>Kit Loot
+            </a>
+        </li>
     </ul>
 
     <div class="tab-content">
@@ -304,6 +314,38 @@
 
             <div id="vehiclesGrid" class="vehicles-grid">
                 <!-- Grid de veículos será gerado aqui -->
+            </div>
+        </div>
+
+        <!-- Aba de Kit Armas -->
+        <div id="weapon-kits-tab" class="tab-pane fade">
+            <div class="row mb-3">
+                <div class="col-md-11">
+                    <input type="text" id="weaponKitSpawnSearchInput" class="form-control" placeholder="Buscar kit de arma...">
+                </div>
+                <div class="col-md-1">
+                    <label>Qtd</label>
+                    <input type="number" id="weaponKitSpawnQuantity" class="form-control" value="1" min="1" max="99">
+                </div>
+            </div>
+            <div id="weaponKitsSpawnGrid" class="weapons-grid">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Aba de Kit Loot -->
+        <div id="loot-kits-tab" class="tab-pane fade">
+            <div class="row mb-3">
+                <div class="col-md-11">
+                    <input type="text" id="lootKitSpawnSearchInput" class="form-control" placeholder="Buscar kit de loot...">
+                </div>
+                <div class="col-md-1">
+                    <label>Qtd</label>
+                    <input type="number" id="lootKitSpawnQuantity" class="form-control" value="1" min="1" max="99">
+                </div>
+            </div>
+            <div id="lootKitsSpawnGrid" class="weapons-grid">
+                <!-- Populated by JS -->
             </div>
         </div>
     </div>

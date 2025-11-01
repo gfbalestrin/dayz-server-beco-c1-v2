@@ -33,7 +33,14 @@ from database import (
     validate_item_type,
     get_magazine_weapons, update_magazine_weapons,
     get_attachment_weapons, update_attachment_weapons,
-    get_ammunition_weapons, update_ammunition_weapons
+    get_ammunition_weapons, update_ammunition_weapons,
+    # Weapon Kits
+    get_weapon_kits, get_weapon_kit_by_id, create_weapon_kit, update_weapon_kit, delete_weapon_kit,
+    # Loot Kits
+    get_loot_kits, get_loot_kit_by_id, create_loot_kit, update_loot_kit, delete_loot_kit,
+    calculate_loot_kit_space, get_storage_containers,
+    # All Items
+    get_all_explosives, get_all_ammunitions, get_all_magazines, get_all_attachments
 )
 from datetime import datetime
 
@@ -904,6 +911,31 @@ def api_attachment_types():
     types = get_attachment_types()
     return jsonify({'types': types})
 
+# Endpoints "get all" para kits (sem limite)
+@app.route('/api/items/all-explosives')
+@login_required
+def api_all_explosives():
+    explosives = get_all_explosives()
+    return jsonify({'explosives': explosives})
+
+@app.route('/api/items/all-ammunitions')
+@login_required
+def api_all_ammunitions():
+    ammunitions = get_all_ammunitions()
+    return jsonify({'ammunitions': ammunitions})
+
+@app.route('/api/items/all-magazines')
+@login_required
+def api_all_magazines():
+    magazines = get_all_magazines()
+    return jsonify({'magazines': magazines})
+
+@app.route('/api/items/all-attachments')
+@login_required
+def api_all_attachments():
+    attachments = get_all_attachments()
+    return jsonify({'attachments': attachments})
+
 @app.route('/api/weapons/<int:weapon_id>/compatible-items')
 @login_required
 def api_weapon_compatible_items(weapon_id):
@@ -1412,6 +1444,268 @@ def api_manage_attachment_weapons_update(att_id):
         return jsonify({'success': success})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
+
+# ============================================================================
+# ROTAS DE GERENCIAMENTO DE KITS
+# ============================================================================
+
+@app.route('/kits-manage')
+@login_required
+def kits_manage():
+    """Página de gerenciamento de kits de armas e loot"""
+    return render_template('kits_manage.html')
+
+# === WEAPON KITS ===
+@app.route('/api/kits/weapons', methods=['GET'])
+@login_required
+def api_weapon_kits_list():
+    kits = get_weapon_kits()
+    return jsonify({'kits': kits})
+
+@app.route('/api/kits/weapons/<int:kit_id>', methods=['GET'])
+@login_required
+def api_weapon_kit_detail(kit_id):
+    kit = get_weapon_kit_by_id(kit_id)
+    if not kit:
+        return jsonify({'error': 'Kit de arma não encontrado'}), 404
+    return jsonify({'kit': kit})
+
+@app.route('/api/kits/weapons', methods=['POST'])
+@login_required
+def api_weapon_kit_create():
+    data = request.get_json()
+    try:
+        kit_id = create_weapon_kit(data)
+        return jsonify({'success': True, 'id': kit_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/kits/weapons/<int:kit_id>', methods=['PUT'])
+@login_required
+def api_weapon_kit_update(kit_id):
+    data = request.get_json()
+    try:
+        success = update_weapon_kit(kit_id, data)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/kits/weapons/<int:kit_id>', methods=['DELETE'])
+@login_required
+def api_weapon_kit_delete(kit_id):
+    try:
+        success = delete_weapon_kit(kit_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+# === LOOT KITS ===
+@app.route('/api/kits/loot', methods=['GET'])
+@login_required
+def api_loot_kits_list():
+    kits = get_loot_kits()
+    return jsonify({'kits': kits})
+
+@app.route('/api/kits/loot/<int:kit_id>', methods=['GET'])
+@login_required
+def api_loot_kit_detail(kit_id):
+    kit = get_loot_kit_by_id(kit_id)
+    if not kit:
+        return jsonify({'error': 'Kit de loot não encontrado'}), 404
+    return jsonify({'kit': kit})
+
+@app.route('/api/kits/loot', methods=['POST'])
+@login_required
+def api_loot_kit_create():
+    data = request.get_json()
+    try:
+        kit_id = create_loot_kit(data)
+        return jsonify({'success': True, 'id': kit_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/kits/loot/<int:kit_id>', methods=['PUT'])
+@login_required
+def api_loot_kit_update(kit_id):
+    data = request.get_json()
+    try:
+        success = update_loot_kit(kit_id, data)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/kits/loot/<int:kit_id>', methods=['DELETE'])
+@login_required
+def api_loot_kit_delete(kit_id):
+    try:
+        success = delete_loot_kit(kit_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/kits/storage-containers', methods=['GET'])
+@login_required
+def api_storage_containers():
+    containers = get_storage_containers()
+    return jsonify({'containers': containers})
+
+@app.route('/api/kits/loot/<int:kit_id>/space', methods=['GET'])
+@login_required
+def api_loot_kit_space(kit_id):
+    space_used = calculate_loot_kit_space(kit_id)
+    return jsonify({'space_used': space_used})
+
+# === SPAWNING ===
+@app.route('/api/spawn/weapon-kit', methods=['POST'])
+@login_required
+def api_spawn_weapon_kit():
+    """Spawnar kit de arma para jogador"""
+    import fcntl
+    import os
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    data = request.get_json()
+    player_id = data.get('player_id')
+    kit_id = data.get('kit_id')
+    
+    if not player_id or not kit_id:
+        return jsonify({'success': False, 'message': 'Dados incompletos'}), 400
+    
+    # Buscar detalhes do kit
+    kit = get_weapon_kit_by_id(kit_id)
+    if not kit:
+        return jsonify({'success': False, 'message': 'Kit não encontrado'}), 404
+    
+    try:
+        with open(config.COMMANDS_FILE, 'a') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                # Spawnar arma
+                if kit.get('weapon_name_type'):
+                    f.write(f"{player_id} giveitem {kit['weapon_name_type']} 1\n")
+                
+                # Spawnar magazine
+                if kit.get('magazine_name_type'):
+                    f.write(f"{player_id} giveitem {kit['magazine_name_type']} 1\n")
+                
+                # Spawnar attachments
+                for att in kit.get('attachments', []):
+                    if att.get('name_type'):
+                        f.write(f"{player_id} giveitem {att['name_type']} 1\n")
+                
+                f.flush()
+                os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        
+        logger.info(f"Kit de arma {kit_id} spawnado para {player_id}")
+        return jsonify({
+            'success': True,
+            'message': f'Kit de arma spawnado com sucesso!'
+        })
+    except Exception as e:
+        logger.exception("Erro ao spawnar kit de arma")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao spawnar kit: {str(e)}'
+        }), 500
+
+@app.route('/api/spawn/loot-kit', methods=['POST'])
+@login_required
+def api_spawn_loot_kit():
+    """Spawnar kit de loot para jogador"""
+    import fcntl
+    import os
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    data = request.get_json()
+    player_id = data.get('player_id')
+    kit_id = data.get('kit_id')
+    
+    if not player_id or not kit_id:
+        return jsonify({'success': False, 'message': 'Dados incompletos'}), 400
+    
+    # Buscar detalhes do kit
+    kit = get_loot_kit_by_id(kit_id)
+    if not kit:
+        return jsonify({'success': False, 'message': 'Kit não encontrado'}), 404
+    
+    try:
+        with open(config.COMMANDS_FILE, 'a') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                # Spawnar container
+                if kit.get('container_name_type'):
+                    f.write(f"{player_id} giveitem {kit['container_name_type']} 1\n")
+                
+                # Spawnar itens avulsos
+                for item in kit.get('items', []):
+                    quantity = item.get('quantity', 1)
+                    if item.get('name_type'):
+                        f.write(f"{player_id} giveitem {item['name_type']} {quantity}\n")
+                
+                # Spawnar kits de arma (expandir cada um)
+                for weapon_kit_data in kit.get('weapon_kits', []):
+                    quantity = weapon_kit_data.get('quantity', 1)
+                    
+                    for _ in range(quantity):
+                        # Arma
+                        if weapon_kit_data.get('weapon_name_type'):
+                            f.write(f"{player_id} giveitem {weapon_kit_data['weapon_name_type']} 1\n")
+                        
+                        # Magazine
+                        if weapon_kit_data.get('magazine_name_type'):
+                            f.write(f"{player_id} giveitem {weapon_kit_data['magazine_name_type']} 1\n")
+                        
+                        # Attachments
+                        for att in weapon_kit_data.get('attachments', []):
+                            if att.get('name_type'):
+                                f.write(f"{player_id} giveitem {att['name_type']} 1\n")
+                
+                # Spawnar explosivos
+                for exp in kit.get('explosives', []):
+                    quantity = exp.get('quantity', 1)
+                    if exp.get('name_type'):
+                        f.write(f"{player_id} giveitem {exp['name_type']} {quantity}\n")
+                
+                # Spawnar munições
+                for ammo in kit.get('ammunitions', []):
+                    quantity = ammo.get('quantity', 1)
+                    if ammo.get('name_type'):
+                        f.write(f"{player_id} giveitem {ammo['name_type']} {quantity}\n")
+                
+                # Spawnar magazines
+                for mag in kit.get('magazines', []):
+                    quantity = mag.get('quantity', 1)
+                    if mag.get('name_type'):
+                        f.write(f"{player_id} giveitem {mag['name_type']} {quantity}\n")
+                
+                # Spawnar attachments
+                for att in kit.get('attachments', []):
+                    quantity = att.get('quantity', 1)
+                    if att.get('name_type'):
+                        f.write(f"{player_id} giveitem {att['name_type']} {quantity}\n")
+                
+                f.flush()
+                os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        
+        logger.info(f"Kit de loot {kit_id} spawnado para {player_id}")
+        return jsonify({
+            'success': True,
+            'message': f'Kit de loot spawnado com sucesso!'
+        })
+    except Exception as e:
+        logger.exception("Erro ao spawnar kit de loot")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao spawnar kit: {str(e)}'
+        }), 500
 
 @app.errorhandler(500)
 def internal_error(e):

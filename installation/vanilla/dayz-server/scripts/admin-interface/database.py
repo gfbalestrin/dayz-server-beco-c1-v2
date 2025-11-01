@@ -1228,3 +1228,617 @@ def update_ammunition_weapons(ammunition_id: int, weapon_ids: List[int]) -> bool
             """, (weapon_id, ammunition_id))
         conn.commit()
         return True
+
+# ============================================================================
+# CRUD WEAPON KITS
+# ============================================================================
+
+def get_weapon_kits() -> List[Dict]:
+    """Lista todos os kits de arma com detalhes"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT wk.*, 
+                   w.name as weapon_name, w.name_type as weapon_name_type, w.img as weapon_img, w.slots as weapon_slots,
+                   m.name as magazine_name, m.name_type as magazine_name_type, m.img as magazine_img, m.slots as magazine_slots
+            FROM weapon_kits wk
+            LEFT JOIN weapons w ON wk.weapon_id = w.id
+            LEFT JOIN magazines m ON wk.magazine_id = m.id
+            ORDER BY wk.created_at DESC
+        """)
+        kits = [dict(row) for row in cursor.fetchall()]
+        
+        # Adicionar attachments para cada kit
+        for kit in kits:
+            cursor.execute("""
+                SELECT a.* FROM attachments a
+                INNER JOIN weapon_kit_attachments wka ON a.id = wka.attachment_id
+                WHERE wka.kit_id = ?
+            """, (kit['id'],))
+            kit['attachments'] = [dict(row) for row in cursor.fetchall()]
+        
+        return kits
+
+def get_weapon_kit_by_id(kit_id: int) -> Optional[Dict]:
+    """Busca um kit de arma específico com todos os detalhes"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT wk.*, 
+                   w.name as weapon_name, w.name_type as weapon_name_type, w.img as weapon_img, w.slots as weapon_slots,
+                   m.name as magazine_name, m.name_type as magazine_name_type, m.img as magazine_img, m.slots as magazine_slots
+            FROM weapon_kits wk
+            LEFT JOIN weapons w ON wk.weapon_id = w.id
+            LEFT JOIN magazines m ON wk.magazine_id = m.id
+            WHERE wk.id = ?
+        """, (kit_id,))
+        kit = cursor.fetchone()
+        
+        if not kit:
+            return None
+        
+        kit_dict = dict(kit)
+        
+        # Buscar attachments
+        cursor.execute("""
+            SELECT a.* FROM attachments a
+            INNER JOIN weapon_kit_attachments wka ON a.id = wka.attachment_id
+            WHERE wka.kit_id = ?
+        """, (kit_id,))
+        kit_dict['attachments'] = [dict(row) for row in cursor.fetchall()]
+        
+        return kit_dict
+
+def create_weapon_kit(data: Dict) -> int:
+    """Cria um novo kit de arma"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        
+        # Validar que há apenas 1 attachment por tipo
+        if 'attachments' in data:
+            if not validate_weapon_kit_attachments(conn, data['attachments']):
+                raise ValueError("Não é permitido ter mais de um attachment do mesmo tipo")
+        
+        # Criar kit
+        cursor.execute("""
+            INSERT INTO weapon_kits (name, weapon_id, magazine_id)
+            VALUES (?, ?, ?)
+        """, (data['name'], data['weapon_id'], data.get('magazine_id')))
+        
+        kit_id = cursor.lastrowid
+        
+        # Adicionar attachments
+        if 'attachments' in data and data['attachments']:
+            for attachment_id in data['attachments']:
+                cursor.execute("""
+                    INSERT INTO weapon_kit_attachments (kit_id, attachment_id)
+                    VALUES (?, ?)
+                """, (kit_id, attachment_id))
+        
+        conn.commit()
+        return kit_id
+
+def update_weapon_kit(kit_id: int, data: Dict) -> bool:
+    """Atualiza um kit de arma existente"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        
+        # Validar que há apenas 1 attachment por tipo
+        if 'attachments' in data:
+            if not validate_weapon_kit_attachments(conn, data['attachments']):
+                raise ValueError("Não é permitido ter mais de um attachment do mesmo tipo")
+        
+        # Atualizar kit
+        cursor.execute("""
+            UPDATE weapon_kits 
+            SET name=?, weapon_id=?, magazine_id=?
+            WHERE id=?
+        """, (data['name'], data['weapon_id'], data.get('magazine_id'), kit_id))
+        
+        # Remover attachments antigos
+        cursor.execute("DELETE FROM weapon_kit_attachments WHERE kit_id=?", (kit_id,))
+        
+        # Adicionar novos attachments
+        if 'attachments' in data and data['attachments']:
+            for attachment_id in data['attachments']:
+                cursor.execute("""
+                    INSERT INTO weapon_kit_attachments (kit_id, attachment_id)
+                    VALUES (?, ?)
+                """, (kit_id, attachment_id))
+        
+        conn.commit()
+        return cursor.rowcount > 0
+
+def delete_weapon_kit(kit_id: int) -> bool:
+    """Exclui um kit de arma"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM weapon_kits WHERE id=?", (kit_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def validate_weapon_kit_attachments(conn, attachment_ids: List[int]) -> bool:
+    """Valida que não há mais de um attachment do mesmo tipo"""
+    if not attachment_ids:
+        return True
+    
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT type, COUNT(*) as count
+        FROM attachments
+        WHERE id IN ({})
+        GROUP BY type
+        HAVING COUNT(*) > 1
+    """.format(','.join('?' * len(attachment_ids))), attachment_ids)
+    
+    result = cursor.fetchone()
+    return result is None
+
+# ============================================================================
+# CRUD LOOT KITS
+# ============================================================================
+
+def get_loot_kits() -> List[Dict]:
+    """Lista todos os kits de loot com detalhes"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT lk.*, 
+                   i.name as container_name, i.name_type as container_name_type, 
+                   i.img as container_img, i.storage_slots
+            FROM loot_kits lk
+            INNER JOIN item i ON lk.container_item_id = i.id
+            ORDER BY lk.created_at DESC
+        """)
+        kits = [dict(row) for row in cursor.fetchall()]
+        
+        # Adicionar items e weapon kits para cada kit de loot
+        for kit in kits:
+            # Itens avulsos
+            cursor.execute("""
+                SELECT i.*, lki.quantity
+                FROM item i
+                INNER JOIN loot_kit_items lki ON i.id = lki.item_id
+                WHERE lki.loot_kit_id = ?
+            """, (kit['id'],))
+            kit['items'] = [dict(row) for row in cursor.fetchall()]
+            
+            # Kits de arma
+            cursor.execute("""
+                SELECT wk.*, 
+                       w.name_type as weapon_name_type,
+                       m.name_type as magazine_name_type,
+                       lkwk.quantity
+                FROM weapon_kits wk
+                INNER JOIN loot_kit_weapon_kits lkwk ON wk.id = lkwk.weapon_kit_id
+                LEFT JOIN weapons w ON wk.weapon_id = w.id
+                LEFT JOIN magazines m ON wk.magazine_id = m.id
+                WHERE lkwk.loot_kit_id = ?
+            """, (kit['id'],))
+            weapon_kits = [dict(row) for row in cursor.fetchall()]
+            
+            # Adicionar attachments para cada weapon kit
+            for wkit in weapon_kits:
+                cursor.execute("""
+                    SELECT a.* FROM attachments a
+                    INNER JOIN weapon_kit_attachments wka ON a.id = wka.attachment_id
+                    WHERE wka.kit_id = ?
+                """, (wkit['id'],))
+                wkit['attachments'] = [dict(row) for row in cursor.fetchall()]
+            
+            kit['weapon_kits'] = weapon_kits
+            
+            # Explosivos
+            cursor.execute("""
+                SELECT e.*, lke.quantity
+                FROM explosives e
+                INNER JOIN loot_kit_explosives lke ON e.id = lke.explosive_id
+                WHERE lke.loot_kit_id = ?
+            """, (kit['id'],))
+            kit['explosives'] = [dict(row) for row in cursor.fetchall()]
+            
+            # Munições
+            cursor.execute("""
+                SELECT a.*, lka.quantity
+                FROM ammunitions a
+                INNER JOIN loot_kit_ammunitions lka ON a.id = lka.ammunition_id
+                WHERE lka.loot_kit_id = ?
+            """, (kit['id'],))
+            kit['ammunitions'] = [dict(row) for row in cursor.fetchall()]
+            
+            # Magazines
+            cursor.execute("""
+                SELECT m.*, lkm.quantity
+                FROM magazines m
+                INNER JOIN loot_kit_magazines lkm ON m.id = lkm.magazine_id
+                WHERE lkm.loot_kit_id = ?
+            """, (kit['id'],))
+            kit['magazines'] = [dict(row) for row in cursor.fetchall()]
+            
+            # Attachments
+            cursor.execute("""
+                SELECT att.*, lka.quantity
+                FROM attachments att
+                INNER JOIN loot_kit_attachments lka ON att.id = lka.attachment_id
+                WHERE lka.loot_kit_id = ?
+            """, (kit['id'],))
+            kit['attachments'] = [dict(row) for row in cursor.fetchall()]
+        
+        return kits
+
+def get_loot_kit_by_id(kit_id: int) -> Optional[Dict]:
+    """Busca um kit de loot específico com todos os detalhes"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT lk.*, 
+                   i.name as container_name, i.name_type as container_name_type, 
+                   i.img as container_img, i.storage_slots
+            FROM loot_kits lk
+            INNER JOIN item i ON lk.container_item_id = i.id
+            WHERE lk.id = ?
+        """, (kit_id,))
+        kit = cursor.fetchone()
+        
+        if not kit:
+            return None
+        
+        kit_dict = dict(kit)
+        
+        # Buscar itens avulsos
+        cursor.execute("""
+            SELECT i.*, lki.quantity
+            FROM item i
+            INNER JOIN loot_kit_items lki ON i.id = lki.item_id
+            WHERE lki.loot_kit_id = ?
+        """, (kit_id,))
+        kit_dict['items'] = [dict(row) for row in cursor.fetchall()]
+        
+        # Buscar kits de arma com detalhes completos
+        cursor.execute("""
+            SELECT wk.*, 
+                   w.name_type as weapon_name_type,
+                   m.name_type as magazine_name_type,
+                   lkwk.quantity
+            FROM weapon_kits wk
+            INNER JOIN loot_kit_weapon_kits lkwk ON wk.id = lkwk.weapon_kit_id
+            LEFT JOIN weapons w ON wk.weapon_id = w.id
+            LEFT JOIN magazines m ON wk.magazine_id = m.id
+            WHERE lkwk.loot_kit_id = ?
+        """, (kit_id,))
+        weapon_kits = [dict(row) for row in cursor.fetchall()]
+        
+        # Adicionar attachments para cada weapon kit
+        for wkit in weapon_kits:
+            cursor.execute("""
+                SELECT a.* FROM attachments a
+                INNER JOIN weapon_kit_attachments wka ON a.id = wka.attachment_id
+                WHERE wka.kit_id = ?
+            """, (wkit['id'],))
+            wkit['attachments'] = [dict(row) for row in cursor.fetchall()]
+        
+        kit_dict['weapon_kits'] = weapon_kits
+        
+        # Buscar explosivos
+        cursor.execute("""
+            SELECT e.*, lke.quantity
+            FROM explosives e
+            INNER JOIN loot_kit_explosives lke ON e.id = lke.explosive_id
+            WHERE lke.loot_kit_id = ?
+        """, (kit_id,))
+        kit_dict['explosives'] = [dict(row) for row in cursor.fetchall()]
+        
+        # Buscar munições
+        cursor.execute("""
+            SELECT a.*, lka.quantity
+            FROM ammunitions a
+            INNER JOIN loot_kit_ammunitions lka ON a.id = lka.ammunition_id
+            WHERE lka.loot_kit_id = ?
+        """, (kit_id,))
+        kit_dict['ammunitions'] = [dict(row) for row in cursor.fetchall()]
+        
+        # Buscar magazines
+        cursor.execute("""
+            SELECT m.*, lkm.quantity
+            FROM magazines m
+            INNER JOIN loot_kit_magazines lkm ON m.id = lkm.magazine_id
+            WHERE lkm.loot_kit_id = ?
+        """, (kit_id,))
+        kit_dict['magazines'] = [dict(row) for row in cursor.fetchall()]
+        
+        # Buscar attachments
+        cursor.execute("""
+            SELECT att.*, lka.quantity
+            FROM attachments att
+            INNER JOIN loot_kit_attachments lka ON att.id = lka.attachment_id
+            WHERE lka.loot_kit_id = ?
+        """, (kit_id,))
+        kit_dict['attachments'] = [dict(row) for row in cursor.fetchall()]
+        
+        return kit_dict
+
+def create_loot_kit(data: Dict) -> int:
+    """Cria um novo kit de loot"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        
+        # Criar kit
+        cursor.execute("""
+            INSERT INTO loot_kits (name, container_item_id)
+            VALUES (?, ?)
+        """, (data['name'], data['container_item_id']))
+        
+        kit_id = cursor.lastrowid
+        
+        # Adicionar itens avulsos
+        if 'items' in data and data['items']:
+            for item_data in data['items']:
+                cursor.execute("""
+                    INSERT INTO loot_kit_items (loot_kit_id, item_id, quantity)
+                    VALUES (?, ?, ?)
+                """, (kit_id, item_data['item_id'], item_data['quantity']))
+        
+        # Adicionar kits de arma
+        if 'weapon_kits' in data and data['weapon_kits']:
+            for kit_data in data['weapon_kits']:
+                cursor.execute("""
+                    INSERT INTO loot_kit_weapon_kits (loot_kit_id, weapon_kit_id, quantity)
+                    VALUES (?, ?, ?)
+                """, (kit_id, kit_data['weapon_kit_id'], kit_data['quantity']))
+        
+        # Adicionar explosivos
+        if 'explosives' in data and data['explosives']:
+            for exp_data in data['explosives']:
+                cursor.execute("""
+                    INSERT INTO loot_kit_explosives (loot_kit_id, explosive_id, quantity)
+                    VALUES (?, ?, ?)
+                """, (kit_id, exp_data['explosive_id'], exp_data['quantity']))
+        
+        # Adicionar munições
+        if 'ammunitions' in data and data['ammunitions']:
+            for ammo_data in data['ammunitions']:
+                cursor.execute("""
+                    INSERT INTO loot_kit_ammunitions (loot_kit_id, ammunition_id, quantity)
+                    VALUES (?, ?, ?)
+                """, (kit_id, ammo_data['ammunition_id'], ammo_data['quantity']))
+        
+        # Adicionar magazines
+        if 'magazines' in data and data['magazines']:
+            for mag_data in data['magazines']:
+                cursor.execute("""
+                    INSERT INTO loot_kit_magazines (loot_kit_id, magazine_id, quantity)
+                    VALUES (?, ?, ?)
+                """, (kit_id, mag_data['magazine_id'], mag_data['quantity']))
+        
+        # Adicionar attachments
+        if 'attachments' in data and data['attachments']:
+            for att_data in data['attachments']:
+                cursor.execute("""
+                    INSERT INTO loot_kit_attachments (loot_kit_id, attachment_id, quantity)
+                    VALUES (?, ?, ?)
+                """, (kit_id, att_data['attachment_id'], att_data['quantity']))
+        
+        conn.commit()
+        return kit_id
+
+def update_loot_kit(kit_id: int, data: Dict) -> bool:
+    """Atualiza um kit de loot existente"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        
+        # Atualizar kit
+        cursor.execute("""
+            UPDATE loot_kits 
+            SET name=?, container_item_id=?
+            WHERE id=?
+        """, (data['name'], data['container_item_id'], kit_id))
+        
+        # Remover itens antigos
+        cursor.execute("DELETE FROM loot_kit_items WHERE loot_kit_id=?", (kit_id,))
+        cursor.execute("DELETE FROM loot_kit_weapon_kits WHERE loot_kit_id=?", (kit_id,))
+        cursor.execute("DELETE FROM loot_kit_explosives WHERE loot_kit_id=?", (kit_id,))
+        cursor.execute("DELETE FROM loot_kit_ammunitions WHERE loot_kit_id=?", (kit_id,))
+        cursor.execute("DELETE FROM loot_kit_magazines WHERE loot_kit_id=?", (kit_id,))
+        cursor.execute("DELETE FROM loot_kit_attachments WHERE loot_kit_id=?", (kit_id,))
+        
+        # Adicionar novos itens avulsos
+        if 'items' in data and data['items']:
+            for item_data in data['items']:
+                cursor.execute("""
+                    INSERT INTO loot_kit_items (loot_kit_id, item_id, quantity)
+                    VALUES (?, ?, ?)
+                """, (kit_id, item_data['item_id'], item_data['quantity']))
+        
+        # Adicionar novos kits de arma
+        if 'weapon_kits' in data and data['weapon_kits']:
+            for kit_data in data['weapon_kits']:
+                cursor.execute("""
+                    INSERT INTO loot_kit_weapon_kits (loot_kit_id, weapon_kit_id, quantity)
+                    VALUES (?, ?, ?)
+                """, (kit_id, kit_data['weapon_kit_id'], kit_data['quantity']))
+        
+        # Adicionar novos explosivos
+        if 'explosives' in data and data['explosives']:
+            for exp_data in data['explosives']:
+                cursor.execute("""
+                    INSERT INTO loot_kit_explosives (loot_kit_id, explosive_id, quantity)
+                    VALUES (?, ?, ?)
+                """, (kit_id, exp_data['explosive_id'], exp_data['quantity']))
+        
+        # Adicionar novas munições
+        if 'ammunitions' in data and data['ammunitions']:
+            for ammo_data in data['ammunitions']:
+                cursor.execute("""
+                    INSERT INTO loot_kit_ammunitions (loot_kit_id, ammunition_id, quantity)
+                    VALUES (?, ?, ?)
+                """, (kit_id, ammo_data['ammunition_id'], ammo_data['quantity']))
+        
+        # Adicionar novos magazines
+        if 'magazines' in data and data['magazines']:
+            for mag_data in data['magazines']:
+                cursor.execute("""
+                    INSERT INTO loot_kit_magazines (loot_kit_id, magazine_id, quantity)
+                    VALUES (?, ?, ?)
+                """, (kit_id, mag_data['magazine_id'], mag_data['quantity']))
+        
+        # Adicionar novos attachments
+        if 'attachments' in data and data['attachments']:
+            for att_data in data['attachments']:
+                cursor.execute("""
+                    INSERT INTO loot_kit_attachments (loot_kit_id, attachment_id, quantity)
+                    VALUES (?, ?, ?)
+                """, (kit_id, att_data['attachment_id'], att_data['quantity']))
+        
+        conn.commit()
+        return cursor.rowcount > 0
+
+def delete_loot_kit(kit_id: int) -> bool:
+    """Exclui um kit de loot"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM loot_kits WHERE id=?", (kit_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def calculate_loot_kit_space(kit_id: int) -> int:
+    """Calcula o espaço total usado em slots por um kit de loot"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        
+        total_space = 0
+        
+        # Calcular espaço dos itens avulsos
+        cursor.execute("""
+            SELECT SUM(i.slots * lki.quantity) as total
+            FROM item i
+            INNER JOIN loot_kit_items lki ON i.id = lki.item_id
+            WHERE lki.loot_kit_id = ?
+        """, (kit_id,))
+        result = cursor.fetchone()
+        if result and result[0]:
+            total_space += result[0]
+        
+        # Calcular espaço dos kits de arma
+        # (assumindo que cada weapon kit ocupa o espaço da arma + acessórios)
+        cursor.execute("""
+            SELECT lkwk.quantity, wk.weapon_id, wk.magazine_id
+            FROM loot_kit_weapon_kits lkwk
+            INNER JOIN weapon_kits wk ON lkwk.weapon_kit_id = wk.id
+            WHERE lkwk.loot_kit_id = ?
+        """, (kit_id,))
+        
+        for row in cursor.fetchall():
+            quantity = row[0]
+            weapon_id = row[1]
+            magazine_id = row[2]
+            
+            # Espaço da arma
+            cursor.execute("SELECT slots FROM weapons WHERE id=?", (weapon_id,))
+            weapon = cursor.fetchone()
+            if weapon:
+                total_space += weapon[0] * quantity
+            
+            # Espaço do magazine
+            if magazine_id:
+                cursor.execute("SELECT slots FROM magazines WHERE id=?", (magazine_id,))
+                magazine = cursor.fetchone()
+                if magazine:
+                    total_space += magazine[0] * quantity
+            
+            # Espaço dos attachments
+            cursor.execute("""
+                SELECT SUM(a.slots) as total
+                FROM attachments a
+                INNER JOIN weapon_kit_attachments wka ON a.id = wka.attachment_id
+                INNER JOIN weapon_kits wk ON wka.kit_id = wk.id
+                WHERE wk.id = ?
+            """, (row[1],))
+            att_result = cursor.fetchone()
+            if att_result and att_result[0]:
+                total_space += att_result[0] * quantity
+        
+        # Calcular espaço dos explosivos
+        cursor.execute("""
+            SELECT SUM(e.slots * lke.quantity) as total
+            FROM explosives e
+            INNER JOIN loot_kit_explosives lke ON e.id = lke.explosive_id
+            WHERE lke.loot_kit_id = ?
+        """, (kit_id,))
+        result = cursor.fetchone()
+        if result and result[0]:
+            total_space += result[0]
+        
+        # Calcular espaço das munições
+        cursor.execute("""
+            SELECT SUM(a.slots * lka.quantity) as total
+            FROM ammunitions a
+            INNER JOIN loot_kit_ammunitions lka ON a.id = lka.ammunition_id
+            WHERE lka.loot_kit_id = ?
+        """, (kit_id,))
+        result = cursor.fetchone()
+        if result and result[0]:
+            total_space += result[0]
+        
+        # Calcular espaço dos magazines
+        cursor.execute("""
+            SELECT SUM(m.slots * lkm.quantity) as total
+            FROM magazines m
+            INNER JOIN loot_kit_magazines lkm ON m.id = lkm.magazine_id
+            WHERE lkm.loot_kit_id = ?
+        """, (kit_id,))
+        result = cursor.fetchone()
+        if result and result[0]:
+            total_space += result[0]
+        
+        # Calcular espaço dos attachments
+        cursor.execute("""
+            SELECT SUM(att.slots * lka.quantity) as total
+            FROM attachments att
+            INNER JOIN loot_kit_attachments lka ON att.id = lka.attachment_id
+            WHERE lka.loot_kit_id = ?
+        """, (kit_id,))
+        result = cursor.fetchone()
+        if result and result[0]:
+            total_space += result[0]
+        
+        return total_space
+
+def get_storage_containers() -> List[Dict]:
+    """Retorna apenas os containers permitidos para kits de loot"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM item
+            WHERE name_type IN ('WoodenCrate', 'Barrel_Yellow', 'Barrel_Red', 
+                               'Barrel_Green', 'Barrel_Blue', 'SeaChest')
+            ORDER BY name
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_all_explosives() -> List[Dict]:
+    """Retorna todos os explosivos para seleção"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name, name_type, slots, width, height, img FROM explosives ORDER BY name")
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_all_ammunitions() -> List[Dict]:
+    """Retorna todas as munições para seleção"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name, name_type, caliber_id, slots, width, height, img FROM ammunitions ORDER BY name")
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_all_magazines() -> List[Dict]:
+    """Retorna todos os magazines para seleção"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name, name_type, capacity, slots, width, height, img FROM magazines ORDER BY name")
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_all_attachments() -> List[Dict]:
+    """Retorna todos os attachments para seleção"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name, name_type, type, slots, width, height, img, battery FROM attachments ORDER BY name")
+        return [dict(row) for row in cursor.fetchall()]
