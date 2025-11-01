@@ -833,7 +833,8 @@ bool ExecuteCreateContainer(TStringArray tokens)
             
             // Parse JSON
             int jsonPos = 0;
-            ref ItemAttachmentData itemData = ParseItemJson(jsonString, jsonPos);
+            int nextJsonPos = 0;
+            ref ItemAttachmentData itemData = ParseItemJson(jsonString, jsonPos, nextJsonPos);
             
             if (itemData && itemData.type != "")
             {
@@ -932,139 +933,173 @@ class ItemAttachmentData
 }
 
 // Parser JSON simplificado - extrai string entre aspas
-string ExtractJsonString(string json, ref int pos)
+string ExtractJsonString(string json, int pos, out int newPos)
 {
     string result = "";
-    if (pos >= json.Length())
+    int currentPos = pos;
+    
+    if (currentPos >= json.Length())
+    {
+        newPos = currentPos;
         return result;
+    }
     
     // Pula até encontrar aspas de abertura
-    while (pos < json.Length() && json.Get(pos) != "\"")
-        pos++;
+    while (currentPos < json.Length() && json.Get(currentPos) != "\"")
+        currentPos++;
     
-    if (pos >= json.Length())
+    if (currentPos >= json.Length())
+    {
+        newPos = currentPos;
         return result;
+    }
     
-    pos++; // Pula a aspas de abertura
+    currentPos++; // Pula a aspas de abertura
     
     // Extrai até encontrar aspas de fechamento
-    while (pos < json.Length())
+    while (currentPos < json.Length())
     {
-        string ch = json.Get(pos);
+        string ch = json.Get(currentPos);
         if (ch == "\"")
             break;
         result += ch;
-        pos++;
+        currentPos++;
     }
     
-    pos++; // Pula aspas de fechamento
+    currentPos++; // Pula aspas de fechamento
+    newPos = currentPos;
     return result;
 }
 
-// Pula espaços e vírgulas
-void SkipWhitespaceAndCommas(string json, ref int pos)
+// Pula espaços e vírgulas - retorna nova posição
+int SkipWhitespaceAndCommas(string json, int pos)
 {
-    while (pos < json.Length())
+    int currentPos = pos;
+    while (currentPos < json.Length())
     {
-        string ch = json.Get(pos);
+        string ch = json.Get(currentPos);
         if (ch == " " || ch == "\t" || ch == "\n" || ch == "\r" || ch == ",")
-            pos++;
+            currentPos++;
         else
             break;
     }
+    return currentPos;
 }
 
-// Parse JSON array de attachments
-void ParseAttachmentsArray(string json, ref int pos, array<ref ItemAttachmentData> attachments)
+// Parse JSON array de attachments - retorna nova posição
+int ParseAttachmentsArray(string json, int pos, array<ref ItemAttachmentData> attachments)
 {
-    if (pos >= json.Length())
-        return;
+    int currentPos = pos;
+    
+    if (currentPos >= json.Length())
+        return currentPos;
     
     // Pula até encontrar [
-    while (pos < json.Length() && json.Get(pos) != "[")
-        pos++;
+    while (currentPos < json.Length() && json.Get(currentPos) != "[")
+        currentPos++;
     
-    if (pos >= json.Length())
-        return;
+    if (currentPos >= json.Length())
+        return currentPos;
     
-    pos++; // Pula [
-    SkipWhitespaceAndCommas(json, pos);
+    currentPos++; // Pula [
+    currentPos = SkipWhitespaceAndCommas(json, currentPos);
     
     // Processa cada item do array
-    while (pos < json.Length() && json.Get(pos) != "]")
+    while (currentPos < json.Length() && json.Get(currentPos) != "]")
     {
-        SkipWhitespaceAndCommas(json, pos);
+        currentPos = SkipWhitespaceAndCommas(json, currentPos);
         
-        if (pos >= json.Length() || json.Get(pos) == "]")
+        if (currentPos >= json.Length() || json.Get(currentPos) == "]")
             break;
         
         // Parse objeto de attachment
-        if (json.Get(pos) == "{")
+        if (json.Get(currentPos) == "{")
         {
-            ref ItemAttachmentData attachment = ParseItemJson(json, pos);
+            int nextPos = 0;
+            ref ItemAttachmentData attachment = ParseItemJson(json, currentPos, nextPos);
             if (attachment)
+            {
                 attachments.Insert(attachment);
+                currentPos = nextPos;
+            }
+            else
+            {
+                break;
+            }
         }
         
-        SkipWhitespaceAndCommas(json, pos);
+        currentPos = SkipWhitespaceAndCommas(json, currentPos);
     }
     
-    if (pos < json.Length() && json.Get(pos) == "]")
-        pos++; // Pula ]
+    if (currentPos < json.Length() && json.Get(currentPos) == "]")
+        currentPos++; // Pula ]
+    
+    return currentPos;
 }
 
-// Parse objeto JSON de item
-ref ItemAttachmentData ParseItemJson(string json, ref int pos)
+// Parse objeto JSON de item - retorna nova posição via out
+ref ItemAttachmentData ParseItemJson(string json, int pos, out int newPos)
 {
     ref ItemAttachmentData item = new ItemAttachmentData;
+    int currentPos = pos;
     
-    if (pos >= json.Length())
+    if (currentPos >= json.Length())
+    {
+        newPos = currentPos;
         return null;
+    }
     
     // Pula até encontrar {
-    while (pos < json.Length() && json.Get(pos) != "{")
-        pos++;
+    while (currentPos < json.Length() && json.Get(currentPos) != "{")
+        currentPos++;
     
-    if (pos >= json.Length())
+    if (currentPos >= json.Length())
+    {
+        newPos = currentPos;
         return null;
+    }
     
-    pos++; // Pula {
-    SkipWhitespaceAndCommas(json, pos);
+    currentPos++; // Pula {
+    currentPos = SkipWhitespaceAndCommas(json, currentPos);
     
     // Processa propriedades do objeto
-    while (pos < json.Length() && json.Get(pos) != "}")
+    while (currentPos < json.Length() && json.Get(currentPos) != "}")
     {
-        SkipWhitespaceAndCommas(json, pos);
+        currentPos = SkipWhitespaceAndCommas(json, currentPos);
         
-        if (pos >= json.Length() || json.Get(pos) == "}")
+        if (currentPos >= json.Length() || json.Get(currentPos) == "}")
             break;
         
         // Extrai nome da propriedade
-        string propName = ExtractJsonString(json, pos);
-        SkipWhitespaceAndCommas(json, pos);
+        int nextPos = 0;
+        string propName = ExtractJsonString(json, currentPos, nextPos);
+        currentPos = nextPos;
+        currentPos = SkipWhitespaceAndCommas(json, currentPos);
         
         // Pula :
-        if (pos < json.Length() && json.Get(pos) == ":")
-            pos++;
+        if (currentPos < json.Length() && json.Get(currentPos) == ":")
+            currentPos++;
         
-        SkipWhitespaceAndCommas(json, pos);
+        currentPos = SkipWhitespaceAndCommas(json, currentPos);
         
         // Processa valor da propriedade
         if (propName == "type")
         {
-            item.type = ExtractJsonString(json, pos);
+            item.type = ExtractJsonString(json, currentPos, nextPos);
+            currentPos = nextPos;
         }
         else if (propName == "attachments")
         {
-            ParseAttachmentsArray(json, pos, item.attachments);
+            currentPos = ParseAttachmentsArray(json, currentPos, item.attachments);
         }
         
-        SkipWhitespaceAndCommas(json, pos);
+        currentPos = SkipWhitespaceAndCommas(json, currentPos);
     }
     
-    if (pos < json.Length() && json.Get(pos) == "}")
-        pos++; // Pula }
+    if (currentPos < json.Length() && json.Get(currentPos) == "}")
+        currentPos++; // Pula }
     
+    newPos = currentPos;
     return item;
 }
 
