@@ -2001,29 +2001,20 @@ class CustomMission: MissionServer
 		return sanitized;
 	}
 
-	// Função auxiliar para coletar itens nas mãos do jogador
+	// Função auxiliar para coletar item nas mãos do jogador
 	string GetItemsInHands(PlayerBase player)
 	{
 		string itemsJson = "";
 		if (!player)
 			return itemsJson;
 
-		HumanInventory inventory = player.GetHumanInventory();
-		if (!inventory)
-			return itemsJson;
-
-		for (int i = 0; i < inventory.AttachmentCount(); i++)
+		// Usa GetItemInHands() que retorna o item que o jogador está segurando
+		EntityAI itemInHands = player.GetItemInHands();
+		if (itemInHands)
 		{
-			EntityAI item = inventory.GetAttachmentFromIndex(i);
-			if (!item)
-				continue;
-
-			string itemType = item.GetType();
+			string itemType = itemInHands.GetType();
 			string safeItemType = SanitizeForJson(itemType);
-			
-			if (itemsJson != "")
-				itemsJson += ",";
-			itemsJson += "\"" + safeItemType + "\"";
+			itemsJson = "\"" + safeItemType + "\"";
 		}
 
 		return itemsJson;
