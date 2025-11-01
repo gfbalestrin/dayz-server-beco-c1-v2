@@ -1,6 +1,5 @@
 let playersData = [];
 let table;
-let godModeStatus = {};
 let staminaStatus = {};
 let autoRefreshInterval = null;
 let currentRefreshInterval = 30000; // 30 segundos padrão
@@ -98,18 +97,35 @@ function executeAction(playerId, action) {
     });
 }
 
-// Função para toggle God Mode
-function toggleGodMode(playerId) {
-    const isActive = godModeStatus[playerId] || false;
-    const action = isActive ? 'ungodmode' : 'godmode';
+// Função para ativar God Mode
+function activateGodMode(playerId) {
+    if (!confirm('Ativar God Mode para este jogador?')) return;
     
     $.ajax({
         url: `/api/players/${encodeURIComponent(playerId)}/action`,
         method: 'POST',
         contentType: 'application/json',
-        data: JSON.stringify({ action: action }),
+        data: JSON.stringify({ action: 'godmode' }),
         success: function(response) {
-            godModeStatus[playerId] = !isActive;
+            showToast('Sucesso', response.message, 'success');
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            showToast('Erro', error.message || 'Erro ao executar ação', 'error');
+        }
+    });
+}
+
+// Função para remover God Mode
+function deactivateGodMode(playerId) {
+    if (!confirm('Remover God Mode deste jogador?')) return;
+    
+    $.ajax({
+        url: `/api/players/${encodeURIComponent(playerId)}/action`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ action: 'ungodmode' }),
+        success: function(response) {
             showToast('Sucesso', response.message, 'success');
         },
         error: function(xhr) {
@@ -173,8 +189,11 @@ function renderActions(player) {
             <button class="btn btn-success" onclick="executeAction('${player.PlayerID}', 'heal')" title="Curar">
                 <i class="fas fa-heart"></i>
             </button>
-            <button class="btn btn-warning" onclick="toggleGodMode('${player.PlayerID}')" title="God Mode">
+            <button class="btn btn-warning" onclick="activateGodMode('${player.PlayerID}')" title="Ativar God Mode">
                 <i class="fas fa-shield-alt"></i>
+            </button>
+            <button class="btn btn-secondary" onclick="deactivateGodMode('${player.PlayerID}')" title="Remover God Mode">
+                <i class="fas fa-shield"></i>
             </button>
             <button class="btn btn-info" onclick="toggleStamina('${player.PlayerID}')" title="Stamina Infinita">
                 <i class="fas fa-bolt"></i>
@@ -444,7 +463,8 @@ $(document).ready(function() {
     // Tornar funções globais para uso nos botões inline
     window.copyPlayerId = copyPlayerId;
     window.executeAction = executeAction;
-    window.toggleGodMode = toggleGodMode;
+    window.activateGodMode = activateGodMode;
+    window.deactivateGodMode = deactivateGodMode;
     window.toggleStamina = toggleStamina;
     window.redirectToSpawning = redirectToSpawning;
     
