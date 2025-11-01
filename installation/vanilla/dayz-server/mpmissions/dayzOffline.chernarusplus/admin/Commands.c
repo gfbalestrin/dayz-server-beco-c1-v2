@@ -1097,13 +1097,14 @@ class ItemAttachmentData
 }
 
 // Parser JSON simplificado - extrai string entre aspas
-// Normaliza JSON: adiciona aspas onde necessário para tokens sem aspas
-// Converte patterns como "type:AKM" para ""type":"AKM""
+// Normaliza JSON: adiciona aspas e vírgulas onde necessário para tokens sem aspas
+// Converte patterns como "type:AKM" para ""type":"AKM"" e adiciona vírgulas entre propriedades
 string NormalizeJsonString(string json)
 {
     string result = "";
     int i = 0;
     bool inQuotes = false;
+    string lastChar = "";
     
     while (i < json.Length())
     {
@@ -1114,6 +1115,7 @@ string NormalizeJsonString(string json)
         {
             inQuotes = !inQuotes;
             result += ch;
+            lastChar = ch;
             i++;
             continue;
         }
@@ -1122,12 +1124,39 @@ string NormalizeJsonString(string json)
         if (inQuotes)
         {
             result += ch;
+            lastChar = ch;
+            i++;
+            continue;
+        }
+        
+        // Pula espaços e tabs - serão tratados na adição de vírgulas
+        if (ch == " " || ch == "\t" || ch == "\n" || ch == "\r")
+        {
+            // Verifica se precisa adicionar vírgula antes do espaço
+            // Se último caractere era } ou " e próximo não é estrutura JSON, adiciona vírgula
+            if (lastChar == "}" || lastChar == "\"")
+            {
+                // Verifica próximo caractere não-espaço
+                int nextIdx = i + 1;
+                while (nextIdx < json.Length() && (json.Get(nextIdx) == " " || json.Get(nextIdx) == "\t" || json.Get(nextIdx) == "\n" || json.Get(nextIdx) == "\r"))
+                    nextIdx++;
+                
+                if (nextIdx < json.Length())
+                {
+                    string nextCh = json.Get(nextIdx);
+                    // Se próximo é { ou " (início de propriedade/objeto), adiciona vírgula
+                    if (nextCh == "{" || nextCh == "\"" || (nextCh != "}" && nextCh != "]" && nextCh != "," && nextCh != ":"))
+                    {
+                        result += ",";
+                    }
+                }
+            }
             i++;
             continue;
         }
         
         // Detecta padrão chave:valor sem aspas (ex: type:AKM)
-        if (ch != "{" && ch != "}" && ch != "[" && ch != "]" && ch != "," && ch != ":" && ch != " " && ch != "\t" && ch != "\n" && ch != "\r")
+        if (ch != "{" && ch != "}" && ch != "[" && ch != "]" && ch != "," && ch != ":")
         {
             // Início de uma palavra (chave ou valor sem aspas)
             string word = "";
@@ -1147,6 +1176,7 @@ string NormalizeJsonString(string json)
             {
                 // É uma chave: adiciona aspas
                 result += "\"" + word + "\"";
+                lastChar = "\"";
             }
             else
             {
@@ -1162,29 +1192,45 @@ string NormalizeJsonString(string json)
                         isValue = true;
                         break;
                     }
-                    if (backCh != " " && backCh != "\t" && backCh != "\n" && backCh != "\r")
+                    if (backCh != " " && backCh != "\t" && backCh != "\n" && backCh != "\r" && backCh != ",")
                         break;
                     backPos--;
                 }
                 
-                if (isValue)
-                {
-                    // É valor: adiciona aspas
-                    result += "\"" + word + "\"";
-                }
-                else
-                {
-                    // Não é claro, mas provavelmente é chave seguida de algo
-                    result += "\"" + word + "\"";
-                }
+                // É valor: adiciona aspas
+                result += "\"" + word + "\"";
+                lastChar = "\"";
             }
             
             // Continua processando a partir do caractere atual (que não foi incluído na palavra)
             continue;
         }
         
-        // Caracteres de estrutura JSON são copiados diretamente
+        // Caracteres de estrutura JSON
+        // Se é } ou ] e próximo não é vírgula nem } nem ], pode precisar de vírgula
+        if ((ch == "}" || ch == "]") && lastChar != "," && lastChar != "{" && lastChar != "[")
+        {
+            // Verifica próximo caractere não-espaço
+            int nextIdx = i + 1;
+            while (nextIdx < json.Length() && (json.Get(nextIdx) == " " || json.Get(nextIdx) == "\t" || json.Get(nextIdx) == "\n" || json.Get(nextIdx) == "\r"))
+                nextIdx++;
+            
+            if (nextIdx < json.Length())
+            {
+                string nextCh = json.Get(nextIdx);
+                // Se próximo é { ou " (início de propriedade/objeto), adiciona vírgula
+                if (nextCh == "{" || (nextCh == "\"" && ch != "{"))
+                {
+                    result += ch + ",";
+                    lastChar = ",";
+                    i++;
+                    continue;
+                }
+            }
+        }
+        
         result += ch;
+        lastChar = ch;
         i++;
     }
     
