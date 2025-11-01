@@ -888,12 +888,12 @@ bool ExecuteCreateContainer(TStringArray tokens)
             {
                 // Verifica se precisa adicionar { no início
                 int braceCount = 0;
-                for (int idx = 0; idx < jsonString.Length(); idx++)
+                for (int braceIdx = 0; braceIdx < jsonString.Length(); braceIdx++)
                 {
-                    string chr = jsonString.Get(idx);
-                    if (chr == "{")
+                    string braceChr = jsonString.Get(braceIdx);
+                    if (braceChr == "{")
                         braceCount++;
-                    else if (chr == "}")
+                    else if (braceChr == "}")
                         braceCount--;
                 }
                 
@@ -907,12 +907,12 @@ bool ExecuteCreateContainer(TStringArray tokens)
             
             // Calcula chaves abertas/fechadas
             int openBraces = 0;
-            for (int idx = 0; idx < jsonString.Length(); idx++)
+            for (int braceIdx2 = 0; braceIdx2 < jsonString.Length(); braceIdx2++)
             {
-                string chr = jsonString.Get(idx);
-                if (chr == "{")
+                string braceChr2 = jsonString.Get(braceIdx2);
+                if (braceChr2 == "{")
                     openBraces++;
-                else if (chr == "}")
+                else if (braceChr2 == "}")
                     openBraces--;
             }
             
