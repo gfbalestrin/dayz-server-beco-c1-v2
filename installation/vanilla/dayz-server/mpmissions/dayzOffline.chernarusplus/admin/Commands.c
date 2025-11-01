@@ -1214,8 +1214,24 @@ string NormalizeJsonString(string json)
             // Verifica se é chave ou valor
             if (i < json.Length() && json.Get(i) == ":")
             {
-                // Verifica contexto: se estamos dentro de um array e último caractere foi [ ou ,, precisa adicionar {
-                if (arrayDepth > 0 && (lastChar == "[" || lastChar == ","))
+                // Verifica contexto: se estamos dentro de um array e último caractere foi [, , ou }, precisa adicionar {
+                // Isso cobre casos como: [{...}, type:...] ou [{...} type:...]
+                bool needsObjectOpen = false;
+                if (arrayDepth > 0)
+                {
+                    if (lastChar == "[" || lastChar == ",")
+                    {
+                        needsObjectOpen = true;
+                    }
+                    else if (lastChar == "}")
+                    {
+                        // Após } dentro de array, se encontramos chave, é novo objeto no array
+                        // Mas verifica se não já tem vírgula (seria detectado antes)
+                        needsObjectOpen = true;
+                    }
+                }
+                
+                if (needsObjectOpen)
                 {
                     result += "{";
                     objectDepth++;
@@ -1265,8 +1281,25 @@ string NormalizeJsonString(string json)
             if (nextIdx2 < json.Length())
             {
                 string nextCh2 = json.Get(nextIdx2);
-                // Se próximo é { ou " (início de propriedade/objeto), adiciona vírgula
-                if (nextCh2 == "{" || (nextCh2 == "\"" && ch != "{"))
+                // Se próximo é { ou " ou palavra (início de propriedade/objeto), adiciona vírgula
+                // Para arrays, após } deve ter vírgula antes do próximo objeto
+                bool needsComma = false;
+                if (nextCh2 == "{")
+                {
+                    needsComma = true;
+                }
+                else if (nextCh2 == "\"" && ch == "}")
+                {
+                    // Após } dentro de array, se próximo é ", é novo objeto
+                    needsComma = true;
+                }
+                else if (arrayDepth > 0 && ch == "}" && nextCh2 != "}" && nextCh2 != "]" && nextCh2 != ",")
+                {
+                    // Dentro de array, após } se próximo não é estrutura, provavelmente é novo objeto
+                    needsComma = true;
+                }
+                
+                if (needsComma)
                 {
                     result += ch + ",";
                     lastChar = ",";
