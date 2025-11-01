@@ -990,6 +990,9 @@ bool ExecuteCreateContainer(TStringArray tokens)
             // Pula tokens já processados
             i = tokenIdx;
             
+            // Log do JSON antes da normalização
+            WriteToLog("ExecuteCreateContainer(): JSON antes da normalização: " + jsonString, LogFile.INIT, false, LogType.DEBUG);
+            
             // Normaliza JSON: adiciona aspas onde necessário
             jsonString = NormalizeJsonString(jsonString);
             
@@ -1097,14 +1100,17 @@ class ItemAttachmentData
 }
 
 // Parser JSON simplificado - extrai string entre aspas
-// Normaliza JSON: adiciona aspas e vírgulas onde necessário para tokens sem aspas
+// Normaliza JSON: adiciona aspas, vírgulas e chaves onde necessário para tokens sem aspas
 // Converte patterns como "type:AKM" para ""type":"AKM"" e adiciona vírgulas entre propriedades
+// Adiciona { } onde propriedades aparecem diretamente em arrays
 string NormalizeJsonString(string json)
 {
     string result = "";
     int i = 0;
     bool inQuotes = false;
     string lastChar = "";
+    int arrayDepth = 0;
+    int objectDepth = 0;
     
     while (i < json.Length())
     {
@@ -1123,6 +1129,40 @@ string NormalizeJsonString(string json)
         // Dentro de aspas, copia diretamente
         if (inQuotes)
         {
+            result += ch;
+            lastChar = ch;
+            i++;
+            continue;
+        }
+        
+        // Rastreia profundidade de arrays e objetos
+        if (ch == "[")
+        {
+            arrayDepth++;
+            result += ch;
+            lastChar = ch;
+            i++;
+            continue;
+        }
+        if (ch == "]")
+        {
+            arrayDepth--;
+            result += ch;
+            lastChar = ch;
+            i++;
+            continue;
+        }
+        if (ch == "{")
+        {
+            objectDepth++;
+            result += ch;
+            lastChar = ch;
+            i++;
+            continue;
+        }
+        if (ch == "}")
+        {
+            objectDepth--;
             result += ch;
             lastChar = ch;
             i++;
@@ -1156,7 +1196,7 @@ string NormalizeJsonString(string json)
         }
         
         // Detecta padrão chave:valor sem aspas (ex: type:AKM)
-        if (ch != "{" && ch != "}" && ch != "[" && ch != "]" && ch != "," && ch != ":")
+        if (ch != "," && ch != ":")
         {
             // Início de uma palavra (chave ou valor sem aspas)
             string word = "";
@@ -1174,6 +1214,13 @@ string NormalizeJsonString(string json)
             // Verifica se é chave ou valor
             if (i < json.Length() && json.Get(i) == ":")
             {
+                // Verifica contexto: se estamos dentro de um array e último caractere foi [ ou ,, precisa adicionar {
+                if (arrayDepth > 0 && (lastChar == "[" || lastChar == ","))
+                {
+                    result += "{";
+                    objectDepth++;
+                }
+                
                 // É uma chave: adiciona aspas
                 result += "\"" + word + "\"";
                 lastChar = "\"";
@@ -1192,7 +1239,7 @@ string NormalizeJsonString(string json)
                         isValue = true;
                         break;
                     }
-                    if (backCh != " " && backCh != "\t" && backCh != "\n" && backCh != "\r" && backCh != ",")
+                    if (backCh != " " && backCh != "\t" && backCh != "\n" && backCh != "\r" && backCh != "," && backCh != "{")
                         break;
                     backPos--;
                 }
@@ -1229,9 +1276,22 @@ string NormalizeJsonString(string json)
             }
         }
         
+        // Se é } dentro de array, pode precisar fechar objeto
+        if (ch == "}" && arrayDepth > 0 && objectDepth > 0)
+        {
+            objectDepth--;
+        }
+        
         result += ch;
         lastChar = ch;
         i++;
+    }
+    
+    // Fecha objetos abertos dentro de arrays
+    while (objectDepth > 0 && arrayDepth >= 0)
+    {
+        result += "}";
+        objectDepth--;
     }
     
     return result;
