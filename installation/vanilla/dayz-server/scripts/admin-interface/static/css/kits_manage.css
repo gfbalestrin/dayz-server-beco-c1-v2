@@ -288,3 +288,26 @@
     margin-top: 5px;
 }
 
+/* Grid de visualização de container */
+.storage-cell {
+    transition: background-color 0.2s;
+    aspect-ratio: 1;
+}
+
+.grid-item {
+    transition: transform 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.grid-item:hover {
+    transform: scale(1.05);
+    z-index: 10;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.storage-grid img {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    image-rendering: pixelated;
+}
+

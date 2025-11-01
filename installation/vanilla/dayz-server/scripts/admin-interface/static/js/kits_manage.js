@@ -470,6 +470,7 @@ function showAddLootKitModal() {
     selectedLootMagazines = [];
     selectedLootAttachments = [];
     currentLootKitContainer = null;
+    $('#btnSaveLootKit').prop('disabled', false).removeClass('btn-danger').addClass('btn-primary');
     loadLootKitOptions();
     $('#lootKitModal').modal('show');
 }
@@ -1196,91 +1197,226 @@ function updateLootKitSpace() {
     if (!currentLootKitContainer) {
         $('#lootKitUsedSpace').val('');
         $('#lootKitRemainingSpace').val('');
+        if ($('#storageUsagePercent').length) $('#storageUsagePercent').text('0%');
+        if ($('#storageUsedSlots').length) $('#storageUsedSlots').text('0/0');
         return;
     }
     
-    let usedSpace = 0;
+    // Montar payload para API
+    const payload = {
+        container_id: currentLootKitContainer.id,
+        items: selectedLootItems.map(item => ({ item_id: item.item_id, quantity: item.quantity })),
+        weapon_kits: selectedLootWeaponKits.map(kit => ({ weapon_kit_id: kit.weapon_kit_id, quantity: kit.quantity })),
+        explosives: selectedLootExplosives.map(exp => ({ explosive_id: exp.explosive_id, quantity: exp.quantity })),
+        ammunitions: selectedLootAmmunitions.map(ammo => ({ ammunition_id: ammo.ammunition_id, quantity: ammo.quantity })),
+        magazines: selectedLootMagazines.map(mag => ({ magazine_id: mag.magazine_id, quantity: mag.quantity })),
+        attachments: selectedLootAttachments.map(att => ({ attachment_id: att.attachment_id, quantity: att.quantity }))
+    };
     
-    // Calcular espaço dos itens avulsos
-    selectedLootItems.forEach(selected => {
-        const item = allItems.find(i => i.id === selected.item_id);
-        if (item) {
-            usedSpace += item.slots * selected.quantity;
-        }
-    });
-    
-    // Calcular espaço dos kits de arma (arma + magazine + attachments)
-    selectedLootWeaponKits.forEach(selected => {
-        const kit = allWeaponKitsForLoot.find(k => k.id === selected.weapon_kit_id);
-        if (kit) {
-            let kitSpace = 0;
+    // Chamar API de validação
+    $.ajax({
+        url: '/api/kits/loot/validate-space',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function(response) {
+            const available = currentLootKitContainer.storage_slots || 0;
+            const totalSlots = currentLootKitContainer.storage_width * currentLootKitContainer.storage_height;
+            const usedSlots = Math.round(response.usage * totalSlots);
+            const remainingSlots = totalSlots - usedSlots;
             
-            // Espaço da arma
-            kitSpace += kit.weapon_slots || 0;
+            // Atualizar indicadores de espaço (baseado em slots antigos para compatibilidade)
+            const oldUsedSpace = Math.round(response.usage * available);
+            const oldRemaining = available - oldUsedSpace;
             
-            // Espaço do magazine (se houver)
-            if (kit.magazine_slots) {
-                kitSpace += kit.magazine_slots;
+            $('#lootKitUsedSpace').val(oldUsedSpace);
+            $('#lootKitRemainingSpace').val(oldRemaining);
+            if ($('#storageUsagePercent').length) $('#storageUsagePercent').text((response.usage * 100).toFixed(1) + '%');
+            if ($('#storageUsedSlots').length) $('#storageUsedSlots').text(`${usedSlots}/${totalSlots}`);
+            
+            // Alerta visual
+            const indicator = $('#lootKitRemainingSpace');
+            indicator.removeClass('is-invalid is-valid');
+            
+            // Atualizar botão Salvar baseado na validação
+            if (!response.fits || remainingSlots < 0) {
+                indicator.addClass('is-invalid');
+                $('#btnSaveLootKit').prop('disabled', true).removeClass('btn-primary').addClass('btn-danger');
+                
+                // Mostrar erros
+                if (response.errors && response.errors.length > 0) {
+                    let errorMsg = '<div class="alert alert-warning mt-2"><strong>Itens que não cabem:</strong><ul>';
+                    response.errors.forEach(err => {
+                        if (err.dimension === 'both') {
+                            errorMsg += `<li>${err.item}: ${err.width}x${err.height} não cabe no container ${err.container_width}x${err.container_height}</li>`;
+                        } else {
+                            errorMsg += `<li>${err.item}: ${err.dimension} ${err.value} > ${err.max}</li>`;
+                        }
+                    });
+                    errorMsg += '</ul></div>';
+                    if ($('#lootKitSpaceWarning').length) $('#lootKitSpaceWarning').html(errorMsg).show();
+                }
+            } else {
+                indicator.removeClass('is-invalid');
+                $('#btnSaveLootKit').prop('disabled', false).removeClass('btn-danger').addClass('btn-primary');
+                
+                if (remainingSlots <= 0) {
+                    indicator.addClass('is-valid');
+                }
+                if ($('#lootKitSpaceWarning').length) $('#lootKitSpaceWarning').hide();
             }
             
-            // Espaço dos attachments
-            if (kit.attachments && kit.attachments.length > 0) {
-                kit.attachments.forEach(att => {
-                    kitSpace += att.slots || 0;
-                });
+            // Renderizar grid visual se tiver dados E couber no container
+            if (response.fits && response.visual_grid && response.visual_grid.length > 0) {
+                $('#storageVisualization').show();
+                
+                // Aguardar o grid ser renderizado antes de calcular tamanhos
+                setTimeout(() => {
+                    renderStorageGrid(response.visual_grid, currentLootKitContainer.storage_width, currentLootKitContainer.storage_height, response.positions);
+                }, 50);
+            } else {
+                $('#storageVisualization').hide();
             }
-            
-            usedSpace += kitSpace * selected.quantity;
+        },
+        error: function(xhr) {
+            console.error('Erro ao validar espaço:', xhr);
+            // Fallback para cálculo antigo em caso de erro
+            $('#lootKitUsedSpace').val('?');
+            $('#lootKitRemainingSpace').val('?');
+            $('#storageVisualization').hide();
         }
     });
-    
-    // Calcular espaço dos explosivos
-    selectedLootExplosives.forEach(selected => {
-        const exp = allExplosives.find(e => e.id === selected.explosive_id);
-        if (exp) {
-            usedSpace += exp.slots * selected.quantity;
-        }
-    });
-    
-    // Calcular espaço das munições
-    selectedLootAmmunitions.forEach(selected => {
-        const ammo = allAmmunitions.find(a => a.id === selected.ammunition_id);
-        if (ammo) {
-            usedSpace += ammo.slots * selected.quantity;
-        }
-    });
-    
-    // Calcular espaço dos magazines
-    selectedLootMagazines.forEach(selected => {
-        const mag = allMagazinesForLoot.find(m => m.id === selected.magazine_id);
-        if (mag) {
-            usedSpace += mag.slots * selected.quantity;
-        }
-    });
-    
-    // Calcular espaço dos attachments
-    selectedLootAttachments.forEach(selected => {
-        const att = allAttachmentsForLoot.find(a => a.id === selected.attachment_id);
-        if (att) {
-            usedSpace += att.slots * selected.quantity;
-        }
-    });
-    
-    const available = currentLootKitContainer.storage_slots || 0;
-    const remaining = available - usedSpace;
-    
-    $('#lootKitUsedSpace').val(usedSpace);
-    $('#lootKitRemainingSpace').val(remaining);
-    
-    // Alerta visual se exceder
-    const indicator = $('#lootKitRemainingSpace');
-    indicator.removeClass('is-invalid is-valid');
-    
-    if (remaining < 0) {
-        indicator.addClass('is-invalid');
-    } else if (remaining === 0) {
-        indicator.addClass('is-valid');
+}
+
+function renderStorageGrid(gridData, containerWidth, containerHeight, positions) {
+    const gridContainer = $('#storageGrid');
+    if (!gridContainer.length) {
+        return; // Grid ainda não foi adicionado ao HTML
     }
+    
+    gridContainer.empty();
+    gridContainer.css({
+        'display': 'grid',
+        'grid-template-columns': `repeat(${containerWidth}, 1fr)`,
+        'grid-template-rows': `repeat(${containerHeight}, 1fr)`,
+        'gap': '1px',
+        'background': '#ddd',
+        'border': '2px solid #333',
+        'width': '100%',
+        'max-width': '800px',
+        'min-height': '400px',
+        'padding': '2px',
+        'position': 'relative'
+    });
+    
+    // SEMPRE criar células base primeiro
+    for (let y = 0; y < containerHeight; y++) {
+        for (let x = 0; x < containerWidth; x++) {
+            const cell = $('<div></div>').addClass('storage-cell');
+            const isOccupied = gridData[y] && gridData[y][x] === 1;
+            
+            cell.css({
+                'background': isOccupied ? '#e0e0e0' : '#fff',
+                'border': '1px solid #ccc'
+            });
+            gridContainer.append(cell);
+        }
+    }
+    
+    // Se temos posições com detalhes, sobrepor com imagens após renderizar
+    if (positions && positions.length > 0) {
+        // Aguardar próxima frame para garantir que as células foram renderizadas
+        requestAnimationFrame(() => {
+            positions.forEach((pos, index) => {
+                renderItemInGrid(gridContainer, pos, containerWidth, containerHeight, index);
+            });
+        });
+    }
+}
+
+function renderItemInGrid(gridContainer, pos, containerWidth, containerHeight, index) {
+    // Calcular tamanho real de cada célula do grid
+    const gridWidth = gridContainer.width();
+    const gridHeight = gridContainer.height();
+    
+    // Validar se o grid tem tamanho
+    if (gridWidth === 0 || gridHeight === 0) {
+        console.warn('Grid container sem tamanho definido');
+        return;
+    }
+    
+    const cellWidth = gridWidth / containerWidth;
+    const cellHeight = gridHeight / containerHeight;
+    
+    // Calcular posição e tamanho do item
+    const itemLeft = pos.x * cellWidth;
+    const itemTop = pos.y * cellHeight;
+    const itemWidth = pos.width * cellWidth;
+    const itemHeight = pos.height * cellHeight;
+    
+    // Criar container do item
+    const itemDiv = $('<div></div>').addClass('grid-item');
+    itemDiv.css({
+        'position': 'absolute',
+        'left': `${itemLeft}px`,
+        'top': `${itemTop}px`,
+        'width': `${itemWidth}px`,
+        'height': `${itemHeight}px`,
+        'border': '2px solid ' + getItemColor(index),
+        'border-radius': '4px',
+        'overflow': 'hidden',
+        'background': 'rgba(255, 255, 255, 0.9)',
+        'display': 'flex',
+        'align-items': 'center',
+        'justify-content': 'center',
+        'cursor': 'pointer',
+        'box-sizing': 'border-box'
+    });
+    
+    // Adicionar imagem se disponível
+    if (pos.img) {
+        const img = $('<img>').attr('src', pos.img).attr('alt', pos.item);
+        img.css({
+            'max-width': '100%',
+            'max-height': '100%',
+            'object-fit': 'contain'
+        });
+        img.on('error', function() {
+            // Se imagem falhar, usar cor de fallback
+            $(this).remove();
+            itemDiv.css('background', getItemColor(index));
+        });
+        itemDiv.append(img);
+    } else {
+        // Fallback: cor sólida
+        itemDiv.css('background', getItemColor(index));
+    }
+    
+    // Indicador de rotação
+    if (pos.rotated) {
+        const rotIcon = $('<i class="fas fa-redo"></i>').css({
+            'position': 'absolute',
+            'top': '2px',
+            'right': '2px',
+            'font-size': '10px',
+            'color': '#fff',
+            'background': 'rgba(0,0,0,0.5)',
+            'padding': '2px 4px',
+            'border-radius': '3px'
+        });
+        itemDiv.append(rotIcon);
+    }
+    
+    // Tooltip
+    itemDiv.attr('title', pos.item + (pos.rotated ? ' (rotacionado)' : ''));
+    
+    // Adicionar ao grid
+    gridContainer.append(itemDiv);
+}
+
+function getItemColor(index) {
+    const colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4', '#795548', '#607D8B'];
+    return colors[index % colors.length];
 }
 
 function editLootKit(kitId) {
@@ -1346,6 +1482,26 @@ function saveLootKit() {
     const kitId = $('#lootKitId').val();
     const isNew = !kitId;
     
+    // Validação de espaço ANTES de salvar
+    if (!currentLootKitContainer) {
+        showToast('Erro', 'Selecione um container', 'error');
+        return;
+    }
+    
+    // Verificar se há validação de espaço válida
+    const lastValidation = $('#lootKitUsedSpace').val();
+    if (!lastValidation || lastValidation === '' || lastValidation === '?') {
+        showToast('Erro', 'Aguarde a validação de espaço', 'warning');
+        return;
+    }
+    
+    // Verificar se o espaço está excedido
+    const remainingSpace = parseInt($('#lootKitRemainingSpace').val()) || 0;
+    if (remainingSpace < 0) {
+        showToast('Erro', 'Os itens excedem o espaço do container. Remova alguns itens antes de salvar.', 'error');
+        return;
+    }
+    
     const kitData = {
         name: $('#lootKitName').val(),
         container_item_id: parseInt($('#lootKitContainerId').val()),
@@ -1360,23 +1516,6 @@ function saveLootKit() {
     if (!kitData.name || !kitData.container_item_id) {
         showToast('Erro', 'Preencha todos os campos obrigatórios', 'error');
         return;
-    }
-    
-    // Verificar espaço
-    const available = currentLootKitContainer ? currentLootKitContainer.storage_slots : 0;
-    let usedSpace = 0;
-    selectedLootItems.forEach(selected => {
-        const item = allItems.find(i => i.id === selected.item_id);
-        if (item) usedSpace += item.slots * selected.quantity;
-    });
-    selectedLootWeaponKits.forEach(selected => {
-        usedSpace += 10 * selected.quantity; // Simplificado
-    });
-    
-    if (usedSpace > available) {
-        if (!confirm(`Aviso: O espaço usado (${usedSpace}) excede o disponível (${available}). Deseja continuar mesmo assim?`)) {
-            return;
-        }
     }
     
     const url = isNew ? '/api/kits/loot' : `/api/kits/loot/${kitId}`;

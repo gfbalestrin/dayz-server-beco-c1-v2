@@ -4,6 +4,7 @@ Aplicação Flask para interface administrativa DayZ
 from flask import Flask, render_template, request, session, redirect, url_for, jsonify
 from functools import wraps
 import config
+from packing_algorithm import can_fit_items_in_container, pack_items_ffdh
 from database import (
     get_all_players, get_player_coords, get_player_coords_backup,
     get_logs_adm, get_logs_custom,     get_vehicles_tracking, get_vehicles_map_positions,
@@ -1554,6 +1555,155 @@ def api_storage_containers():
 def api_loot_kit_space(kit_id):
     space_used = calculate_loot_kit_space(kit_id)
     return jsonify({'space_used': space_used})
+
+@app.route('/api/kits/loot/validate-space', methods=['POST'])
+@login_required
+def api_validate_loot_kit_space():
+    """Valida se os itens cabem no container usando cálculo 2D"""
+    data = request.get_json()
+    
+    # Buscar container
+    container_id = data.get('container_id')
+    if not container_id:
+        return jsonify({'error': 'container_id é obrigatório'}), 400
+    
+    container = None
+    containers = get_storage_containers()
+    for c in containers:
+        if c['id'] == container_id:
+            container = c
+            break
+    
+    if not container:
+        return jsonify({'error': 'Container não encontrado'}), 404
+    
+    container_width = container.get('storage_width', 0)
+    container_height = container.get('storage_height', 0)
+    
+    if container_width == 0 or container_height == 0:
+        return jsonify({'error': 'Container sem dimensões definidas'}), 400
+    
+    # Construir lista de itens para validação
+    items_to_validate = []
+    
+    # Itens gerais
+    for item in data.get('items', []):
+        item_data = get_item_by_id(item.get('item_id'))
+        if item_data:
+            items_to_validate.append({
+                'id': item_data['id'],
+                'name': item_data['name'],
+                'width': item_data.get('width', 0),
+                'height': item_data.get('height', 0),
+                'slots': item_data.get('slots', 0),
+                'quantity': item.get('quantity', 1),
+                'img': item_data.get('img', '')
+            })
+    
+    # Weapon kits - APENAS adicionar a arma (magazine e attachments ficam anexados)
+    # IMPORTANTE: No DayZ, magazines e attachments anexados à arma
+    # não ocupam espaço adicional no inventário/container.
+    # Por isso, contabilizamos apenas os slots da arma.
+    for weapon_kit_data in data.get('weapon_kits', []):
+        weapon_kit = get_weapon_kit_by_id(weapon_kit_data.get('weapon_kit_id'))
+        if weapon_kit:
+            quantity = weapon_kit_data.get('quantity', 1)
+            
+            # Adicionar APENAS a arma (magazine e attachments não ocupam espaço adicional)
+            if weapon_kit.get('weapon_name_type'):
+                weapons = get_weapons()
+                weapon = next((w for w in weapons if w['name_type'] == weapon_kit['weapon_name_type']), None)
+                if weapon:
+                    items_to_validate.append({
+                        'id': weapon['id'],
+                        'name': weapon['name'],
+                        'width': weapon.get('width', 0),
+                        'height': weapon.get('height', 0),
+                        'slots': weapon.get('slots', 0),
+                        'quantity': quantity,
+                        'img': weapon.get('img', '')
+                    })
+            
+            # REMOVIDO: Não adicionar magazine e attachments separadamente
+            # Eles ficam anexados à arma e não ocupam espaço adicional no container
+    
+    # Explosivos
+    for exp in data.get('explosives', []):
+        exp_data = get_explosive_by_id(exp.get('explosive_id'))
+        if exp_data:
+            items_to_validate.append({
+                'id': exp_data['id'],
+                'name': exp_data['name'],
+                'width': exp_data.get('width', 0),
+                'height': exp_data.get('height', 0),
+                'slots': exp_data.get('slots', 0),
+                'quantity': exp.get('quantity', 1),
+                'img': exp_data.get('img', '')
+            })
+    
+    # Munições
+    for ammo in data.get('ammunitions', []):
+        ammo_data = get_ammunition_by_id(ammo.get('ammunition_id'))
+        if ammo_data:
+            items_to_validate.append({
+                'id': ammo_data['id'],
+                'name': ammo_data['name'],
+                'width': ammo_data.get('width', 0),
+                'height': ammo_data.get('height', 0),
+                'slots': ammo_data.get('slots', 0),
+                'quantity': ammo.get('quantity', 1),
+                'img': ammo_data.get('img', '')
+            })
+    
+    # Magazines
+    for mag in data.get('magazines', []):
+        mag_data = get_magazine_by_id(mag.get('magazine_id'))
+        if mag_data:
+            items_to_validate.append({
+                'id': mag_data['id'],
+                'name': mag_data['name'],
+                'width': mag_data.get('width', 0),
+                'height': mag_data.get('height', 0),
+                'slots': mag_data.get('slots', 0),
+                'quantity': mag.get('quantity', 1),
+                'img': mag_data.get('img', '')
+            })
+    
+    # Attachments
+    for att in data.get('attachments', []):
+        att_data = get_attachment_by_id(att.get('attachment_id'))
+        if att_data:
+            items_to_validate.append({
+                'id': att_data['id'],
+                'name': att_data['name'],
+                'width': att_data.get('width', 0),
+                'height': att_data.get('height', 0),
+                'slots': att_data.get('slots', 0),
+                'quantity': att.get('quantity', 1),
+                'img': att_data.get('img', '')
+            })
+    
+    # Primeiro fazer validação básica (mais rápida)
+    basic_result = can_fit_items_in_container(container_width, container_height, items_to_validate)
+    
+    # Se passou na validação básica, tentar empacotamento completo
+    if basic_result['fits']:
+        packing_result = pack_items_ffdh(container_width, container_height, items_to_validate)
+        return jsonify({
+            'fits': packing_result['fits'],
+            'usage': packing_result['usage'],
+            'positions': packing_result.get('positions', []),
+            'visual_grid': packing_result.get('visual_grid', []),
+            'errors': []
+        })
+    else:
+        return jsonify({
+            'fits': False,
+            'usage': basic_result['usage'],
+            'positions': [],
+            'visual_grid': [],
+            'errors': basic_result['errors']
+        })
 
 # === SPAWNING ===
 @app.route('/api/spawn/weapon-kit', methods=['POST'])
