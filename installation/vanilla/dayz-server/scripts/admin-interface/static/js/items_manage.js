@@ -18,6 +18,7 @@ let itemTypesData = [];
 let allWeaponsForRelationship = [];
 let selectedWeaponsForMagazine = [];
 let selectedWeaponsForAttachment = [];
+let selectedWeaponsForAmmunition = [];
 
 $(document).ready(function() {
     loadWeapons();
@@ -85,6 +86,7 @@ $(document).ready(function() {
     $('#btnSaveAmmunition').on('click', saveAmmunition);
     $('#btnValidateAmmunitionType').on('click', validateAmmunitionNameType);
     $('#ammunitionWidth, #ammunitionHeight').on('input', calculateAmmunitionSlots);
+    $('#ammunitionWeaponSearch').on('input', filterAmmunitionWeapons);
     
     // Event listeners - Magazines
     $('#btnAddMagazine').on('click', showAddMagazineModal);
@@ -775,7 +777,9 @@ function deleteExplosives(id) {
 function showAddAmmunitionModal() {
     $('#ammunitionId').val('');
     $('#ammunitionForm')[0].reset();
+    selectedWeaponsForAmmunition = [];
     loadCalibersForAmmunition();
+    loadWeaponsForAmmunition();
     $('#ammunitionModal').modal('show');
 }
 
@@ -796,6 +800,16 @@ function editAmmunitions(id) {
             // Popular select de calibres
             loadCalibersForAmmunition(function() {
                 $('#ammunitionCaliberId').val(ammo.caliber_id);
+            });
+            
+            // Buscar armas relacionadas
+            $.ajax({
+                url: `/api/manage/ammunitions/${id}/weapons`,
+                method: 'GET',
+                success: function(resp) {
+                    selectedWeaponsForAmmunition = resp.weapons.map(w => w.id);
+                    loadWeaponsForAmmunition();
+                }
             });
             
             $('#ammunitionModal').modal('show');
@@ -825,10 +839,21 @@ function saveAmmunition() {
         method: method,
         contentType: 'application/json',
         data: JSON.stringify(data),
-        success: function() {
-            showToast('Sucesso', 'Munição salva!', 'success');
-            $('#ammunitionModal').modal('hide');
-            loadAmmunitions();
+        success: function(response) {
+            const savedId = response.id || ammunitionId;
+            
+            // Salvar relacionamento com armas
+            $.ajax({
+                url: `/api/manage/ammunitions/${savedId}/weapons`,
+                method: 'PUT',
+                contentType: 'application/json',
+                data: JSON.stringify({ weapon_ids: selectedWeaponsForAmmunition }),
+                success: function() {
+                    showToast('Sucesso', 'Munição salva!', 'success');
+                    $('#ammunitionModal').modal('hide');
+                    loadAmmunitions();
+                }
+            });
         },
         error: function() {
             showToast('Erro', 'Erro ao salvar munição', 'error');
@@ -966,6 +991,7 @@ function loadWeaponsForMagazine() {
         success: function(response) {
             allWeaponsForRelationship = response.weapons;
             renderMagazineWeaponGrid();
+            renderSelectedWeaponsForMagazine();
         }
     });
 }
@@ -1024,6 +1050,74 @@ function renderSelectedWeaponsForMagazine() {
 
 function filterMagazineWeapons() {
     renderMagazineWeaponGrid();
+}
+
+function loadWeaponsForAmmunition() {
+    $.ajax({
+        url: '/api/manage/weapons',
+        method: 'GET',
+        success: function(response) {
+            allWeaponsForRelationship = response.weapons;
+            renderAmmunitionWeaponGrid();
+            renderSelectedWeaponsForAmmunition();
+        }
+    });
+}
+
+function renderAmmunitionWeaponGrid() {
+    const grid = $('#ammunitionWeaponGrid');
+    grid.empty();
+    
+    const searchTerm = $('#ammunitionWeaponSearch').val().toLowerCase();
+    const filtered = allWeaponsForRelationship.filter(w => {
+        return !searchTerm || w.name.toLowerCase().includes(searchTerm) || 
+               w.name_type.toLowerCase().includes(searchTerm);
+    });
+    
+    filtered.forEach(weapon => {
+        const isSelected = selectedWeaponsForAmmunition.includes(weapon.id);
+        const card = $(`
+            <div class="relationship-item ${isSelected ? 'selected' : ''}" onclick="toggleWeaponForAmmunition(${weapon.id})">
+                <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="event.stopPropagation()" onclick="toggleWeaponForAmmunition(${weapon.id})">
+                <img src="${weapon.img}" alt="${weapon.name}" onerror="this.src='https://via.placeholder.com/60?text=No+Img'">
+                <div class="item-name">${weapon.name}</div>
+            </div>
+        `);
+        grid.append(card);
+    });
+}
+
+function toggleWeaponForAmmunition(weaponId) {
+    const index = selectedWeaponsForAmmunition.indexOf(weaponId);
+    if (index === -1) {
+        selectedWeaponsForAmmunition.push(weaponId);
+    } else {
+        selectedWeaponsForAmmunition.splice(index, 1);
+    }
+    renderAmmunitionWeaponGrid();
+    renderSelectedWeaponsForAmmunition();
+}
+
+function renderSelectedWeaponsForAmmunition() {
+    const container = $('#selectedAmmunitionWeapons .selected-items-grid');
+    container.empty();
+    
+    selectedWeaponsForAmmunition.forEach(weaponId => {
+        const weapon = allWeaponsForRelationship.find(w => w.id === weaponId);
+        if (weapon) {
+            const badge = $(`
+                <span class="badge bg-primary me-2 mb-2">
+                    ${weapon.name}
+                    <button type="button" class="btn-close btn-close-white ms-1" onclick="toggleWeaponForAmmunition(${weaponId})"></button>
+                </span>
+            `);
+            container.append(badge);
+        }
+    });
+}
+
+function filterAmmunitionWeapons() {
+    renderAmmunitionWeaponGrid();
 }
 
 function deleteMagazines(id) {

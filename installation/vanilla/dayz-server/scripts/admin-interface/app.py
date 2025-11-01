@@ -32,7 +32,8 @@ from database import (
     get_item_compatibility, update_item_compatibility,
     validate_item_type,
     get_magazine_weapons, update_magazine_weapons,
-    get_attachment_weapons, update_attachment_weapons
+    get_attachment_weapons, update_attachment_weapons,
+    get_ammunition_weapons, update_ammunition_weapons
 )
 from datetime import datetime
 
@@ -1374,6 +1375,23 @@ def api_manage_magazine_weapons_update(mag_id):
     weapon_ids = data.get('weapon_ids', [])
     try:
         success = update_magazine_weapons(mag_id, weapon_ids)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/manage/ammunitions/<int:ammo_id>/weapons', methods=['GET'])
+@login_required
+def api_manage_ammunition_weapons_get(ammo_id):
+    weapons = get_ammunition_weapons(ammo_id)
+    return jsonify({'weapons': weapons})
+
+@app.route('/api/manage/ammunitions/<int:ammo_id>/weapons', methods=['PUT'])
+@login_required
+def api_manage_ammunition_weapons_update(ammo_id):
+    data = request.get_json()
+    weapon_ids = data.get('weapon_ids', [])
+    try:
+        success = update_ammunition_weapons(ammo_id, weapon_ids)
         return jsonify({'success': success})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400

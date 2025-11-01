@@ -1202,3 +1202,29 @@ def update_attachment_weapons(attachment_id: int, weapon_ids: List[int]) -> bool
             """, (weapon_id, attachment_id))
         conn.commit()
         return True
+
+def get_ammunition_weapons(ammunition_id: int) -> List[Dict]:
+    """Retorna armas relacionadas a uma munição"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT w.* FROM weapons w
+            INNER JOIN weapon_ammunitions wa ON w.id = wa.weapon_id
+            WHERE wa.ammo_id = ?
+        """, (ammunition_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+def update_ammunition_weapons(ammunition_id: int, weapon_ids: List[int]) -> bool:
+    """Atualiza armas relacionadas a uma munição"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        # Remover relacionamentos existentes
+        cursor.execute("DELETE FROM weapon_ammunitions WHERE ammo_id=?", (ammunition_id,))
+        # Inserir novos relacionamentos
+        for weapon_id in weapon_ids:
+            cursor.execute("""
+                INSERT INTO weapon_ammunitions (weapon_id, ammo_id)
+                VALUES (?, ?)
+            """, (weapon_id, ammunition_id))
+        conn.commit()
+        return True
