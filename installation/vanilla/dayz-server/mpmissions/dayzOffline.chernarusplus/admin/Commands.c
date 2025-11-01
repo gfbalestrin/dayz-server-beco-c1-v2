@@ -889,8 +889,11 @@ bool ExecuteCreateContainer(TStringArray tokens)
         itemsProcessed++;
         
         // Verifica se é JSON: começa com { ou tem : e estrutura JSON ({, }, [, ])
+        // Caso especial: se é o primeiro token após coordenadas (i==5) e tem : mas não tem estrutura,
+        // pode ser início de JSON fragmentado - tratamos como JSON
         bool looksLikeJsonToken = hasColon && (hasOpenBrace || hasCloseBrace || hasOpenBracket || hasCloseBracket);
-        bool isJsonStart = isJsonToken || looksLikeJsonToken;
+        bool isPotentialJsonStart = (i == 5 && hasColon && !hasOpenBrace && !hasCloseBrace && !hasOpenBracket && !hasCloseBracket);
+        bool isJsonStart = isJsonToken || looksLikeJsonToken || isPotentialJsonStart;
         
         if (isJsonStart)
         {
@@ -901,27 +904,36 @@ bool ExecuteCreateContainer(TStringArray tokens)
             // Nesse caso, tentamos adicionar no início se necessário
             if (!isJsonToken)
             {
-                // Verifica se precisa adicionar { no início
-                int braceCount = 0;
-                int bracketCount = 0;
-                for (int braceIdx = 0; braceIdx < jsonString.Length(); braceIdx++)
-                {
-                    string braceChr = jsonString.Get(braceIdx);
-                    if (braceChr == "{")
-                        braceCount++;
-                    else if (braceChr == "}")
-                        braceCount--;
-                    else if (braceChr == "[")
-                        bracketCount++;
-                    else if (braceChr == "]")
-                        bracketCount--;
-                }
-                
-                // Se não tem chave de abertura mas tem estrutura JSON, adiciona {
-                if (!hasOpenBrace && (hasColon || hasOpenBracket || hasCloseBrace || hasCloseBracket))
+                // Se é início potencial de JSON (token 5 sem estrutura), sempre adiciona {
+                if (isPotentialJsonStart)
                 {
                     jsonString = "{" + jsonString;
-                    WriteToLog("ExecuteCreateContainer(): Adicionando { no início do JSON: " + jsonString, LogFile.INIT, false, LogType.DEBUG);
+                    WriteToLog("ExecuteCreateContainer(): Adicionando { no início do JSON (início potencial detectado): " + jsonString, LogFile.INIT, false, LogType.DEBUG);
+                }
+                else
+                {
+                    // Verifica se precisa adicionar { no início
+                    int braceCount = 0;
+                    int bracketCount = 0;
+                    for (int braceIdx = 0; braceIdx < jsonString.Length(); braceIdx++)
+                    {
+                        string braceChr = jsonString.Get(braceIdx);
+                        if (braceChr == "{")
+                            braceCount++;
+                        else if (braceChr == "}")
+                            braceCount--;
+                        else if (braceChr == "[")
+                            bracketCount++;
+                        else if (braceChr == "]")
+                            bracketCount--;
+                    }
+                    
+                    // Se não tem chave de abertura mas tem estrutura JSON, adiciona {
+                    if (!hasOpenBrace && (hasColon || hasOpenBracket || hasCloseBrace || hasCloseBracket))
+                    {
+                        jsonString = "{" + jsonString;
+                        WriteToLog("ExecuteCreateContainer(): Adicionando { no início do JSON: " + jsonString, LogFile.INIT, false, LogType.DEBUG);
+                    }
                 }
             }
             
