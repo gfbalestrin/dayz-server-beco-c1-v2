@@ -754,7 +754,7 @@ bool ExecuteCreateContainer(TStringArray tokens)
     float coordY = tokens[4].ToFloat();
     
     // Validar tipo de container
-    if (containerType != "WoodenCrate" && containerType != "Barrel_Yellow" && containerType != "Barrel_Red" && containerType != "Barrel_Green" && containerType != "Barrel_Blue")
+    if (containerType != "WoodenCrate" && containerType != "Barrel_Yellow" && containerType != "Barrel_Red" && containerType != "Barrel_Green" && containerType != "Barrel_Blue" && containerType != "SeaChest")
     {
         WriteToLog("ExecuteCreateContainer(): Tipo de container inválido: " + containerType, LogFile.INIT, false, LogType.ERROR);
         return false;
@@ -782,42 +782,116 @@ bool ExecuteCreateContainer(TStringArray tokens)
     int itemsInContainer = 0;
     int itemsOnGround = 0;
     
+    // Prepara posição de fallback no chão
+    vector groundPos = containerPos;
+    float offsetX = Math.RandomFloatInclusive(-1.5, 1.5);
+    float offsetZ = Math.RandomFloatInclusive(-1.5, 1.5);
+    groundPos[0] = groundPos[0] + offsetX;
+    groundPos[2] = groundPos[2] + offsetZ;
+    groundPos[1] = GetGame().SurfaceY(groundPos[0], groundPos[2]);
+    
     for (int i = 5; i < tokens.Count(); i++)
     {
-        string itemType = tokens[i];
+        string token = tokens[i];
         itemsProcessed++;
         
-        // Tentar adicionar no container
-        EntityAI item = container.GetInventory().CreateInInventory(itemType);
-        
-        if (item)
+        // Verifica se é JSON (começa com {)
+        if (token.Length() > 0 && token.Get(0) == "{")
         {
-            itemsInContainer++;
-            WriteToLog("Item " + itemType + " adicionado ao container", LogFile.INIT, false, LogType.DEBUG);
-        }
-        else
-        {
-            // Criar no chão próximo ao container
-            vector groundPos = containerPos;
+            // Processa JSON - pode ser multi-token, então precisa reconstruir
+            string jsonString = token;
             
-            // Adicionar offset aleatório pequeno (0.5 a 1.5 metros)
-            float offsetX = Math.RandomFloatInclusive(-1.5, 1.5);
-            float offsetZ = Math.RandomFloatInclusive(-1.5, 1.5);
-            
-            groundPos[0] = groundPos[0] + offsetX;
-            groundPos[2] = groundPos[2] + offsetZ;
-            groundPos[1] = GetGame().SurfaceY(groundPos[0], groundPos[2]);
-            
-            EntityAI groundItem = EntityAI.Cast(GetGame().CreateObject(itemType, groundPos, false, true));
-            
-            if (groundItem)
+            // Se o JSON está dividido em múltiplos tokens, reconstrói
+            int openBraces = 0;
+            for (int j = 0; j < jsonString.Length(); j++)
             {
-                itemsOnGround++;
-                WriteToLog("Item " + itemType + " criado no chão (sem espaço no container)", LogFile.INIT, false, LogType.DEBUG);
+                string ch = jsonString.Get(j);
+                if (ch == "{")
+                    openBraces++;
+                else if (ch == "}")
+                    openBraces--;
+            }
+            
+            // Se não está completo, junta tokens até completar
+            int tokenIdx = i;
+            while (openBraces > 0 && tokenIdx < tokens.Count() - 1)
+            {
+                tokenIdx++;
+                jsonString = jsonString + " " + tokens[tokenIdx];
+                for (int j = 0; j < tokens[tokenIdx].Length(); j++)
+                {
+                    string ch = tokens[tokenIdx].Get(j);
+                    if (ch == "{")
+                        openBraces++;
+                    else if (ch == "}")
+                        openBraces--;
+                }
+            }
+            
+            // Pula tokens já processados
+            i = tokenIdx;
+            
+            // Parse JSON
+            int jsonPos = 0;
+            ref ItemAttachmentData itemData = ParseItemJson(jsonString, jsonPos);
+            
+            if (itemData && itemData.type != "")
+            {
+                EntityAI item = CreateItemWithAttachments(itemData, container, groundPos);
+                
+                if (item)
+                {
+                    itemsInContainer++;
+                    WriteToLog("Item JSON " + itemData.type + " adicionado ao container", LogFile.INIT, false, LogType.DEBUG);
+                }
+                else
+                {
+                    itemsOnGround++;
+                    WriteToLog("Item JSON " + itemData.type + " criado no chão", LogFile.INIT, false, LogType.DEBUG);
+                }
             }
             else
             {
-                WriteToLog("Falha ao criar item: " + itemType, LogFile.INIT, false, LogType.ERROR);
+                WriteToLog("Falha ao parsear JSON de item: " + token, LogFile.INIT, false, LogType.ERROR);
+            }
+        }
+        else
+        {
+            // Formato simples (item sem attachments) - mantém compatibilidade
+            string itemType = token;
+            
+            // Tentar adicionar no container
+            EntityAI item = container.GetInventory().CreateInInventory(itemType);
+            
+            if (item)
+            {
+                itemsInContainer++;
+                WriteToLog("Item " + itemType + " adicionado ao container", LogFile.INIT, false, LogType.DEBUG);
+            }
+            else
+            {
+                // Criar no chão próximo ao container
+                vector itemGroundPos = containerPos;
+                
+                // Adicionar offset aleatório pequeno
+                float itemOffsetX = Math.RandomFloatInclusive(-1.5, 1.5);
+                float itemOffsetZ = Math.RandomFloatInclusive(-1.5, 1.5);
+                
+                itemGroundPos[0] = itemGroundPos[0] + itemOffsetX;
+                itemGroundPos[2] = itemGroundPos[2] + itemOffsetZ;
+                itemGroundPos[1] = GetGame().SurfaceY(itemGroundPos[0], itemGroundPos[2]);
+                
+                EntityAI groundItem = EntityAI.Cast(GetGame().CreateObject(itemType, itemGroundPos, false, true));
+                
+                if (groundItem)
+                {
+                    itemsOnGround++;
+                    WriteToLog("Item " + itemType + " criado no chão (sem espaço no container)", LogFile.INIT, false, LogType.DEBUG);
+                }
+                else
+                {
+                    WriteToLog("Falha ao criar item: " + itemType, LogFile.INIT, false, LogType.ERROR);
+                }
             }
         }
     }
@@ -839,4 +913,218 @@ bool IsInteger(string s)
     }
 
     return true;
+}
+
+// ============================================================================
+// SISTEMA DE ATTACHMENTS JSON RECURSIVOS
+// ============================================================================
+
+// Classe para representar item com attachments
+class ItemAttachmentData
+{
+    string type;
+    ref array<ref ItemAttachmentData> attachments;
+    
+    void ItemAttachmentData()
+    {
+        attachments = new array<ref ItemAttachmentData>;
+    }
+}
+
+// Parser JSON simplificado - extrai string entre aspas
+string ExtractJsonString(ref string json, ref int pos)
+{
+    string result = "";
+    if (pos >= json.Length())
+        return result;
+    
+    // Pula até encontrar aspas de abertura
+    while (pos < json.Length() && json.Get(pos) != "\"")
+        pos++;
+    
+    if (pos >= json.Length())
+        return result;
+    
+    pos++; // Pula a aspas de abertura
+    
+    // Extrai até encontrar aspas de fechamento
+    while (pos < json.Length())
+    {
+        string ch = json.Get(pos);
+        if (ch == "\"")
+            break;
+        result += ch;
+        pos++;
+    }
+    
+    pos++; // Pula aspas de fechamento
+    return result;
+}
+
+// Pula espaços e vírgulas
+void SkipWhitespaceAndCommas(ref string json, ref int pos)
+{
+    while (pos < json.Length())
+    {
+        string ch = json.Get(pos);
+        if (ch == " " || ch == "\t" || ch == "\n" || ch == "\r" || ch == ",")
+            pos++;
+        else
+            break;
+    }
+}
+
+// Parse JSON array de attachments
+void ParseAttachmentsArray(ref string json, ref int pos, ref array<ref ItemAttachmentData> attachments)
+{
+    if (pos >= json.Length())
+        return;
+    
+    // Pula até encontrar [
+    while (pos < json.Length() && json.Get(pos) != "[")
+        pos++;
+    
+    if (pos >= json.Length())
+        return;
+    
+    pos++; // Pula [
+    SkipWhitespaceAndCommas(json, pos);
+    
+    // Processa cada item do array
+    while (pos < json.Length() && json.Get(pos) != "]")
+    {
+        SkipWhitespaceAndCommas(json, pos);
+        
+        if (pos >= json.Length() || json.Get(pos) == "]")
+            break;
+        
+        // Parse objeto de attachment
+        if (json.Get(pos) == "{")
+        {
+            ref ItemAttachmentData attachment = ParseItemJson(json, pos);
+            if (attachment)
+                attachments.Insert(attachment);
+        }
+        
+        SkipWhitespaceAndCommas(json, pos);
+    }
+    
+    if (pos < json.Length() && json.Get(pos) == "]")
+        pos++; // Pula ]
+}
+
+// Parse objeto JSON de item
+ref ItemAttachmentData ParseItemJson(ref string json, ref int pos)
+{
+    ref ItemAttachmentData item = new ItemAttachmentData;
+    
+    if (pos >= json.Length())
+        return null;
+    
+    // Pula até encontrar {
+    while (pos < json.Length() && json.Get(pos) != "{")
+        pos++;
+    
+    if (pos >= json.Length())
+        return null;
+    
+    pos++; // Pula {
+    SkipWhitespaceAndCommas(json, pos);
+    
+    // Processa propriedades do objeto
+    while (pos < json.Length() && json.Get(pos) != "}")
+    {
+        SkipWhitespaceAndCommas(json, pos);
+        
+        if (pos >= json.Length() || json.Get(pos) == "}")
+            break;
+        
+        // Extrai nome da propriedade
+        string propName = ExtractJsonString(json, pos);
+        SkipWhitespaceAndCommas(json, pos);
+        
+        // Pula :
+        if (pos < json.Length() && json.Get(pos) == ":")
+            pos++;
+        
+        SkipWhitespaceAndCommas(json, pos);
+        
+        // Processa valor da propriedade
+        if (propName == "type")
+        {
+            item.type = ExtractJsonString(json, pos);
+        }
+        else if (propName == "attachments")
+        {
+            ParseAttachmentsArray(json, pos, item.attachments);
+        }
+        
+        SkipWhitespaceAndCommas(json, pos);
+    }
+    
+    if (pos < json.Length() && json.Get(pos) == "}")
+        pos++; // Pula }
+    
+    return item;
+}
+
+// Função recursiva para criar item com attachments
+EntityAI CreateItemWithAttachments(ref ItemAttachmentData itemData, EntityAI container, vector fallbackPos)
+{
+    if (!itemData || !itemData.type || itemData.type == "")
+        return null;
+    
+    EntityAI item = null;
+    
+    // Tenta criar no container
+    if (container)
+        item = container.GetInventory().CreateInInventory(itemData.type);
+    
+    // Se não conseguir, cria no chão
+    if (!item)
+    {
+        item = EntityAI.Cast(GetGame().CreateObject(itemData.type, fallbackPos, false, true));
+    }
+    
+    if (!item)
+    {
+        WriteToLog("CreateItemWithAttachments(): Falha ao criar item: " + itemData.type, LogFile.INIT, false, LogType.ERROR);
+        return null;
+    }
+    
+    WriteToLog("CreateItemWithAttachments(): Item criado: " + itemData.type, LogFile.INIT, false, LogType.DEBUG);
+    
+    // Processa attachments recursivamente usando função auxiliar
+    if (itemData.attachments && itemData.attachments.Count() > 0)
+        ProcessAttachmentsRecursive(item, itemData.attachments);
+    
+    return item;
+}
+
+// Função auxiliar para processar recursivamente attachments profundos
+void ProcessAttachmentsRecursive(EntityAI parentItem, ref array<ref ItemAttachmentData> attachments)
+{
+    if (!parentItem || !attachments)
+        return;
+    
+    foreach (ref ItemAttachmentData attachment : attachments)
+    {
+        if (!attachment)
+            continue;
+        
+        EntityAI attachmentEntity = parentItem.GetInventory().CreateAttachment(attachment.type);
+        
+        if (attachmentEntity)
+        {
+            WriteToLog("ProcessAttachmentsRecursive(): Attachment criado: " + attachment.type, LogFile.INIT, false, LogType.DEBUG);
+            
+            // Processa sub-attachments recursivamente
+            if (attachment.attachments && attachment.attachments.Count() > 0)
+                ProcessAttachmentsRecursive(attachmentEntity, attachment.attachments);
+        }
+        else
+        {
+            WriteToLog("ProcessAttachmentsRecursive(): Falha ao criar attachment: " + attachment.type, LogFile.INIT, false, LogType.ERROR);
+        }
+    }
 }
