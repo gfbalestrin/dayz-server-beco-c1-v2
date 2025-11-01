@@ -184,7 +184,7 @@ bool ExecuteCommand(TStringArray tokens)
             }
             target.SetHealth("", "", 100);
             target.SetHealth("GlobalHealth", "Blood", 5000);
-            target.SetHealth("GlobalHealth", "Shock", 0);
+            target.SetHealth("GlobalHealth", "Shock", 5000);
             target.GetStatEnergy().Set(4000);
             target.GetStatWater().Set(4000);
             target.MessageStatus("Você foi curado");
