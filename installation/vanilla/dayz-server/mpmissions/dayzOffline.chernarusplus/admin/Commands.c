@@ -794,7 +794,10 @@ bool ExecuteCreateContainer(TStringArray tokens)
     {
         string token = tokens[i];
         
-        // Verifica se é JSON (começa com { ou contém estrutura JSON completa)
+        // Log para depuração
+        WriteToLog("ExecuteCreateContainer(): Processando token " + i.ToString() + ": " + token, LogFile.INIT, false, LogType.DEBUG);
+        
+        // Verifica se é JSON (começa com { ou contém estrutura JSON)
         bool isJsonToken = false;
         bool hasOpenBrace = false;
         bool hasCloseBrace = false;
@@ -823,41 +826,86 @@ bool ExecuteCreateContainer(TStringArray tokens)
                     hasQuote = true;
             }
             
-            // Se tem estrutura JSON típica mas não começa com {, pode ser continuação ou JSON completo em um token
-            if (!isJsonToken && (hasColon || hasQuote || hasOpenBrace || hasCloseBrace))
+            // Se tem estrutura JSON típica mas não começa com {, pode ser continuação
+            if (!isJsonToken && hasColon && (hasQuote || hasOpenBrace || hasCloseBrace))
             {
-                // Verifica se tem estrutura completa de JSON (tem : e ")
-                if (hasColon && hasQuote)
+                // Procura para trás para ver se há JSON iniciado
+                bool foundJsonStart = false;
+                for (int backIdx = i - 1; backIdx >= 5; backIdx--)
                 {
-                    // Pode ser continuação de JSON anterior
-                    if (i > 5)
+                    string prevToken = tokens[backIdx];
+                    if (prevToken.Length() > 0)
                     {
-                        for (int backIdx = i - 1; backIdx >= 5; backIdx--)
+                        // Verifica se token anterior começa com { ou tem estrutura JSON
+                        bool prevHasOpenBrace = false;
+                        bool prevHasColon = false;
+                        bool prevHasQuote = false;
+                        
+                        if (prevToken.Get(0) == "{")
+                            prevHasOpenBrace = true;
+                        
+                        for (int prevIdx = 0; prevIdx < prevToken.Length(); prevIdx++)
                         {
-                            string prevToken = tokens[backIdx];
-                            if (prevToken.Length() > 0)
-                            {
-                                if (prevToken.Get(0) == "{")
-                                {
-                                    // É continuação, será processado junto
-                                    WriteToLog("Token JSON continuação detectado, ignorando: " + token, LogFile.INIT, false, LogType.DEBUG);
-                                    continue;
-                                }
-                            }
+                            string prevChr = prevToken.Get(prevIdx);
+                            if (prevChr == "{")
+                                prevHasOpenBrace = true;
+                            else if (prevChr == ":")
+                                prevHasColon = true;
+                            else if (prevChr == "\"")
+                                prevHasQuote = true;
+                        }
+                        
+                        if (prevHasOpenBrace || (prevHasColon && prevHasQuote))
+                        {
+                            foundJsonStart = true;
+                            break;
                         }
                     }
+                }
+                
+                if (foundJsonStart)
+                {
+                    // É continuação de JSON anterior, será processado junto
+                    WriteToLog("Token JSON continuação detectado, ignorando (será processado com JSON anterior): " + token, LogFile.INIT, false, LogType.DEBUG);
+                    continue;
                 }
             }
         }
         
         itemsProcessed++;
         
-        if (isJsonToken)
+        // Verifica se é JSON (começa com { ou tem estrutura JSON completa)
+        bool isJsonStart = isJsonToken || (hasColon && hasQuote && !hasOpenBrace && i == 5);
+        
+        if (isJsonStart || (hasColon && hasQuote && (hasOpenBrace || hasCloseBrace)))
         {
             // Processa JSON - pode ser multi-token, então precisa reconstruir
             string jsonString = token;
             
-            // Se o JSON está dividido em múltiplos tokens, reconstrói
+            // Se o token tem estrutura JSON mas não começa com {, pode ser que { foi perdido
+            // Nesse caso, tentamos adicionar no início se necessário
+            if (!isJsonToken && hasColon && hasQuote)
+            {
+                // Verifica se precisa adicionar { no início
+                int braceCount = 0;
+                for (int idx = 0; idx < jsonString.Length(); idx++)
+                {
+                    string chr = jsonString.Get(idx);
+                    if (chr == "{")
+                        braceCount++;
+                    else if (chr == "}")
+                        braceCount--;
+                }
+                
+                // Se não tem chave de abertura mas tem fechamento, adiciona {
+                if (braceCount < 0 || (braceCount == 0 && !hasOpenBrace))
+                {
+                    jsonString = "{" + jsonString;
+                    WriteToLog("ExecuteCreateContainer(): Adicionando { no início do JSON: " + jsonString, LogFile.INIT, false, LogType.DEBUG);
+                }
+            }
+            
+            // Calcula chaves abertas/fechadas
             int openBraces = 0;
             for (int idx = 0; idx < jsonString.Length(); idx++)
             {
@@ -884,11 +932,18 @@ bool ExecuteCreateContainer(TStringArray tokens)
                 }
             }
             
+            // Se ainda não fechou todas as chaves, pode faltar }
+            if (openBraces > 0)
+            {
+                jsonString = jsonString + "}";
+                WriteToLog("ExecuteCreateContainer(): Adicionando } no final do JSON", LogFile.INIT, false, LogType.DEBUG);
+            }
+            
             // Pula tokens já processados
             i = tokenIdx;
             
             // Parse JSON
-            WriteToLog("ExecuteCreateContainer(): Parseando JSON: " + jsonString, LogFile.INIT, false, LogType.DEBUG);
+            WriteToLog("ExecuteCreateContainer(): Parseando JSON reconstruído: " + jsonString, LogFile.INIT, false, LogType.DEBUG);
             int jsonPos = 0;
             int nextJsonPos = 0;
             ref ItemAttachmentData itemData = ParseItemJson(jsonString, jsonPos, nextJsonPos);
