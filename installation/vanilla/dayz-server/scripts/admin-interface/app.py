@@ -1762,35 +1762,42 @@ def api_spawn_weapon_kit():
     if not kit:
         return jsonify({'success': False, 'message': 'Kit não encontrado'}), 404
     
+    # Buscar posição mais recente do jogador
+    player_coords = get_player_coords(player_id)
+    if not player_coords or len(player_coords) == 0:
+        return jsonify({'success': False, 'message': 'Jogador não encontrado ou sem posição'}), 404
+    
+    # Pegar coordenadas mais recentes (primeira da lista)
+    latest_coord = player_coords[0]
+    
     try:
+        # Montar JSON do weapon kit usando função existente
+        weapon_json = build_weapon_kit_json(kit)
+        
+        # Usar coordenadas do jogador
+        coord_x = latest_coord['CoordX']
+        coord_y = latest_coord['CoordY']
+        
+        # Montar comando createweapon (cria arma montada próxima ao jogador)
+        command = f"SYSTEM createweapon {coord_x} {coord_y} {weapon_json}\n"
+        
+        # Escrever no arquivo com file locking
         with open(config.COMMANDS_FILE, 'a') as f:
             fcntl.flock(f.fileno(), fcntl.LOCK_EX)
             try:
-                # Spawnar arma
-                if kit.get('weapon_name_type'):
-                    f.write(f"{player_id} giveitem {kit['weapon_name_type']} 1\n")
-                
-                # Spawnar magazine
-                if kit.get('magazine_name_type'):
-                    f.write(f"{player_id} giveitem {kit['magazine_name_type']} 1\n")
-                
-                # Spawnar attachments
-                for att in kit.get('attachments', []):
-                    if att.get('name_type'):
-                        f.write(f"{player_id} giveitem {att['name_type']} 1\n")
-                
+                f.write(command)
                 f.flush()
                 os.fsync(f.fileno())
             finally:
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         
-        logger.info(f"Kit de arma {kit_id} spawnado para {player_id}")
+        logger.info(f"Weapon kit {kit_id} spawnado para {player_id}")
         return jsonify({
             'success': True,
-            'message': f'Kit de arma spawnado com sucesso!'
+            'message': f'Weapon kit spawnado com sucesso!'
         })
     except Exception as e:
-        logger.exception("Erro ao spawnar kit de arma")
+        logger.exception("Erro ao spawnar weapon kit")
         return jsonify({
             'success': False,
             'message': f'Erro ao spawnar kit: {str(e)}'
