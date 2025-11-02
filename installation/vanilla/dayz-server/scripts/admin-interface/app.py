@@ -1970,37 +1970,51 @@ def api_spawn_loot_kit_coords():
     
     try:
         # Montar lista de itens
-        items = []
+        weapon_kit_items = []
+        simple_items = []
         
-        # Weapon kits (JSON)
+        # Weapon kits (JSON) - processar primeiro
         for wk in kit.get('weapon_kits', []):
             for _ in range(wk.get('quantity', 1)):
-                items.append(build_weapon_kit_json(wk))
+                weapon_kit_items.append(build_weapon_kit_json(wk))
         
         # Itens avulsos (name_type simples)
         for item in kit.get('items', []):
             for _ in range(item.get('quantity', 1)):
-                items.append(item['name_type'])
+                simple_items.append(item['name_type'])
         
         # Explosivos
         for exp in kit.get('explosives', []):
             for _ in range(exp.get('quantity', 1)):
-                items.append(exp['name_type'])
+                simple_items.append(exp['name_type'])
         
         # Munições
         for ammo in kit.get('ammunitions', []):
             for _ in range(ammo.get('quantity', 1)):
-                items.append(ammo['name_type'])
+                simple_items.append(ammo['name_type'])
         
         # Magazines
         for mag in kit.get('magazines', []):
             for _ in range(mag.get('quantity', 1)):
-                items.append(mag['name_type'])
+                simple_items.append(mag['name_type'])
         
         # Attachments
         for att in kit.get('attachments', []):
             for _ in range(att.get('quantity', 1)):
-                items.append(att['name_type'])
+                simple_items.append(att['name_type'])
+        
+        # Ordenar itens simples por slots (maiores primeiro)
+        # Buscar slots de cada item e ordenar
+        def get_slots(name_type):
+            item_details = get_item_details_from_items_db(name_type)
+            if item_details and item_details.get('slots'):
+                return item_details['slots']
+            return 0
+        
+        simple_items_sorted = sorted(simple_items, key=get_slots, reverse=True)
+        
+        # Combinar: weapon kits primeiro (são grandes), depois itens simples ordenados
+        items = weapon_kit_items + simple_items_sorted
         
         # Montar comando
         container_type = kit['container_name_type']

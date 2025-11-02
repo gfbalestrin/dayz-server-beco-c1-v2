@@ -173,7 +173,7 @@ def get_item_details_from_items_db(name_type: str) -> Optional[Dict]:
         with DatabaseConnection(config.DB_ITEMS) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT id, name, name_type, img
+                SELECT id, name, name_type, img, slots, width, height
                 FROM item
                 WHERE name_type = ?
             """, (name_type,))
