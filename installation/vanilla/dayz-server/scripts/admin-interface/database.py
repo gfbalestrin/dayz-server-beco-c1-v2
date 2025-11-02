@@ -2,6 +2,9 @@
 Camada de acesso aos bancos de dados SQLite
 """
 import sqlite3
+import base64
+import json
+import os
 from datetime import datetime
 from typing import List, Dict, Optional, Tuple
 import config
@@ -2108,3 +2111,353 @@ def get_unique_audit_actions() -> List[str]:
         cursor = conn.cursor()
         cursor.execute("SELECT DISTINCT Action FROM user_audit_logs ORDER BY Action")
         return [row[0] for row in cursor.fetchall()]
+
+# ============================================================================
+# FUNÇÕES DE LOADOUTS
+# ============================================================================
+
+# ============================================================================
+# LOADOUTS CUSTOM
+# ============================================================================
+
+def get_loadouts_custom() -> List[Dict]:
+    """Retorna todos os loadouts custom"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, name, is_active, loadout_data, created_at, updated_at
+            FROM loadouts_custom
+            ORDER BY name
+        """)
+        results = []
+        for row in cursor.fetchall():
+            loadout = dict(row)
+            loadout['loadout_data'] = json.loads(loadout['loadout_data'])
+            results.append(loadout)
+        return results
+
+def get_loadout_custom_by_id(loadout_id: int) -> Optional[Dict]:
+    """Retorna um loadout custom por ID"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, name, is_active, loadout_data, created_at, updated_at
+            FROM loadouts_custom
+            WHERE id = ?
+        """, (loadout_id,))
+        row = cursor.fetchone()
+        if row:
+            loadout = dict(row)
+            loadout['loadout_data'] = json.loads(loadout['loadout_data'])
+            return loadout
+        return None
+
+def create_loadout_custom(name: str, is_active: bool, loadout_data: Dict) -> Optional[int]:
+    """Cria um novo loadout custom"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        loadout_json = json.dumps(loadout_data, ensure_ascii=False)
+        cursor.execute("""
+            INSERT INTO loadouts_custom (name, is_active, loadout_data, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        """, (name, 1 if is_active else 0, loadout_json))
+        conn.commit()
+        return cursor.lastrowid if cursor.rowcount > 0 else None
+
+def update_loadout_custom(loadout_id: int, name: str, is_active: bool, loadout_data: Dict) -> bool:
+    """Atualiza um loadout custom"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        loadout_json = json.dumps(loadout_data, ensure_ascii=False)
+        cursor.execute("""
+            UPDATE loadouts_custom
+            SET name = ?, is_active = ?, loadout_data = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (name, 1 if is_active else 0, loadout_json, loadout_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def delete_loadout_custom(loadout_id: int) -> bool:
+    """Deleta um loadout custom"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM loadouts_custom WHERE id = ?", (loadout_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+# ============================================================================
+# LOADOUTS PLAYERS
+# ============================================================================
+
+def get_loadouts_by_player(player_id: str) -> List[Dict]:
+    """Retorna todos os loadouts de um jogador"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, player_id, loadout_id, name, is_active, loadout_data, created_at, updated_at
+            FROM loadouts_players
+            WHERE player_id = ?
+            ORDER BY loadout_id
+        """, (player_id,))
+        results = []
+        for row in cursor.fetchall():
+            loadout = dict(row)
+            loadout['loadout_data'] = json.loads(loadout['loadout_data'])
+            results.append(loadout)
+        return results
+
+def get_loadout_player_by_id(loadout_id: int) -> Optional[Dict]:
+    """Retorna um loadout de player por ID do banco"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, player_id, loadout_id, name, is_active, loadout_data, created_at, updated_at
+            FROM loadouts_players
+            WHERE id = ?
+        """, (loadout_id,))
+        row = cursor.fetchone()
+        if row:
+            loadout = dict(row)
+            loadout['loadout_data'] = json.loads(loadout['loadout_data'])
+            return loadout
+        return None
+
+def create_loadout_player(player_id: str, loadout_id: int, name: str, is_active: bool, loadout_data: Dict) -> Optional[int]:
+    """Cria um novo loadout para um jogador"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        loadout_json = json.dumps(loadout_data, ensure_ascii=False)
+        cursor.execute("""
+            INSERT INTO loadouts_players (player_id, loadout_id, name, is_active, loadout_data, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """, (player_id, loadout_id, name, 1 if is_active else 0, loadout_json))
+        conn.commit()
+        return cursor.lastrowid if cursor.rowcount > 0 else None
+
+def update_loadout_player(db_id: int, loadout_id: int, name: str, is_active: bool, loadout_data: Dict) -> bool:
+    """Atualiza um loadout de player"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        loadout_json = json.dumps(loadout_data, ensure_ascii=False)
+        cursor.execute("""
+            UPDATE loadouts_players
+            SET loadout_id = ?, name = ?, is_active = ?, loadout_data = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (loadout_id, name, 1 if is_active else 0, loadout_json, db_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def delete_loadout_player(db_id: int) -> bool:
+    """Deleta um loadout de player"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM loadouts_players WHERE id = ?", (db_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def get_players_with_loadouts() -> List[Dict]:
+    """Retorna lista de jogadores que possuem loadouts"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT DISTINCT lp.player_id, pd.PlayerName, pd.SteamID, pd.SteamName
+            FROM loadouts_players lp
+            LEFT JOIN players_database pd ON lp.player_id = pd.PlayerID
+            ORDER BY pd.PlayerName
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+# ============================================================================
+# SINCRONIZAÇÃO COM ARQUIVOS JSON
+# ============================================================================
+
+def _get_player_id_base64(player_id: str) -> str:
+    """Converte PlayerID para base64"""
+    return base64.b64encode(player_id.encode('utf-8')).decode('utf-8')
+
+def load_custom_loadouts_from_file() -> List[Dict]:
+    """Carrega loadouts custom do arquivo JSON"""
+    try:
+        if not os.path.exists(config.LOADOUTS_CUSTOM_FILE):
+            return []
+        
+        with open(config.LOADOUTS_CUSTOM_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else []
+    except Exception as e:
+        print(f"Erro ao carregar loadouts custom do arquivo: {str(e)}")
+        return []
+
+def sync_custom_loadouts_to_file() -> bool:
+    """Sincroniza loadouts custom do banco para o arquivo JSON"""
+    try:
+        loadouts = get_loadouts_custom()
+        
+        # Converter para formato do arquivo JSON
+        json_data = []
+        for loadout in loadouts:
+            json_data.append({
+                "Id": loadout['id'],
+                "Name": loadout['name'],
+                "IsActive": bool(loadout['is_active']),
+                "Loadout": loadout['loadout_data']
+            })
+        
+        # Garantir que o diretório existe
+        os.makedirs(os.path.dirname(config.LOADOUTS_CUSTOM_FILE), exist_ok=True)
+        
+        # Escrever arquivo com formatação
+        with open(config.LOADOUTS_CUSTOM_FILE, 'w', encoding='utf-8') as f:
+            json.dump(json_data, f, indent=4, ensure_ascii=False)
+        
+        return True
+    except Exception as e:
+        print(f"Erro ao sincronizar loadouts custom para arquivo: {str(e)}")
+        return False
+
+def load_player_loadouts_from_file(player_id: str) -> List[Dict]:
+    """Carrega loadouts de um jogador do arquivo JSON"""
+    try:
+        player_id_base64 = _get_player_id_base64(player_id)
+        file_path = os.path.join(config.LOADOUTS_PLAYERS_DIR, f"{player_id_base64}.json")
+        
+        if not os.path.exists(file_path):
+            return []
+        
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else []
+    except Exception as e:
+        print(f"Erro ao carregar loadouts do player do arquivo: {str(e)}")
+        return []
+
+def sync_player_loadouts_to_file(player_id: str) -> bool:
+    """Sincroniza loadouts de um jogador do banco para o arquivo JSON"""
+    try:
+        loadouts = get_loadouts_by_player(player_id)
+        
+        if not loadouts:
+            # Se não há loadouts, remover arquivo se existir
+            player_id_base64 = _get_player_id_base64(player_id)
+            file_path = os.path.join(config.LOADOUTS_PLAYERS_DIR, f"{player_id_base64}.json")
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            return True
+        
+        # Converter para formato do arquivo JSON
+        json_data = []
+        for loadout in loadouts:
+            json_data.append({
+                "Id": loadout['loadout_id'],
+                "Name": loadout['name'],
+                "IsActive": bool(loadout['is_active']),
+                "Loadout": loadout['loadout_data']
+            })
+        
+        # Garantir que o diretório existe
+        os.makedirs(config.LOADOUTS_PLAYERS_DIR, exist_ok=True)
+        
+        # Escrever arquivo com formatação
+        player_id_base64 = _get_player_id_base64(player_id)
+        file_path = os.path.join(config.LOADOUTS_PLAYERS_DIR, f"{player_id_base64}.json")
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(json_data, f, indent=4, ensure_ascii=False)
+        
+        # Atualizar players_ids.json
+        update_players_ids_json(player_id)
+        
+        return True
+    except Exception as e:
+        print(f"Erro ao sincronizar loadouts do player para arquivo: {str(e)}")
+        return False
+
+def update_players_ids_json(player_id: str) -> bool:
+    """Atualiza o arquivo players_ids.json com o mapeamento de PlayerID"""
+    try:
+        player_id_base64 = _get_player_id_base64(player_id)
+        
+        # Carregar arquivo existente
+        players_ids = []
+        if os.path.exists(config.LOADOUTS_PLAYERS_IDS_FILE):
+            with open(config.LOADOUTS_PLAYERS_IDS_FILE, 'r', encoding='utf-8') as f:
+                players_ids = json.load(f)
+                if not isinstance(players_ids, list):
+                    players_ids = []
+        
+        # Verificar se já existe
+        exists = False
+        for entry in players_ids:
+            if entry.get('PlayerId') == player_id:
+                exists = True
+                entry['PlayerIdBase64'] = player_id_base64
+                break
+        
+        # Se não existe, adicionar
+        if not exists:
+            players_ids.append({
+                "PlayerId": player_id,
+                "PlayerIdBase64": player_id_base64
+            })
+        
+        # Garantir que o diretório existe
+        os.makedirs(os.path.dirname(config.LOADOUTS_PLAYERS_IDS_FILE), exist_ok=True)
+        
+        # Escrever arquivo
+        with open(config.LOADOUTS_PLAYERS_IDS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(players_ids, f, indent=4, ensure_ascii=False)
+        
+        return True
+    except Exception as e:
+        print(f"Erro ao atualizar players_ids.json: {str(e)}")
+        return False
+
+def migrate_custom_loadouts_from_files() -> bool:
+    """Migra arquivos JSON existentes do diretório custom/ para custom.json"""
+    try:
+        custom_dir = os.path.join(config.LOADOUTS_BASE_PATH, 'custom')
+        if not os.path.exists(custom_dir):
+            return True
+        
+        all_loadouts = []
+        
+        # Ler todos os arquivos JSON do diretório custom/
+        for filename in os.listdir(custom_dir):
+            if filename.endswith('.json'):
+                file_path = os.path.join(custom_dir, filename)
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        if isinstance(data, list):
+                            all_loadouts.extend(data)
+                        elif isinstance(data, dict):
+                            all_loadouts.append(data)
+                except Exception as e:
+                    print(f"Erro ao ler arquivo {filename}: {str(e)}")
+        
+        # Se encontrou loadouts, salvar no banco e no arquivo custom.json
+        if all_loadouts:
+            # Primeiro salvar no banco
+            for loadout_item in all_loadouts:
+                if isinstance(loadout_item, dict) and 'Loadout' in loadout_item:
+                    loadout_id = loadout_item.get('Id', 0)
+                    name = loadout_item.get('Name', 'Sem nome')
+                    is_active = loadout_item.get('IsActive', False)
+                    loadout_data = loadout_item.get('Loadout', {})
+                    
+                    # Verificar se já existe no banco
+                    existing = None
+                    if loadout_id > 0:
+                        existing = get_loadout_custom_by_id(loadout_id)
+                    
+                    if existing:
+                        update_loadout_custom(loadout_id, name, is_active, loadout_data)
+                    else:
+                        create_loadout_custom(name, is_active, loadout_data)
+            
+            # Depois sincronizar com arquivo
+            sync_custom_loadouts_to_file()
+        
+        return True
+    except Exception as e:
+        print(f"Erro ao migrar loadouts custom: {str(e)}")
+        return False

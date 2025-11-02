@@ -45,3 +45,9 @@ COMMANDS_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.cher
 
 # Banco de dados de itens
 DB_ITEMS = os.path.join(BASE_DIR, "..", "databases", "dayz_items.db")
+
+# Caminhos dos loadouts
+LOADOUTS_BASE_PATH = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/loadouts'
+LOADOUTS_CUSTOM_FILE = os.path.join(LOADOUTS_BASE_PATH, 'custom.json')
+LOADOUTS_PLAYERS_DIR = os.path.join(LOADOUTS_BASE_PATH, 'players')
+LOADOUTS_PLAYERS_IDS_FILE = os.path.join(LOADOUTS_BASE_PATH, 'players_ids.json')

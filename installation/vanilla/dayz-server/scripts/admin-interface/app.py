@@ -46,7 +46,11 @@ from database import (
     # User Authentication Functions
     authenticate_user, get_user_by_id, create_user, update_user_password,
     get_all_admins, deactivate_user, activate_user, delete_user, validate_password_strength, 
-    get_all_users, verify_password, log_user_action, get_user_audit_logs, get_unique_audit_actions
+    get_all_users, verify_password, log_user_action, get_user_audit_logs, get_unique_audit_actions,
+    # Loadouts Functions
+    get_loadouts_custom, get_loadout_custom_by_id, create_loadout_custom, update_loadout_custom, delete_loadout_custom,
+    get_loadouts_by_player, get_loadout_player_by_id, create_loadout_player, update_loadout_player, delete_loadout_player,
+    get_players_with_loadouts, sync_custom_loadouts_to_file, sync_player_loadouts_to_file
 )
 from datetime import datetime
 
@@ -1623,6 +1627,13 @@ def api_manage_item_delete(item_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
+@app.route('/api/manage/items/<int:item_id>/compatibility', methods=['GET'])
+@login_required
+def api_manage_item_compatibility_get(item_id):
+    """Retorna compatibilidade de um item"""
+    compatibility = get_item_compatibility(item_id)
+    return jsonify({'compatibility': compatibility})
+
 @app.route('/api/manage/items/<int:item_id>/compatibility', methods=['PUT'])
 @login_required
 @audit_action('UPDATE_ITEM_COMPATIBILITY')
@@ -2532,6 +2543,294 @@ def api_manage_admins_delete(admin_id):
         )
         
         return jsonify({'success': True, 'message': message})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ============================================================================
+# ROTAS DE LOADOUTS
+# ============================================================================
+
+@app.route('/loadouts')
+@login_required
+def loadouts():
+    """Tela principal de gerenciamento de loadouts"""
+    return render_template('loadouts.html')
+
+@app.route('/loadouts/custom/new')
+@login_required
+def loadout_custom_new():
+    """Página de criação de novo loadout custom"""
+    return render_template('loadout_edit.html', loadout_id=None, is_edit=False)
+
+@app.route('/loadouts/custom/<int:loadout_id>/edit')
+@login_required
+def loadout_custom_edit(loadout_id):
+    """Página de edição de loadout custom"""
+    return render_template('loadout_edit.html', loadout_id=loadout_id, is_edit=True)
+
+# ============================================================================
+# API - LOADOUTS CUSTOM
+# ============================================================================
+
+@app.route('/api/loadouts/custom', methods=['GET'])
+@login_required
+def api_loadouts_custom_list():
+    """Lista todos os loadouts custom"""
+    try:
+        loadouts = get_loadouts_custom()
+        return jsonify({'success': True, 'loadouts': loadouts})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/loadouts/custom/<int:loadout_id>', methods=['GET'])
+@login_required
+def api_loadouts_custom_get(loadout_id):
+    """Obtém um loadout custom por ID"""
+    try:
+        loadout = get_loadout_custom_by_id(loadout_id)
+        if not loadout:
+            return jsonify({'success': False, 'message': 'Loadout não encontrado'}), 404
+        return jsonify({'success': True, 'loadout': loadout})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/loadouts/custom', methods=['POST'])
+@login_required
+@admin_required
+def api_loadouts_custom_create():
+    """Cria um novo loadout custom"""
+    try:
+        data = request.get_json()
+        name = data.get('name')
+        is_active = data.get('is_active', False)
+        loadout_data = data.get('loadout_data', {})
+        
+        if not name or not loadout_data:
+            return jsonify({'success': False, 'message': 'Nome e dados do loadout são obrigatórios'}), 400
+        
+        loadout_id = create_loadout_custom(name, is_active, loadout_data)
+        if not loadout_id:
+            return jsonify({'success': False, 'message': 'Erro ao criar loadout'}), 500
+        
+        # Sincronizar com arquivo JSON
+        sync_custom_loadouts_to_file()
+        
+        # Registrar ação
+        log_user_action(
+            session.get('user_id'),
+            session.get('username', 'Unknown'),
+            'CREATE_LOADOUT_CUSTOM',
+            {'loadout_id': loadout_id, 'name': name},
+            get_client_ip()
+        )
+        
+        return jsonify({'success': True, 'message': 'Loadout criado com sucesso', 'loadout_id': loadout_id})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/loadouts/custom/<int:loadout_id>', methods=['PUT'])
+@login_required
+@admin_required
+def api_loadouts_custom_update(loadout_id):
+    """Atualiza um loadout custom"""
+    try:
+        data = request.get_json()
+        name = data.get('name')
+        is_active = data.get('is_active', False)
+        loadout_data = data.get('loadout_data', {})
+        
+        if not name or not loadout_data:
+            return jsonify({'success': False, 'message': 'Nome e dados do loadout são obrigatórios'}), 400
+        
+        success = update_loadout_custom(loadout_id, name, is_active, loadout_data)
+        if not success:
+            return jsonify({'success': False, 'message': 'Loadout não encontrado ou erro ao atualizar'}), 404
+        
+        # Sincronizar com arquivo JSON
+        sync_custom_loadouts_to_file()
+        
+        # Registrar ação
+        log_user_action(
+            session.get('user_id'),
+            session.get('username', 'Unknown'),
+            'UPDATE_LOADOUT_CUSTOM',
+            {'loadout_id': loadout_id, 'name': name},
+            get_client_ip()
+        )
+        
+        return jsonify({'success': True, 'message': 'Loadout atualizado com sucesso'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/loadouts/custom/<int:loadout_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def api_loadouts_custom_delete(loadout_id):
+    """Deleta um loadout custom"""
+    try:
+        loadout = get_loadout_custom_by_id(loadout_id)
+        if not loadout:
+            return jsonify({'success': False, 'message': 'Loadout não encontrado'}), 404
+        
+        success = delete_loadout_custom(loadout_id)
+        if not success:
+            return jsonify({'success': False, 'message': 'Erro ao deletar loadout'}), 500
+        
+        # Sincronizar com arquivo JSON
+        sync_custom_loadouts_to_file()
+        
+        # Registrar ação
+        log_user_action(
+            session.get('user_id'),
+            session.get('username', 'Unknown'),
+            'DELETE_LOADOUT_CUSTOM',
+            {'loadout_id': loadout_id, 'name': loadout['name']},
+            get_client_ip()
+        )
+        
+        return jsonify({'success': True, 'message': 'Loadout deletado com sucesso'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ============================================================================
+# API - LOADOUTS PLAYERS
+# ============================================================================
+
+@app.route('/api/loadouts/players/list', methods=['GET'])
+@login_required
+def api_loadouts_players_list_all():
+    """Lista todos os jogadores da tabela players_database"""
+    try:
+        players = get_all_players()
+        return jsonify({'success': True, 'players': players})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/loadouts/players', methods=['GET'])
+@login_required
+def api_loadouts_players_list():
+    """Lista jogadores que possuem loadouts"""
+    try:
+        players = get_players_with_loadouts()
+        return jsonify({'success': True, 'players': players})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/loadouts/players/<player_id>', methods=['GET'])
+@login_required
+def api_loadouts_players_get(player_id):
+    """Obtém loadouts de um jogador"""
+    try:
+        loadouts = get_loadouts_by_player(player_id)
+        return jsonify({'success': True, 'loadouts': loadouts})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/loadouts/players/<player_id>', methods=['POST'])
+@login_required
+@admin_required
+def api_loadouts_players_create(player_id):
+    """Cria um novo loadout para um jogador"""
+    try:
+        data = request.get_json()
+        loadout_id = data.get('loadout_id')  # ID interno do loadout no JSON do jogador
+        name = data.get('name')
+        is_active = data.get('is_active', False)
+        loadout_data = data.get('loadout_data', {})
+        
+        if not loadout_id or not name or not loadout_data:
+            return jsonify({'success': False, 'message': 'ID do loadout, nome e dados são obrigatórios'}), 400
+        
+        db_id = create_loadout_player(player_id, loadout_id, name, is_active, loadout_data)
+        if not db_id:
+            return jsonify({'success': False, 'message': 'Erro ao criar loadout'}), 500
+        
+        # Sincronizar com arquivo JSON
+        sync_player_loadouts_to_file(player_id)
+        
+        # Registrar ação
+        log_user_action(
+            session.get('user_id'),
+            session.get('username', 'Unknown'),
+            'CREATE_LOADOUT_PLAYER',
+            {'player_id': player_id, 'loadout_id': loadout_id, 'name': name},
+            get_client_ip()
+        )
+        
+        return jsonify({'success': True, 'message': 'Loadout criado com sucesso', 'db_id': db_id})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/loadouts/players/<player_id>/<int:loadout_id>', methods=['PUT'])
+@login_required
+@admin_required
+def api_loadouts_players_update(player_id, loadout_id):
+    """Atualiza um loadout de jogador (loadout_id é o ID interno, não o ID do banco)"""
+    try:
+        data = request.get_json()
+        db_id = data.get('db_id')  # ID do banco de dados
+        new_loadout_id = data.get('loadout_id', loadout_id)  # Novo ID interno
+        name = data.get('name')
+        is_active = data.get('is_active', False)
+        loadout_data = data.get('loadout_data', {})
+        
+        if not db_id or not name or not loadout_data:
+            return jsonify({'success': False, 'message': 'ID do banco, nome e dados são obrigatórios'}), 400
+        
+        success = update_loadout_player(db_id, new_loadout_id, name, is_active, loadout_data)
+        if not success:
+            return jsonify({'success': False, 'message': 'Loadout não encontrado ou erro ao atualizar'}), 404
+        
+        # Sincronizar com arquivo JSON
+        sync_player_loadouts_to_file(player_id)
+        
+        # Registrar ação
+        log_user_action(
+            session.get('user_id'),
+            session.get('username', 'Unknown'),
+            'UPDATE_LOADOUT_PLAYER',
+            {'player_id': player_id, 'loadout_id': new_loadout_id, 'name': name},
+            get_client_ip()
+        )
+        
+        return jsonify({'success': True, 'message': 'Loadout atualizado com sucesso'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/loadouts/players/<player_id>/<int:loadout_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def api_loadouts_players_delete(player_id, loadout_id):
+    """Deleta um loadout de jogador (loadout_id é o ID interno, não o ID do banco)"""
+    try:
+        # Buscar loadout pelo player_id e loadout_id
+        loadouts = get_loadouts_by_player(player_id)
+        db_loadout = None
+        for loadout in loadouts:
+            if loadout['loadout_id'] == loadout_id:
+                db_loadout = loadout
+                break
+        
+        if not db_loadout:
+            return jsonify({'success': False, 'message': 'Loadout não encontrado'}), 404
+        
+        success = delete_loadout_player(db_loadout['id'])  # Usar ID do banco
+        if not success:
+            return jsonify({'success': False, 'message': 'Erro ao deletar loadout'}), 500
+        
+        # Sincronizar com arquivo JSON
+        sync_player_loadouts_to_file(player_id)
+        
+        # Registrar ação
+        log_user_action(
+            session.get('user_id'),
+            session.get('username', 'Unknown'),
+            'DELETE_LOADOUT_PLAYER',
+            {'player_id': player_id, 'loadout_id': loadout_id, 'name': db_loadout['name']},
+            get_client_ip()
+        )
+        
+        return jsonify({'success': True, 'message': 'Loadout deletado com sucesso'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 

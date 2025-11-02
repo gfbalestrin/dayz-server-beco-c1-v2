@@ -80,6 +80,11 @@
                             <i class="fas fa-box-open me-1"></i>Kits
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'loadouts' %}active{% endif %}" href="{{ url_for('loadouts') }}">
+                            <i class="fas fa-layer-group me-1"></i>Loadouts
+                        </a>
+                    </li>
                     {% if session.user_type in ['super_admin', 'admin'] %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'users_manage' %}active{% endif %}" href="{{ url_for('users_manage') }}">
