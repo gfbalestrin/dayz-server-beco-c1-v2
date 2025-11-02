@@ -103,6 +103,12 @@
                 <div id="loadout-primary-weapon-tab" class="tab-pane fade show active">
                     <div class="card">
                         <div class="card-body">
+                            <!-- Arma Selecionada - Movido para cima -->
+                            <div id="selectedPrimaryWeaponContainer" class="mb-4 selected-items-highlight">
+                                <h6 class="mb-3"><i class="fas fa-check-circle text-success me-2"></i>Arma Primária Selecionada:</h6>
+                                <div id="selectedPrimaryWeaponList"></div>
+                            </div>
+                            
                             <div class="row mb-3">
                                 <div class="col-md-3">
                                     <input type="text" id="weaponSearchLoadoutPrimary" class="form-control" placeholder="Buscar arma...">
@@ -127,12 +133,6 @@
                                 </div>
                             </div>
                             <div id="weaponsGridLoadoutPrimary" class="weapons-grid"></div>
-                            
-                            <!-- Arma Selecionada -->
-                            <div id="selectedPrimaryWeaponContainer" class="mt-4">
-                                <h6>Arma Primária Selecionada:</h6>
-                                <div id="selectedPrimaryWeaponList"></div>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -141,6 +141,12 @@
                 <div id="loadout-secondary-weapon-tab" class="tab-pane fade">
                     <div class="card">
                         <div class="card-body">
+                            <!-- Arma Selecionada - Movido para cima -->
+                            <div id="selectedSecondaryWeaponContainer" class="mb-4 selected-items-highlight">
+                                <h6 class="mb-3"><i class="fas fa-check-circle text-success me-2"></i>Arma Secundária Selecionada:</h6>
+                                <div id="selectedSecondaryWeaponList"></div>
+                            </div>
+                            
                             <div class="row mb-3">
                                 <div class="col-md-3">
                                     <input type="text" id="weaponSearchLoadoutSecondary" class="form-control" placeholder="Buscar arma...">
@@ -165,12 +171,6 @@
                                 </div>
                             </div>
                             <div id="weaponsGridLoadoutSecondary" class="weapons-grid"></div>
-                            
-                            <!-- Arma Selecionada -->
-                            <div id="selectedSecondaryWeaponContainer" class="mt-4">
-                                <h6>Arma Secundária Selecionada:</h6>
-                                <div id="selectedSecondaryWeaponList"></div>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -179,6 +179,12 @@
                 <div id="loadout-small-weapon-tab" class="tab-pane fade">
                     <div class="card">
                         <div class="card-body">
+                            <!-- Arma Selecionada - Movido para cima -->
+                            <div id="selectedSmallWeaponContainer" class="mb-4 selected-items-highlight">
+                                <h6 class="mb-3"><i class="fas fa-check-circle text-success me-2"></i>Arma Pequena Selecionada:</h6>
+                                <div id="selectedSmallWeaponList"></div>
+                            </div>
+                            
                             <div class="row mb-3">
                                 <div class="col-md-3">
                                     <input type="text" id="weaponSearchLoadoutSmall" class="form-control" placeholder="Buscar arma...">
@@ -203,12 +209,6 @@
                                 </div>
                             </div>
                             <div id="weaponsGridLoadoutSmall" class="weapons-grid"></div>
-                            
-                            <!-- Arma Selecionada -->
-                            <div id="selectedSmallWeaponContainer" class="mt-4">
-                                <h6>Arma Pequena Selecionada:</h6>
-                                <div id="selectedSmallWeaponList"></div>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -217,18 +217,18 @@
                 <div id="loadout-explosives-tab" class="tab-pane fade">
                     <div class="card">
                         <div class="card-body">
+                            <!-- Explosivos Selecionados - Movido para cima -->
+                            <div id="selectedExplosivesContainer" class="mb-4 selected-items-highlight">
+                                <h6 class="mb-3"><i class="fas fa-check-circle text-success me-2"></i>Explosivos Selecionados:</h6>
+                                <div id="selectedExplosivesList"></div>
+                            </div>
+                            
                             <div class="row mb-3">
                                 <div class="col-md-12">
                                     <input type="text" id="explosiveSearchLoadout" class="form-control" placeholder="Buscar explosivo...">
                                 </div>
                             </div>
                             <div id="explosivesGridLoadout" class="weapons-grid"></div>
-                            
-                            <!-- Explosivos Selecionados -->
-                            <div id="selectedExplosivesContainer" class="mt-4">
-                                <h6>Explosivos Selecionados:</h6>
-                                <div id="selectedExplosivesList"></div>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -268,61 +268,61 @@
                                 </div>
                             </div>
                             
+                            <!-- Items Selecionados - Movido para cima -->
+                            <div id="selectedItemsContainer" class="mb-4 selected-items-highlight">
+                                <h6 class="mb-3"><i class="fas fa-check-circle text-success me-2"></i>Items Selecionados:</h6>
+                                <div id="selectedItemsList" class="items-tree"></div>
+                            </div>
+                            
                             <!-- Grids de Itens Separados por Localização -->
                             <div id="itemsGridsByLocation">
                                 <!-- Head -->
-                                <div class="mb-4">
+                                <div class="mb-4 items-location-section">
                                     <h6 class="mb-2"><i class="fas fa-hard-hat me-2"></i>Head</h6>
-                                    <div id="itemsGridLoadoutHead" class="weapons-grid"></div>
+                                    <div id="itemsGridLoadoutHead" class="weapons-grid items-grid-scrollable"></div>
                                 </div>
                                 
                                 <!-- Face -->
-                                <div class="mb-4">
+                                <div class="mb-4 items-location-section">
                                     <h6 class="mb-2"><i class="fas fa-user-secret me-2"></i>Face</h6>
-                                    <div id="itemsGridLoadoutFace" class="weapons-grid"></div>
+                                    <div id="itemsGridLoadoutFace" class="weapons-grid items-grid-scrollable"></div>
                                 </div>
                                 
                                 <!-- Torso -->
-                                <div class="mb-4">
+                                <div class="mb-4 items-location-section">
                                     <h6 class="mb-2"><i class="fas fa-tshirt me-2"></i>Torso</h6>
-                                    <div id="itemsGridLoadoutTorso" class="weapons-grid"></div>
+                                    <div id="itemsGridLoadoutTorso" class="weapons-grid items-grid-scrollable"></div>
                                 </div>
                                 
                                 <!-- Legs -->
-                                <div class="mb-4">
+                                <div class="mb-4 items-location-section">
                                     <h6 class="mb-2"><i class="fas fa-running me-2"></i>Legs</h6>
-                                    <div id="itemsGridLoadoutLegs" class="weapons-grid"></div>
+                                    <div id="itemsGridLoadoutLegs" class="weapons-grid items-grid-scrollable"></div>
                                 </div>
                                 
                                 <!-- Foot -->
-                                <div class="mb-4">
+                                <div class="mb-4 items-location-section">
                                     <h6 class="mb-2"><i class="fas fa-shoe-prints me-2"></i>Foot</h6>
-                                    <div id="itemsGridLoadoutFoot" class="weapons-grid"></div>
+                                    <div id="itemsGridLoadoutFoot" class="weapons-grid items-grid-scrollable"></div>
                                 </div>
                                 
                                 <!-- Hands -->
-                                <div class="mb-4">
+                                <div class="mb-4 items-location-section">
                                     <h6 class="mb-2"><i class="fas fa-hand-paper me-2"></i>Hands</h6>
-                                    <div id="itemsGridLoadoutHands" class="weapons-grid"></div>
+                                    <div id="itemsGridLoadoutHands" class="weapons-grid items-grid-scrollable"></div>
                                 </div>
                                 
                                 <!-- Back -->
-                                <div class="mb-4">
+                                <div class="mb-4 items-location-section">
                                     <h6 class="mb-2"><i class="fas fa-backpack me-2"></i>Back</h6>
-                                    <div id="itemsGridLoadoutBack" class="weapons-grid"></div>
+                                    <div id="itemsGridLoadoutBack" class="weapons-grid items-grid-scrollable"></div>
                                 </div>
                                 
                                 <!-- Sem Localização -->
-                                <div class="mb-4">
+                                <div class="mb-4 items-location-section">
                                     <h6 class="mb-2"><i class="fas fa-box me-2"></i>Sem Localização</h6>
-                                    <div id="itemsGridLoadoutNone" class="weapons-grid"></div>
+                                    <div id="itemsGridLoadoutNone" class="weapons-grid items-grid-scrollable"></div>
                                 </div>
-                            </div>
-                            
-                            <!-- Items Selecionados -->
-                            <div id="selectedItemsContainer" class="mt-4">
-                                <h6>Items Selecionados:</h6>
-                                <div id="selectedItemsList" class="items-tree"></div>
                             </div>
                         </div>
                     </div>

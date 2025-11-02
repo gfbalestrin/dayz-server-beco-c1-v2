@@ -206,14 +206,127 @@
     overflow-y: auto;
 }
 
+/* Containers de itens selecionados - destacado visualmente */
+.selected-items-highlight {
+    background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+    border: 2px solid #4caf50;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.15);
+}
+
+.selected-items-highlight h6 {
+    color: #2e7d32;
+    font-weight: 600;
+}
+
+.selected-items-highlight .card {
+    border-color: #66bb6a;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Imagens dos itens selecionados - responsivas */
+.selected-items-highlight img,
+#selectedPrimaryWeaponList img,
+#selectedSecondaryWeaponList img,
+#selectedSmallWeaponList img,
+#selectedExplosivesList img,
+#selectedItemsList img {
+    max-width: 100%;
+    height: auto;
+    object-fit: cover;
+}
+
+/* Imagens específicas para armas selecionadas */
+.selected-weapon-img-main {
+    max-width: 120px;
+    max-height: 120px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+
+.selected-weapon-img-small {
+    max-width: 80px;
+    max-height: 80px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+
+/* Grids de itens por localização */
+.items-location-section {
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 15px;
+}
+
+.items-location-section:last-child {
+    border-bottom: none;
+}
+
+.items-grid-scrollable {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+
+.items-grid-scrollable::-webkit-scrollbar {
+    height: 8px;
+}
+
+.items-grid-scrollable::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.items-grid-scrollable::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.items-grid-scrollable::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
 /* Responsividade */
 @media (max-width: 768px) {
     .weapons-grid {
         grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
+        padding: 5px;
     }
     
     .relationship-grid {
         grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    }
+    
+    .selected-items-highlight {
+        padding: 10px;
+    }
+    
+    .selected-items-highlight h6 {
+        font-size: 0.9rem;
+    }
+    
+    /* Ajustar tamanhos de imagens em mobile */
+    .selected-items-highlight img {
+        max-width: 60px;
+        height: 60px;
+    }
+    
+    .selected-weapon-img-main {
+        max-width: 80px;
+        max-height: 80px;
+    }
+    
+    .selected-weapon-img-small {
+        max-width: 50px;
+        max-height: 50px;
+    }
+    
+    .items-grid-scrollable {
+        overflow-x: auto;
     }
 }
 

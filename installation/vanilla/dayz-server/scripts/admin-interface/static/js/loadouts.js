@@ -1689,13 +1689,38 @@ function updateSelectedWeaponDisplay(weaponType) {
                 <div class="d-inline-block me-2 mb-2 text-center">
                     <img src="${att.img || 'https://via.placeholder.com/60?text=No+Image'}" 
                          alt="${att.name}" 
-                         class="img-thumbnail" 
-                         style="width: 60px; height: 60px; object-fit: cover;"
+                         class="img-thumbnail selected-weapon-img-small" 
                          onerror="this.src='https://via.placeholder.com/60?text=No+Image'">
                     <div class="small text-muted">${att.name}</div>
                 </div>
             `;
         });
+    }
+    
+    let magazineHtml = '';
+    if (magazine) {
+        magazineHtml = `
+            <div class="d-inline-block me-3 mb-2 text-center">
+                <img src="${magazine.img || 'https://via.placeholder.com/60?text=No+Image'}" 
+                     alt="${magazine.name}" 
+                     class="img-thumbnail selected-weapon-img-small" 
+                     onerror="this.src='https://via.placeholder.com/60?text=No+Image'">
+                <div class="small text-muted">${magazine.name}</div>
+            </div>
+        `;
+    }
+    
+    let ammunitionHtml = '';
+    if (ammunition) {
+        ammunitionHtml = `
+            <div class="d-inline-block me-3 mb-2 text-center">
+                <img src="${ammunition.img || 'https://via.placeholder.com/60?text=No+Image'}" 
+                     alt="${ammunition.name}" 
+                     class="img-thumbnail selected-weapon-img-small" 
+                     onerror="this.src='https://via.placeholder.com/60?text=No+Image'">
+                <div class="small text-muted">${ammunition.name}</div>
+            </div>
+        `;
     }
     
     const card = $(`
@@ -1706,8 +1731,7 @@ function updateSelectedWeaponDisplay(weaponType) {
                         <div class="d-flex align-items-center mb-2">
                             <img src="${weapon.img || 'https://via.placeholder.com/80?text=No+Image'}" 
                                  alt="${weapon.name}" 
-                                 class="img-thumbnail me-3" 
-                                 style="width: 80px; height: 80px; object-fit: cover;"
+                                 class="img-thumbnail me-3 selected-weapon-img-main" 
                                  onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
                             <div>
                                 <strong>${weapon.name}</strong>
@@ -1719,13 +1743,9 @@ function updateSelectedWeaponDisplay(weaponType) {
                         ${magazine ? `
                             <div class="mb-2">
                                 <strong>Magazine:</strong>
-                                <div class="d-flex align-items-center mt-1">
-                                    <img src="${magazine.img || 'https://via.placeholder.com/50?text=No+Image'}" 
-                                         alt="${magazine.name}" 
-                                         class="img-thumbnail me-2" 
-                                         style="width: 50px; height: 50px; object-fit: cover;"
-                                         onerror="this.src='https://via.placeholder.com/50?text=No+Image'">
-                                    <span>${magazine.name}${magazine.capacity ? ` (${magazine.capacity} cap.)` : ''}</span>
+                                <div class="mt-1">
+                                    ${magazineHtml}
+                                    <span class="ms-2">${magazine.capacity ? `(${magazine.capacity} cap.)` : ''}</span>
                                 </div>
                             </div>
                         ` : '<div class="mb-2"><strong>Magazine:</strong> <span class="text-muted">Nenhum</span></div>'}
@@ -1733,13 +1753,8 @@ function updateSelectedWeaponDisplay(weaponType) {
                         ${ammunition ? `
                             <div class="mb-2">
                                 <strong>Ammunition:</strong>
-                                <div class="d-flex align-items-center mt-1">
-                                    <img src="${ammunition.img || 'https://via.placeholder.com/50?text=No+Image'}" 
-                                         alt="${ammunition.name}" 
-                                         class="img-thumbnail me-2" 
-                                         style="width: 50px; height: 50px; object-fit: cover;"
-                                         onerror="this.src='https://via.placeholder.com/50?text=No+Image'">
-                                    <span>${ammunition.name}</span>
+                                <div class="mt-1">
+                                    ${ammunitionHtml}
                                 </div>
                             </div>
                         ` : '<div class="mb-2"><strong>Ammunition:</strong> <span class="text-muted">Nenhum</span></div>'}
@@ -1967,51 +1982,25 @@ function applyItemFiltersLoadout() {
         return match;
     });
     
-    // Se filtro de localização estiver ativo, mostrar apenas essa seção
-    if (location !== '' && location !== 'none') {
-        // Renderizar apenas o grid da localização selecionada
-        renderItemsGridLoadoutForLocation(filtered, location);
-        
-        // Ocultar outras seções
-        ['head', 'face', 'torso', 'legs', 'foot', 'hands', 'back', 'none'].forEach(function(loc) {
-            if (loc !== location) {
-                const locKey = loc === 'none' ? 'None' : (loc.charAt(0).toUpperCase() + loc.slice(1));
-                $(`#itemsGridLoadout${locKey}`).parent().hide();
-            } else {
-                const locKey = loc === 'none' ? 'None' : (loc.charAt(0).toUpperCase() + loc.slice(1));
-                $(`#itemsGridLoadout${locKey}`).parent().show();
-            }
-        });
-    } else if (location === 'none') {
-        // Filtro "Sem Localização" - mostrar apenas itens sem localização
-        renderItemsGridLoadoutForLocation(filtered, 'none');
-        
-        // Ocultar outras seções
-        ['head', 'face', 'torso', 'legs', 'foot', 'hands', 'back'].forEach(function(loc) {
-            const locKey = loc.charAt(0).toUpperCase() + loc.slice(1);
-            $(`#itemsGridLoadout${locKey}`).parent().hide();
-        });
-        $('#itemsGridLoadoutNone').parent().show();
-    } else {
-        // Renderizar todos os grids separados por localização
-        renderItemsGridLoadoutByLocation(filtered);
-        // Mostrar todas as seções (as que não têm itens serão ocultadas pela função renderItemsGridLoadoutForLocation)
-    }
+    // Renderizar grids separados por localização
+    // O filtro de localização será aplicado nos dados
+    renderItemsGridLoadoutByLocation(filtered);
 }
 
 function renderItemsGridLoadoutByLocation(data) {
     // Localizações possíveis
     const locations = [
-        { key: 'head', label: 'Head' },
-        { key: 'face', label: 'Face' },
-        { key: 'torso', label: 'Torso' },
-        { key: 'legs', label: 'Legs' },
-        { key: 'foot', label: 'Foot' },
-        { key: 'hands', label: 'Hands' },
-        { key: 'back', label: 'Back' },
-        { key: 'none', label: 'None' } // Sem localização (vazio ou null)
+        { key: 'head', label: 'Head', icon: 'fa-hard-hat' },
+        { key: 'face', label: 'Face', icon: 'fa-user-secret' },
+        { key: 'torso', label: 'Torso', icon: 'fa-tshirt' },
+        { key: 'legs', label: 'Legs', icon: 'fa-running' },
+        { key: 'foot', label: 'Foot', icon: 'fa-shoe-prints' },
+        { key: 'hands', label: 'Hands', icon: 'fa-hand-paper' },
+        { key: 'back', label: 'Back', icon: 'fa-backpack' },
+        { key: 'none', label: 'Sem Localização', icon: 'fa-box' } // Sem localização (vazio ou null)
     ];
     
+    // Renderizar cada localização em seu próprio grid
     locations.forEach(function(loc) {
         const itemsForLocation = data.filter(function(item) {
             if (loc.key === 'none') {
@@ -2020,6 +2009,7 @@ function renderItemsGridLoadoutByLocation(data) {
             return item.localization === loc.key;
         });
         
+        // Renderizar grid para esta localização
         renderItemsGridLoadoutForLocation(itemsForLocation, loc.key);
     });
 }
@@ -2028,16 +2018,27 @@ function renderItemsGridLoadoutForLocation(data, location) {
     // Mapear location para ID do grid (capitalizar primeira letra)
     const locationKey = location === 'none' ? 'None' : (location.charAt(0).toUpperCase() + location.slice(1));
     const grid = $(`#itemsGridLoadout${locationKey}`);
+    const section = grid.parent('.items-location-section');
+    
+    // Se o grid não existe, não precisa renderizar
+    if (grid.length === 0) {
+        return;
+    }
+    
     grid.empty();
     
     if (data.length === 0) {
         // Ocultar seção se não houver itens
-        grid.parent().hide();
+        if (section.length > 0) {
+            section.hide();
+        }
         return;
     }
     
     // Mostrar seção se houver itens
-    grid.parent().show();
+    if (section.length > 0) {
+        section.show();
+    }
     
     data.forEach(function(item) {
         const isSelected = selectedItems.some(i => i.id === item.id);
