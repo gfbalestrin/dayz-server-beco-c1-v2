@@ -6,9 +6,14 @@ import os
 # Diretório base da aplicação
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Credenciais de acesso (hardcoded)
+# Credenciais de acesso (hardcoded) - Super Admin
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "dayz_beco_2024"
+
+# Tipos de usuário
+USER_TYPE_SUPER_ADMIN = "super_admin"
+USER_TYPE_ADMIN = "admin"
+USER_TYPE_PLAYER = "player"
 
 # Secret key para sessões (mude isso em produção)
 SECRET_KEY = "dayz-beco-c1-secret-key-2024-change-me"

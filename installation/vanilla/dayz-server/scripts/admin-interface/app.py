@@ -42,12 +42,20 @@ from database import (
     get_loot_kits, get_loot_kit_by_id, create_loot_kit, update_loot_kit, delete_loot_kit,
     calculate_loot_kit_space, get_storage_containers,
     # All Items
-    get_all_explosives, get_all_ammunitions, get_all_magazines, get_all_attachments
+    get_all_explosives, get_all_ammunitions, get_all_magazines, get_all_attachments,
+    # User Authentication Functions
+    authenticate_user, get_user_by_id, create_user, update_user_password,
+    get_all_admins, deactivate_user, activate_user, delete_user, validate_password_strength, 
+    get_all_users, verify_password
 )
 from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
+
+# ============================================================================
+# DECORATORS DE AUTENTICAÇÃO
+# ============================================================================
 
 def login_required(f):
     """Decorator para rotas que requerem autenticação"""
@@ -55,22 +63,74 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         if 'logged_in' not in session or not session['logged_in']:
             return redirect(url_for('login'))
+        
+        # Verificar se precisa trocar senha (exceto nas rotas permitidas)
+        if session.get('must_change_password'):
+            from flask import request
+            if request.endpoint not in ['change_password_required', 'logout']:
+                return redirect(url_for('change_password_required'))
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+def super_admin_required(f):
+    """Decorator para rotas que requerem Super Admin"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'logged_in' not in session or not session['logged_in']:
+            return redirect(url_for('login'))
+        if session.get('user_type') != config.USER_TYPE_SUPER_ADMIN:
+            return render_template('error.html', message='Acesso negado. Requer permissões de Super Admin.'), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+def admin_required(f):
+    """Decorator para rotas que requerem Admin ou Super Admin"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'logged_in' not in session or not session['logged_in']:
+            return redirect(url_for('login'))
+        user_type = session.get('user_type')
+        if user_type not in [config.USER_TYPE_SUPER_ADMIN, config.USER_TYPE_ADMIN]:
+            return render_template('error.html', message='Acesso negado. Requer permissões de administrador.'), 403
         return f(*args, **kwargs)
     return decorated_function
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Página de login"""
+    """Página de login - Suporta Super Admin, Admin Normal e Jogador"""
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
         
+        # Primeiro verifica se é Super Admin (hardcoded)
         if username == config.ADMIN_USERNAME and password == config.ADMIN_PASSWORD:
             session['logged_in'] = True
             session['username'] = username
+            session['user_type'] = config.USER_TYPE_SUPER_ADMIN
+            session['user_id'] = None  # Super admin não tem ID no banco
             return redirect(url_for('index'))
-        else:
-            return render_template('login.html', error='Credenciais inválidas')
+        
+        # Se não for Super Admin, verifica no banco de dados
+        user_data = authenticate_user(username, password)
+        if user_data:
+            session['logged_in'] = True
+            session['username'] = user_data['Username']
+            session['user_type'] = user_data['UserType']
+            session['user_id'] = user_data['UserID']
+            if user_data.get('PlayerID'):
+                session['player_id'] = user_data['PlayerID']
+            
+            # Verificar se deve trocar senha no primeiro login
+            must_change = user_data.get('MustChangePassword', 0)
+            if must_change == 1 or must_change is True:
+                session['must_change_password'] = True
+                return redirect(url_for('change_password_required'))
+            
+            return redirect(url_for('index'))
+        
+        # Credenciais inválidas
+        return render_template('login.html', error='Credenciais inválidas')
     
     return render_template('login.html')
 
@@ -79,6 +139,50 @@ def logout():
     """Logout do usuário"""
     session.clear()
     return redirect(url_for('login'))
+
+@app.route('/change-password-required', methods=['GET', 'POST'])
+@login_required
+def change_password_required():
+    """Troca obrigatória de senha no primeiro login"""
+    if request.method == 'POST':
+        current_password = request.form.get('current_password')
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password')
+        
+        user_id = session.get('user_id')
+        
+        # Validar senhas
+        if not current_password or not new_password or not confirm_password:
+            return render_template('change_password_required.html', error='Todos os campos são obrigatórios')
+        
+        # Verificar se nova senha e confirmação coincidem
+        if new_password != confirm_password:
+            return render_template('change_password_required.html', error='As senhas não coincidem')
+        
+        # Verificar força da senha
+        is_valid, error_msg = validate_password_strength(new_password)
+        if not is_valid:
+            return render_template('change_password_required.html', error=error_msg)
+        
+        # Verificar senha atual
+        user = get_user_by_id(user_id)
+        if not user:
+            session.clear()
+            return redirect(url_for('login'))
+        
+        if not verify_password(current_password, user['Password']):
+            return render_template('change_password_required.html', error='Senha atual incorreta')
+        
+        # Atualizar senha (com force_change=False por padrão)
+        success = update_user_password(user_id, new_password, force_change=False)
+        if not success:
+            return render_template('change_password_required.html', error='Erro ao atualizar senha')
+        
+        # Remover flag da sessão e redirecionar
+        session.pop('must_change_password', None)
+        return redirect(url_for('index'))
+    
+    return render_template('change_password_required.html')
 
 @app.route('/')
 @login_required
@@ -1457,6 +1561,12 @@ def kits_manage():
     """Página de gerenciamento de kits de armas e loot"""
     return render_template('kits_manage.html')
 
+@app.route('/users-manage')
+@admin_required
+def users_manage():
+    """Página de gerenciamento de usuários"""
+    return render_template('users_manage.html')
+
 # === WEAPON KITS ===
 @app.route('/api/kits/weapons', methods=['GET'])
 @login_required
@@ -2050,6 +2160,178 @@ def api_spawn_loot_kit_coords():
             'success': False,
             'message': f'Erro ao spawnar kit: {str(e)}'
         }), 500
+
+# ============================================================================
+# ROTAS DE GESTÃO DE USUÁRIOS
+# ============================================================================
+
+@app.route('/api/manage/users', methods=['GET'])
+@admin_required
+def api_manage_users_get():
+    """Listar todos os usuários (admin e player) - Admin e Super Admin podem acessar"""
+    try:
+        users = get_all_users()
+        # Não retornar senha no response
+        for user in users:
+            if 'Password' in user:
+                del user['Password']
+        return jsonify({'success': True, 'data': users})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ============================================================================
+# ROTAS DE GESTÃO DE ADMINS NORMAIS (Específicas para Super Admin)
+# ============================================================================
+
+@app.route('/api/manage/admins', methods=['GET'])
+@super_admin_required
+def api_manage_admins_get():
+    """Listar todos os admins normais (apenas Super Admin)"""
+    try:
+        admins = get_all_admins()
+        # Não retornar senha no response
+        for admin in admins:
+            if 'Password' in admin:
+                del admin['Password']
+        return jsonify({'success': True, 'data': admins})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/manage/admins/<int:admin_id>', methods=['GET'])
+@super_admin_required
+def api_manage_admin_get(admin_id):
+    """Buscar admin específico por ID"""
+    try:
+        admin = get_user_by_id(admin_id)
+        if not admin:
+            return jsonify({'success': False, 'message': 'Admin não encontrado'}), 404
+        
+        # Verificar se é admin
+        if admin.get('UserType') != config.USER_TYPE_ADMIN:
+            return jsonify({'success': False, 'message': 'Usuário não é um admin'}), 400
+        
+        # Não retornar senha
+        if 'Password' in admin:
+            del admin['Password']
+        
+        return jsonify({'success': True, 'data': admin})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/manage/admins', methods=['POST'])
+@super_admin_required
+def api_manage_admins_post():
+    """Criar novo usuário (admin ou player)"""
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+        user_type = data.get('userType', config.USER_TYPE_ADMIN)  # Default: admin
+        player_id = data.get('playerId', None)
+        
+        if not username or not password:
+            return jsonify({'success': False, 'message': 'Username e senha são obrigatórios'}), 400
+        
+        # Validar tipo de usuário
+        if user_type not in [config.USER_TYPE_ADMIN, config.USER_TYPE_PLAYER]:
+            return jsonify({'success': False, 'message': 'Tipo de usuário inválido'}), 400
+        
+        # Validar força da senha
+        is_valid, error_msg = validate_password_strength(password)
+        if not is_valid:
+            return jsonify({'success': False, 'message': error_msg}), 400
+        
+        # Criar usuário
+        user_id = create_user(username, password, user_type, player_id)
+        
+        if user_id is None:
+            return jsonify({'success': False, 'message': 'Username já existe'}), 400
+        
+        type_label = 'Admin' if user_type == config.USER_TYPE_ADMIN else 'Jogador'
+        return jsonify({'success': True, 'message': f'{type_label} criado com sucesso', 'data': {'user_id': user_id}})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/manage/admins/<int:admin_id>', methods=['PUT'])
+@super_admin_required
+def api_manage_admins_put(admin_id):
+    """Atualizar senha ou status de usuário"""
+    try:
+        user = get_user_by_id(admin_id)
+        if not user:
+            return jsonify({'success': False, 'message': 'Usuário não encontrado'}), 404
+        
+        data = request.get_json()
+        
+        # Verificar se é atualização de senha ou status
+        if 'password' in data:
+            new_password = data.get('password')
+            
+            if not new_password:
+                return jsonify({'success': False, 'message': 'Nova senha é obrigatória'}), 400
+            
+            # Validar força da senha
+            is_valid, error_msg = validate_password_strength(new_password)
+            if not is_valid:
+                return jsonify({'success': False, 'message': error_msg}), 400
+            
+            # Forçar troca de senha para admin e player (não para super_admin)
+            force_change = user['UserType'] in [config.USER_TYPE_ADMIN, config.USER_TYPE_PLAYER]
+            success = update_user_password(admin_id, new_password, force_change=force_change)
+            
+            if not success:
+                return jsonify({'success': False, 'message': 'Erro ao atualizar senha'}), 500
+            
+            return jsonify({'success': True, 'message': 'Senha atualizada com sucesso'})
+        
+        elif 'isActive' in data:
+            is_active = data.get('isActive', False)
+            
+            if is_active:
+                success = activate_user(admin_id)
+                message = 'Usuário ativado com sucesso' if success else 'Erro ao ativar usuário'
+            else:
+                success = deactivate_user(admin_id)
+                message = 'Usuário desativado com sucesso' if success else 'Erro ao desativar usuário'
+            
+            if not success:
+                return jsonify({'success': False, 'message': message}), 500
+            
+            return jsonify({'success': True, 'message': message})
+        
+        else:
+            return jsonify({'success': False, 'message': 'Nenhum campo válido para atualização'}), 400
+            
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/manage/admins/<int:admin_id>', methods=['DELETE'])
+@super_admin_required
+def api_manage_admins_delete(admin_id):
+    """Desativar ou excluir permanentemente usuário"""
+    try:
+        user = get_user_by_id(admin_id)
+        if not user:
+            return jsonify({'success': False, 'message': 'Usuário não encontrado'}), 404
+        
+        # Verificar se é exclusão permanente
+        permanent = request.args.get('permanent', 'false').lower() == 'true'
+        
+        if permanent:
+            # Exclusão permanente
+            success = delete_user(admin_id)
+            message = 'Usuário excluído permanentemente' if success else 'Erro ao excluir usuário'
+        else:
+            # Desativação (comportamento atual)
+            success = deactivate_user(admin_id)
+            message = 'Usuário desativado com sucesso' if success else 'Erro ao desativar usuário'
+        
+        if not success:
+            return jsonify({'success': False, 'message': message}), 500
+        
+        return jsonify({'success': True, 'message': message})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.errorhandler(500)
 def internal_error(e):

@@ -1,0 +1,59 @@
+/* ============================================================================
+   GERENCIAMENTO DE USUÁRIOS
+   ============================================================================ */
+
+.alert-container {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    z-index: 1050;
+    max-width: 400px;
+}
+
+#usersTable .btn-group-sm > .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+#usersTable .badge {
+    font-size: 0.875rem;
+}
+
+#usersTable .text-muted {
+    font-style: italic;
+}
+
+.modal-body .form-label {
+    font-weight: 600;
+}
+
+#playerIdField select {
+    font-family: monospace;
+    font-size: 0.9rem;
+}
+
+/* Estilo para badges de tipo de usuário */
+#usersTable .badge.bg-warning {
+    color: #000;
+}
+
+#usersTable .badge.bg-info {
+    color: #fff;
+}
+
+/* Hover effect em linhas da tabela */
+#usersTable tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Responsividade para tabela */
+@media (max-width: 768px) {
+    #usersTable_wrapper {
+        overflow-x: auto;
+    }
+    
+    #usersTable {
+        min-width: 800px;
+    }
+}
+

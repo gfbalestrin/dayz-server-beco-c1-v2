@@ -5,6 +5,7 @@ import sqlite3
 from datetime import datetime
 from typing import List, Dict, Optional, Tuple
 import config
+import bcrypt
 
 class DatabaseConnection:
     """Context manager para conexões com o banco de dados"""
@@ -1842,3 +1843,203 @@ def get_all_attachments() -> List[Dict]:
         cursor = conn.cursor()
         cursor.execute("SELECT id, name, name_type, type, slots, width, height, img, battery FROM attachments ORDER BY name")
         return [dict(row) for row in cursor.fetchall()]
+
+# ============================================================================
+# FUNÇÕES DE AUTENTICAÇÃO E GESTÃO DE USUÁRIOS
+# ============================================================================
+
+def hash_password(password: str) -> str:
+    """Gera hash bcrypt da senha"""
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Verifica se a senha corresponde ao hash"""
+    try:
+        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+    except Exception:
+        return False
+
+def authenticate_user(username: str, password: str) -> Optional[Dict]:
+    """
+    Valida credenciais e retorna dados do usuário
+    Retorna None se inválido, dict com dados do usuário se válido
+    """
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT UserID, Username, Password, UserType, PlayerID, IsActive, MustChangePassword
+            FROM users
+            WHERE Username = ? AND IsActive = 1
+        """, (username,))
+        
+        result = cursor.fetchone()
+        if result:
+            user_data = dict(result)
+            if verify_password(password, user_data['Password']):
+                # Atualizar último login
+                update_last_login(user_data['UserID'])
+                return user_data
+        return None
+
+def get_user_by_username(username: str) -> Optional[Dict]:
+    """Busca usuário por username"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT UserID, Username, Password, UserType, PlayerID, IsActive, CreatedAt, LastLogin, MustChangePassword
+            FROM users
+            WHERE Username = ?
+        """, (username,))
+        
+        result = cursor.fetchone()
+        return dict(result) if result else None
+
+def get_user_by_id(user_id: int) -> Optional[Dict]:
+    """Busca usuário por ID"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT UserID, Username, Password, UserType, PlayerID, IsActive, CreatedAt, LastLogin, MustChangePassword
+            FROM users
+            WHERE UserID = ?
+        """, (user_id,))
+        
+        result = cursor.fetchone()
+        return dict(result) if result else None
+
+def create_user(username: str, password: str, user_type: str, player_id: Optional[str] = None) -> Optional[int]:
+    """
+    Cria novo usuário
+    Retorna UserID se sucesso, None se username já existe
+    """
+    hashed_password = hash_password(password)
+    
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO users (Username, Password, UserType, PlayerID, MustChangePassword)
+                VALUES (?, ?, ?, ?, 1)
+            """, (username, hashed_password, user_type, player_id))
+            conn.commit()
+            return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            return None
+
+def update_user_password(user_id: int, new_password: str, force_change: bool = False) -> bool:
+    """Atualiza senha do usuário"""
+    hashed_password = hash_password(new_password)
+    
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users
+            SET Password = ?, MustChangePassword = ?
+            WHERE UserID = ?
+        """, (hashed_password, 1 if force_change else 0, user_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def update_last_login(user_id: int) -> bool:
+    """Atualiza timestamp de último login"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users
+            SET LastLogin = CURRENT_TIMESTAMP
+            WHERE UserID = ?
+        """, (user_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def deactivate_user(user_id: int) -> bool:
+    """Desativa usuário (não remove do banco)"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users
+            SET IsActive = 0
+            WHERE UserID = ?
+        """, (user_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def activate_user(user_id: int) -> bool:
+    """Ativa usuário"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users
+            SET IsActive = 1
+            WHERE UserID = ?
+        """, (user_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def delete_user(user_id: int) -> bool:
+    """Exclui usuário permanentemente do banco de dados"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM users WHERE UserID = ?", (user_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def get_all_admins() -> List[Dict]:
+    """Lista todos admins normais (ativo)"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT UserID, Username, UserType, PlayerID, CreatedAt, LastLogin
+            FROM users
+            WHERE UserType = ? AND IsActive = 1
+            ORDER BY CreatedAt DESC
+        """, (config.USER_TYPE_ADMIN,))
+        return [dict(row) for row in cursor.fetchall()]
+
+def link_player_to_user(player_id: str, username: str, password: str) -> Optional[int]:
+    """
+    Vincula jogador a usuário (cria usuário tipo player)
+    Retorna UserID se sucesso, None se username já existe
+    """
+    return create_user(username, password, config.USER_TYPE_PLAYER, player_id)
+
+def validate_password_strength(password: str) -> Tuple[bool, str]:
+    """
+    Valida força da senha
+    Retorna (True, "") se válida, (False, mensagem_erro) se inválida
+    """
+    if len(password) < 8:
+        return False, "Senha deve ter no mínimo 8 caracteres"
+    return True, ""
+
+def get_all_users() -> List[Dict]:
+    """
+    Retorna todos os usuários (admin e player) com informações do jogador vinculado
+    Não inclui senhas por segurança
+    """
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                u.UserID,
+                u.Username,
+                u.UserType,
+                u.PlayerID,
+                u.IsActive,
+                u.CreatedAt,
+                u.LastLogin,
+                u.MustChangePassword,
+                pd.PlayerName,
+                pd.SteamID,
+                pd.SteamName
+            FROM users u
+            LEFT JOIN players_database pd ON u.PlayerID = pd.PlayerID
+            ORDER BY u.CreatedAt DESC
+        """)
+        
+        results = []
+        for row in cursor.fetchall():
+            user_data = dict(row)
+            results.append(user_data)
+        
+        return results

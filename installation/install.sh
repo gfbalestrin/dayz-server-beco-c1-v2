@@ -524,6 +524,7 @@ if [ -f "$DayzFolder/scripts/clear_databases.sh" ]; then
     ./clear_databases.sh
 fi
 
+cd "$DayzFolder/scripts"
 source ./config.sh
 CurrentDate=\$(date "+%d/%m/%Y %H:%M:%S")
 ScriptName=\$(basename "\$0")
@@ -542,9 +543,7 @@ if [ -f "$DayzFolder/scripts/economy_update.sh" ]; then
     echo "[INFO] Atualizando eventos..."
     cd "$DayzFolder/scripts"
     ./economy_update.sh
-fi
-
- 
+fi 
 
 cd "$DayzFolder/mpmissions/$DayzMpmission/"
 
@@ -579,6 +578,43 @@ echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_to_send.txt
 echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_private_to_send.txt
 echo > $DayzFolder/profiles/dayz-server.log
 echo > $DayzFolder/profiles/dayz-server.err
+
+awk -v dl="$DayzRestartMinutes" '
+BEGIN { in_old = 0; added = 0 }
+
+/<message>/ {
+    buffer = $0 ORS
+    in_old = 1
+    next
+}
+
+in_old {
+    buffer = buffer $0 ORS
+    if ($0 ~ /<\/message>/) {
+        # Verifica se o buffer é a mensagem de aviso
+        if (buffer ~ /<shutdown>1<\/shutdown>/ && buffer ~ /O servidor vai ser reiniciado em #tmin minutos/) {
+            # drop (não imprime)
+        } else {
+            printf "%s", buffer
+        }
+        in_old = 0
+        buffer = ""
+    }
+    next
+}
+
+/<\/messages>/ && !added {
+    print "    <message>"
+    print "        <deadline>" dl "</deadline>"
+    print "        <shutdown>1</shutdown>"
+    print "        <text>O servidor vai ser reiniciado em #tmin minutos.</text>"
+    print "    </message>"
+    added = 1
+}
+
+{ print }
+' "$DayzFolder/mpmissions/$DayzMpmission/db/messages.xml" > tmp.xml && \
+mv tmp.xml "$DayzFolder/mpmissions/$DayzMpmission/db/messages.xml"
 
 echo "[INFO] Update concluído com sucesso."
 EOF
