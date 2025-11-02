@@ -1434,7 +1434,8 @@ function toggleAttachmentForWeapon(attachmentId) {
             slots: attachment.slots,
             width: attachment.width,
             height: attachment.height,
-            battery: attachment.battery || false
+            battery: attachment.battery || false,
+            img: attachment.img || ''
         });
     }
     
@@ -1565,7 +1566,8 @@ function selectMagazineForWeapon(magazineId) {
             capacity: magazine.capacity,
             slots: magazine.slots,
             width: magazine.width,
-            height: magazine.height
+            height: magazine.height,
+            img: magazine.img || ''
         };
     }
     
@@ -1593,7 +1595,8 @@ function selectAmmunitionForWeapon(ammunitionId) {
             name_type: ammunition.name_type,
             slots: ammunition.slots,
             width: ammunition.width,
-            height: ammunition.height
+            height: ammunition.height,
+            img: ammunition.img || ''
         };
     }
     
@@ -1769,10 +1772,10 @@ function updateSelectedWeaponDisplay(weaponType) {
                         ` : '<div class="mb-2"><strong>Attachments:</strong> <span class="text-muted">Nenhum</span></div>'}
                     </div>
                     <div class="ms-3">
-                        <button class="btn btn-sm btn-primary me-1" onclick="openWeaponConfigModalWithData('${weaponType}')">
+                        <button class="btn btn-sm btn-primary me-1" onclick="openWeaponConfigModalWithData('${weaponType}'); event.preventDefault(); event.stopPropagation(); return false;">
                             <i class="fas fa-cog"></i> Configurar
                         </button>
-                        <button class="btn btn-sm btn-danger" onclick="removeWeaponFromLoadout('${weaponType}')">
+                        <button class="btn btn-sm btn-danger" onclick="removeWeaponFromLoadout('${weaponType}'); event.preventDefault(); event.stopPropagation(); return false;">
                             <i class="fas fa-trash"></i> Remover
                         </button>
                     </div>
@@ -1898,8 +1901,7 @@ function updateSelectedExplosivesDisplay() {
                         <div class="d-flex align-items-center">
                             <img src="${explosive.img || 'https://via.placeholder.com/80?text=No+Image'}" 
                                  alt="${explosive.name}" 
-                                 class="img-thumbnail me-3" 
-                                 style="width: 80px; height: 80px; object-fit: cover;"
+                                 class="img-thumbnail me-3 selected-explosive-img" 
                                  onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
                             <div>
                                 <strong>${explosive.name}</strong> (x${explosive.quantity})
@@ -1908,10 +1910,10 @@ function updateSelectedExplosivesDisplay() {
                             </div>
                         </div>
                         <div>
-                            <button class="btn btn-sm btn-primary me-1" onclick="editExplosiveQuantity(${explosive.id})">
+                            <button class="btn btn-sm btn-primary me-1" onclick="editExplosiveQuantity(${explosive.id}); event.preventDefault(); event.stopPropagation(); return false;">
                                 <i class="fas fa-edit"></i> Quantidade
                             </button>
-                            <button class="btn btn-sm btn-danger" onclick="removeExplosiveFromLoadout(${explosive.id})">
+                            <button class="btn btn-sm btn-danger" onclick="removeExplosiveFromLoadout(${explosive.id}); event.preventDefault(); event.stopPropagation(); return false;">
                                 <i class="fas fa-trash"></i> Remover
                             </button>
                         </div>
@@ -1925,14 +1927,18 @@ function updateSelectedExplosivesDisplay() {
 
 function editExplosiveQuantity(explosiveId) {
     const explosive = selectedExplosives.find(e => e.id === explosiveId);
-    if (!explosive) return;
+    if (!explosive) return false;
     
     const newQuantity = prompt(`Quantidade de "${explosive.name}":`, explosive.quantity);
-    if (newQuantity === null) return;
+    if (newQuantity === null) {
+        // Cancelado pelo usuário - não fazer nada
+        return false;
+    }
     
     explosive.quantity = parseInt(newQuantity) || 1;
     updateSelectedExplosivesDisplay();
     updateJSONPreview();
+    return true;
 }
 
 function removeExplosiveFromLoadout(explosiveId) {

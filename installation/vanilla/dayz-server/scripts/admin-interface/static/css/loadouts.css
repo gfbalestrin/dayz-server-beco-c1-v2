@@ -254,6 +254,15 @@
     object-fit: contain;
 }
 
+/* Imagens específicas para explosivos selecionados */
+.selected-explosive-display img,
+.selected-explosive-img,
+#selectedExplosivesList img {
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+}
+
 /* Grids de itens por localização */
 .items-location-section {
     border-bottom: 1px solid #dee2e6;
@@ -265,10 +274,22 @@
 }
 
 .items-grid-scrollable {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 15px;
+    padding: 10px;
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
+    width: 100%;
+}
+
+/* Cards dentro de grids scrolláveis devem ter largura fixa */
+.items-grid-scrollable .weapon-card {
+    flex: 0 0 200px;
+    min-width: 200px;
+    max-width: 200px;
 }
 
 .items-grid-scrollable::-webkit-scrollbar {
