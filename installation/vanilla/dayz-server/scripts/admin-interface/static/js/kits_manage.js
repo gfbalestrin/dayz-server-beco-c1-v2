@@ -551,13 +551,40 @@ function toggleLootItemSelection(itemId) {
     const index = selectedLootItems.findIndex(i => i.item_id === itemId);
     
     if (index > -1) {
+        // Remover: sempre permitido
         selectedLootItems.splice(index, 1);
+        renderLootItemsGrid();
+        updateLootKitSpace();
     } else {
-        selectedLootItems.push({ item_id: itemId, quantity: 1 });
+        // Adicionar: validar antes
+        if (!currentLootKitContainer) {
+            showToast('Erro', 'Selecione um container antes de adicionar itens', 'warning');
+            return;
+        }
+        
+        const tempPayload = {
+            container_id: currentLootKitContainer.id,
+            items: [...selectedLootItems, { item_id: itemId, quantity: 1 }].map(i => ({ item_id: i.item_id, quantity: i.quantity })),
+            weapon_kits: selectedLootWeaponKits.map(k => ({ weapon_kit_id: k.weapon_kit_id, quantity: k.quantity })),
+            explosives: selectedLootExplosives.map(e => ({ explosive_id: e.explosive_id, quantity: e.quantity })),
+            ammunitions: selectedLootAmmunitions.map(a => ({ ammunition_id: a.ammunition_id, quantity: a.quantity })),
+            magazines: selectedLootMagazines.map(m => ({ magazine_id: m.magazine_id, quantity: m.quantity })),
+            attachments: selectedLootAttachments.map(a => ({ attachment_id: a.attachment_id, quantity: a.quantity }))
+        };
+        
+        validateSpaceBeforeAdding(tempPayload,
+            function(response) {
+                // Sucesso: adicionar
+                selectedLootItems.push({ item_id: itemId, quantity: 1 });
+                renderLootItemsGrid();
+                updateLootKitSpace();
+            },
+            function(errorMsg) {
+                // Erro: mostrar toast
+                showToast('Espaço insuficiente', errorMsg, 'warning');
+            }
+        );
     }
-    
-    renderLootItemsGrid();
-    updateLootKitSpace();
 }
 
 function updateSelectedLootItems() {
@@ -591,8 +618,37 @@ function updateSelectedLootItems() {
         `);
         
         listItem.find('.quantity-input').on('change', function() {
-            item.quantity = parseInt($(this).val()) || 1;
-            updateLootKitSpace();
+            const newQuantity = parseInt($(this).val()) || 1;
+            const oldQuantity = item.quantity;
+            const $input = $(this);
+            
+            // Criar payload com nova quantidade
+            const tempItems = selectedLootItems.map(i => 
+                i.item_id === item.item_id ? { ...i, quantity: newQuantity } : i
+            );
+            
+            const tempPayload = {
+                container_id: currentLootKitContainer.id,
+                items: tempItems.map(i => ({ item_id: i.item_id, quantity: i.quantity })),
+                weapon_kits: selectedLootWeaponKits.map(k => ({ weapon_kit_id: k.weapon_kit_id, quantity: k.quantity })),
+                explosives: selectedLootExplosives.map(e => ({ explosive_id: e.explosive_id, quantity: e.quantity })),
+                ammunitions: selectedLootAmmunitions.map(a => ({ ammunition_id: a.ammunition_id, quantity: a.quantity })),
+                magazines: selectedLootMagazines.map(m => ({ magazine_id: m.magazine_id, quantity: m.quantity })),
+                attachments: selectedLootAttachments.map(a => ({ attachment_id: a.attachment_id, quantity: a.quantity }))
+            };
+            
+            validateSpaceBeforeAdding(tempPayload,
+                function(response) {
+                    // Sucesso: atualizar
+                    item.quantity = newQuantity;
+                    updateLootKitSpace();
+                },
+                function(errorMsg) {
+                    // Erro: reverter valor
+                    $input.val(oldQuantity);
+                    showToast('Espaço insuficiente', errorMsg, 'warning');
+                }
+            );
         });
         
         list.append(listItem);
@@ -635,13 +691,40 @@ function toggleLootWeaponKitSelection(kitId) {
     const index = selectedLootWeaponKits.findIndex(k => k.weapon_kit_id === kitId);
     
     if (index > -1) {
+        // Remover: sempre permitido
         selectedLootWeaponKits.splice(index, 1);
+        renderLootWeaponKitsGrid();
+        updateLootKitSpace();
     } else {
-        selectedLootWeaponKits.push({ weapon_kit_id: kitId, quantity: 1 });
+        // Adicionar: validar antes
+        if (!currentLootKitContainer) {
+            showToast('Erro', 'Selecione um container antes de adicionar itens', 'warning');
+            return;
+        }
+        
+        const tempPayload = {
+            container_id: currentLootKitContainer.id,
+            items: selectedLootItems.map(i => ({ item_id: i.item_id, quantity: i.quantity })),
+            weapon_kits: [...selectedLootWeaponKits, { weapon_kit_id: kitId, quantity: 1 }].map(k => ({ weapon_kit_id: k.weapon_kit_id, quantity: k.quantity })),
+            explosives: selectedLootExplosives.map(e => ({ explosive_id: e.explosive_id, quantity: e.quantity })),
+            ammunitions: selectedLootAmmunitions.map(a => ({ ammunition_id: a.ammunition_id, quantity: a.quantity })),
+            magazines: selectedLootMagazines.map(m => ({ magazine_id: m.magazine_id, quantity: m.quantity })),
+            attachments: selectedLootAttachments.map(a => ({ attachment_id: a.attachment_id, quantity: a.quantity }))
+        };
+        
+        validateSpaceBeforeAdding(tempPayload,
+            function(response) {
+                // Sucesso: adicionar
+                selectedLootWeaponKits.push({ weapon_kit_id: kitId, quantity: 1 });
+                renderLootWeaponKitsGrid();
+                updateLootKitSpace();
+            },
+            function(errorMsg) {
+                // Erro: mostrar toast
+                showToast('Espaço insuficiente', errorMsg, 'warning');
+            }
+        );
     }
-    
-    renderLootWeaponKitsGrid();
-    updateLootKitSpace();
 }
 
 function updateSelectedLootWeaponKits() {
@@ -675,8 +758,37 @@ function updateSelectedLootWeaponKits() {
         `);
         
         listItem.find('.quantity-input').on('change', function() {
-            kit.quantity = parseInt($(this).val()) || 1;
-            updateLootKitSpace();
+            const newQuantity = parseInt($(this).val()) || 1;
+            const oldQuantity = kit.quantity;
+            const $input = $(this);
+            
+            // Criar payload com nova quantidade
+            const tempKits = selectedLootWeaponKits.map(k => 
+                k.weapon_kit_id === kit.weapon_kit_id ? { ...k, quantity: newQuantity } : k
+            );
+            
+            const tempPayload = {
+                container_id: currentLootKitContainer.id,
+                items: selectedLootItems.map(i => ({ item_id: i.item_id, quantity: i.quantity })),
+                weapon_kits: tempKits.map(k => ({ weapon_kit_id: k.weapon_kit_id, quantity: k.quantity })),
+                explosives: selectedLootExplosives.map(e => ({ explosive_id: e.explosive_id, quantity: e.quantity })),
+                ammunitions: selectedLootAmmunitions.map(a => ({ ammunition_id: a.ammunition_id, quantity: a.quantity })),
+                magazines: selectedLootMagazines.map(m => ({ magazine_id: m.magazine_id, quantity: m.quantity })),
+                attachments: selectedLootAttachments.map(a => ({ attachment_id: a.attachment_id, quantity: a.quantity }))
+            };
+            
+            validateSpaceBeforeAdding(tempPayload,
+                function(response) {
+                    // Sucesso: atualizar
+                    kit.quantity = newQuantity;
+                    updateLootKitSpace();
+                },
+                function(errorMsg) {
+                    // Erro: reverter valor
+                    $input.val(oldQuantity);
+                    showToast('Espaço insuficiente', errorMsg, 'warning');
+                }
+            );
         });
         
         list.append(listItem);
@@ -894,13 +1006,40 @@ function toggleExplosiveSelection(expId) {
     const index = selectedLootExplosives.findIndex(e => e.explosive_id === expId);
     
     if (index > -1) {
+        // Remover: sempre permitido
         selectedLootExplosives.splice(index, 1);
+        renderExplosivesGrid();
+        updateLootKitSpace();
     } else {
-        selectedLootExplosives.push({ explosive_id: expId, quantity: 1 });
+        // Adicionar: validar antes
+        if (!currentLootKitContainer) {
+            showToast('Erro', 'Selecione um container antes de adicionar itens', 'warning');
+            return;
+        }
+        
+        const tempPayload = {
+            container_id: currentLootKitContainer.id,
+            items: selectedLootItems.map(i => ({ item_id: i.item_id, quantity: i.quantity })),
+            weapon_kits: selectedLootWeaponKits.map(k => ({ weapon_kit_id: k.weapon_kit_id, quantity: k.quantity })),
+            explosives: [...selectedLootExplosives, { explosive_id: expId, quantity: 1 }].map(e => ({ explosive_id: e.explosive_id, quantity: e.quantity })),
+            ammunitions: selectedLootAmmunitions.map(a => ({ ammunition_id: a.ammunition_id, quantity: a.quantity })),
+            magazines: selectedLootMagazines.map(m => ({ magazine_id: m.magazine_id, quantity: m.quantity })),
+            attachments: selectedLootAttachments.map(a => ({ attachment_id: a.attachment_id, quantity: a.quantity }))
+        };
+        
+        validateSpaceBeforeAdding(tempPayload,
+            function(response) {
+                // Sucesso: adicionar
+                selectedLootExplosives.push({ explosive_id: expId, quantity: 1 });
+                renderExplosivesGrid();
+                updateLootKitSpace();
+            },
+            function(errorMsg) {
+                // Erro: mostrar toast
+                showToast('Espaço insuficiente', errorMsg, 'warning');
+            }
+        );
     }
-    
-    renderExplosivesGrid();
-    updateLootKitSpace();
 }
 
 function updateSelectedExplosives() {
@@ -933,8 +1072,37 @@ function updateSelectedExplosives() {
         `);
         
         listItem.find('.quantity-input').on('change', function() {
-            exp.quantity = parseInt($(this).val()) || 1;
-            updateLootKitSpace();
+            const newQuantity = parseInt($(this).val()) || 1;
+            const oldQuantity = exp.quantity;
+            const $input = $(this);
+            
+            // Criar payload com nova quantidade
+            const tempExplosives = selectedLootExplosives.map(e => 
+                e.explosive_id === exp.explosive_id ? { ...e, quantity: newQuantity } : e
+            );
+            
+            const tempPayload = {
+                container_id: currentLootKitContainer.id,
+                items: selectedLootItems.map(i => ({ item_id: i.item_id, quantity: i.quantity })),
+                weapon_kits: selectedLootWeaponKits.map(k => ({ weapon_kit_id: k.weapon_kit_id, quantity: k.quantity })),
+                explosives: tempExplosives.map(e => ({ explosive_id: e.explosive_id, quantity: e.quantity })),
+                ammunitions: selectedLootAmmunitions.map(a => ({ ammunition_id: a.ammunition_id, quantity: a.quantity })),
+                magazines: selectedLootMagazines.map(m => ({ magazine_id: m.magazine_id, quantity: m.quantity })),
+                attachments: selectedLootAttachments.map(a => ({ attachment_id: a.attachment_id, quantity: a.quantity }))
+            };
+            
+            validateSpaceBeforeAdding(tempPayload,
+                function(response) {
+                    // Sucesso: atualizar
+                    exp.quantity = newQuantity;
+                    updateLootKitSpace();
+                },
+                function(errorMsg) {
+                    // Erro: reverter valor
+                    $input.val(oldQuantity);
+                    showToast('Espaço insuficiente', errorMsg, 'warning');
+                }
+            );
         });
         
         list.append(listItem);
@@ -976,13 +1144,40 @@ function toggleAmmunitionSelection(ammoId) {
     const index = selectedLootAmmunitions.findIndex(a => a.ammunition_id === ammoId);
     
     if (index > -1) {
+        // Remover: sempre permitido
         selectedLootAmmunitions.splice(index, 1);
+        renderAmmunitionsGrid();
+        updateLootKitSpace();
     } else {
-        selectedLootAmmunitions.push({ ammunition_id: ammoId, quantity: 1 });
+        // Adicionar: validar antes
+        if (!currentLootKitContainer) {
+            showToast('Erro', 'Selecione um container antes de adicionar itens', 'warning');
+            return;
+        }
+        
+        const tempPayload = {
+            container_id: currentLootKitContainer.id,
+            items: selectedLootItems.map(i => ({ item_id: i.item_id, quantity: i.quantity })),
+            weapon_kits: selectedLootWeaponKits.map(k => ({ weapon_kit_id: k.weapon_kit_id, quantity: k.quantity })),
+            explosives: selectedLootExplosives.map(e => ({ explosive_id: e.explosive_id, quantity: e.quantity })),
+            ammunitions: [...selectedLootAmmunitions, { ammunition_id: ammoId, quantity: 1 }].map(a => ({ ammunition_id: a.ammunition_id, quantity: a.quantity })),
+            magazines: selectedLootMagazines.map(m => ({ magazine_id: m.magazine_id, quantity: m.quantity })),
+            attachments: selectedLootAttachments.map(a => ({ attachment_id: a.attachment_id, quantity: a.quantity }))
+        };
+        
+        validateSpaceBeforeAdding(tempPayload,
+            function(response) {
+                // Sucesso: adicionar
+                selectedLootAmmunitions.push({ ammunition_id: ammoId, quantity: 1 });
+                renderAmmunitionsGrid();
+                updateLootKitSpace();
+            },
+            function(errorMsg) {
+                // Erro: mostrar toast
+                showToast('Espaço insuficiente', errorMsg, 'warning');
+            }
+        );
     }
-    
-    renderAmmunitionsGrid();
-    updateLootKitSpace();
 }
 
 function updateSelectedAmmunitions() {
@@ -1015,8 +1210,37 @@ function updateSelectedAmmunitions() {
         `);
         
         listItem.find('.quantity-input').on('change', function() {
-            ammo.quantity = parseInt($(this).val()) || 1;
-            updateLootKitSpace();
+            const newQuantity = parseInt($(this).val()) || 1;
+            const oldQuantity = ammo.quantity;
+            const $input = $(this);
+            
+            // Criar payload com nova quantidade
+            const tempAmmunitions = selectedLootAmmunitions.map(a => 
+                a.ammunition_id === ammo.ammunition_id ? { ...a, quantity: newQuantity } : a
+            );
+            
+            const tempPayload = {
+                container_id: currentLootKitContainer.id,
+                items: selectedLootItems.map(i => ({ item_id: i.item_id, quantity: i.quantity })),
+                weapon_kits: selectedLootWeaponKits.map(k => ({ weapon_kit_id: k.weapon_kit_id, quantity: k.quantity })),
+                explosives: selectedLootExplosives.map(e => ({ explosive_id: e.explosive_id, quantity: e.quantity })),
+                ammunitions: tempAmmunitions.map(a => ({ ammunition_id: a.ammunition_id, quantity: a.quantity })),
+                magazines: selectedLootMagazines.map(m => ({ magazine_id: m.magazine_id, quantity: m.quantity })),
+                attachments: selectedLootAttachments.map(a => ({ attachment_id: a.attachment_id, quantity: a.quantity }))
+            };
+            
+            validateSpaceBeforeAdding(tempPayload,
+                function(response) {
+                    // Sucesso: atualizar
+                    ammo.quantity = newQuantity;
+                    updateLootKitSpace();
+                },
+                function(errorMsg) {
+                    // Erro: reverter valor
+                    $input.val(oldQuantity);
+                    showToast('Espaço insuficiente', errorMsg, 'warning');
+                }
+            );
         });
         
         list.append(listItem);
@@ -1058,13 +1282,40 @@ function toggleMagazineSelection(magId) {
     const index = selectedLootMagazines.findIndex(m => m.magazine_id === magId);
     
     if (index > -1) {
+        // Remover: sempre permitido
         selectedLootMagazines.splice(index, 1);
+        renderMagazinesGrid();
+        updateLootKitSpace();
     } else {
-        selectedLootMagazines.push({ magazine_id: magId, quantity: 1 });
+        // Adicionar: validar antes
+        if (!currentLootKitContainer) {
+            showToast('Erro', 'Selecione um container antes de adicionar itens', 'warning');
+            return;
+        }
+        
+        const tempPayload = {
+            container_id: currentLootKitContainer.id,
+            items: selectedLootItems.map(i => ({ item_id: i.item_id, quantity: i.quantity })),
+            weapon_kits: selectedLootWeaponKits.map(k => ({ weapon_kit_id: k.weapon_kit_id, quantity: k.quantity })),
+            explosives: selectedLootExplosives.map(e => ({ explosive_id: e.explosive_id, quantity: e.quantity })),
+            ammunitions: selectedLootAmmunitions.map(a => ({ ammunition_id: a.ammunition_id, quantity: a.quantity })),
+            magazines: [...selectedLootMagazines, { magazine_id: magId, quantity: 1 }].map(m => ({ magazine_id: m.magazine_id, quantity: m.quantity })),
+            attachments: selectedLootAttachments.map(a => ({ attachment_id: a.attachment_id, quantity: a.quantity }))
+        };
+        
+        validateSpaceBeforeAdding(tempPayload,
+            function(response) {
+                // Sucesso: adicionar
+                selectedLootMagazines.push({ magazine_id: magId, quantity: 1 });
+                renderMagazinesGrid();
+                updateLootKitSpace();
+            },
+            function(errorMsg) {
+                // Erro: mostrar toast
+                showToast('Espaço insuficiente', errorMsg, 'warning');
+            }
+        );
     }
-    
-    renderMagazinesGrid();
-    updateLootKitSpace();
 }
 
 function updateSelectedMagazines() {
@@ -1097,8 +1348,37 @@ function updateSelectedMagazines() {
         `);
         
         listItem.find('.quantity-input').on('change', function() {
-            mag.quantity = parseInt($(this).val()) || 1;
-            updateLootKitSpace();
+            const newQuantity = parseInt($(this).val()) || 1;
+            const oldQuantity = mag.quantity;
+            const $input = $(this);
+            
+            // Criar payload com nova quantidade
+            const tempMagazines = selectedLootMagazines.map(m => 
+                m.magazine_id === mag.magazine_id ? { ...m, quantity: newQuantity } : m
+            );
+            
+            const tempPayload = {
+                container_id: currentLootKitContainer.id,
+                items: selectedLootItems.map(i => ({ item_id: i.item_id, quantity: i.quantity })),
+                weapon_kits: selectedLootWeaponKits.map(k => ({ weapon_kit_id: k.weapon_kit_id, quantity: k.quantity })),
+                explosives: selectedLootExplosives.map(e => ({ explosive_id: e.explosive_id, quantity: e.quantity })),
+                ammunitions: selectedLootAmmunitions.map(a => ({ ammunition_id: a.ammunition_id, quantity: a.quantity })),
+                magazines: tempMagazines.map(m => ({ magazine_id: m.magazine_id, quantity: m.quantity })),
+                attachments: selectedLootAttachments.map(a => ({ attachment_id: a.attachment_id, quantity: a.quantity }))
+            };
+            
+            validateSpaceBeforeAdding(tempPayload,
+                function(response) {
+                    // Sucesso: atualizar
+                    mag.quantity = newQuantity;
+                    updateLootKitSpace();
+                },
+                function(errorMsg) {
+                    // Erro: reverter valor
+                    $input.val(oldQuantity);
+                    showToast('Espaço insuficiente', errorMsg, 'warning');
+                }
+            );
         });
         
         list.append(listItem);
@@ -1140,13 +1420,40 @@ function toggleLootAttachmentSelection(attId) {
     const index = selectedLootAttachments.findIndex(a => a.attachment_id === attId);
     
     if (index > -1) {
+        // Remover: sempre permitido
         selectedLootAttachments.splice(index, 1);
+        renderLootAttachmentsGrid();
+        updateLootKitSpace();
     } else {
-        selectedLootAttachments.push({ attachment_id: attId, quantity: 1 });
+        // Adicionar: validar antes
+        if (!currentLootKitContainer) {
+            showToast('Erro', 'Selecione um container antes de adicionar itens', 'warning');
+            return;
+        }
+        
+        const tempPayload = {
+            container_id: currentLootKitContainer.id,
+            items: selectedLootItems.map(i => ({ item_id: i.item_id, quantity: i.quantity })),
+            weapon_kits: selectedLootWeaponKits.map(k => ({ weapon_kit_id: k.weapon_kit_id, quantity: k.quantity })),
+            explosives: selectedLootExplosives.map(e => ({ explosive_id: e.explosive_id, quantity: e.quantity })),
+            ammunitions: selectedLootAmmunitions.map(a => ({ ammunition_id: a.ammunition_id, quantity: a.quantity })),
+            magazines: selectedLootMagazines.map(m => ({ magazine_id: m.magazine_id, quantity: m.quantity })),
+            attachments: [...selectedLootAttachments, { attachment_id: attId, quantity: 1 }].map(a => ({ attachment_id: a.attachment_id, quantity: a.quantity }))
+        };
+        
+        validateSpaceBeforeAdding(tempPayload,
+            function(response) {
+                // Sucesso: adicionar
+                selectedLootAttachments.push({ attachment_id: attId, quantity: 1 });
+                renderLootAttachmentsGrid();
+                updateLootKitSpace();
+            },
+            function(errorMsg) {
+                // Erro: mostrar toast
+                showToast('Espaço insuficiente', errorMsg, 'warning');
+            }
+        );
     }
-    
-    renderLootAttachmentsGrid();
-    updateLootKitSpace();
 }
 
 function updateSelectedLootAttachments() {
@@ -1179,8 +1486,37 @@ function updateSelectedLootAttachments() {
         `);
         
         listItem.find('.quantity-input').on('change', function() {
-            att.quantity = parseInt($(this).val()) || 1;
-            updateLootKitSpace();
+            const newQuantity = parseInt($(this).val()) || 1;
+            const oldQuantity = att.quantity;
+            const $input = $(this);
+            
+            // Criar payload com nova quantidade
+            const tempAttachments = selectedLootAttachments.map(a => 
+                a.attachment_id === att.attachment_id ? { ...a, quantity: newQuantity } : a
+            );
+            
+            const tempPayload = {
+                container_id: currentLootKitContainer.id,
+                items: selectedLootItems.map(i => ({ item_id: i.item_id, quantity: i.quantity })),
+                weapon_kits: selectedLootWeaponKits.map(k => ({ weapon_kit_id: k.weapon_kit_id, quantity: k.quantity })),
+                explosives: selectedLootExplosives.map(e => ({ explosive_id: e.explosive_id, quantity: e.quantity })),
+                ammunitions: selectedLootAmmunitions.map(a => ({ ammunition_id: a.ammunition_id, quantity: a.quantity })),
+                magazines: selectedLootMagazines.map(m => ({ magazine_id: m.magazine_id, quantity: m.quantity })),
+                attachments: tempAttachments.map(a => ({ attachment_id: a.attachment_id, quantity: a.quantity }))
+            };
+            
+            validateSpaceBeforeAdding(tempPayload,
+                function(response) {
+                    // Sucesso: atualizar
+                    att.quantity = newQuantity;
+                    updateLootKitSpace();
+                },
+                function(errorMsg) {
+                    // Erro: reverter valor
+                    $input.val(oldQuantity);
+                    showToast('Espaço insuficiente', errorMsg, 'warning');
+                }
+            );
         });
         
         list.append(listItem);
@@ -1191,6 +1527,36 @@ function removeLootAttachment(index) {
     selectedLootAttachments.splice(index, 1);
     renderLootAttachmentsGrid();
     updateLootKitSpace();
+}
+
+function validateSpaceBeforeAdding(newItemPayload, onSuccess, onError) {
+    if (!currentLootKitContainer) {
+        if (onError) onError('Nenhum container selecionado');
+        return;
+    }
+    
+    $.ajax({
+        url: '/api/kits/loot/validate-space',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(newItemPayload),
+        success: function(response) {
+            if (response.fits) {
+                if (onSuccess) onSuccess(response);
+            } else {
+                if (onError) {
+                    const errorMsg = response.errors && response.errors.length > 0
+                        ? response.errors[0].item + ' não cabe no container'
+                        : 'Item não cabe no container';
+                    onError(errorMsg);
+                }
+            }
+        },
+        error: function(xhr) {
+            console.error('Erro ao validar espaço:', xhr);
+            if (onError) onError('Erro ao validar espaço');
+        }
+    });
 }
 
 function updateLootKitSpace() {
