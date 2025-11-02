@@ -382,10 +382,20 @@ function executeSpawn() {
                 kit_id: kitId
             };
         } else {
-            // Para kits em coordenadas, usar implementação futura ou simplificada
-            showToast('Aviso', 'Spawn de kits em coordenadas ainda não implementado', 'warning');
-            $('#confirmSpawnBtn').prop('disabled', false).html('<i class="fas fa-magic me-1"></i>Spawnar');
-            return;
+            // Para kits em coordenadas
+            if (type === 'weapon-kit') {
+                showToast('Aviso', 'Spawn de weapon kits em coordenadas ainda não implementado', 'warning');
+                $('#confirmSpawnBtn').prop('disabled', false).html('<i class="fas fa-magic me-1"></i>Spawnar');
+                return;
+            } else {
+                // Loot kit em coordenadas
+                url = '/api/spawn/loot-kit-coords';
+                data = {
+                    kit_id: kitId,
+                    coord_x: coordX,
+                    coord_y: coordY
+                };
+            }
         }
     } else if (mode === 'player') {
         // Spawn próximo ao jogador
@@ -972,6 +982,7 @@ function showWeaponKitSpawnConfirmModal(kit) {
     $('#confirmQuantity').text(quantity);
     
     $('#confirmSpawnBtn').data('type', 'weapon-kit');
+    $('#confirmSpawnBtn').data('mode', spawnMode);
     $('#confirmSpawnBtn').data('kitId', kit.id);
     $('#confirmSpawnBtn').data('quantity', quantity);
     $('#confirmSpawnBtn').data('playerId', playerId);
@@ -1085,6 +1096,7 @@ function showLootKitSpawnConfirmModal(kit) {
     $('#confirmQuantity').text(quantity);
     
     $('#confirmSpawnBtn').data('type', 'loot-kit');
+    $('#confirmSpawnBtn').data('mode', spawnMode);
     $('#confirmSpawnBtn').data('kitId', kit.id);
     $('#confirmSpawnBtn').data('quantity', quantity);
     $('#confirmSpawnBtn').data('playerId', playerId);

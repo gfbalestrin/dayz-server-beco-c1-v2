@@ -4,6 +4,7 @@ Aplicação Flask para interface administrativa DayZ
 from flask import Flask, render_template, request, session, redirect, url_for, jsonify
 from functools import wraps
 import config
+import json
 from packing_algorithm import can_fit_items_in_container, pack_items_ffdh
 from database import (
     get_all_players, get_player_coords, get_player_coords_backup,
@@ -1706,6 +1707,39 @@ def api_validate_loot_kit_space():
         })
 
 # === SPAWNING ===
+def build_weapon_kit_json(weapon_kit):
+    """
+    Monta JSON para weapon kit no formato aceito por createcontainer
+    
+    Estrutura:
+    {
+      "type": "WeaponName",
+      "attachments": [
+        {"type": "MagazineName"},
+        {"type": "AttachmentName"},
+        ...
+      ]
+    }
+    """
+    json_obj = {
+        "type": weapon_kit['weapon_name_type']
+    }
+    
+    attachments = []
+    
+    # Magazine primeiro
+    if weapon_kit.get('magazine_name_type'):
+        attachments.append({"type": weapon_kit['magazine_name_type']})
+    
+    # Attachments da arma
+    for att in weapon_kit.get('attachments', []):
+        attachments.append({"type": att['name_type']})
+    
+    if attachments:
+        json_obj['attachments'] = attachments
+    
+    return json.dumps(json_obj, separators=(',', ':'))
+
 @app.route('/api/spawn/weapon-kit', methods=['POST'])
 @login_required
 def api_spawn_weapon_kit():
@@ -1852,6 +1886,86 @@ def api_spawn_loot_kit():
         })
     except Exception as e:
         logger.exception("Erro ao spawnar kit de loot")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao spawnar kit: {str(e)}'
+        }), 500
+
+@app.route('/api/spawn/loot-kit-coords', methods=['POST'])
+@login_required
+def api_spawn_loot_kit_coords():
+    """Spawnar kit de loot em coordenadas do mapa usando createcontainer"""
+    import fcntl
+    import os
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    data = request.get_json()
+    kit_id = data.get('kit_id')
+    coord_x = data.get('coord_x')
+    coord_y = data.get('coord_y')
+    
+    if not kit_id or coord_x is None or coord_y is None:
+        return jsonify({'success': False, 'message': 'Dados incompletos'}), 400
+    
+    kit = get_loot_kit_by_id(kit_id)
+    if not kit:
+        return jsonify({'success': False, 'message': 'Kit não encontrado'}), 404
+    
+    try:
+        # Montar lista de itens
+        items = []
+        
+        # Weapon kits (JSON)
+        for wk in kit.get('weapon_kits', []):
+            for _ in range(wk.get('quantity', 1)):
+                items.append(build_weapon_kit_json(wk))
+        
+        # Itens avulsos (name_type simples)
+        for item in kit.get('items', []):
+            for _ in range(item.get('quantity', 1)):
+                items.append(item['name_type'])
+        
+        # Explosivos
+        for exp in kit.get('explosives', []):
+            for _ in range(exp.get('quantity', 1)):
+                items.append(exp['name_type'])
+        
+        # Munições
+        for ammo in kit.get('ammunitions', []):
+            for _ in range(ammo.get('quantity', 1)):
+                items.append(ammo['name_type'])
+        
+        # Magazines
+        for mag in kit.get('magazines', []):
+            for _ in range(mag.get('quantity', 1)):
+                items.append(mag['name_type'])
+        
+        # Attachments
+        for att in kit.get('attachments', []):
+            for _ in range(att.get('quantity', 1)):
+                items.append(att['name_type'])
+        
+        # Montar comando
+        container_type = kit['container_name_type']
+        items_str = ' '.join(items)
+        command = f"SYSTEM createcontainer {container_type} {coord_x} {coord_y} {items_str}\n"
+        
+        # Escrever no arquivo
+        with open(config.COMMANDS_FILE, 'a') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.write(command)
+                f.flush()
+                os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        
+        logger.info(f"Kit de loot {kit_id} spawnado em coordenadas ({coord_x}, {coord_y})")
+        return jsonify({'success': True, 'message': 'Kit de loot spawnado com sucesso!'})
+    except Exception as e:
+        logger.exception("Erro ao spawnar kit de loot em coordenadas")
         return jsonify({
             'success': False,
             'message': f'Erro ao spawnar kit: {str(e)}'
