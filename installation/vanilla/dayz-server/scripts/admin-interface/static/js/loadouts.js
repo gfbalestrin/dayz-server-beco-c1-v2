@@ -518,7 +518,8 @@ function loadWeaponToVisual(type, weaponData) {
                         slots: att.slots,
                         width: att.width,
                         height: att.height,
-                        battery: att.battery || false
+                        battery: att.battery || false,
+                        img: att.img || null
                     });
                 } else {
                     selectedWeapons[type].attachments.push({
@@ -527,7 +528,8 @@ function loadWeaponToVisual(type, weaponData) {
                         slots: attData.slots,
                         width: attData.width,
                         height: attData.height,
-                        battery: attData.battery || false
+                        battery: attData.battery || false,
+                        img: null
                     });
                 }
             });
@@ -547,7 +549,8 @@ function loadExplosivesToVisual(explosivesData) {
                 slots: explosive.slots,
                 width: explosive.width,
                 height: explosive.height,
-                quantity: expData.quantity || 1
+                quantity: expData.quantity || 1,
+                img: explosive.img || null
             });
         } else {
             selectedExplosives.push({
@@ -555,7 +558,8 @@ function loadExplosivesToVisual(explosivesData) {
                 slots: expData.slots,
                 width: expData.width,
                 height: expData.height,
-                quantity: expData.quantity || 1
+                quantity: expData.quantity || 1,
+                img: null
             });
         }
     });
@@ -586,7 +590,8 @@ function loadItemsToVisual(itemsData) {
                         localization: item.localization || itemData.localization || '',
                         subitems: [],
                         canHaveSubitems: compatibility.children && compatibility.children.length > 0,
-                        compatibleChildren: compatibility.children || []
+                        compatibleChildren: compatibility.children || [],
+                        img: item.img || null
                     });
                     updateSelectedItemsDisplay();
                 },
@@ -605,7 +610,8 @@ function loadItemsToVisual(itemsData) {
                         localization: item.localization || itemData.localization || '',
                         subitems: [],
                         canHaveSubitems: false,
-                        compatibleChildren: []
+                        compatibleChildren: [],
+                        img: item.img || null
                     });
                     updateSelectedItemsDisplay();
                 }
@@ -623,7 +629,8 @@ function loadItemsToVisual(itemsData) {
                 localization: itemData.localization || '',
                 subitems: [],
                 canHaveSubitems: false,
-                compatibleChildren: []
+                compatibleChildren: [],
+                img: null
             });
         }
     });
@@ -1942,8 +1949,13 @@ function applyItemFiltersLoadout() {
             match = match && item.type_id == typeId;
         }
         
-        if (location !== '') {
+        // Não filtrar por localização aqui quando location é vazio, pois vamos separar por localização nos grids
+        // Apenas aplicar se o filtro de localização estiver ativo (mostrar apenas uma seção)
+        if (location !== '' && location !== 'none') {
             match = match && item.localization === location;
+        } else if (location === 'none') {
+            // Filtro "Sem Localização" - item não deve ter localização
+            match = match && (!item.localization || item.localization === '');
         }
         
         if (storage === 'with') {
@@ -1955,17 +1967,77 @@ function applyItemFiltersLoadout() {
         return match;
     });
     
-    renderItemsGridLoadout(filtered);
+    // Se filtro de localização estiver ativo, mostrar apenas essa seção
+    if (location !== '' && location !== 'none') {
+        // Renderizar apenas o grid da localização selecionada
+        renderItemsGridLoadoutForLocation(filtered, location);
+        
+        // Ocultar outras seções
+        ['head', 'face', 'torso', 'legs', 'foot', 'hands', 'back', 'none'].forEach(function(loc) {
+            if (loc !== location) {
+                const locKey = loc === 'none' ? 'None' : (loc.charAt(0).toUpperCase() + loc.slice(1));
+                $(`#itemsGridLoadout${locKey}`).parent().hide();
+            } else {
+                const locKey = loc === 'none' ? 'None' : (loc.charAt(0).toUpperCase() + loc.slice(1));
+                $(`#itemsGridLoadout${locKey}`).parent().show();
+            }
+        });
+    } else if (location === 'none') {
+        // Filtro "Sem Localização" - mostrar apenas itens sem localização
+        renderItemsGridLoadoutForLocation(filtered, 'none');
+        
+        // Ocultar outras seções
+        ['head', 'face', 'torso', 'legs', 'foot', 'hands', 'back'].forEach(function(loc) {
+            const locKey = loc.charAt(0).toUpperCase() + loc.slice(1);
+            $(`#itemsGridLoadout${locKey}`).parent().hide();
+        });
+        $('#itemsGridLoadoutNone').parent().show();
+    } else {
+        // Renderizar todos os grids separados por localização
+        renderItemsGridLoadoutByLocation(filtered);
+        // Mostrar todas as seções (as que não têm itens serão ocultadas pela função renderItemsGridLoadoutForLocation)
+    }
 }
 
-function renderItemsGridLoadout(data) {
-    const grid = $('#itemsGridLoadout');
+function renderItemsGridLoadoutByLocation(data) {
+    // Localizações possíveis
+    const locations = [
+        { key: 'head', label: 'Head' },
+        { key: 'face', label: 'Face' },
+        { key: 'torso', label: 'Torso' },
+        { key: 'legs', label: 'Legs' },
+        { key: 'foot', label: 'Foot' },
+        { key: 'hands', label: 'Hands' },
+        { key: 'back', label: 'Back' },
+        { key: 'none', label: 'None' } // Sem localização (vazio ou null)
+    ];
+    
+    locations.forEach(function(loc) {
+        const itemsForLocation = data.filter(function(item) {
+            if (loc.key === 'none') {
+                return !item.localization || item.localization === '';
+            }
+            return item.localization === loc.key;
+        });
+        
+        renderItemsGridLoadoutForLocation(itemsForLocation, loc.key);
+    });
+}
+
+function renderItemsGridLoadoutForLocation(data, location) {
+    // Mapear location para ID do grid (capitalizar primeira letra)
+    const locationKey = location === 'none' ? 'None' : (location.charAt(0).toUpperCase() + location.slice(1));
+    const grid = $(`#itemsGridLoadout${locationKey}`);
     grid.empty();
     
     if (data.length === 0) {
-        grid.html('<div class="text-center p-5">Nenhum item encontrado</div>');
+        // Ocultar seção se não houver itens
+        grid.parent().hide();
         return;
     }
+    
+    // Mostrar seção se houver itens
+    grid.parent().show();
     
     data.forEach(function(item) {
         const isSelected = selectedItems.some(i => i.id === item.id);
@@ -1989,6 +2061,12 @@ function renderItemsGridLoadout(data) {
         `);
         grid.append(card);
     });
+}
+
+// Função mantida para compatibilidade (será chamada quando filtro de localização estiver ativo)
+function renderItemsGridLoadout(data) {
+    // Esta função agora apenas chama renderItemsGridLoadoutByLocation
+    renderItemsGridLoadoutByLocation(data);
 }
 
 function selectItemForLoadout(itemId) {
@@ -2025,7 +2103,8 @@ function selectItemForLoadout(itemId) {
                             localization: item.localization || '',
                             subitems: [],
                             canHaveSubitems: compatibility.children && compatibility.children.length > 0,
-                            compatibleChildren: compatibility.children || []
+                            compatibleChildren: compatibility.children || [],
+                            img: item.img || null
                         });
                         
                         updateSelectedItemsDisplay();
@@ -2049,7 +2128,8 @@ function selectItemForLoadout(itemId) {
                             localization: item.localization || '',
                             subitems: [],
                             canHaveSubitems: false,
-                            compatibleChildren: []
+                            compatibleChildren: [],
+                            img: item.img || null
                         });
                         updateSelectedItemsDisplay();
                         updateJSONPreview();
@@ -2073,7 +2153,8 @@ function selectItemForLoadout(itemId) {
                         localization: item.localization || '',
                         subitems: [],
                         canHaveSubitems: false,
-                        compatibleChildren: []
+                        compatibleChildren: [],
+                        img: item.img || null
                     });
                     
                     updateSelectedItemsDisplay();
