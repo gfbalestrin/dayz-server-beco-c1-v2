@@ -419,6 +419,29 @@ function loadLoadoutToVisual(loadoutData) {
     updateSelectedWeaponsDisplay();
     updateSelectedExplosivesDisplay();
     updateSelectedItemsDisplay();
+    
+    // Atualizar grids para mostrar itens como selecionados
+    // Verificar quais tipos de arma foram carregados e atualizar seus grids
+    if (loadoutData.weapons) {
+        if (loadoutData.weapons.primary_weapon) {
+            applyWeaponFiltersLoadout('primary');
+        }
+        if (loadoutData.weapons.secondary_weapon) {
+            applyWeaponFiltersLoadout('secondary');
+        }
+        if (loadoutData.weapons.small_weapon) {
+            applyWeaponFiltersLoadout('small');
+        }
+    }
+    
+    if (loadoutData.explosives && Array.isArray(loadoutData.explosives) && loadoutData.explosives.length > 0) {
+        applyExplosiveFiltersLoadout();
+    }
+    
+    if (loadoutData.items && Array.isArray(loadoutData.items) && loadoutData.items.length > 0) {
+        applyItemFiltersLoadout();
+    }
+    
     updateJSONPreview();
 }
 
@@ -1347,21 +1370,27 @@ function renderAttachmentsGridConfig(data = null) {
     
     const weaponType = $('#weaponConfigType').val();
     const selectedAttachments = selectedWeapons[weaponType]?.attachments || [];
+    const selectedTypes = selectedAttachments.map(a => a.type); // Tipos já selecionados
     
     dataToRender.forEach(function(att) {
         const isSelected = selectedAttachments.some(a => a.id === att.id);
+        const sameTypeSelected = selectedTypes.includes(att.type) && !isSelected; // Mesmo tipo já selecionado mas não é este
         
         const card = $(`
-            <div class="relationship-card ${isSelected ? 'selected' : ''}" data-attachment-id="${att.id}">
+            <div class="relationship-card ${isSelected ? 'selected' : ''} ${sameTypeSelected ? 'disabled' : ''}" data-attachment-id="${att.id}">
                 <img src="${att.img || 'https://via.placeholder.com/80?text=No+Image'}" alt="${att.name}" onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
                 <div class="relationship-name">${att.name}</div>
                 <div class="relationship-info">
                     ${att.type}<br>
                     ${att.width}x${att.height}
+                    ${sameTypeSelected ? '<br><small class="text-muted">Tipo já selecionado</small>' : ''}
                 </div>
-                <button class="btn btn-sm ${isSelected ? 'btn-danger' : 'btn-success'} mt-1" onclick="toggleAttachmentForWeapon(${att.id})">
-                    <i class="fas fa-${isSelected ? 'minus' : 'plus'}"></i>
-                </button>
+                ${sameTypeSelected ? 
+                    '<button class="btn btn-sm btn-secondary mt-1" disabled title="Um attachment deste tipo já está selecionado"><i class="fas fa-ban"></i></button>' :
+                    `<button class="btn btn-sm ${isSelected ? 'btn-danger' : 'btn-success'} mt-1" onclick="toggleAttachmentForWeapon(${att.id})">
+                        <i class="fas fa-${isSelected ? 'minus' : 'plus'}"></i>
+                    </button>`
+                }
             </div>
         `);
         grid.append(card);
@@ -1642,20 +1671,82 @@ function updateSelectedWeaponDisplay(weaponType) {
     }
     
     const weapon = weaponConfig.weapon;
+    const magazine = weaponConfig.magazine;
+    const ammunition = weaponConfig.ammunition;
+    const attachments = weaponConfig.attachments || [];
+    
+    let attachmentsHtml = '';
+    if (attachments.length > 0) {
+        attachments.forEach(function(att) {
+            attachmentsHtml += `
+                <div class="d-inline-block me-2 mb-2 text-center">
+                    <img src="${att.img || 'https://via.placeholder.com/60?text=No+Image'}" 
+                         alt="${att.name}" 
+                         class="img-thumbnail" 
+                         style="width: 60px; height: 60px; object-fit: cover;"
+                         onerror="this.src='https://via.placeholder.com/60?text=No+Image'">
+                    <div class="small text-muted">${att.name}</div>
+                </div>
+            `;
+        });
+    }
+    
     const card = $(`
         <div class="card mb-2">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong>${weapon.name}</strong>
-                        <br>
-                        <small class="text-muted">
-                            Magazine: ${weaponConfig.magazine ? weaponConfig.magazine.name : 'Nenhum'} | 
-                            Ammo: ${weaponConfig.ammunition ? weaponConfig.ammunition.name : 'Nenhum'} | 
-                            Attachments: ${weaponConfig.attachments.length}
-                        </small>
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-2">
+                            <img src="${weapon.img || 'https://via.placeholder.com/80?text=No+Image'}" 
+                                 alt="${weapon.name}" 
+                                 class="img-thumbnail me-3" 
+                                 style="width: 80px; height: 80px; object-fit: cover;"
+                                 onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                            <div>
+                                <strong>${weapon.name}</strong>
+                                <br>
+                                <small class="text-muted">${weapon.name_type}</small>
+                            </div>
+                        </div>
+                        
+                        ${magazine ? `
+                            <div class="mb-2">
+                                <strong>Magazine:</strong>
+                                <div class="d-flex align-items-center mt-1">
+                                    <img src="${magazine.img || 'https://via.placeholder.com/50?text=No+Image'}" 
+                                         alt="${magazine.name}" 
+                                         class="img-thumbnail me-2" 
+                                         style="width: 50px; height: 50px; object-fit: cover;"
+                                         onerror="this.src='https://via.placeholder.com/50?text=No+Image'">
+                                    <span>${magazine.name}${magazine.capacity ? ` (${magazine.capacity} cap.)` : ''}</span>
+                                </div>
+                            </div>
+                        ` : '<div class="mb-2"><strong>Magazine:</strong> <span class="text-muted">Nenhum</span></div>'}
+                        
+                        ${ammunition ? `
+                            <div class="mb-2">
+                                <strong>Ammunition:</strong>
+                                <div class="d-flex align-items-center mt-1">
+                                    <img src="${ammunition.img || 'https://via.placeholder.com/50?text=No+Image'}" 
+                                         alt="${ammunition.name}" 
+                                         class="img-thumbnail me-2" 
+                                         style="width: 50px; height: 50px; object-fit: cover;"
+                                         onerror="this.src='https://via.placeholder.com/50?text=No+Image'">
+                                    <span>${ammunition.name}</span>
+                                </div>
+                            </div>
+                        ` : '<div class="mb-2"><strong>Ammunition:</strong> <span class="text-muted">Nenhum</span></div>'}
+                        
+                        ${attachments.length > 0 ? `
+                            <div class="mb-2">
+                                <strong>Attachments (${attachments.length}):</strong>
+                                <div class="mt-1">
+                                    ${attachmentsHtml}
+                                </div>
+                            </div>
+                        ` : '<div class="mb-2"><strong>Attachments:</strong> <span class="text-muted">Nenhum</span></div>'}
                     </div>
-                    <div>
+                    <div class="ms-3">
                         <button class="btn btn-sm btn-primary me-1" onclick="openWeaponConfigModalWithData('${weaponType}')">
                             <i class="fas fa-cog"></i> Configurar
                         </button>
@@ -1782,10 +1873,17 @@ function updateSelectedExplosivesDisplay() {
             <div class="card mb-2">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>${explosive.name}</strong> (x${explosive.quantity})
-                            <br>
-                            <small class="text-muted">${explosive.name_type}</small>
+                        <div class="d-flex align-items-center">
+                            <img src="${explosive.img || 'https://via.placeholder.com/80?text=No+Image'}" 
+                                 alt="${explosive.name}" 
+                                 class="img-thumbnail me-3" 
+                                 style="width: 80px; height: 80px; object-fit: cover;"
+                                 onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                            <div>
+                                <strong>${explosive.name}</strong> (x${explosive.quantity})
+                                <br>
+                                <small class="text-muted">${explosive.name_type}</small>
+                            </div>
                         </div>
                         <div>
                             <button class="btn btn-sm btn-primary me-1" onclick="editExplosiveQuantity(${explosive.id})">
@@ -2026,13 +2124,21 @@ function updateSelectedItemsDisplay() {
         const card = $(`
             <div class="card mb-2">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>${item.name}</strong>
-                            ${item.localization ? `<br><small class="text-muted">Localização: ${item.localization}</small>` : ''}
-                            ${item.canHaveSubitems ? `<br><small class="text-info">Pode receber subitems</small>` : ''}
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="d-flex align-items-center flex-grow-1">
+                            <img src="${item.img || 'https://via.placeholder.com/80?text=No+Image'}" 
+                                 alt="${item.name}" 
+                                 class="img-thumbnail me-3" 
+                                 style="width: 80px; height: 80px; object-fit: cover;"
+                                 onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                            <div>
+                                <strong>${item.name}</strong>
+                                ${item.localization ? `<br><small class="text-muted">Localização: ${item.localization}</small>` : ''}
+                                ${item.canHaveSubitems ? `<br><small class="text-info">Pode receber subitems</small>` : ''}
+                                ${item.subitems && item.subitems.length > 0 ? `<br><small class="text-secondary">Subitems: ${item.subitems.length}</small>` : ''}
+                            </div>
                         </div>
-                        <div>
+                        <div class="ms-3">
                             ${item.canHaveSubitems ? `
                                 <button class="btn btn-sm btn-info me-1" onclick="openSubitemsModal(${index})">
                                     <i class="fas fa-layer-group"></i> Subitems

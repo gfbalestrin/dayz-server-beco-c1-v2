@@ -128,6 +128,17 @@
     background: #d1e7dd;
 }
 
+.relationship-card.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #e9ecef;
+}
+
+.relationship-card.disabled:hover {
+    border-color: #dee2e6;
+    transform: none;
+}
+
 .relationship-card img {
     width: 100%;
     height: 80px;
