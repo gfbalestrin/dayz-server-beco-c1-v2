@@ -779,6 +779,17 @@ bool ExecuteCreateContainer(TStringArray tokens)
     
     WriteToLog("Container " + containerType + " criado em X=" + coordX.ToString() + " Y=" + coordY.ToString(), LogFile.INIT, false, LogType.INFO);
     
+    // Log adicional sobre capacidade do container
+    CargoBase containerCargo = container.GetInventory().GetCargo();
+    if (containerCargo)
+    {
+        WriteToLog("ExecuteCreateContainer(): Container criado com capacidade para itens", LogFile.INIT, false, LogType.DEBUG);
+    }
+    else
+    {
+        WriteToLog("ExecuteCreateContainer(): AVISO - Container sem sistema de cargo detectado", LogFile.INIT, false, LogType.DEBUG);
+    }
+    
     // Processar itens
     int itemsProcessed = 0;
     int itemsInContainer = 0;
@@ -1067,6 +1078,14 @@ bool ExecuteCreateContainer(TStringArray tokens)
     }
     
     WriteToLog("Container criado - Itens processados: " + itemsProcessed.ToString() + ", Dentro: " + itemsInContainer.ToString() + ", No chão: " + itemsOnGround.ToString(), LogFile.INIT, false, LogType.INFO);
+    
+    // Log adicional se muitos itens ficaram no chão
+    if (itemsOnGround > 0 && itemsProcessed > 0)
+    {
+        float percentOnGround = (itemsOnGround * 100.0) / itemsProcessed;
+        WriteToLog("ExecuteCreateContainer(): " + percentOnGround.ToString() + "% dos itens ficaram no chão", LogFile.INIT, false, LogType.DEBUG);
+    }
+    
     return true;
 }
 
@@ -1572,11 +1591,33 @@ EntityAI CreateItemWithAttachments(ItemAttachmentData itemData, EntityAI contain
     
     // Tenta criar no container
     if (container)
+    {
+        WriteToLog("CreateItemWithAttachments(): Tentando inserir " + itemData.type + " no container " + container.GetType(), LogFile.INIT, false, LogType.DEBUG);
+        
+        // Log do estado atual do container
+        CargoBase cargo = container.GetInventory().GetCargo();
+        if (cargo)
+        {
+            int usedSlots = cargo.GetItemCount();
+            WriteToLog("CreateItemWithAttachments(): Container tem " + usedSlots.ToString() + " itens atualmente", LogFile.INIT, false, LogType.DEBUG);
+        }
+        
         item = container.GetInventory().CreateInInventory(itemData.type);
+        
+        if (item)
+        {
+            WriteToLog("CreateItemWithAttachments(): Item " + itemData.type + " inserido com SUCESSO no container", LogFile.INIT, false, LogType.DEBUG);
+        }
+        else
+        {
+            WriteToLog("CreateItemWithAttachments(): FALHA ao inserir " + itemData.type + " no container - será criado no chão", LogFile.INIT, false, LogType.DEBUG);
+        }
+    }
     
     // Se não conseguir, cria no chão
     if (!item)
     {
+        WriteToLog("CreateItemWithAttachments(): Criando " + itemData.type + " no chão em " + fallbackPos.ToString(), LogFile.INIT, false, LogType.DEBUG);
         item = EntityAI.Cast(GetGame().CreateObject(itemData.type, fallbackPos, false, true));
     }
     
