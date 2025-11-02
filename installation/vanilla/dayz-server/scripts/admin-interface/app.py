@@ -1825,68 +1825,79 @@ def api_spawn_loot_kit():
     if not kit:
         return jsonify({'success': False, 'message': 'Kit não encontrado'}), 404
     
+    # Buscar posição mais recente do jogador
+    player_coords = get_player_coords(player_id)
+    if not player_coords or len(player_coords) == 0:
+        return jsonify({'success': False, 'message': 'Jogador não encontrado ou sem posição'}), 404
+    
+    # Pegar coordenadas mais recentes (primeira da lista)
+    latest_coord = player_coords[0]
+    coord_x = latest_coord['CoordX']
+    coord_y = latest_coord['CoordY']
+    
     try:
+        # Montar lista de itens (mesma lógica de api_spawn_loot_kit_coords)
+        weapon_kit_items = []
+        simple_items = []
+        
+        # Weapon kits (JSON) - processar primeiro
+        for wk in kit.get('weapon_kits', []):
+            for _ in range(wk.get('quantity', 1)):
+                weapon_kit_items.append(build_weapon_kit_json(wk))
+        
+        # Itens avulsos (name_type simples)
+        for item in kit.get('items', []):
+            for _ in range(item.get('quantity', 1)):
+                simple_items.append(item['name_type'])
+        
+        # Explosivos
+        for exp in kit.get('explosives', []):
+            for _ in range(exp.get('quantity', 1)):
+                simple_items.append(exp['name_type'])
+        
+        # Munições
+        for ammo in kit.get('ammunitions', []):
+            for _ in range(ammo.get('quantity', 1)):
+                simple_items.append(ammo['name_type'])
+        
+        # Magazines
+        for mag in kit.get('magazines', []):
+            for _ in range(mag.get('quantity', 1)):
+                simple_items.append(mag['name_type'])
+        
+        # Attachments
+        for att in kit.get('attachments', []):
+            for _ in range(att.get('quantity', 1)):
+                simple_items.append(att['name_type'])
+        
+        # Ordenar itens simples por slots (maiores primeiro)
+        def get_slots(name_type):
+            item_details = get_item_details_from_items_db(name_type)
+            if item_details and item_details.get('slots'):
+                return item_details['slots']
+            return 0
+        
+        simple_items_sorted = sorted(simple_items, key=get_slots, reverse=True)
+        
+        # Combinar: weapon kits primeiro (são grandes), depois itens simples ordenados
+        items = weapon_kit_items + simple_items_sorted
+        
+        # Montar comando createcontainer nas coordenadas do jogador
+        container_type = kit['container_name_type']
+        items_str = ' '.join(items)
+        command = f"SYSTEM createcontainer {container_type} {coord_x} {coord_y} {items_str}\n"
+        
+        # Escrever no arquivo com file locking
         with open(config.COMMANDS_FILE, 'a') as f:
             fcntl.flock(f.fileno(), fcntl.LOCK_EX)
             try:
-                # Spawnar container
-                if kit.get('container_name_type'):
-                    f.write(f"{player_id} giveitem {kit['container_name_type']} 1\n")
-                
-                # Spawnar itens avulsos
-                for item in kit.get('items', []):
-                    quantity = item.get('quantity', 1)
-                    if item.get('name_type'):
-                        f.write(f"{player_id} giveitem {item['name_type']} {quantity}\n")
-                
-                # Spawnar kits de arma (expandir cada um)
-                for weapon_kit_data in kit.get('weapon_kits', []):
-                    quantity = weapon_kit_data.get('quantity', 1)
-                    
-                    for _ in range(quantity):
-                        # Arma
-                        if weapon_kit_data.get('weapon_name_type'):
-                            f.write(f"{player_id} giveitem {weapon_kit_data['weapon_name_type']} 1\n")
-                        
-                        # Magazine
-                        if weapon_kit_data.get('magazine_name_type'):
-                            f.write(f"{player_id} giveitem {weapon_kit_data['magazine_name_type']} 1\n")
-                        
-                        # Attachments
-                        for att in weapon_kit_data.get('attachments', []):
-                            if att.get('name_type'):
-                                f.write(f"{player_id} giveitem {att['name_type']} 1\n")
-                
-                # Spawnar explosivos
-                for exp in kit.get('explosives', []):
-                    quantity = exp.get('quantity', 1)
-                    if exp.get('name_type'):
-                        f.write(f"{player_id} giveitem {exp['name_type']} {quantity}\n")
-                
-                # Spawnar munições
-                for ammo in kit.get('ammunitions', []):
-                    quantity = ammo.get('quantity', 1)
-                    if ammo.get('name_type'):
-                        f.write(f"{player_id} giveitem {ammo['name_type']} {quantity}\n")
-                
-                # Spawnar magazines
-                for mag in kit.get('magazines', []):
-                    quantity = mag.get('quantity', 1)
-                    if mag.get('name_type'):
-                        f.write(f"{player_id} giveitem {mag['name_type']} {quantity}\n")
-                
-                # Spawnar attachments
-                for att in kit.get('attachments', []):
-                    quantity = att.get('quantity', 1)
-                    if att.get('name_type'):
-                        f.write(f"{player_id} giveitem {att['name_type']} {quantity}\n")
-                
+                f.write(command)
                 f.flush()
                 os.fsync(f.fileno())
             finally:
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         
-        logger.info(f"Kit de loot {kit_id} spawnado para {player_id}")
+        logger.info(f"Kit de loot {kit_id} spawnado para {player_id} em ({coord_x}, {coord_y})")
         return jsonify({
             'success': True,
             'message': f'Kit de loot spawnado com sucesso!'
