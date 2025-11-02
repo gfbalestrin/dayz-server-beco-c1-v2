@@ -177,6 +177,66 @@
     margin-top: 10px;
 }
 
+/* Estilos para modal de subitems */
+#subitemsModal .modal-dialog {
+    max-width: 90%;
+}
+
+#subitemsModal #subitemsDepthIndicator {
+    font-size: 0.85em;
+    padding: 0.25em 0.5em;
+}
+
+#subitemsModal .alert-info {
+    background-color: #e7f3ff;
+    border-color: #b8daff;
+    color: #004085;
+}
+
+/* Estilos para visualização recursiva de subitems */
+.item-display-card {
+    transition: all 0.2s;
+}
+
+.item-display-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.subitems-container {
+    margin-left: 20px;
+    border-left: 2px solid #dee2e6;
+    padding-left: 15px;
+}
+
+.subitems-container .item-display-card {
+    margin-bottom: 10px;
+}
+
+.subitems-container .item-display-card:last-child {
+    margin-bottom: 0;
+}
+
+/* Indicador visual de profundidade */
+[data-depth="1"] {
+    border-left: 3px solid #b3d9ff;
+}
+
+[data-depth="2"] {
+    border-left: 3px solid #85c1e9;
+}
+
+[data-depth="3"] {
+    border-left: 3px solid #5dade2;
+}
+
+[data-depth="4"] {
+    border-left: 3px solid #3498db;
+}
+
+[data-depth="5"] {
+    border-left: 3px solid #2980b9;
+}
+
 /* Lista de armas/explosivos/items selecionados */
 #selectedWeaponsList .card,
 #selectedExplosivesList .card,

@@ -107,6 +107,9 @@ $(document).ready(function() {
     $('#attachmentSearchConfig').on('input', applyAttachmentFiltersConfig);
     $('#filterAttachmentTypeConfig').on('change', applyAttachmentFiltersConfig);
     
+    // Event listeners - Subitems modal
+    $('#btnSaveSubitems').on('click', saveSubitemsConfiguration);
+    
     // Event listeners - Filtros de explosivos
     $('#explosiveSearchLoadout').on('input', applyExplosiveFiltersLoadout);
     
@@ -2208,31 +2211,514 @@ function updateSelectedItemsDisplay() {
         return;
     }
     
+    // Renderizar items recursivamente
     selectedItems.forEach(function(item, index) {
+        const itemHtml = renderItemWithSubitems(item, index, 0, index); // Passar itemIndex principal
+        container.append(itemHtml);
+    });
+}
+
+// Função recursiva para renderizar item com seus subitems
+function renderItemWithSubitems(item, itemIndex, depth, parentItemIndex) {
+    const indent = depth * 20; // Indentação visual para subitems
+    const marginLeft = depth > 0 ? `style="margin-left: ${indent}px;"` : '';
+    
+    // Se depth > 0, usar parentItemIndex; senão usar itemIndex
+    const actualParentIndex = depth === 0 ? itemIndex : parentItemIndex;
+    
+    // Renderizar o item principal
+    let html = $(`
+        <div class="card mb-2 item-display-card" ${marginLeft} data-item-index="${itemIndex}" data-depth="${depth}" data-parent-index="${actualParentIndex}" data-item-name="${item.name}" data-item-name-type="${item.name_type}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="d-flex align-items-center flex-grow-1">
+                        <img src="${item.img || 'https://via.placeholder.com/80?text=No+Image'}" 
+                             alt="${item.name}" 
+                             class="img-thumbnail me-3" 
+                             style="width: 80px; height: 80px; object-fit: cover;"
+                             onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                        <div>
+                            ${depth > 0 ? '<i class="fas fa-level-down-alt text-muted me-1"></i>' : ''}
+                            <strong>${item.name}</strong>
+                            ${item.localization ? `<br><small class="text-muted">Localização: ${item.localization}</small>` : ''}
+                            ${item.canHaveSubitems ? `<br><small class="text-info">Pode receber subitems</small>` : ''}
+                            ${item.subitems && item.subitems.length > 0 ? `<br><small class="text-secondary">Subitems: ${item.subitems.length}</small>` : ''}
+                        </div>
+                    </div>
+                    <div class="ms-3">
+                        ${item.canHaveSubitems ? `
+                            ${depth === 0 ? `
+                                <button class="btn btn-sm btn-info me-1" onclick="openSubitemsModal(${itemIndex}); return false;">
+                                    <i class="fas fa-layer-group"></i> Subitems
+                                </button>
+                            ` : `
+                                <button class="btn btn-sm btn-info me-1" onclick="openSubitemsModalForSubitemInDisplay(${actualParentIndex}, '${item.name_type}'); return false;">
+                                    <i class="fas fa-layer-group"></i> Subitems
+                                </button>
+                            `}
+                        ` : ''}
+                        ${depth === 0 ? `
+                            <button class="btn btn-sm btn-danger" onclick="removeItemFromLoadout(${itemIndex}); return false;">
+                                <i class="fas fa-trash"></i> Remover
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `);
+    
+    // Renderizar subitems recursivamente
+    if (item.subitems && item.subitems.length > 0) {
+        const subitemsContainer = $('<div class="subitems-container ms-4 mt-2"></div>');
+        item.subitems.forEach(function(subitem, subIndex) {
+            // Para subitems, usar o parentItemIndex (que é o itemIndex do item principal)
+            const subitemHtml = renderItemWithSubitems(subitem, -1, depth + 1, actualParentIndex);
+            subitemsContainer.append(subitemHtml);
+        });
+        html.append(subitemsContainer);
+    }
+    
+    return html;
+}
+
+// Função auxiliar para abrir modal de subitems de um subitem no display principal
+function openSubitemsModalForSubitemInDisplay(parentItemIndex, subitemNameType) {
+    // Encontrar o item principal
+    const mainItem = selectedItems[parentItemIndex];
+    if (!mainItem) {
+        showAlert('danger', 'Item principal não encontrado.');
+        return;
+    }
+    
+    // Encontrar o subitem na hierarquia usando o name_type
+    const findSubitemInHierarchy = function(item, targetNameType, depth = 0) {
+        if (item.subitems && item.subitems.length > 0) {
+            for (let i = 0; i < item.subitems.length; i++) {
+                if (item.subitems[i].name_type === targetNameType) {
+                    return { subitem: item.subitems[i], depth: depth + 1 };
+                }
+                const found = findSubitemInHierarchy(item.subitems[i], targetNameType, depth + 1);
+                if (found) return found;
+            }
+        }
+        return null;
+    };
+    
+    const found = findSubitemInHierarchy(mainItem, subitemNameType);
+    if (!found || !found.subitem) {
+        showAlert('warning', 'Subitem não encontrado na hierarquia.');
+        return;
+    }
+    
+    // Construir caminho e abrir modal
+    const depth = found.depth;
+    const path = buildItemPath(mainItem, found.subitem);
+    
+    // Abrir modal usando a função existente
+    openSubitemsModalForSubitem(found.subitem, -1, depth, path);
+}
+
+function calculateItemDepth(item, targetSubitem, currentDepth = 0) {
+    if (item.subitems && item.subitems.length > 0) {
+        for (let i = 0; i < item.subitems.length; i++) {
+            if (item.subitems[i].name_type === targetSubitem.name_type) {
+                return currentDepth + 1;
+            }
+            const depth = calculateItemDepth(item.subitems[i], targetSubitem, currentDepth + 1);
+            if (depth > 0) return depth;
+        }
+    }
+    return 0;
+}
+
+function buildItemPath(item, targetSubitem, currentPath = '') {
+    const newPath = currentPath ? `${currentPath} > ${item.name}` : item.name;
+    
+    if (item.subitems && item.subitems.length > 0) {
+        for (let i = 0; i < item.subitems.length; i++) {
+            if (item.subitems[i].name_type === targetSubitem.name_type) {
+                return `${newPath} > ${targetSubitem.name}`;
+            }
+            const path = buildItemPath(item.subitems[i], targetSubitem, newPath);
+            if (path) return path;
+        }
+    }
+    return '';
+}
+
+function removeItemFromLoadout(index) {
+    selectedItems.splice(index, 1);
+    updateSelectedItemsDisplay();
+    updateJSONPreview();
+    applyItemFiltersLoadout();
+}
+
+// Variáveis globais para subitems modal
+let currentSubitemsData = []; // Items compatíveis filtrados
+let currentSelectedSubitems = []; // Subitems selecionados no modal
+
+function openSubitemsModal(itemIndex, depth = 1, parentPath = '') {
+    const MAX_DEPTH = 5; // Limitar profundidade máxima
+    
+    if (depth > MAX_DEPTH) {
+        showAlert('warning', `Profundidade máxima de ${MAX_DEPTH} níveis atingida. Não é possível adicionar mais subitems recursivamente.`);
+        return;
+    }
+    
+    const item = selectedItems[itemIndex];
+    if (!item) return;
+    
+    if (!item.canHaveSubitems || !item.compatibleChildren || item.compatibleChildren.length === 0) {
+        showAlert('info', 'Este item não pode receber subitems ou não possui subitems compatíveis.');
+        return;
+    }
+    
+    // Salvar contexto do modal
+    $('#subitemsItemIndex').val(itemIndex);
+    $('#subitemsItemIndex').data('original-item-index', itemIndex); // Rastrear item principal
+    $('#subitemsDepth').val(depth);
+    $('#subitemsParentPath').val(parentPath || item.name);
+    
+    // Atualizar título
+    $('#subitemsParentName').text(item.name);
+    $('#subitemsDepthIndicator').text(`Nível ${depth}`);
+    
+    // Atualizar informações
+    $('#subitemsParentInfo').html(`
+        Item: <strong>${item.name}</strong> | 
+        Subitems compatíveis: <strong>${item.compatibleChildren.length}</strong> | 
+        Subitems selecionados: <strong>${item.subitems ? item.subitems.length : 0}</strong>
+    `);
+    
+    // Inicializar arrays
+    currentSubitemsData = [];
+    currentSelectedSubitems = item.subitems ? JSON.parse(JSON.stringify(item.subitems)) : []; // Deep copy
+    
+    // Filtrar itemsDataLoadout para pegar apenas os compatíveis
+    const compatibleIds = item.compatibleChildren.map(child => child.id || child);
+    currentSubitemsData = itemsDataLoadout.filter(i => compatibleIds.includes(i.id));
+    
+    // Carregar tipos de item no filtro
+    loadSubitemTypes();
+    
+    // Renderizar grid e lista de selecionados
+    renderSubitemsGrid();
+    updateSelectedSubitemsDisplay();
+    
+    // Inicializar event listeners dos filtros
+    initSubitemsFilters();
+    
+    // Abrir modal
+    const modal = new bootstrap.Modal(document.getElementById('subitemsModal'));
+    modal.show();
+}
+
+function loadSubitemTypes() {
+    const select = $('#filterSubitemType');
+    select.empty();
+    select.append('<option value="">Todos os Tipos</option>');
+    
+    // Pegar tipos únicos dos items compatíveis
+    const types = {};
+    currentSubitemsData.forEach(item => {
+        if (item.type_id && itemTypesDataLoadout) {
+            const type = itemTypesDataLoadout.find(t => t.id === item.type_id);
+            if (type && !types[type.id]) {
+                types[type.id] = type.name;
+                select.append(`<option value="${type.id}">${type.name}</option>`);
+            }
+        }
+    });
+}
+
+function initSubitemsFilters() {
+    // Remover listeners anteriores para evitar duplicação
+    $('#subitemSearchInput').off('input');
+    $('#filterSubitemType').off('change');
+    $('#filterSubitemLocation').off('change');
+    $('#filterSubitemStorage').off('change');
+    
+    // Adicionar novos listeners
+    $('#subitemSearchInput').on('input', applySubitemsFilters);
+    $('#filterSubitemType').on('change', applySubitemsFilters);
+    $('#filterSubitemLocation').on('change', applySubitemsFilters);
+    $('#filterSubitemStorage').on('change', applySubitemsFilters);
+}
+
+function applySubitemsFilters() {
+    const search = $('#subitemSearchInput').val().toLowerCase();
+    const typeId = $('#filterSubitemType').val();
+    const location = $('#filterSubitemLocation').val();
+    const storage = $('#filterSubitemStorage').val();
+    
+    // Verificar se estamos editando item principal ou subitem recursivo
+    const itemIndexStr = $('#subitemsItemIndex').val();
+    let compatibleIds = [];
+    
+    if (itemIndexStr.startsWith('subitem_')) {
+        // Estamos editando um subitem recursivo
+        // Buscar o subitem atual usando o parentPath
+        const parentPath = $('#subitemsParentPath').val();
+        const originalItemIndex = $('#subitemsItemIndex').data('original-item-index');
+        
+        if (originalItemIndex !== undefined && originalItemIndex !== null) {
+            const mainItem = selectedItems[originalItemIndex];
+            if (mainItem) {
+                // Encontrar o subitem atual usando o parentPath
+                const findSubitemByPath = function(item, pathParts, currentIndex = 0) {
+                    if (currentIndex >= pathParts.length - 1) {
+                        // Este é o subitem que queremos
+                        return item;
+                    }
+                    
+                    const targetName = pathParts[currentIndex + 1]; // +1 porque o primeiro é o item principal
+                    if (item.subitems && item.subitems.length > 0) {
+                        for (let i = 0; i < item.subitems.length; i++) {
+                            if (item.subitems[i].name === targetName) {
+                                return findSubitemByPath(item.subitems[i], pathParts, currentIndex + 1);
+                            }
+                        }
+                    }
+                    return null;
+                };
+                
+                const pathParts = parentPath.split(' > ');
+                const currentSubitem = findSubitemByPath(mainItem, pathParts);
+                
+                if (currentSubitem && currentSubitem.compatibleChildren) {
+                    compatibleIds = currentSubitem.compatibleChildren.map(child => child.id || child);
+                } else {
+                    // Fallback: usar currentSubitemsData se disponível
+                    if (currentSubitemsData.length > 0) {
+                        compatibleIds = currentSubitemsData.map(i => i.id);
+                    }
+                }
+            }
+        }
+    } else {
+        // Item principal
+        const itemIndex = parseInt(itemIndexStr);
+        const item = selectedItems[itemIndex];
+        if (!item || !item.compatibleChildren) return;
+        
+        compatibleIds = item.compatibleChildren.map(child => child.id || child);
+    }
+    
+    if (compatibleIds.length === 0) return;
+    
+    // Filtrar itemsDataLoadout pelos compatíveis e pelos filtros
+    let filtered = itemsDataLoadout.filter(function(subitem) {
+        // Verificar se está na lista de compatíveis
+        if (!compatibleIds.includes(subitem.id)) return false;
+        
+        let match = true;
+        
+        if (search) {
+            match = match && (subitem.name.toLowerCase().includes(search) || 
+                             subitem.name_type.toLowerCase().includes(search));
+        }
+        
+        if (typeId) {
+            match = match && subitem.type_id == typeId;
+        }
+        
+        if (location !== '' && location !== 'none') {
+            match = match && subitem.localization === location;
+        } else if (location === 'none') {
+            match = match && (!subitem.localization || subitem.localization === '');
+        }
+        
+        if (storage === 'with') {
+            match = match && subitem.storage_slots > 0;
+        } else if (storage === 'without') {
+            match = match && subitem.storage_slots === 0;
+        }
+        
+        return match;
+    });
+    
+    currentSubitemsData = filtered;
+    renderSubitemsGrid();
+}
+
+function renderSubitemsGrid() {
+    const grid = $('#subitemsGrid');
+    grid.empty();
+    
+    if (currentSubitemsData.length === 0) {
+        grid.html('<p class="text-muted text-center p-3">Nenhum subitem disponível com os filtros selecionados.</p>');
+        return;
+    }
+    
+    currentSubitemsData.forEach(function(subitem) {
+        // Verificar se já está selecionado
+        const isSelected = currentSelectedSubitems.some(s => s.id === subitem.id || s.name_type === subitem.name_type);
+        
+        const card = $(`
+            <div class="weapon-card ${isSelected ? 'selected' : ''}" data-subitem-id="${subitem.id}">
+                <div class="card h-100">
+                    <div class="card-img-top-container">
+                        <img src="${subitem.img || 'https://via.placeholder.com/150?text=No+Image'}" 
+                             class="card-img-top" 
+                             alt="${subitem.name}"
+                             onerror="this.src='https://via.placeholder.com/150?text=No+Image'">
+                        ${isSelected ? '<div class="selected-badge"><i class="fas fa-check-circle"></i></div>' : ''}
+                    </div>
+                    <div class="card-body">
+                        <h6 class="card-title">${subitem.name}</h6>
+                        <p class="card-text small text-muted">${subitem.name_type}</p>
+                        ${subitem.localization ? `<p class="card-text small"><i class="fas fa-map-marker-alt"></i> ${subitem.localization}</p>` : ''}
+                        ${subitem.storage_slots > 0 ? `<p class="card-text small"><i class="fas fa-box"></i> Storage: ${subitem.storage_slots} slots</p>` : ''}
+                    </div>
+                    <div class="card-footer">
+                        ${isSelected ? 
+                            `<button class="btn btn-sm btn-danger w-100" onclick="removeSubitemFromSelection(${subitem.id}); return false;">
+                                <i class="fas fa-times"></i> Remover
+                            </button>` :
+                            `<button class="btn btn-sm btn-primary w-100" onclick="selectSubitemForItem(${subitem.id}); return false;">
+                                <i class="fas fa-plus"></i> Adicionar
+                            </button>`
+                        }
+                    </div>
+                </div>
+            </div>
+        `);
+        grid.append(card);
+    });
+}
+
+function selectSubitemForItem(subitemId) {
+    // Verificar profundidade máxima
+    const depth = parseInt($('#subitemsDepth').val());
+    if (depth >= 5) {
+        showAlert('warning', 'Profundidade máxima de 5 níveis atingida.');
+        return;
+    }
+    
+    // Buscar item nos dados carregados
+    const subitem = itemsDataLoadout.find(i => i.id === subitemId);
+    if (!subitem) {
+        showAlert('danger', 'Subitem não encontrado.');
+        return;
+    }
+    
+    // Verificar se já está selecionado
+    if (currentSelectedSubitems.some(s => s.id === subitemId || s.name_type === subitem.name_type)) {
+        showAlert('info', 'Este subitem já está selecionado.');
+        return;
+    }
+    
+    // Buscar compatibilidade do subitem (para saber se pode ter seus próprios subitems)
+    $.ajax({
+        url: `/api/manage/items/${subitemId}/compatibility`,
+        method: 'GET',
+        success: function(response) {
+            try {
+                const compatibility = response.compatibility || { children: [] };
+                
+                // Criar objeto do subitem
+                const subitemObj = {
+                    id: subitem.id,
+                    name: subitem.name,
+                    name_type: subitem.name_type,
+                    type_name: subitem.type_name || '',
+                    slots: subitem.slots,
+                    width: subitem.width,
+                    height: subitem.height,
+                    storage_slots: subitem.storage_slots || 0,
+                    storage_width: subitem.storage_width || 0,
+                    storage_height: subitem.storage_height || 0,
+                    localization: subitem.localization || '',
+                    subitems: [],
+                    canHaveSubitems: compatibility.children && compatibility.children.length > 0,
+                    compatibleChildren: compatibility.children || [],
+                    img: subitem.img || null
+                };
+                
+                // Adicionar à lista de selecionados
+                currentSelectedSubitems.push(subitemObj);
+                
+                // Atualizar display
+                updateSelectedSubitemsDisplay();
+                renderSubitemsGrid();
+            } catch (error) {
+                showAlert('danger', 'Erro ao processar compatibilidade do subitem: ' + error.message);
+                console.error('Erro ao processar resposta:', error);
+            }
+        },
+        error: function(xhr) {
+            // Adicionar mesmo sem compatibilidade
+            console.warn('Não foi possível carregar compatibilidade do subitem, adicionando sem subitems:', xhr);
+            
+            const subitemObj = {
+                id: subitem.id,
+                name: subitem.name,
+                name_type: subitem.name_type,
+                type_name: subitem.type_name || '',
+                slots: subitem.slots,
+                width: subitem.width,
+                height: subitem.height,
+                storage_slots: subitem.storage_slots || 0,
+                storage_width: subitem.storage_width || 0,
+                storage_height: subitem.storage_height || 0,
+                localization: subitem.localization || '',
+                subitems: [],
+                canHaveSubitems: false,
+                compatibleChildren: [],
+                img: subitem.img || null
+            };
+            
+            currentSelectedSubitems.push(subitemObj);
+            updateSelectedSubitemsDisplay();
+            renderSubitemsGrid();
+        }
+    });
+}
+
+function removeSubitemFromSelection(subitemId) {
+    const index = currentSelectedSubitems.findIndex(s => s.id === subitemId);
+    if (index >= 0) {
+        currentSelectedSubitems.splice(index, 1);
+        updateSelectedSubitemsDisplay();
+        renderSubitemsGrid();
+    }
+}
+
+function updateSelectedSubitemsDisplay() {
+    const container = $('#selectedSubitemsList');
+    container.empty();
+    
+    if (currentSelectedSubitems.length === 0) {
+        container.html('<span class="text-muted">Nenhum subitem selecionado</span>');
+        return;
+    }
+    
+    currentSelectedSubitems.forEach(function(subitem, index) {
         const card = $(`
             <div class="card mb-2">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start">
                         <div class="d-flex align-items-center flex-grow-1">
-                            <img src="${item.img || 'https://via.placeholder.com/80?text=No+Image'}" 
-                                 alt="${item.name}" 
-                                 class="img-thumbnail me-3" 
-                                 style="width: 80px; height: 80px; object-fit: cover;"
-                                 onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                            <img src="${subitem.img || 'https://via.placeholder.com/60?text=No+Image'}" 
+                                 alt="${subitem.name}" 
+                                 class="img-thumbnail me-2" 
+                                 style="width: 60px; height: 60px; object-fit: cover;"
+                                 onerror="this.src='https://via.placeholder.com/60?text=No+Image'">
                             <div>
-                                <strong>${item.name}</strong>
-                                ${item.localization ? `<br><small class="text-muted">Localização: ${item.localization}</small>` : ''}
-                                ${item.canHaveSubitems ? `<br><small class="text-info">Pode receber subitems</small>` : ''}
-                                ${item.subitems && item.subitems.length > 0 ? `<br><small class="text-secondary">Subitems: ${item.subitems.length}</small>` : ''}
+                                <strong>${subitem.name}</strong>
+                                ${subitem.localization ? `<br><small class="text-muted">Localização: ${subitem.localization}</small>` : ''}
+                                ${subitem.canHaveSubitems ? `<br><small class="text-info">Pode receber subitems</small>` : ''}
+                                ${subitem.subitems && subitem.subitems.length > 0 ? `<br><small class="text-secondary">Subitems: ${subitem.subitems.length}</small>` : ''}
                             </div>
                         </div>
                         <div class="ms-3">
-                            ${item.canHaveSubitems ? `
-                                <button class="btn btn-sm btn-info me-1" onclick="openSubitemsModal(${index})">
+                            ${subitem.canHaveSubitems ? `
+                                <button class="btn btn-sm btn-info me-1" onclick="openSubitemSubitemsModal(${index}); return false;">
                                     <i class="fas fa-layer-group"></i> Subitems
                                 </button>
                             ` : ''}
-                            <button class="btn btn-sm btn-danger" onclick="removeItemFromLoadout(${index})">
+                            <button class="btn btn-sm btn-danger" onclick="removeSubitemFromSelection(${subitem.id}); return false;">
                                 <i class="fas fa-trash"></i> Remover
                             </button>
                         </div>
@@ -2244,26 +2730,188 @@ function updateSelectedItemsDisplay() {
     });
 }
 
-function removeItemFromLoadout(index) {
-    selectedItems.splice(index, 1);
-    updateSelectedItemsDisplay();
-    updateJSONPreview();
-    applyItemFiltersLoadout();
+// Função recursiva para abrir modal de subitems de um subitem
+function openSubitemSubitemsModal(subitemIndex) {
+    const parentIndex = parseInt($('#subitemsItemIndex').val());
+    const depth = parseInt($('#subitemsDepth').val()) + 1;
+    const parentPath = $('#subitemsParentPath').val();
+    
+    // Criar novo caminho
+    const subitem = currentSelectedSubitems[subitemIndex];
+    const newPath = `${parentPath} > ${subitem.name}`;
+    
+    // Temporariamente salvar o estado atual de selectedSubitems
+    // e usar o subitem selecionado como base
+    const originalItemIndex = parentIndex;
+    const originalSelectedItems = selectedItems;
+    
+    // Criar um item temporário para usar na função openSubitemsModal
+    // Mas precisamos adaptar a função para funcionar com currentSelectedSubitems
+    // Vou criar uma função auxiliar
+    openSubitemsModalForSubitem(subitem, subitemIndex, depth, newPath);
 }
 
-function openSubitemsModal(itemIndex) {
-    // Modal para adicionar subitems recursivos será implementado depois
-    // Por enquanto, apenas mostra mensagem
-    const item = selectedItems[itemIndex];
-    if (!item) return;
-    
-    if (!item.canHaveSubitems) {
-        showAlert('info', 'Este item não pode receber subitems.');
+function openSubitemsModalForSubitem(subitem, subitemIndex, depth, parentPath) {
+    if (depth > 5) {
+        showAlert('warning', 'Profundidade máxima de 5 níveis atingida.');
         return;
     }
     
-    // TODO: Implementar modal completo para subitems recursivos
-    showAlert('info', `Funcionalidade de subitems para "${item.name}" será implementada em breve. O item já está na lista com suporte a subitems.`);
+    if (!subitem.canHaveSubitems || !subitem.compatibleChildren || subitem.compatibleChildren.length === 0) {
+        showAlert('info', 'Este subitem não pode receber subitems ou não possui subitems compatíveis.');
+        return;
+    }
+    
+    // Salvar o itemIndex original do item principal no data attribute para rastrear
+    const originalItemIndex = $('#subitemsItemIndex').data('original-item-index') || parseInt($('#subitemsItemIndex').val());
+    if (originalItemIndex && !isNaN(originalItemIndex)) {
+        $('#subitemsItemIndex').data('original-item-index', originalItemIndex);
+    }
+    
+    // Atualizar contexto do modal (usar um índice especial para subitems)
+    $('#subitemsItemIndex').val('subitem_' + subitemIndex);
+    $('#subitemsDepth').val(depth);
+    $('#subitemsParentPath').val(parentPath);
+    
+    // Atualizar título
+    $('#subitemsParentName').text(subitem.name);
+    $('#subitemsDepthIndicator').text(`Nível ${depth}`);
+    
+    // Atualizar informações
+    $('#subitemsParentInfo').html(`
+        Item: <strong>${subitem.name}</strong> | 
+        Subitems compatíveis: <strong>${subitem.compatibleChildren.length}</strong> | 
+        Subitems selecionados: <strong>${subitem.subitems ? subitem.subitems.length : 0}</strong>
+    `);
+    
+    // Inicializar arrays - usar os subitems do subitem atual
+    currentSubitemsData = [];
+    currentSelectedSubitems = subitem.subitems ? JSON.parse(JSON.stringify(subitem.subitems)) : [];
+    
+    // Filtrar itemsDataLoadout para pegar apenas os compatíveis
+    const compatibleIds = subitem.compatibleChildren.map(child => child.id || child);
+    currentSubitemsData = itemsDataLoadout.filter(i => compatibleIds.includes(i.id));
+    
+    // Carregar tipos de item no filtro
+    loadSubitemTypes();
+    
+    // Renderizar grid e lista de selecionados
+    renderSubitemsGrid();
+    updateSelectedSubitemsDisplay();
+    
+    // Inicializar event listeners dos filtros
+    initSubitemsFilters();
+    
+    // Abrir modal
+    const modal = new bootstrap.Modal(document.getElementById('subitemsModal'));
+    modal.show();
+}
+
+// Função auxiliar para atualizar subitems recursivamente
+function updateSubitemsRecursively(item, newSubitems, targetDepth, currentDepth = 1) {
+    if (currentDepth >= targetDepth) {
+        // Encontramos o nível correto
+        item.subitems = JSON.parse(JSON.stringify(newSubitems));
+        return true;
+    }
+    
+    // Procurar recursivamente nos subitems
+    if (item.subitems && item.subitems.length > 0) {
+        for (let i = 0; i < item.subitems.length; i++) {
+            if (updateSubitemsRecursively(item.subitems[i], newSubitems, targetDepth, currentDepth + 1)) {
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
+// Rastrear o caminho do item que está sendo editado
+let editingSubitemPath = [];
+
+function saveSubitemsConfiguration() {
+    const itemIndexStr = $('#subitemsItemIndex').val();
+    
+    if (itemIndexStr.startsWith('subitem_')) {
+        // Estamos editando um subitem recursivo
+        // Buscar o item principal usando o data attribute
+        const originalItemIndex = $('#subitemsItemIndex').data('original-item-index');
+        const parentPath = $('#subitemsParentPath').val();
+        
+        if (originalItemIndex !== undefined && originalItemIndex !== null) {
+            const mainItem = selectedItems[originalItemIndex];
+            
+            if (!mainItem) {
+                showAlert('danger', 'Item principal não encontrado.');
+                return;
+            }
+            
+            // Atualizar recursivamente usando o parentPath para encontrar o subitem correto
+            const updated = updateSubitemsByPath(mainItem, parentPath, currentSelectedSubitems);
+            
+            if (!updated) {
+                showAlert('warning', 'Não foi possível localizar o subitem para atualização. Tente novamente.');
+                return;
+            }
+        } else {
+            showAlert('danger', 'Não foi possível identificar o item principal.');
+            return;
+        }
+    } else {
+        // Salvar subitems do item principal
+        const itemIndex = parseInt(itemIndexStr);
+        const item = selectedItems[itemIndex];
+        
+        if (!item) {
+            showAlert('danger', 'Item não encontrado.');
+            return;
+        }
+        
+        // Atualizar subitems do item
+        item.subitems = JSON.parse(JSON.stringify(currentSelectedSubitems));
+    }
+    
+    // Atualizar display e preview
+    updateSelectedItemsDisplay();
+    updateJSONPreview();
+    
+    // Fechar modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('subitemsModal'));
+    if (modal) {
+        modal.hide();
+    }
+}
+
+function updateSubitemsByPath(item, path, newSubitems) {
+    // path tem formato "Item > Subitem > Subsubitem"
+    const pathParts = path.split(' > ').slice(1); // Remover primeiro (item principal)
+    
+    if (pathParts.length === 0) {
+        // Estamos no item principal
+        item.subitems = JSON.parse(JSON.stringify(newSubitems));
+        return true;
+    }
+    
+    // Procurar o subitem pelo nome
+    const targetName = pathParts[0];
+    if (item.subitems && item.subitems.length > 0) {
+        for (let i = 0; i < item.subitems.length; i++) {
+            if (item.subitems[i].name === targetName) {
+                // Encontrar subitem correto
+                if (pathParts.length === 1) {
+                    // Este é o subitem que queremos atualizar
+                    item.subitems[i].subitems = JSON.parse(JSON.stringify(newSubitems));
+                    return true;
+                } else {
+                    // Continuar recursivamente
+                    return updateSubitemsByPath(item.subitems[i], pathParts.slice(1).join(' > '), newSubitems);
+                }
+            }
+        }
+    }
+    
+    return false;
 }
 
 // ============================================================================

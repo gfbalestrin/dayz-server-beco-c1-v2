@@ -480,6 +480,80 @@
         </div>
     </div>
 </div>
+
+<!-- Modal de Subitems -->
+<div class="modal fade" id="subitemsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    Configurar Subitems: <span id="subitemsParentName"></span>
+                    <span id="subitemsDepthIndicator" class="badge bg-secondary ms-2"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="subitemsItemIndex">
+                <input type="hidden" id="subitemsDepth" value="1">
+                <input type="hidden" id="subitemsParentPath">
+                
+                <!-- Informações do item pai -->
+                <div class="alert alert-info mb-3">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong id="subitemsParentInfo"></strong>
+                </div>
+                
+                <!-- Filtros -->
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="subitemSearchInput" placeholder="Buscar subitem...">
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="filterSubitemType">
+                            <option value="">Todos os Tipos</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="filterSubitemLocation">
+                            <option value="">Todas Localizações</option>
+                            <option value="head">Head</option>
+                            <option value="face">Face</option>
+                            <option value="torso">Torso</option>
+                            <option value="legs">Legs</option>
+                            <option value="foot">Foot</option>
+                            <option value="hands">Hands</option>
+                            <option value="back">Back</option>
+                            <option value="none">Sem Localização</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select" id="filterSubitemStorage">
+                            <option value="">Todos</option>
+                            <option value="with">Com Storage</option>
+                            <option value="without">Sem Storage</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Subitems já selecionados -->
+                <div id="selectedSubitemsContainer" class="mb-3">
+                    <h6 class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Subitems Selecionados:</h6>
+                    <div id="selectedSubitemsList" class="items-tree"></div>
+                </div>
+                
+                <!-- Grid de subitems compatíveis -->
+                <div class="mb-3">
+                    <h6 class="mb-2"><i class="fas fa-box me-2"></i>Subitems Disponíveis:</h6>
+                    <div id="subitemsGrid" class="weapons-grid" style="max-height: 400px; overflow-y: auto;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveSubitems">Salvar Subitems</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
