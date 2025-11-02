@@ -2043,3 +2043,68 @@ def get_all_users() -> List[Dict]:
             results.append(user_data)
         
         return results
+
+def log_user_action(user_id: Optional[int], username: str, action: str, 
+                    details: Optional[Dict] = None, ip_address: Optional[str] = None) -> bool:
+    """
+    Registra ação do usuário no log de auditoria
+    
+    Args:
+        user_id: ID do usuário (None para super_admin)
+        username: Nome do usuário
+        action: Ação realizada (LOGIN, LOGOUT, CREATE_USER, UPDATE_USER, etc)
+        details: Detalhes adicionais em formato dict (será convertido para JSON)
+        ip_address: Endereço IP do usuário
+    """
+    import json
+    
+    details_json = json.dumps(details, ensure_ascii=False) if details else None
+    
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO user_audit_logs (UserID, Username, Action, Details, IPAddress)
+            VALUES (?, ?, ?, ?, ?)
+        """, (user_id, username, action, details_json, ip_address))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def get_user_audit_logs(limit: int = 1000, user_id: Optional[int] = None, 
+                        action: Optional[str] = None,
+                        start_date: Optional[str] = None,
+                        end_date: Optional[str] = None) -> List[Dict]:
+    """Retorna logs de auditoria com filtros opcionais"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        
+        query = "SELECT * FROM user_audit_logs WHERE 1=1"
+        params = []
+        
+        if user_id is not None:
+            query += " AND UserID = ?"
+            params.append(user_id)
+        
+        if action:
+            query += " AND Action = ?"
+            params.append(action)
+        
+        if start_date:
+            query += " AND TimeStamp >= ?"
+            params.append(start_date)
+        
+        if end_date:
+            query += " AND TimeStamp <= ?"
+            params.append(end_date)
+        
+        query += " ORDER BY TimeStamp DESC LIMIT ?"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_unique_audit_actions() -> List[str]:
+    """Retorna lista de ações únicas registradas nos logs"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT Action FROM user_audit_logs ORDER BY Action")
+        return [row[0] for row in cursor.fetchall()]

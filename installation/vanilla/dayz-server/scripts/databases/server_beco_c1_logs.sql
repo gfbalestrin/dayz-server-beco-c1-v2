@@ -77,3 +77,17 @@ CREATE TABLE IF NOT EXISTS fences_tracking (
 
 CREATE INDEX IF NOT EXISTS idx_fences_tracking_fence_id ON fences_tracking(FenceId);
 CREATE INDEX IF NOT EXISTS idx_fences_tracking_timestamp ON fences_tracking(TimeStamp);
+
+CREATE TABLE IF NOT EXISTS user_audit_logs (
+    IdAuditLog INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserID INTEGER,
+    Username TEXT NOT NULL,
+    Action TEXT NOT NULL,
+    Details TEXT,
+    IPAddress TEXT,
+    TimeStamp DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_audit_logs_user_id ON user_audit_logs(UserID);
+CREATE INDEX IF NOT EXISTS idx_user_audit_logs_action ON user_audit_logs(Action);
+CREATE INDEX IF NOT EXISTS idx_user_audit_logs_timestamp ON user_audit_logs(TimeStamp);

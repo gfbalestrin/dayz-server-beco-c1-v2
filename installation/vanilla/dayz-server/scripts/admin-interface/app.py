@@ -46,7 +46,7 @@ from database import (
     # User Authentication Functions
     authenticate_user, get_user_by_id, create_user, update_user_password,
     get_all_admins, deactivate_user, activate_user, delete_user, validate_password_strength, 
-    get_all_users, verify_password
+    get_all_users, verify_password, log_user_action, get_user_audit_logs, get_unique_audit_actions
 )
 from datetime import datetime
 
@@ -96,6 +96,47 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# ============================================================================
+# HELPER E DECORATOR DE AUDITORIA
+# ============================================================================
+
+def get_client_ip():
+    """Obtém IP do cliente considerando proxies"""
+    if request.headers.get('X-Forwarded-For'):
+        return request.headers.get('X-Forwarded-For').split(',')[0].strip()
+    elif request.headers.get('X-Real-IP'):
+        return request.headers.get('X-Real-IP')
+    return request.remote_addr
+
+def audit_action(action: str):
+    """Decorator para registrar ações automaticamente"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Executar função
+            result = f(*args, **kwargs)
+            
+            # Registrar ação após sucesso
+            try:
+                user_id = session.get('user_id')
+                username = session.get('username', 'Unknown')
+                ip_address = get_client_ip()
+                
+                # Detalhes básicos apenas
+                details = {
+                    'endpoint': request.endpoint,
+                    'path': request.path
+                }
+                
+                log_user_action(user_id, username, action, details, ip_address)
+            except Exception as e:
+                # Não falhar a requisição se o log falhar
+                print(f"Erro ao registrar auditoria: {e}")
+            
+            return result
+        return decorated_function
+    return decorator
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """Página de login - Suporta Super Admin, Admin Normal e Jogador"""
@@ -109,6 +150,16 @@ def login():
             session['username'] = username
             session['user_type'] = config.USER_TYPE_SUPER_ADMIN
             session['user_id'] = None  # Super admin não tem ID no banco
+            
+            # Registrar login
+            log_user_action(
+                None,
+                username,
+                'LOGIN',
+                {'user_type': config.USER_TYPE_SUPER_ADMIN},
+                get_client_ip()
+            )
+            
             return redirect(url_for('index'))
         
         # Se não for Super Admin, verifica no banco de dados
@@ -120,6 +171,15 @@ def login():
             session['user_id'] = user_data['UserID']
             if user_data.get('PlayerID'):
                 session['player_id'] = user_data['PlayerID']
+            
+            # Registrar login
+            log_user_action(
+                user_data['UserID'],
+                user_data['Username'],
+                'LOGIN',
+                {'user_type': user_data['UserType']},
+                get_client_ip()
+            )
             
             # Verificar se deve trocar senha no primeiro login
             must_change = user_data.get('MustChangePassword', 0)
@@ -137,6 +197,16 @@ def login():
 @app.route('/logout')
 def logout():
     """Logout do usuário"""
+    # Registrar logout antes de limpar sessão
+    if 'logged_in' in session and session['logged_in']:
+        log_user_action(
+            session.get('user_id'),
+            session.get('username', 'Unknown'),
+            'LOGOUT',
+            None,
+            get_client_ip()
+        )
+    
     session.clear()
     return redirect(url_for('login'))
 
@@ -177,6 +247,15 @@ def change_password_required():
         success = update_user_password(user_id, new_password, force_change=False)
         if not success:
             return render_template('change_password_required.html', error='Erro ao atualizar senha')
+        
+        # Registrar troca de senha
+        log_user_action(
+            user_id,
+            session['username'],
+            'CHANGE_PASSWORD',
+            {'forced': True},
+            get_client_ip()
+        )
         
         # Remover flag da sessão e redirecionar
         session.pop('must_change_password', None)
@@ -228,6 +307,42 @@ def logs_custom():
     """Logs customizados"""
     logs = get_logs_custom()
     return render_template('logs_custom.html', logs=logs)
+
+@app.route('/logs/audit')
+@admin_required
+def logs_audit():
+    """Logs de auditoria de usuários"""
+    # Obter parâmetros de filtro
+    user_id = request.args.get('user_id', type=int)
+    action = request.args.get('action')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    limit = request.args.get('limit', 1000, type=int)
+    
+    # Buscar logs com filtros
+    logs = get_user_audit_logs(
+        limit=limit,
+        user_id=user_id,
+        action=action,
+        start_date=start_date,
+        end_date=end_date
+    )
+    
+    # Buscar lista de usuários e ações para filtros
+    users = get_all_users()
+    actions = get_unique_audit_actions()
+    
+    return render_template('logs_audit.html', 
+                         logs=logs, 
+                         users=users, 
+                         actions=actions,
+                         filters={
+                             'user_id': user_id,
+                             'action': action,
+                             'start_date': start_date,
+                             'end_date': end_date,
+                             'limit': limit
+                         })
 
 @app.route('/vehicles')
 @login_required
@@ -473,6 +588,7 @@ def api_search_players():
 
 @app.route('/api/players/<player_id>/restore-backup', methods=['POST'])
 @login_required
+@audit_action('RESTORE_BACKUP')
 def api_restore_backup(player_id):
     """API para restaurar backup de um jogador"""
     import subprocess
@@ -570,6 +686,7 @@ def api_restore_backup(player_id):
 
 @app.route('/api/players/<player_id>/teleport', methods=['POST'])
 @login_required
+@audit_action('TELEPORT_PLAYER')
 def api_teleport_player(player_id):
     """API para teleportar jogador para uma posição usando sistema de comandos DayZ"""
     import logging
@@ -722,6 +839,7 @@ def api_all_players_with_status():
 
 @app.route('/api/players/<player_id>/action', methods=['POST'])
 @login_required
+@audit_action('PLAYER_ACTION')
 def api_player_action(player_id):
     """Executar ação administrativa em jogador"""
     import fcntl
@@ -798,6 +916,7 @@ def api_item_types():
 
 @app.route('/api/spawn/item', methods=['POST'])
 @login_required
+@audit_action('SPAWN_ITEM')
 def api_spawn_item():
     """Spawnar item para jogador ou em coordenadas"""
     import fcntl
@@ -841,6 +960,7 @@ def api_spawn_item():
 
 @app.route('/api/spawn/vehicle', methods=['POST'])
 @login_required
+@audit_action('SPAWN_VEHICLE')
 def api_spawn_vehicle():
     """Spawnar veículo em coordenadas ou próximo a jogador"""
     import fcntl
@@ -883,6 +1003,7 @@ def api_spawn_vehicle():
 
 @app.route('/api/spawn/item-at-coords', methods=['POST'])
 @login_required
+@audit_action('SPAWN_ITEM_COORDS')
 def api_spawn_item_at_coords():
     """Spawnar item em coordenadas específicas usando comando createitem"""
     import fcntl
@@ -927,6 +1048,7 @@ def api_spawn_item_at_coords():
 
 @app.route('/api/spawn/vehicle-at-coords', methods=['POST'])
 @login_required
+@audit_action('SPAWN_VEHICLE_COORDS')
 def api_spawn_vehicle_at_coords():
     """Spawnar veículo em coordenadas específicas usando comando createvehicle"""
     import fcntl
@@ -1050,6 +1172,7 @@ def api_weapon_compatible_items(weapon_id):
 
 @app.route('/api/spawn/loadout', methods=['POST'])
 @login_required
+@audit_action('SPAWN_LOADOUT')
 def api_spawn_loadout():
     """Spawnar arma com múltiplos acessórios"""
     import fcntl
@@ -1117,6 +1240,7 @@ def api_manage_weapon_detail(weapon_id):
 
 @app.route('/api/manage/weapons', methods=['POST'])
 @login_required
+@audit_action('CREATE_WEAPON')
 def api_manage_weapon_create():
     data = request.get_json()
     try:
@@ -1127,6 +1251,7 @@ def api_manage_weapon_create():
 
 @app.route('/api/manage/weapons/<int:weapon_id>', methods=['PUT'])
 @login_required
+@audit_action('UPDATE_WEAPON')
 def api_manage_weapon_update(weapon_id):
     data = request.get_json()
     try:
@@ -1137,6 +1262,7 @@ def api_manage_weapon_update(weapon_id):
 
 @app.route('/api/manage/weapons/<int:weapon_id>', methods=['DELETE'])
 @login_required
+@audit_action('DELETE_WEAPON')
 def api_manage_weapon_delete(weapon_id):
     try:
         success = delete_weapon(weapon_id)
@@ -1146,6 +1272,7 @@ def api_manage_weapon_delete(weapon_id):
 
 @app.route('/api/manage/weapons/<int:weapon_id>/relationships', methods=['PUT'])
 @login_required
+@audit_action('UPDATE_WEAPON_RELATIONSHIPS')
 def api_manage_weapon_relationships_update(weapon_id):
     data = request.get_json()
     try:
@@ -1183,6 +1310,7 @@ def api_manage_caliber_detail(caliber_id):
 
 @app.route('/api/manage/calibers', methods=['POST'])
 @login_required
+@audit_action('CREATE_CALIBER')
 def api_manage_caliber_create():
     data = request.get_json()
     try:
@@ -1193,6 +1321,7 @@ def api_manage_caliber_create():
 
 @app.route('/api/manage/calibers/<int:caliber_id>', methods=['PUT'])
 @login_required
+@audit_action('UPDATE_CALIBER')
 def api_manage_caliber_update(caliber_id):
     data = request.get_json()
     try:
@@ -1203,6 +1332,7 @@ def api_manage_caliber_update(caliber_id):
 
 @app.route('/api/manage/calibers/<int:caliber_id>', methods=['DELETE'])
 @login_required
+@audit_action('DELETE_CALIBER')
 def api_manage_caliber_delete(caliber_id):
     try:
         success = delete_caliber(caliber_id)
@@ -1227,6 +1357,7 @@ def api_manage_ammunition_detail(ammo_id):
 
 @app.route('/api/manage/ammunitions', methods=['POST'])
 @login_required
+@audit_action('CREATE_AMMUNITION')
 def api_manage_ammunition_create():
     data = request.get_json()
     try:
@@ -1237,6 +1368,7 @@ def api_manage_ammunition_create():
 
 @app.route('/api/manage/ammunitions/<int:ammo_id>', methods=['PUT'])
 @login_required
+@audit_action('UPDATE_AMMUNITION')
 def api_manage_ammunition_update(ammo_id):
     data = request.get_json()
     try:
@@ -1247,6 +1379,7 @@ def api_manage_ammunition_update(ammo_id):
 
 @app.route('/api/manage/ammunitions/<int:ammo_id>', methods=['DELETE'])
 @login_required
+@audit_action('DELETE_AMMUNITION')
 def api_manage_ammunition_delete(ammo_id):
     try:
         success = delete_ammunition(ammo_id)
@@ -1271,6 +1404,7 @@ def api_manage_magazine_detail(mag_id):
 
 @app.route('/api/manage/magazines', methods=['POST'])
 @login_required
+@audit_action('CREATE_MAGAZINE')
 def api_manage_magazine_create():
     data = request.get_json()
     try:
@@ -1281,6 +1415,7 @@ def api_manage_magazine_create():
 
 @app.route('/api/manage/magazines/<int:mag_id>', methods=['PUT'])
 @login_required
+@audit_action('UPDATE_MAGAZINE')
 def api_manage_magazine_update(mag_id):
     data = request.get_json()
     try:
@@ -1291,6 +1426,7 @@ def api_manage_magazine_update(mag_id):
 
 @app.route('/api/manage/magazines/<int:mag_id>', methods=['DELETE'])
 @login_required
+@audit_action('DELETE_MAGAZINE')
 def api_manage_magazine_delete(mag_id):
     try:
         success = delete_magazine(mag_id)
@@ -1315,6 +1451,7 @@ def api_manage_attachment_detail(att_id):
 
 @app.route('/api/manage/attachments', methods=['POST'])
 @login_required
+@audit_action('CREATE_ATTACHMENT')
 def api_manage_attachment_create():
     data = request.get_json()
     try:
@@ -1325,6 +1462,7 @@ def api_manage_attachment_create():
 
 @app.route('/api/manage/attachments/<int:att_id>', methods=['PUT'])
 @login_required
+@audit_action('UPDATE_ATTACHMENT')
 def api_manage_attachment_update(att_id):
     data = request.get_json()
     try:
@@ -1335,6 +1473,7 @@ def api_manage_attachment_update(att_id):
 
 @app.route('/api/manage/attachments/<int:att_id>', methods=['DELETE'])
 @login_required
+@audit_action('DELETE_ATTACHMENT')
 def api_manage_attachment_delete(att_id):
     try:
         success = delete_attachment(att_id)
@@ -1359,6 +1498,7 @@ def api_manage_explosive_detail(exp_id):
 
 @app.route('/api/manage/explosives', methods=['POST'])
 @login_required
+@audit_action('CREATE_EXPLOSIVE')
 def api_manage_explosive_create():
     data = request.get_json()
     try:
@@ -1369,6 +1509,7 @@ def api_manage_explosive_create():
 
 @app.route('/api/manage/explosives/<int:exp_id>', methods=['PUT'])
 @login_required
+@audit_action('UPDATE_EXPLOSIVE')
 def api_manage_explosive_update(exp_id):
     data = request.get_json()
     try:
@@ -1379,6 +1520,7 @@ def api_manage_explosive_update(exp_id):
 
 @app.route('/api/manage/explosives/<int:exp_id>', methods=['DELETE'])
 @login_required
+@audit_action('DELETE_EXPLOSIVE')
 def api_manage_explosive_delete(exp_id):
     try:
         success = delete_explosive(exp_id)
@@ -1403,6 +1545,7 @@ def api_manage_item_type_detail(type_id):
 
 @app.route('/api/manage/item-types', methods=['POST'])
 @login_required
+@audit_action('CREATE_ITEM_TYPE')
 def api_manage_item_type_create():
     data = request.get_json()
     try:
@@ -1413,6 +1556,7 @@ def api_manage_item_type_create():
 
 @app.route('/api/manage/item-types/<int:type_id>', methods=['PUT'])
 @login_required
+@audit_action('UPDATE_ITEM_TYPE')
 def api_manage_item_type_update(type_id):
     data = request.get_json()
     try:
@@ -1423,6 +1567,7 @@ def api_manage_item_type_update(type_id):
 
 @app.route('/api/manage/item-types/<int:type_id>', methods=['DELETE'])
 @login_required
+@audit_action('DELETE_ITEM_TYPE')
 def api_manage_item_type_delete(type_id):
     try:
         success = delete_item_type(type_id)
@@ -1448,6 +1593,7 @@ def api_manage_item_detail(item_id):
 
 @app.route('/api/manage/items', methods=['POST'])
 @login_required
+@audit_action('CREATE_ITEM')
 def api_manage_item_create():
     data = request.get_json()
     try:
@@ -1458,6 +1604,7 @@ def api_manage_item_create():
 
 @app.route('/api/manage/items/<int:item_id>', methods=['PUT'])
 @login_required
+@audit_action('UPDATE_ITEM')
 def api_manage_item_update(item_id):
     data = request.get_json()
     try:
@@ -1468,6 +1615,7 @@ def api_manage_item_update(item_id):
 
 @app.route('/api/manage/items/<int:item_id>', methods=['DELETE'])
 @login_required
+@audit_action('DELETE_ITEM')
 def api_manage_item_delete(item_id):
     try:
         success = delete_item(item_id)
@@ -1477,6 +1625,7 @@ def api_manage_item_delete(item_id):
 
 @app.route('/api/manage/items/<int:item_id>/compatibility', methods=['PUT'])
 @login_required
+@audit_action('UPDATE_ITEM_COMPATIBILITY')
 def api_manage_item_compatibility_update(item_id):
     data = request.get_json()
     parent_ids = data.get('parents', [])
@@ -1508,6 +1657,7 @@ def api_manage_magazine_weapons_get(mag_id):
 
 @app.route('/api/manage/magazines/<int:mag_id>/weapons', methods=['PUT'])
 @login_required
+@audit_action('UPDATE_MAGAZINE_WEAPONS')
 def api_manage_magazine_weapons_update(mag_id):
     data = request.get_json()
     weapon_ids = data.get('weapon_ids', [])
@@ -1525,6 +1675,7 @@ def api_manage_ammunition_weapons_get(ammo_id):
 
 @app.route('/api/manage/ammunitions/<int:ammo_id>/weapons', methods=['PUT'])
 @login_required
+@audit_action('UPDATE_AMMUNITION_WEAPONS')
 def api_manage_ammunition_weapons_update(ammo_id):
     data = request.get_json()
     weapon_ids = data.get('weapon_ids', [])
@@ -1542,6 +1693,7 @@ def api_manage_attachment_weapons_get(att_id):
 
 @app.route('/api/manage/attachments/<int:att_id>/weapons', methods=['PUT'])
 @login_required
+@audit_action('UPDATE_ATTACHMENT_WEAPONS')
 def api_manage_attachment_weapons_update(att_id):
     data = request.get_json()
     weapon_ids = data.get('weapon_ids', [])
@@ -1584,6 +1736,7 @@ def api_weapon_kit_detail(kit_id):
 
 @app.route('/api/kits/weapons', methods=['POST'])
 @login_required
+@audit_action('CREATE_WEAPON_KIT')
 def api_weapon_kit_create():
     data = request.get_json()
     try:
@@ -1594,6 +1747,7 @@ def api_weapon_kit_create():
 
 @app.route('/api/kits/weapons/<int:kit_id>', methods=['PUT'])
 @login_required
+@audit_action('UPDATE_WEAPON_KIT')
 def api_weapon_kit_update(kit_id):
     data = request.get_json()
     try:
@@ -1604,6 +1758,7 @@ def api_weapon_kit_update(kit_id):
 
 @app.route('/api/kits/weapons/<int:kit_id>', methods=['DELETE'])
 @login_required
+@audit_action('DELETE_WEAPON_KIT')
 def api_weapon_kit_delete(kit_id):
     try:
         success = delete_weapon_kit(kit_id)
@@ -1628,6 +1783,7 @@ def api_loot_kit_detail(kit_id):
 
 @app.route('/api/kits/loot', methods=['POST'])
 @login_required
+@audit_action('CREATE_LOOT_KIT')
 def api_loot_kit_create():
     data = request.get_json()
     try:
@@ -1638,6 +1794,7 @@ def api_loot_kit_create():
 
 @app.route('/api/kits/loot/<int:kit_id>', methods=['PUT'])
 @login_required
+@audit_action('UPDATE_LOOT_KIT')
 def api_loot_kit_update(kit_id):
     data = request.get_json()
     try:
@@ -1648,6 +1805,7 @@ def api_loot_kit_update(kit_id):
 
 @app.route('/api/kits/loot/<int:kit_id>', methods=['DELETE'])
 @login_required
+@audit_action('DELETE_LOOT_KIT')
 def api_loot_kit_delete(kit_id):
     try:
         success = delete_loot_kit(kit_id)
@@ -1852,6 +2010,7 @@ def build_weapon_kit_json(weapon_kit):
 
 @app.route('/api/spawn/weapon-kit', methods=['POST'])
 @login_required
+@audit_action('SPAWN_WEAPON_KIT')
 def api_spawn_weapon_kit():
     """Spawnar kit de arma para jogador"""
     import fcntl
@@ -1915,6 +2074,7 @@ def api_spawn_weapon_kit():
 
 @app.route('/api/spawn/loot-kit', methods=['POST'])
 @login_required
+@audit_action('SPAWN_LOOT_KIT')
 def api_spawn_loot_kit():
     """Spawnar kit de loot para jogador"""
     import fcntl
@@ -2021,6 +2181,7 @@ def api_spawn_loot_kit():
 
 @app.route('/api/spawn/weapon-kit-coords', methods=['POST'])
 @login_required
+@audit_action('SPAWN_WEAPON_KIT_COORDS')
 def api_spawn_weapon_kit_coords():
     """Spawnar weapon kit em coordenadas do mapa usando createweapon"""
     import fcntl
@@ -2069,6 +2230,7 @@ def api_spawn_weapon_kit_coords():
 
 @app.route('/api/spawn/loot-kit-coords', methods=['POST'])
 @login_required
+@audit_action('SPAWN_LOOT_KIT_COORDS')
 def api_spawn_loot_kit_coords():
     """Spawnar kit de loot em coordenadas do mapa usando createcontainer"""
     import fcntl
@@ -2247,6 +2409,15 @@ def api_manage_admins_post():
         if user_id is None:
             return jsonify({'success': False, 'message': 'Username já existe'}), 400
         
+        # Registrar criação
+        log_user_action(
+            session.get('user_id'),
+            session.get('username', 'Unknown'),
+            'CREATE_USER',
+            {'target_username': username, 'target_user_type': user_type, 'created_user_id': user_id},
+            get_client_ip()
+        )
+        
         type_label = 'Admin' if user_type == config.USER_TYPE_ADMIN else 'Jogador'
         return jsonify({'success': True, 'message': f'{type_label} criado com sucesso', 'data': {'user_id': user_id}})
     except Exception as e:
@@ -2282,6 +2453,15 @@ def api_manage_admins_put(admin_id):
             if not success:
                 return jsonify({'success': False, 'message': 'Erro ao atualizar senha'}), 500
             
+            # Registrar atualização de senha
+            log_user_action(
+                session.get('user_id'),
+                session.get('username', 'Unknown'),
+                'UPDATE_USER',
+                {'action': 'password_change', 'target_user_id': admin_id, 'target_username': user['Username'], 'force_change': force_change},
+                get_client_ip()
+            )
+            
             return jsonify({'success': True, 'message': 'Senha atualizada com sucesso'})
         
         elif 'isActive' in data:
@@ -2290,12 +2470,23 @@ def api_manage_admins_put(admin_id):
             if is_active:
                 success = activate_user(admin_id)
                 message = 'Usuário ativado com sucesso' if success else 'Erro ao ativar usuário'
+                action_type = 'ACTIVATE_USER'
             else:
                 success = deactivate_user(admin_id)
                 message = 'Usuário desativado com sucesso' if success else 'Erro ao desativar usuário'
+                action_type = 'DEACTIVATE_USER'
             
             if not success:
                 return jsonify({'success': False, 'message': message}), 500
+            
+            # Registrar ativação/desativação
+            log_user_action(
+                session.get('user_id'),
+                session.get('username', 'Unknown'),
+                action_type,
+                {'target_user_id': admin_id, 'target_username': user['Username']},
+                get_client_ip()
+            )
             
             return jsonify({'success': True, 'message': message})
         
@@ -2321,13 +2512,24 @@ def api_manage_admins_delete(admin_id):
             # Exclusão permanente
             success = delete_user(admin_id)
             message = 'Usuário excluído permanentemente' if success else 'Erro ao excluir usuário'
+            action_type = 'DELETE_USER'
         else:
             # Desativação (comportamento atual)
             success = deactivate_user(admin_id)
             message = 'Usuário desativado com sucesso' if success else 'Erro ao desativar usuário'
+            action_type = 'DEACTIVATE_USER'
         
         if not success:
             return jsonify({'success': False, 'message': message}), 500
+        
+        # Registrar exclusão/desativação
+        log_user_action(
+            session.get('user_id'),
+            session.get('username', 'Unknown'),
+            action_type,
+            {'target_user_id': admin_id, 'target_username': user['Username']},
+            get_client_ip()
+        )
         
         return jsonify({'success': True, 'message': message})
     except Exception as e:
