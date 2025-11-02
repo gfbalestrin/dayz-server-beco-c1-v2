@@ -1611,46 +1611,12 @@ EntityAI CreateItemWithAttachments(ItemAttachmentData itemData, EntityAI contain
         }
         else
         {
-            WriteToLog("CreateItemWithAttachments(): FALHA ao inserir " + itemData.type + " - tentando rotacionar", LogFile.INIT, false, LogType.DEBUG);
-            
-            // Segunda tentativa: criar temporariamente no chão para rotacionar
-            vector tempPos = fallbackPos;
-            EntityAI tempItem = EntityAI.Cast(GetGame().CreateObject(itemData.type, tempPos, false, true));
-            
-            if (tempItem)
-            {
-                // Tentar mover para o container com rotação
-                InventoryLocation targetLoc = new InventoryLocation;
-                targetLoc.SetCargo(container, tempItem, 0, 0, true); // true = rotacionado
-                
-                if (GameInventory.LocationCanAddEntity(targetLoc))
-                {
-                    if (tempItem.GetInventory().TakeToCargo(targetLoc))
-                    {
-                        item = tempItem;
-                        WriteToLog("CreateItemWithAttachments(): Item " + itemData.type + " inserido ROTACIONADO com sucesso", LogFile.INIT, false, LogType.DEBUG);
-                    }
-                    else
-                    {
-                        WriteToLog("CreateItemWithAttachments(): Falha ao mover item rotacionado para container", LogFile.INIT, false, LogType.DEBUG);
-                    }
-                }
-                else
-                {
-                    WriteToLog("CreateItemWithAttachments(): Item rotacionado também não cabe - será criado no chão", LogFile.INIT, false, LogType.DEBUG);
-                }
-                
-                // Se não conseguiu inserir rotacionado, deletar o item temporário
-                if (!item)
-                {
-                    GetGame().ObjectDelete(tempItem);
-                    tempItem = null;
-                }
-            }
+            WriteToLog("CreateItemWithAttachments(): FALHA ao inserir " + itemData.type + " no container - será criado no chão", LogFile.INIT, false, LogType.DEBUG);
+            // Nota: Rotação automática não é suportada pela API do DayZ
         }
     }
     
-    // Se não conseguiu inserir (nem normal nem rotacionado), cria no chão
+    // Se não conseguir, cria no chão
     if (!item)
     {
         WriteToLog("CreateItemWithAttachments(): Criando " + itemData.type + " no chão em " + fallbackPos.ToString(), LogFile.INIT, false, LogType.DEBUG);
