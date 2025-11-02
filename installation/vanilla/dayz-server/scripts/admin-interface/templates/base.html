@@ -19,7 +19,7 @@
 </head>
 <body>
     <!-- Navbar -->
-    <nav class="navbar navbar-dark bg-dark navbar-expand-lg">
+    <nav class="navbar navbar-dark bg-dark navbar-expand-lg fixed-top">
         <div class="container-fluid">
             <a class="navbar-brand" href="{{ url_for('index') }}">
                 <i class="fas fa-gamepad me-2"></i>DayZ Admin Interface - Beco Gaming
@@ -87,7 +87,7 @@
     </nav>
 
     <!-- Main Content -->
-    <div class="container-fluid">
+    <div class="container-fluid" style="padding-top: 76px;">
         {% block content %}{% endblock %}
     </div>
 
