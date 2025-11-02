@@ -2474,3 +2474,228 @@ function validateLoadoutVisual() {
     return true;
 }
 
+
+
+// ============================================================================
+// NAVEGAÇÃO DE GRIDS COM SETAS E DRAG/SWIPE
+// ============================================================================
+
+function initGridNavigation() {
+    console.log('initGridNavigation chamada');
+    // Inicializar navegação para todos os grids de itens
+    const gridIds = [
+        "itemsGridLoadoutHead",
+        "itemsGridLoadoutFace",
+        "itemsGridLoadoutTorso",
+        "itemsGridLoadoutLegs",
+        "itemsGridLoadoutFoot",
+        "itemsGridLoadoutHands",
+        "itemsGridLoadoutBack",
+        "itemsGridLoadoutNone"
+    ];
+    
+    gridIds.forEach(function(gridId) {
+        const grid = document.getElementById(gridId);
+        if (!grid) {
+            console.log('Grid não encontrado:', gridId);
+            return;
+        }
+        
+        // Atualizar visibilidade das setas
+        updateGridNavigationButtons(gridId);
+        
+        // Adicionar listeners para scroll
+        grid.addEventListener("scroll", function() {
+            updateGridNavigationButtons(gridId);
+        });
+        
+        // Nota: Os botões usam onclick diretamente no HTML como fallback
+        // Os event listeners aqui são apenas para atualizar visibilidade após scroll
+    });
+}
+
+function updateGridNavigationButtons(gridId) {
+    const grid = document.getElementById(gridId);
+    if (!grid) return;
+    
+    const prevBtn = document.querySelector(`.grid-nav-prev[data-grid="${gridId}"]`);
+    const nextBtn = document.querySelector(`.grid-nav-next[data-grid="${gridId}"]`);
+    
+    if (!prevBtn || !nextBtn) return;
+    
+    // Verificar se há scroll disponível
+    const canScrollLeft = grid.scrollLeft > 0;
+    const canScrollRight = grid.scrollLeft < (grid.scrollWidth - grid.clientWidth - 1);
+    
+    // Atualizar visibilidade dos botões
+    if (canScrollLeft) {
+        prevBtn.classList.remove("hidden");
+    } else {
+        prevBtn.classList.add("hidden");
+    }
+    
+    if (canScrollRight) {
+        nextBtn.classList.remove("hidden");
+    } else {
+        nextBtn.classList.add("hidden");
+    }
+}
+
+function scrollGrid(direction, gridId) {
+    console.log('scrollGrid chamada:', direction, gridId);
+    const grid = document.getElementById(gridId);
+    if (!grid) {
+        console.error('Grid não encontrado:', gridId);
+        return;
+    }
+    
+    const cardWidth = 200; // Largura do card
+    const gap = 15; // Gap entre cards
+    const scrollAmount = cardWidth + gap;
+    
+    try {
+        console.log('Fazendo scroll:', direction, 'amount:', scrollAmount);
+        if (direction === "prev") {
+            grid.scrollBy({
+                left: -scrollAmount,
+                behavior: "smooth"
+            });
+        } else if (direction === "next") {
+            grid.scrollBy({
+                left: scrollAmount,
+                behavior: "smooth"
+            });
+        }
+        
+        // Atualizar botões após scroll (com pequeno delay para aguardar scroll)
+        setTimeout(function() {
+            updateGridNavigationButtons(gridId);
+        }, 100);
+    } catch (error) {
+        console.error('Erro ao fazer scroll:', error);
+    }
+}
+
+// Funções globais para uso com onclick direto no HTML
+window.scrollGridPrev = function(gridId) {
+    console.log('scrollGridPrev chamada via onclick:', gridId);
+    scrollGrid("prev", gridId);
+    return false;
+};
+
+window.scrollGridNext = function(gridId) {
+    console.log('scrollGridNext chamada via onclick:', gridId);
+    scrollGrid("next", gridId);
+    return false;
+};
+
+function initGridDragSwipe(gridElement) {
+    if (!gridElement) return;
+    
+    // Evitar inicialização duplicada
+    if (gridElement.hasAttribute("data-drag-initialized")) {
+        return;
+    }
+    gridElement.setAttribute("data-drag-initialized", "true");
+    
+    let isDown = false;
+    let startX;
+    let scrollLeft;
+    let startTime;
+    let velocity = 0;
+    let lastX;
+    
+    gridElement.addEventListener("touchstart", function(e) {
+        isDown = true;
+        startX = e.touches[0].pageX - gridElement.offsetLeft;
+        scrollLeft = gridElement.scrollLeft;
+        startTime = Date.now();
+        velocity = 0;
+        lastX = e.touches[0].pageX;
+    }, { passive: true });
+    
+    gridElement.addEventListener("touchmove", function(e) {
+        if (!isDown) return;
+        
+        e.preventDefault();
+        const x = e.touches[0].pageX - gridElement.offsetLeft;
+        const walk = (x - startX) * 1.5; // Multiplicador para velocidade
+        gridElement.scrollLeft = scrollLeft - walk;
+        
+        // Calcular velocidade para inércia
+        const currentTime = Date.now();
+        const currentX = e.touches[0].pageX;
+        if (lastX !== undefined) {
+            const timeDiff = currentTime - startTime;
+            const xDiff = currentX - lastX;
+            if (timeDiff > 0) {
+                velocity = xDiff / timeDiff;
+            }
+        }
+        lastX = currentX;
+    }, { passive: false });
+    
+    gridElement.addEventListener("touchend", function(e) {
+        if (!isDown) return;
+        isDown = false;
+        
+        // Aplicar inércia suave
+        if (Math.abs(velocity) > 0.1) {
+            const inertia = velocity * 50;
+            const targetScroll = gridElement.scrollLeft - inertia;
+            
+            gridElement.scrollTo({
+                left: targetScroll,
+                behavior: "smooth"
+            });
+        }
+        
+        // Atualizar botões de navegação
+        const gridId = gridElement.id;
+        if (gridId) {
+            setTimeout(function() {
+                updateGridNavigationButtons(gridId);
+            }, 100);
+        }
+    }, { passive: true });
+    
+    // Suporte para mouse drag (opcional)
+    gridElement.addEventListener("mousedown", function(e) {
+        if (e.button !== 0) return; // Apenas botão esquerdo
+        isDown = true;
+        startX = e.pageX - gridElement.offsetLeft;
+        scrollLeft = gridElement.scrollLeft;
+        gridElement.style.cursor = "grabbing";
+        gridElement.style.userSelect = "none";
+    });
+    
+    gridElement.addEventListener("mouseleave", function() {
+        isDown = false;
+        gridElement.style.cursor = "grab";
+        gridElement.style.userSelect = "";
+    });
+    
+    gridElement.addEventListener("mouseup", function() {
+        isDown = false;
+        gridElement.style.cursor = "grab";
+        gridElement.style.userSelect = "";
+        
+        // Atualizar botões de navegação
+        const gridId = gridElement.id;
+        if (gridId) {
+            updateGridNavigationButtons(gridId);
+        }
+    });
+    
+    gridElement.addEventListener("mousemove", function(e) {
+        if (!isDown) return;
+        e.preventDefault();
+        const x = e.pageX - gridElement.offsetLeft;
+        const walk = (x - startX) * 1.5;
+        gridElement.scrollLeft = scrollLeft - walk;
+    });
+    
+    // Cursor grab quando hover
+    gridElement.style.cursor = "grab";
+}
+

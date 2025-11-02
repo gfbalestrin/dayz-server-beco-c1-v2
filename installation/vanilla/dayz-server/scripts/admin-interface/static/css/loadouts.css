@@ -273,6 +273,12 @@
     border-bottom: none;
 }
 
+/* Container para grids com navegação */
+.items-grid-container {
+    position: relative;
+    width: 100%;
+}
+
 .items-grid-scrollable {
     display: flex;
     flex-wrap: nowrap;
@@ -283,6 +289,7 @@
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
     width: 100%;
+    scroll-behavior: smooth;
 }
 
 /* Cards dentro de grids scrolláveis devem ter largura fixa */
@@ -290,6 +297,59 @@
     flex: 0 0 200px;
     min-width: 200px;
     max-width: 200px;
+}
+
+/* Botões de navegação dos grids */
+.grid-nav-prev,
+.grid-nav-next {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.items-grid-container:hover .grid-nav-prev,
+.items-grid-container:hover .grid-nav-next {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.grid-nav-prev:hover,
+.grid-nav-next:hover {
+    background: rgba(0, 0, 0, 0.8);
+    transform: translateY(-50%) scale(1.1);
+}
+
+.grid-nav-prev:active,
+.grid-nav-next:active {
+    transform: translateY(-50%) scale(0.95);
+}
+
+.grid-nav-prev {
+    left: 10px;
+}
+
+.grid-nav-next {
+    right: 10px;
+}
+
+.grid-nav-prev.hidden,
+.grid-nav-next.hidden {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .items-grid-scrollable::-webkit-scrollbar {
@@ -348,6 +408,30 @@
     
     .items-grid-scrollable {
         overflow-x: auto;
+    }
+    
+    /* Setas sempre visíveis em mobile */
+    .grid-nav-prev,
+    .grid-nav-next {
+        opacity: 1;
+        pointer-events: all;
+        width: 48px;
+        height: 48px;
+        background: rgba(0, 0, 0, 0.7);
+    }
+    
+    .grid-nav-prev {
+        left: 5px;
+    }
+    
+    .grid-nav-next {
+        right: 5px;
+    }
+    
+    .grid-nav-prev.hidden,
+    .grid-nav-next.hidden {
+        opacity: 0;
+        pointer-events: none;
     }
 }
 
