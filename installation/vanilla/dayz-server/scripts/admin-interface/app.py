@@ -1891,6 +1891,54 @@ def api_spawn_loot_kit():
             'message': f'Erro ao spawnar kit: {str(e)}'
         }), 500
 
+@app.route('/api/spawn/weapon-kit-coords', methods=['POST'])
+@login_required
+def api_spawn_weapon_kit_coords():
+    """Spawnar weapon kit em coordenadas do mapa usando createweapon"""
+    import fcntl
+    import os
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    data = request.get_json()
+    kit_id = data.get('kit_id')
+    coord_x = data.get('coord_x')
+    coord_y = data.get('coord_y')
+    
+    if not kit_id or coord_x is None or coord_y is None:
+        return jsonify({'success': False, 'message': 'Dados incompletos'}), 400
+    
+    kit = get_weapon_kit_by_id(kit_id)
+    if not kit:
+        return jsonify({'success': False, 'message': 'Kit não encontrado'}), 404
+    
+    try:
+        # Montar JSON do weapon kit usando função existente
+        weapon_json = build_weapon_kit_json(kit)
+        
+        # Montar comando
+        command = f"SYSTEM createweapon {coord_x} {coord_y} {weapon_json}\n"
+        
+        # Escrever no arquivo com file locking
+        with open(config.COMMANDS_FILE, 'a') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.write(command)
+                f.flush()
+                os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        
+        logger.info(f"Weapon kit {kit_id} spawnado em coordenadas ({coord_x}, {coord_y})")
+        return jsonify({'success': True, 'message': 'Weapon kit spawnado com sucesso!'})
+    except Exception as e:
+        logger.exception("Erro ao spawnar weapon kit em coordenadas")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao spawnar kit: {str(e)}'
+        }), 500
+
 @app.route('/api/spawn/loot-kit-coords', methods=['POST'])
 @login_required
 def api_spawn_loot_kit_coords():

@@ -384,9 +384,13 @@ function executeSpawn() {
         } else {
             // Para kits em coordenadas
             if (type === 'weapon-kit') {
-                showToast('Aviso', 'Spawn de weapon kits em coordenadas ainda não implementado', 'warning');
-                $('#confirmSpawnBtn').prop('disabled', false).html('<i class="fas fa-magic me-1"></i>Spawnar');
-                return;
+                // Weapon kit em coordenadas
+                url = '/api/spawn/weapon-kit-coords';
+                data = {
+                    kit_id: kitId,
+                    coord_x: coordX,
+                    coord_y: coordY
+                };
             } else {
                 // Loot kit em coordenadas
                 url = '/api/spawn/loot-kit-coords';

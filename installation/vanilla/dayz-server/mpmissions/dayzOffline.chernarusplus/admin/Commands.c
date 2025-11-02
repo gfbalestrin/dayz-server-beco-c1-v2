@@ -66,6 +66,8 @@ bool ExecuteCommand(TStringArray tokens)
                 return ExecuteCreateVehicle(tokens);
             case "createcontainer":
                 return ExecuteCreateContainer(tokens);
+            case "createweapon":
+                return ExecuteCreateWeapon(tokens);
             default:
                 WriteToLog("Comando do sistema desconhecido: " + command, LogFile.INIT, false, LogType.ERROR);
                 return false;
@@ -1066,6 +1068,66 @@ bool ExecuteCreateContainer(TStringArray tokens)
     
     WriteToLog("Container criado - Itens processados: " + itemsProcessed.ToString() + ", Dentro: " + itemsInContainer.ToString() + ", No chão: " + itemsOnGround.ToString(), LogFile.INIT, false, LogType.INFO);
     return true;
+}
+
+bool ExecuteCreateWeapon(TStringArray tokens)
+{
+    // Formato: SYSTEM createweapon CoordX CoordY {"type":"AKM","attachments":[...]}
+    if (tokens.Count() < 5)
+    {
+        WriteToLog("ExecuteCreateWeapon(): Parâmetros insuficientes", LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    float coordX = tokens[2].ToFloat();
+    float coordY = tokens[3].ToFloat();
+    
+    // Criar vetor de posição
+    vector weaponPos = Vector(coordX, 0, coordY);
+    
+    // Calcular altura do terreno
+    weaponPos[1] = GetGame().SurfaceY(weaponPos[0], weaponPos[2]);
+    
+    // Reconstruir JSON (pode estar fragmentado em múltiplos tokens)
+    string jsonString = "";
+    for (int i = 4; i < tokens.Count(); i++)
+    {
+        if (i > 4)
+            jsonString += " ";
+        jsonString += tokens[i];
+    }
+    
+    WriteToLog("ExecuteCreateWeapon(): JSON recebido: " + jsonString, LogFile.INIT, false, LogType.DEBUG);
+    
+    // Normalizar JSON
+    jsonString = NormalizeJsonString(jsonString);
+    
+    WriteToLog("ExecuteCreateWeapon(): JSON normalizado: " + jsonString, LogFile.INIT, false, LogType.DEBUG);
+    
+    // Parse JSON usando função existente
+    int jsonPos = 0;
+    int nextJsonPos = 0;
+    ref ItemAttachmentData weaponData = ParseItemJson(jsonString, jsonPos, nextJsonPos);
+    
+    if (!weaponData || weaponData.type == "")
+    {
+        WriteToLog("ExecuteCreateWeapon(): Falha ao parsear JSON do weapon kit", LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    // Criar arma no chão (sem container, passa null)
+    EntityAI weapon = CreateItemWithAttachments(weaponData, null, weaponPos);
+    
+    if (weapon)
+    {
+        WriteToLog("Weapon kit " + weaponData.type + " criado em X=" + coordX.ToString() + " Y=" + coordY.ToString(), LogFile.INIT, false, LogType.INFO);
+        return true;
+    }
+    else
+    {
+        WriteToLog("Falha ao criar weapon kit: " + weaponData.type, LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
 }
 
 bool IsInteger(string s)
