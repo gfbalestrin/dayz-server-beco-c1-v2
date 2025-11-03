@@ -155,31 +155,24 @@ bool ExecuteCommand(TStringArray tokens)
                 return false;
             }
             
-            // Formato: PlayerID teleport CoordX CoordZ CoordY
-            // Aceita:
-            // - 4 tokens => X, Z; calcula altura automaticamente
-            // - 5 tokens => X, Z, Altura (usa a altura fornecida)
+            // Formato: PlayerID teleport CoordX CoordZ CoordY [AlturaOpcional]
             if (tokens.Count() >= 4)
             {
-                float x = tokens[2].ToFloat();
-                float z = tokens[3].ToFloat(); // eixo norte-sul (Z DayZ)
-                float y; // altitude
-
+                vector posT = Vector(tokens[2].ToFloat(), 0, tokens[4].ToFloat()); // X e Y (CoordZ é Y)
+                
+                // Se altura foi fornecida, usar. Caso contrário, calcular automaticamente
                 if (tokens.Count() >= 5)
                 {
-                    // Altura fornecida
-                    y = tokens[4].ToFloat();
+                    posT[1] = tokens[3].ToFloat(); // Usar altura fornecida
                 }
                 else
                 {
                     // Calcular altura do terreno automaticamente
-                    y = GetGame().SurfaceY(x, z);
+                    posT[1] = GetGame().SurfaceY(posT[0], posT[2]);
                 }
-
-                vector posT = Vector(x, y, z);
+                
                 target.SetPosition(posT);
                 target.MessageStatus("Você foi teleportado");
-                // Log mantém convenção: Y (log) = norte-sul (Z DayZ), Z (log) = altitude
                 WriteToLog("Jogador " + playerID + " teleportado para X=" + posT[0].ToString() + " Y=" + posT[2].ToString() + " Z=" + posT[1].ToString(), LogFile.INIT, false, LogType.INFO);
             }
             break;
