@@ -364,11 +364,11 @@ bool GiveDefaultLoadout(PlayerBase player, string playerId)
 
 bool GiveAdminLoadout(PlayerBase player, string playerId)
 {
-    string jsonPlayerId = LoadoutAdminJsonFile;
+    string jsonPlayerId = LoadoutCustomJsonFile;
     FileHandle handle2 = OpenFile(jsonPlayerId, FileMode.READ);
     if (!handle2)
     {
-        WriteToLog("Arquivo de loadout admin não encontrado: " + jsonPlayerId, LogFile.INIT, false, LogType.ERROR);
+        WriteToLog("Arquivo de loadout custom não encontrado: " + jsonPlayerId, LogFile.INIT, false, LogType.ERROR);
         return false;
     }
     CloseFile(handle2);
@@ -378,7 +378,7 @@ bool GiveAdminLoadout(PlayerBase player, string playerId)
 
     if (!loadoutsPlayer || loadoutsPlayer.Count() == 0)
     {
-        WriteToLog("JSON de loadout admin carregado, mas lista vazia ou nula.", LogFile.INIT, false, LogType.ERROR);
+        WriteToLog("JSON de loadout custom carregado, mas lista vazia ou nula.", LogFile.INIT, false, LogType.ERROR);
         return false;
     }
 
@@ -388,7 +388,10 @@ bool GiveAdminLoadout(PlayerBase player, string playerId)
         if (!entry2)
             continue;
 
-        if (entry2.IsActive)
+        string entryName = entry2.Name;
+        entryName.ToLower();
+        
+        if (entryName == "admin" && entry2.IsActive)
         {
             loadoutPlayer = entry2;
             break;
@@ -397,7 +400,7 @@ bool GiveAdminLoadout(PlayerBase player, string playerId)
 
     if (!loadoutPlayer)
     {
-        WriteToLog("O de loadout admin não tem nenhum loadout ativo.", LogFile.INIT, false, LogType.INFO);
+        WriteToLog("Loadout 'admin' não encontrado ou não está ativo no arquivo custom.json.", LogFile.INIT, false, LogType.INFO);
         return false;
     }
 
