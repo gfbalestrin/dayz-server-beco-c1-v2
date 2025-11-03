@@ -91,3 +91,4 @@ CREATE TABLE IF NOT EXISTS user_audit_logs (
 CREATE INDEX IF NOT EXISTS idx_user_audit_logs_user_id ON user_audit_logs(UserID);
 CREATE INDEX IF NOT EXISTS idx_user_audit_logs_action ON user_audit_logs(Action);
 CREATE INDEX IF NOT EXISTS idx_user_audit_logs_timestamp ON user_audit_logs(TimeStamp);
+

@@ -104,3 +104,68 @@ CREATE TABLE IF NOT EXISTS players_damage (
 
 CREATE INDEX IF NOT EXISTS idx_damage_killer ON players_damage(PlayerIDAttacker);
 CREATE INDEX IF NOT EXISTS idx_damage_killed ON players_damage(PlayerIDVictim);
+
+-- Descrição: Tabela para gerenciar usuários com diferentes perfis (super_admin, admin, player)
+
+-- Tabela de usuários
+CREATE TABLE IF NOT EXISTS users (
+    UserID INTEGER PRIMARY KEY AUTOINCREMENT,
+    Username TEXT UNIQUE NOT NULL,
+    Password TEXT NOT NULL,
+    UserType TEXT NOT NULL,  -- 'super_admin', 'admin', 'player'
+    PlayerID TEXT,           -- FK para players_database (apenas para tipo 'player')
+    IsActive INTEGER DEFAULT 1,
+    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    LastLogin DATETIME,
+    FOREIGN KEY (PlayerID) REFERENCES players_database(PlayerID) ON DELETE SET NULL
+);
+
+-- Índice para busca rápida por username
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(Username);
+
+-- Índice para busca rápida por PlayerID
+CREATE INDEX IF NOT EXISTS idx_users_playerid ON users(PlayerID);
+
+-- Índice para busca rápida por UserType
+CREATE INDEX IF NOT EXISTS idx_users_usertype ON users(UserType);
+
+-- Descrição: Campo para forçar troca de senha no primeiro login
+
+-- Adicionar coluna MustChangePassword
+ALTER TABLE users ADD COLUMN MustChangePassword INTEGER DEFAULT 1;
+
+-- Atualizar usuários existentes para não pedir troca de senha (segurança)
+-- Manter DEFAULT 1 para novos usuários
+UPDATE users SET MustChangePassword = 0 WHERE MustChangePassword IS NULL;
+
+-- Tabela loadouts_custom
+CREATE TABLE IF NOT EXISTS loadouts_custom (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    is_active BOOLEAN DEFAULT 0,
+    loadout_data TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabela loadouts_players
+CREATE TABLE IF NOT EXISTS loadouts_players (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    player_id TEXT NOT NULL,
+    loadout_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    is_active BOOLEAN DEFAULT 0,
+    loadout_data TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (player_id) REFERENCES players_database(PlayerID) ON DELETE CASCADE,
+    UNIQUE(player_id, loadout_id)
+);
+
+-- Índices para performance
+CREATE INDEX IF NOT EXISTS idx_loadouts_custom_name ON loadouts_custom(name);
+CREATE INDEX IF NOT EXISTS idx_loadouts_custom_is_active ON loadouts_custom(is_active);
+CREATE INDEX IF NOT EXISTS idx_loadouts_players_player_id ON loadouts_players(player_id);
+CREATE INDEX IF NOT EXISTS idx_loadouts_players_loadout_id ON loadouts_players(loadout_id);
+CREATE INDEX IF NOT EXISTS idx_loadouts_players_is_active ON loadouts_players(player_id, is_active);
+
