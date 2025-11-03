@@ -2193,7 +2193,7 @@ class CustomMission: MissionServer
 		}
 
 		ref array<ref LoadoutPlayer> loadoutsPlayer = GetAllLoudoutsFromPlayer(playerId);
-		if (!loadoutsPlayer) {
+		if (!loadoutsPlayer && IsDeathmatchEnabled) {
 			WriteToLog("Nenhum loadout encontrado para o playerId: " + playerId, LogFile.INIT, false, LogType.INFO);
 			return;
 		}
