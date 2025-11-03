@@ -15,6 +15,7 @@ let currentPointContext = null; // Contexto do ponto para ações
 let currentFilter = null;
 let autoRefreshInterval = null;
 let showTrails = false;
+let showPlayers = true;
 let showVehicles = false;
 let showContainers = false;
 let showFences = false;
@@ -112,6 +113,7 @@ $(document).ready(function() {
     $('#onlineOnlyCheck').on('change', filterPlayers);
     $('#playerFilter').on('change', filterPlayers);
     $('#toggleTrailsBtn').on('click', toggleTrails);
+    $('#togglePlayersBtn').on('click', togglePlayersDisplay);
     $('#toggleVehiclesBtn').on('click', toggleVehiclesDisplay);
     $('#toggleContainersBtn').on('click', toggleContainersDisplay);
     $('#toggleFencesBtn').on('click', toggleFencesDisplay);
@@ -302,6 +304,11 @@ function updatePositions(data) {
             onlineCount++;
         } else {
             offlineCount++;
+        }
+        
+        // Verificar se deve mostrar jogadores
+        if (!showPlayers) {
+            return;
         }
         
         const color = getPlayerColor(playerId);
@@ -561,6 +568,26 @@ function toggleTrails() {
             }
         });
         playerTrails = {};
+    }
+}
+
+/**
+ * Toggle mostrar jogadores
+ */
+function togglePlayersDisplay() {
+    showPlayers = !showPlayers;
+    
+    if (showPlayers) {
+        $('#togglePlayersBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar Jogadores');
+        // Recarregar posições
+        loadPositions();
+    } else {
+        $('#togglePlayersBtn').html('<i class="fas fa-user me-1"></i>Mostrar Jogadores');
+        // Remover todos os marcadores de jogadores
+        Object.keys(playerMarkers).forEach(function(key) {
+            map.removeLayer(playerMarkers[key]);
+        });
+        playerMarkers = {};
     }
 }
 
