@@ -63,7 +63,8 @@ function dmDrawConfig(cfg) {
   const spawnZones = cfg.spawnZones || [];
   spawnZones.forEach(function(pt, idx) {
     const x = pt[0];
-    const z = pt[1];
+    const y = (pt.length >= 3 ? pt[1] : 0);
+    const z = (pt.length >= 3 ? pt[2] : pt[1]);
     const pixel = dmDayzToPixel(x, z);
     const marker = L.circleMarker(pixel, {
       radius: 5,
@@ -74,7 +75,7 @@ function dmDrawConfig(cfg) {
       fillOpacity: 1,
       renderer: dmRendererPoints || dmCanvasRenderer
     }).addTo(map);
-    marker.bindTooltip(`SpawnZone\nX=${x.toFixed(1)} Z=${z.toFixed(1)}`, {
+    marker.bindTooltip(`SpawnZone\nX=${x.toFixed(1)} Y=${y.toFixed(1)} Z=${z.toFixed(1)}`, {
       permanent: false,
       direction: 'top',
       className: 'trail-tooltip'
@@ -309,7 +310,18 @@ function dmOpenEditor(kind, preselectIdx){
     if (typeof preselectIdx === 'number') {
       dmSelectedSpawnIndex = preselectIdx;
       const pt = dmLastConfig.spawnZones?.[preselectIdx];
-      if (pt) { $('#dmSpawnX').val(pt[0].toFixed(2)); $('#dmSpawnZ').val(pt[1].toFixed(2)); dmTeleportCoord = { x: pt[0], z: pt[1] }; $('#dmTpX').val(pt[0].toFixed(2)); $('#dmTpZ').val(pt[1].toFixed(2)); }
+      if (pt) {
+        const x = pt[0];
+        const y = (pt.length >= 3 ? pt[1] : 0);
+        const z = (pt.length >= 3 ? pt[2] : pt[1]);
+        $('#dmSpawnX').val(x.toFixed(2));
+        $('#dmSpawnZ').val(z.toFixed(2));
+        $('#dmSpawnH').val(y.toFixed(2));
+        dmTeleportCoord = { x, z, y };
+        $('#dmTpX').val(x.toFixed(2));
+        $('#dmTpZ').val(z.toFixed(2));
+        $('#dmTpH').val(y.toFixed(2));
+      }
     }
   } else if (kind === 'wall') {
     if (typeof preselectIdx === 'number') {
@@ -336,10 +348,12 @@ function dmRenderPointsLists(){
   const sp = dmLastConfig?.spawnZones || [];
   const wl = dmLastConfig?.wallZones || [];
   sp.forEach((pt, idx)=>{
-    const x = pt[0], z = pt[1];
+    const x = pt[0];
+    const y = (pt.length >= 3 ? pt[1] : 0);
+    const z = (pt.length >= 3 ? pt[2] : pt[1]);
     const item = $('<button type="button" class="list-group-item list-group-item-action"></button>')
-      .text(`#${idx+1}  X=${x.toFixed(2)}  Z=${z.toFixed(2)}`)
-      .on('click', function(){ dmSelectedSpawnIndex = idx; $('#dmSpawnX').val(x.toFixed(2)); $('#dmSpawnZ').val(z.toFixed(2)); dmTeleportCoord = { x, z }; $('#dmTpX').val(x.toFixed(2)); $('#dmTpZ').val(z.toFixed(2)); spawnList.find('.active').removeClass('active'); $(this).addClass('active'); });
+      .text(`#${idx+1}  X=${x.toFixed(2)}  Y=${y.toFixed(2)}  Z=${z.toFixed(2)}`)
+      .on('click', function(){ dmSelectedSpawnIndex = idx; $('#dmSpawnX').val(x.toFixed(2)); $('#dmSpawnZ').val(z.toFixed(2)); $('#dmSpawnH').val(y.toFixed(2)); dmTeleportCoord = { x, z, y }; $('#dmTpX').val(x.toFixed(2)); $('#dmTpZ').val(z.toFixed(2)); $('#dmTpH').val(y.toFixed(2)); spawnList.find('.active').removeClass('active'); $(this).addClass('active'); });
     if (idx === dmSelectedSpawnIndex) item.addClass('active');
     spawnList.append(item);
   });
@@ -376,9 +390,11 @@ function dmSpawnEditManual(){
   if (!dmEnsureSpawnSelected()) return;
   const x = parseFloat($('#dmSpawnX').val());
   const z = parseFloat($('#dmSpawnZ').val());
+  const hRaw = $('#dmSpawnH').val();
+  const h = hRaw !== '' ? parseFloat(hRaw) : null;
   $.ajax({
     url: '/api/deathmatch/map/points', method: 'POST', contentType: 'application/json',
-    data: JSON.stringify({ regionId: dmCurrentRegionId(), kind: 'spawn', action: 'update', index: dmSelectedSpawnIndex, coord: { x, z } })
+    data: JSON.stringify({ regionId: dmCurrentRegionId(), kind: 'spawn', action: 'update', index: dmSelectedSpawnIndex, coord: { x, z, h } })
   }).done(()=>{ dmLoad(); dmRenderPointsLists(); }).fail(dmApiError);
 }
 
@@ -393,10 +409,12 @@ function dmSpawnRemove(){
 function dmSpawnAddManual(){
   const x = parseFloat($('#dmSpawnAddX').val());
   const z = parseFloat($('#dmSpawnAddZ').val());
+  const hRaw = $('#dmSpawnAddH').val();
+  const h = hRaw !== '' ? parseFloat(hRaw) : null;
   $.ajax({
     url: '/api/deathmatch/map/points', method: 'POST', contentType: 'application/json',
-    data: JSON.stringify({ regionId: dmCurrentRegionId(), kind: 'spawn', action: 'add', coord: { x, z } })
-  }).done(()=>{ $('#dmSpawnAddX').val(''); $('#dmSpawnAddZ').val(''); dmLoad(); dmRenderPointsLists(); }).fail(dmApiError);
+    data: JSON.stringify({ regionId: dmCurrentRegionId(), kind: 'spawn', action: 'add', coord: { x, z, h } })
+  }).done(()=>{ $('#dmSpawnAddX').val(''); $('#dmSpawnAddZ').val(''); $('#dmSpawnAddH').val(''); dmLoad(); dmRenderPointsLists(); }).fail(dmApiError);
 }
 
 // ---- Wall actions
@@ -524,8 +542,17 @@ function dmExecuteTeleport(){
   if (!playerId) { alert('Selecione um jogador'); return; }
   if (!dmTeleportCoord) { alert('Coord. inválida'); return; }
   const coord_x = dmTeleportCoord.x;
-  const coord_y = dmTeleportCoord.z; // eixo norte-sul
-  const payload = { coord_x, coord_y, coord_z: 0 };
+  const coord_y = dmTeleportCoord.z; // eixo norte-sul (Y)
+  const heightVal = $('#dmTpH').val();
+  let coord_z;
+  if (heightVal !== '') {
+    coord_z = parseFloat(heightVal);
+  } else if (dmTeleportCoord.y !== undefined && dmTeleportCoord.y !== null) {
+    coord_z = dmTeleportCoord.y;
+  } else {
+    coord_z = 0;
+  }
+  const payload = { coord_x, coord_y, coord_z };
   $.ajax({ url: `/api/players/${playerId}/teleport`, method: 'POST', contentType: 'application/json', data: JSON.stringify(payload) })
     .done(function(resp){ alert(resp.message || 'Teleportado com sucesso'); })
     .fail(dmApiError);

@@ -427,9 +427,24 @@ def api_deathmatch_config():
         except:
             return None
 
+    def parse_coord_spawn(coord_str):
+        # Retorna [x, y, z] com altura (y) preservada
+        if not coord_str:
+            return None
+        parts = [p.strip() for p in coord_str.replace(',', ' ').split() if p.strip()]
+        if len(parts) < 3:
+            return None
+        try:
+            x = float(parts[0])
+            y = float(parts[1])
+            z = float(parts[2])
+            return [x, y, z]
+        except:
+            return None
+
     spawn_zones = []
     for s in selected.get('SpawnZones', []) or []:
-        pt = parse_coord_str(s)
+        pt = parse_coord_spawn(s)
         if pt:
             spawn_zones.append(pt)
 
@@ -661,8 +676,11 @@ def api_deathmatch_points():
 
         points = target.get(key) or []
 
-        def _format_coord(x, z):
-            # Padronizar como "x, 0, z"
+        def _format_coord_spawn(x, y, z):
+            return f"{x:.6f}, {y:.6f}, {z:.6f}"
+
+        def _format_coord_wall(x, z):
+            # Wall não usa altura
             return f"{x:.6f}, 0, {z:.6f}"
 
         if action in ['add', 'update']:
@@ -672,11 +690,27 @@ def api_deathmatch_points():
             x, z = xz
 
         if action == 'add':
-            points.append(_format_coord(x, z))
+            if kind == 'spawn':
+                # altura opcional em coord.h
+                y = float(coord.get('h')) if coord.get('h') is not None else 0.0
+                points.append(_format_coord_spawn(x, y, z))
+            else:
+                points.append(_format_coord_wall(x, z))
         elif action == 'update':
             if index is None or index < 0 or index >= len(points):
                 return jsonify({ 'error': 'Índice inválido' }), 400
-            points[index] = _format_coord(x, z)
+            if kind == 'spawn':
+                # preservar altura existente se não for fornecida
+                try:
+                    existing = points[index]
+                    parts = [p.strip() for p in existing.replace(',', ' ').split() if p.strip()]
+                    existing_y = float(parts[1]) if len(parts) >= 3 else 0.0
+                except:
+                    existing_y = 0.0
+                y = float(coord.get('h')) if coord.get('h') is not None else existing_y
+                points[index] = _format_coord_spawn(x, y, z)
+            else:
+                points[index] = _format_coord_wall(x, z)
         elif action == 'remove':
             if index is None or index < 0 or index >= len(points):
                 return jsonify({ 'error': 'Índice inválido' }), 400
@@ -1070,13 +1104,10 @@ def api_teleport_player(player_id):
                 'message': 'Arquivo de comandos não encontrado'
             }), 500
         
-        # Formato: PlayerID teleport CoordX CoordZ CoordY [AlturaOpcional]
-        # Se coord_z não for fornecido, calcular altura automaticamente
+        # Formato aceito pelo servidor: PlayerID teleport CoordX CoordZ CoordY (mantido como antes)
         if coord_z is not None:
-            # Altura especificada
-            command_line = f"{player_id} teleport {coord_x} {coord_z} {coord_y} {coord_z}\n"
+            command_line = f"{player_id} teleport {coord_x} {coord_z} {coord_y}\n"
         else:
-            # Altura será calculada automaticamente pelo servidor
             command_line = f"{player_id} teleport {coord_x} 0 {coord_y}\n"
         
         logger.info(f"Adicionando comando de teleporte: {command_line.strip()}")
