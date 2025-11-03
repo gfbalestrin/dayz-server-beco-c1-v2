@@ -155,6 +155,13 @@ function dmDrawConfig(cfg) {
     const bounds = L.latLngBounds(allLatLngs);
     map.fitBounds(bounds.pad(0.05));
   }
+
+  // Ajustar rótulo do botão de exclusão conforme status
+  if (cfg.isDeleted) {
+    $('#dmToggleDeletedBtn').removeClass('btn-outline-secondary').addClass('btn-outline-success').html('<i class="fas fa-undo me-1"></i>Reverter Exclusão');
+  } else {
+    $('#dmToggleDeletedBtn').removeClass('btn-outline-success').addClass('btn-outline-secondary').html('<i class="fas fa-ban me-1"></i>Marcar como Excluído');
+  }
 }
 
 function dmLoad() {
@@ -239,7 +246,8 @@ function dmLoadMaps() {
       const maps = data.maps || [];
       select.empty();
       maps.forEach(m => {
-        const label = `${m.regionId} - ${m.region}${m.active ? ' (ativo)' : ''}`;
+        const del = m.isDeleted ? ' (excluído)' : '';
+        const label = `${m.regionId} - ${m.region}${m.active ? ' (ativo)' : ''}${del}`;
         const opt = $('<option></option>').val(m.regionId).text(label);
         if (m.active) opt.attr('selected', true);
         select.append(opt);
@@ -261,6 +269,7 @@ $(document).ready(function() {
   $('#dmOpenWallEditorBtn').on('click', function(){ dmOpenEditor('wall'); });
   $('#dmMetaSaveBtn').on('click', dmSaveMeta);
   $('#dmSetActiveBtn').on('click', dmSetActive);
+  $('#dmToggleDeletedBtn').on('click', dmToggleDeleted);
 
   // Spawn handlers
   $('#dmSpawnEditPickBtn').on('click', function(){ if (dmEnsureSpawnSelected()) dmSetPickMode('spawn-edit'); });
@@ -427,6 +436,15 @@ function dmSaveMeta(){
 function dmSetActive(){
   $.ajax({ url: '/api/deathmatch/map/set-active', method: 'POST', contentType: 'application/json', data: JSON.stringify({ regionId: dmCurrentRegionId() }) })
     .done(()=>{ dmLoadMaps(); })
+    .fail(dmApiError);
+}
+
+function dmToggleDeleted(){
+  // Infere pelo texto do botão
+  const isRestore = $('#dmToggleDeletedBtn').text().toLowerCase().includes('reverter');
+  const isDeleted = !isRestore;
+  $.ajax({ url: '/api/deathmatch/map/set-deleted', method: 'POST', contentType: 'application/json', data: JSON.stringify({ regionId: dmCurrentRegionId(), isDeleted }) })
+    .done(()=>{ dmLoadMaps(); dmLoad(); })
     .fail(dmApiError);
 }
 

@@ -451,6 +451,8 @@ def api_deathmatch_config():
         'regionId': selected.get('RegionId'),
         'region': selected.get('Region'),
         'customMessage': selected.get('CustomMessage'),
+        'active': bool(selected.get('Active')),
+        'isDeleted': bool(selected.get('IsDeleted')),
         'spawnZones': spawn_zones,
         'wallZones': wall_zones,
         'spawns': {
@@ -485,7 +487,8 @@ def api_deathmatch_maps():
         maps.append({
             'regionId': item.get('RegionId'),
             'region': item.get('Region'),
-            'active': bool(item.get('Active'))
+            'active': bool(item.get('Active')),
+            'isDeleted': bool(item.get('IsDeleted'))
         })
 
     return jsonify({ 'maps': maps })
@@ -563,6 +566,26 @@ def api_deathmatch_update_meta():
             target['CustomMessage'] = str(custom_message)
         _dm_write_all(data)
         return jsonify({ 'message': 'Metadados atualizados com sucesso' })
+    except Exception as e:
+        return jsonify({ 'error': str(e) }), 500
+
+
+@app.route('/api/deathmatch/map/set-deleted', methods=['POST'])
+@admin_required
+def api_deathmatch_set_deleted():
+    payload = request.get_json(silent=True) or {}
+    region_id = payload.get('regionId')
+    is_deleted = payload.get('isDeleted')
+    if region_id is None or is_deleted is None:
+        return jsonify({ 'error': 'regionId e isDeleted são obrigatórios' }), 400
+    try:
+        data = _dm_read_all()
+        target = next((item for item in data if int(item.get('RegionId', -1)) == int(region_id)), None)
+        if not target:
+            return jsonify({ 'error': f'Região {region_id} não encontrada' }), 404
+        target['IsDeleted'] = bool(is_deleted)
+        _dm_write_all(data)
+        return jsonify({ 'message': 'Status de exclusão atualizado com sucesso' })
     except Exception as e:
         return jsonify({ 'error': str(e) }), 500
 
