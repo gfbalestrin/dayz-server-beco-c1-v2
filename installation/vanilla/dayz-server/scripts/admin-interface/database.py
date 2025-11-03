@@ -219,7 +219,10 @@ def get_players_last_position() -> List[Dict]:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT p.PlayerID, p.PlayerName, p.SteamID, p.SteamName,
-                   pc.CoordX, pc.CoordY, pc.CoordZ, pc.Data, pc.PlayerCoordId
+                   pc.CoordX, pc.CoordY, pc.CoordZ, pc.Data, pc.PlayerCoordId,
+                   pc.Health, pc.Blood, pc.Shock, pc.Energy, pc.Water,
+                   pc.IsAlive, pc.IsAdmin, pc.Stamina, pc.StaminaMax,
+                   pc.ItemsInHands, pc.ItemsCount, pc.MainItems
             FROM players_database p
             INNER JOIN (
                 SELECT PlayerID, MAX(Data) as MaxData
@@ -256,6 +259,9 @@ def get_online_players_positions() -> List[Dict]:
         cursor.execute("""
             SELECT p.PlayerID, p.PlayerName, p.SteamID, p.SteamName,
                    pc.CoordX, pc.CoordY, pc.CoordZ, pc.Data, pc.PlayerCoordId,
+                   pc.Health, pc.Blood, pc.Shock, pc.Energy, pc.Water,
+                   pc.IsAlive, pc.IsAdmin, pc.Stamina, pc.StaminaMax,
+                   pc.ItemsInHands, pc.ItemsCount, pc.MainItems,
                    1 as IsOnline
             FROM players_online po
             INNER JOIN players_database p ON po.PlayerID = p.PlayerID

@@ -76,6 +76,20 @@ CREATE TABLE IF NOT EXISTS players_coord (
 
 CREATE INDEX IF NOT EXISTS idx_players_coords_playerid ON players_coord(PlayerID);
 
+-- Adicionar novas colunas para informações adicionais dos jogadores
+ALTER TABLE players_coord ADD COLUMN Health REAL;
+ALTER TABLE players_coord ADD COLUMN Blood REAL;
+ALTER TABLE players_coord ADD COLUMN Shock REAL;
+ALTER TABLE players_coord ADD COLUMN Energy REAL;
+ALTER TABLE players_coord ADD COLUMN Water REAL;
+ALTER TABLE players_coord ADD COLUMN IsAlive INTEGER;
+ALTER TABLE players_coord ADD COLUMN IsAdmin INTEGER;
+ALTER TABLE players_coord ADD COLUMN Stamina REAL;
+ALTER TABLE players_coord ADD COLUMN StaminaMax REAL;
+ALTER TABLE players_coord ADD COLUMN ItemsInHands TEXT;
+ALTER TABLE players_coord ADD COLUMN ItemsCount INTEGER;
+ALTER TABLE players_coord ADD COLUMN MainItems TEXT;
+
 -- Tabela players_coord_backup
 CREATE TABLE IF NOT EXISTS players_coord_backup (
     PlayerCoordId INTEGER NOT NULL,

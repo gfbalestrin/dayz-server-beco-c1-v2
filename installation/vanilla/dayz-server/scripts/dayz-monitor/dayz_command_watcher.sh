@@ -277,8 +277,25 @@ tail -F "$COMMAND_FILE" | while read -r line; do
                 coord_z=$(echo "$player_data" | jq -r '.z')
                 coord_y=$(echo "$player_data" | jq -r '.y')
                 
+                # Extrai os novos campos do JSON
+                health=$(echo "$player_data" | jq -r '.health // empty')
+                blood=$(echo "$player_data" | jq -r '.blood // empty')
+                shock=$(echo "$player_data" | jq -r '.shock // empty')
+                energy=$(echo "$player_data" | jq -r '.energy // empty')
+                water=$(echo "$player_data" | jq -r '.water // empty')
+                is_alive=$(echo "$player_data" | jq -r '.is_alive // false')
+                is_admin=$(echo "$player_data" | jq -r '.is_admin // false')
+                stamina=$(echo "$player_data" | jq -r '.stamina // empty')
+                stamina_max=$(echo "$player_data" | jq -r '.stamina_max // empty')
+                items_in_hands=$(echo "$player_data" | jq -c '.items_in_hands // []')
+                items_count=$(echo "$player_data" | jq -r '.items_count // empty')
+                main_items=$(echo "$player_data" | jq -c '.main_items // []')
+                
                 # Insere a posição no banco de dados e captura o ID gerado
-                PlayerCoordId=$(INSERT_PLAYER_POSITION "$player_id" "$coord_x" "$coord_z" "$coord_y")
+                PlayerCoordId=$(INSERT_PLAYER_POSITION "$player_id" "$coord_x" "$coord_z" "$coord_y" \
+                    "$health" "$blood" "$shock" "$energy" "$water" \
+                    "$is_alive" "$is_admin" "$stamina" "$stamina_max" \
+                    "$items_in_hands" "$items_count" "$main_items")
                 
                 if [ $? -eq 0 ] && [ -n "$PlayerCoordId" ]; then
                     echo ">> Posições armazenadas com sucesso (ID: $PlayerCoordId)"

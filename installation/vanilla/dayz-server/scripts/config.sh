@@ -501,6 +501,18 @@ INSERT_PLAYER_POSITION() {
     local CoordX="$2"
     local CoordZ="$3"
     local CoordY="$4"
+    local Health="$5"
+    local Blood="$6"
+    local Shock="$7"
+    local Energy="$8"
+    local Water="$9"
+    local IsAlive="${10}"
+    local IsAdmin="${11}"
+    local Stamina="${12}"
+    local StaminaMax="${13}"
+    local ItemsInHands="${14}"
+    local ItemsCount="${15}"
+    local MainItems="${16}"
     
     local max_retries=5
     local retry_delay=0.2
@@ -513,19 +525,80 @@ INSERT_PLAYER_POSITION() {
     fi
 
     local EscapedPlayerID
+    local EscapedItemsInHands
+    local EscapedMainItems
 
     # Escapar aspas simples
     EscapedPlayerID=$(echo "$PlayerID" | sed "s/'/''/g")
+    
+    # Escapar JSON arrays (já são strings JSON, mas precisam escapar aspas simples para SQL)
+    local ItemsInHandsValue
+    if [[ -n "$ItemsInHands" ]]; then
+        EscapedItemsInHands=$(echo "$ItemsInHands" | sed "s/'/''/g")
+        ItemsInHandsValue="'$EscapedItemsInHands'"
+    else
+        ItemsInHandsValue="NULL"
+    fi
+    
+    local MainItemsValue
+    if [[ -n "$MainItems" ]]; then
+        EscapedMainItems=$(echo "$MainItems" | sed "s/'/''/g")
+        MainItemsValue="'$EscapedMainItems'"
+    else
+        MainItemsValue="NULL"
+    fi
+    
+    # Converter booleanos para INTEGER (0/1)
+    local IsAliveValue
+    if [[ "$IsAlive" == "true" ]] || [[ "$IsAlive" == "1" ]]; then
+        IsAliveValue="1"
+    else
+        IsAliveValue="0"
+    fi
+    
+    local IsAdminValue
+    if [[ "$IsAdmin" == "true" ]] || [[ "$IsAdmin" == "1" ]]; then
+        IsAdminValue="1"
+    else
+        IsAdminValue="0"
+    fi
 
     while (( attempt <= max_retries )); do
+        # Preparar valores para SQL (NULL se vazio, senão usar o valor)
+        local HealthValue="${Health:-NULL}"
+        local BloodValue="${Blood:-NULL}"
+        local ShockValue="${Shock:-NULL}"
+        local EnergyValue="${Energy:-NULL}"
+        local WaterValue="${Water:-NULL}"
+        local StaminaValue="${Stamina:-NULL}"
+        local StaminaMaxValue="${StaminaMax:-NULL}"
+        local ItemsCountValue="${ItemsCount:-NULL}"
+        
         local PlayerCoordId=$(sqlite3 "$AppFolder/$AppPlayerBecoC1DbFile" <<EOF
-INSERT INTO players_coord (PlayerID, CoordX, CoordZ, CoordY, Data)
+INSERT INTO players_coord (
+    PlayerID, CoordX, CoordZ, CoordY, Data,
+    Health, Blood, Shock, Energy, Water,
+    IsAlive, IsAdmin, Stamina, StaminaMax,
+    ItemsInHands, ItemsCount, MainItems
+)
 VALUES (
     '$EscapedPlayerID',
     '$CoordX',
     '$CoordZ',
     '$CoordY',
-    datetime('now', 'localtime')
+    datetime('now', 'localtime'),
+    $HealthValue,
+    $BloodValue,
+    $ShockValue,
+    $EnergyValue,
+    $WaterValue,
+    $IsAliveValue,
+    $IsAdminValue,
+    $StaminaValue,
+    $StaminaMaxValue,
+    $ItemsInHandsValue,
+    $ItemsCountValue,
+    $MainItemsValue
 );
 SELECT last_insert_rowid();
 EOF

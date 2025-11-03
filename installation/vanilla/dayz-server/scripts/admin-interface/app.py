@@ -396,7 +396,19 @@ def api_positions():
             'coord_z': pos['CoordZ'],  # Essa é Altitude
             'pixel_coords': pixel_coords,
             'last_update': pos['Data'] or '',
-            'is_online': pos['PlayerID'] in online_ids
+            'is_online': pos['PlayerID'] in online_ids,
+            'health': pos.get('Health'),
+            'blood': pos.get('Blood'),
+            'shock': pos.get('Shock'),
+            'energy': pos.get('Energy'),
+            'water': pos.get('Water'),
+            'is_alive': bool(pos.get('IsAlive')) if pos.get('IsAlive') is not None else None,
+            'is_admin': bool(pos.get('IsAdmin')) if pos.get('IsAdmin') is not None else None,
+            'stamina': pos.get('Stamina'),
+            'stamina_max': pos.get('StaminaMax'),
+            'items_in_hands': pos.get('ItemsInHands'),
+            'items_count': pos.get('ItemsCount'),
+            'main_items': pos.get('MainItems')
         })
     
     return jsonify(result)
@@ -449,7 +461,19 @@ def api_online_positions():
             'coord_z': pos['CoordZ'],
             'pixel_coords': pixel_coords,
             'last_update': pos['Data'] or '',
-            'is_online': True
+            'is_online': True,
+            'health': pos.get('Health'),
+            'blood': pos.get('Blood'),
+            'shock': pos.get('Shock'),
+            'energy': pos.get('Energy'),
+            'water': pos.get('Water'),
+            'is_alive': bool(pos.get('IsAlive')) if pos.get('IsAlive') is not None else None,
+            'is_admin': bool(pos.get('IsAdmin')) if pos.get('IsAdmin') is not None else None,
+            'stamina': pos.get('Stamina'),
+            'stamina_max': pos.get('StaminaMax'),
+            'items_in_hands': pos.get('ItemsInHands'),
+            'items_count': pos.get('ItemsCount'),
+            'main_items': pos.get('MainItems')
         })
     
     return jsonify(result)

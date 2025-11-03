@@ -336,14 +336,87 @@ function updatePositions(data) {
             opacity: player.is_online ? 1.0 : 0.9
         }).addTo(map);
         
+        // Função auxiliar para formatar arrays JSON
+        const formatItemsArray = (itemsStr) => {
+            if (!itemsStr) return 'Nenhum';
+            try {
+                const items = JSON.parse(itemsStr);
+                if (Array.isArray(items) && items.length > 0) {
+                    return items.join(', ');
+                }
+            } catch (e) {
+                return itemsStr;
+            }
+            return 'Nenhum';
+        };
+        
         // Formatar conteúdo do tooltip seguindo padrão dos trails
-        const tooltipContent = `
+        let tooltipContent = `
             <strong>👤 ${player.player_name}${player.steam_name ? ` (${player.steam_name})` : ''}</strong><br>
             ${player.is_online ? '🟢 <span class="value">Online</span>' : '🔴 <span class="value">Offline</span>'}<br>
+            ${player.is_admin ? '👑 <span class="value">Admin</span><br>' : ''}
             📍 Coords: <span class="value">X=${player.coord_x.toFixed(1)}, Y=${player.coord_y.toFixed(1)}</span><br>
             ${player.coord_z ? `📏 Altura: <span class="value">${player.coord_z.toFixed(1)}m</span><br>` : ''}
-            ⏰ Atualizado: <span class="value">${player.last_update || 'Desconhecido'}</span>
         `;
+        
+        // Adicionar informações de status de vida se disponíveis
+        if ((player.health !== null && player.health !== undefined) || 
+            (player.blood !== null && player.blood !== undefined) ||
+            (player.shock !== null && player.shock !== undefined)) {
+            tooltipContent += '<br><strong>💚 Status de Vida:</strong><br>';
+            if (player.health !== null && player.health !== undefined) {
+                tooltipContent += `❤️ Saúde: <span class="value">${player.health.toFixed(1)}</span><br>`;
+            }
+            if (player.blood !== null && player.blood !== undefined) {
+                tooltipContent += `🩸 Sangue: <span class="value">${player.blood.toFixed(0)}</span><br>`;
+            }
+            if (player.shock !== null && player.shock !== undefined) {
+                tooltipContent += `⚡ Shock: <span class="value">${player.shock.toFixed(0)}</span><br>`;
+            }
+            if (player.is_alive !== null && player.is_alive !== undefined) {
+                tooltipContent += `${player.is_alive ? '✅ <span class="value">Vivo</span>' : '💀 <span class="value">Morto</span>'}<br>`;
+            }
+        }
+        
+        // Adicionar informações de recursos se disponíveis
+        if ((player.energy !== null && player.energy !== undefined) || 
+            (player.water !== null && player.water !== undefined)) {
+            tooltipContent += '<br><strong>📦 Recursos:</strong><br>';
+            if (player.energy !== null && player.energy !== undefined) {
+                tooltipContent += `⚡ Energia: <span class="value">${player.energy.toFixed(1)}</span><br>`;
+            }
+            if (player.water !== null && player.water !== undefined) {
+                tooltipContent += `💧 Água: <span class="value">${player.water.toFixed(1)}</span><br>`;
+            }
+        }
+        
+        // Adicionar informações de stamina se disponíveis
+        if ((player.stamina !== null && player.stamina !== undefined) || 
+            (player.stamina_max !== null && player.stamina_max !== undefined)) {
+            tooltipContent += '<br><strong>🏃 Stamina:</strong><br>';
+            if (player.stamina !== null && player.stamina !== undefined && 
+                player.stamina_max !== null && player.stamina_max !== undefined) {
+                tooltipContent += `<span class="value">${player.stamina.toFixed(1)}/${player.stamina_max.toFixed(1)}</span><br>`;
+            } else if (player.stamina !== null && player.stamina !== undefined) {
+                tooltipContent += `<span class="value">${player.stamina.toFixed(1)}</span><br>`;
+            }
+        }
+        
+        // Adicionar informações de items se disponíveis
+        if (player.items_in_hands || 
+            (player.items_count !== null && player.items_count !== undefined)) {
+            tooltipContent += '<br><strong>🎒 Inventário:</strong><br>';
+            if (player.items_in_hands) {
+                const itemsHands = formatItemsArray(player.items_in_hands);
+                tooltipContent += `🤲 Mãos: <span class="value">${itemsHands}</span><br>`;
+            }
+            if (player.items_count !== null && player.items_count !== undefined) {
+                tooltipContent += `📊 Items: <span class="value">${player.items_count}</span><br>`;
+            }
+        }
+        
+        // Adicionar timestamp
+        tooltipContent += `<br>⏰ Atualizado: <span class="value">${player.last_update || 'Desconhecido'}</span>`;
         
         // Direção dinâmica baseada na posição no mapa
         let tooltipDirection = 'top'; // padrão (sul)
