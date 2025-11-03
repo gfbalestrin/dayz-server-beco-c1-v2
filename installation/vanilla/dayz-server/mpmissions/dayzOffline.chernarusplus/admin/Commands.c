@@ -269,6 +269,28 @@ bool ExecuteCommand(TStringArray tokens)
             }
             break;
 
+        case "createcontainer":
+            if (!isAdmin)
+            {
+                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
+                WriteToLog("Comando foi bloqueado para o jogador!", LogFile.INIT, false, LogType.ERROR);
+                return false;
+            }
+            ExecuteCreateContainer(tokens, target);
+            target.MessageStatus("Container criado na sua posição");
+            break;
+
+        case "createweapon":
+            if (!isAdmin)
+            {
+                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
+                WriteToLog("Comando foi bloqueado para o jogador!", LogFile.INIT, false, LogType.ERROR);
+                return false;
+            }
+            ExecuteCreateWeapon(tokens, target);
+            target.MessageStatus("Arma criada na sua posição");
+            break;
+
         case "ghostmode":
             if (!isAdmin)
             {
@@ -742,18 +764,43 @@ bool ExecuteCreateVehicle(TStringArray tokens)
     }
 }
 
-bool ExecuteCreateContainer(TStringArray tokens)
+bool ExecuteCreateContainer(TStringArray tokens, PlayerBase player = null)
 {
-    // Formato: SYSTEM createcontainer ContainerType CoordX CoordY Item1 Item2 ... ItemN
-    if (tokens.Count() < 6)
+    // Formato SYSTEM: SYSTEM createcontainer ContainerType CoordX CoordY Item1 Item2 ... ItemN
+    // Formato USER: playerID createcontainer ContainerType Item1 Item2 ... ItemN
+    float coordX;
+    float coordY;
+    int itemStartIndex;
+    
+    if (player)
     {
-        WriteToLog("ExecuteCreateContainer(): Parâmetros insuficientes", LogFile.INIT, false, LogType.ERROR);
-        return false;
+        // Modo usuário: usa posição do jogador
+        if (tokens.Count() < 3)
+        {
+            WriteToLog("ExecuteCreateContainer(): Parâmetros insuficientes (modo usuário)", LogFile.INIT, false, LogType.ERROR);
+            return false;
+        }
+        
+        vector playerPos = player.GetPosition();
+        coordX = playerPos[0];
+        coordY = playerPos[2];
+        itemStartIndex = 2; // ContainerType está no token[2], items começam em token[3]
+    }
+    else
+    {
+        // Modo SYSTEM: precisa de coordenadas explícitas
+        if (tokens.Count() < 6)
+        {
+            WriteToLog("ExecuteCreateContainer(): Parâmetros insuficientes (modo SYSTEM)", LogFile.INIT, false, LogType.ERROR);
+            return false;
+        }
+        
+        coordX = tokens[3].ToFloat();
+        coordY = tokens[4].ToFloat();
+        itemStartIndex = 5; // Items começam no token[5]
     }
     
     string containerType = tokens[2];
-    float coordX = tokens[3].ToFloat();
-    float coordY = tokens[4].ToFloat();
     
     // Validar tipo de container
     if (containerType != "WoodenCrate" && containerType != "Barrel_Yellow" && containerType != "Barrel_Red" && containerType != "Barrel_Green" && containerType != "Barrel_Blue" && containerType != "SeaChest")
@@ -803,7 +850,7 @@ bool ExecuteCreateContainer(TStringArray tokens)
     groundPos[2] = groundPos[2] + offsetZ;
     groundPos[1] = GetGame().SurfaceY(groundPos[0], groundPos[2]);
     
-    for (int i = 5; i < tokens.Count(); i++)
+    for (int i = itemStartIndex + 1; i < tokens.Count(); i++)
     {
         string token = tokens[i];
         
@@ -853,7 +900,7 @@ bool ExecuteCreateContainer(TStringArray tokens)
             {
                 // Procura para trás para ver se há JSON iniciado
                 bool foundJsonStart = false;
-                for (int backIdx = i - 1; backIdx >= 5; backIdx--)
+                for (int backIdx = i - 1; backIdx >= itemStartIndex + 1; backIdx--)
                 {
                     string prevToken = tokens[backIdx];
                     if (prevToken.Length() > 0)
@@ -902,10 +949,10 @@ bool ExecuteCreateContainer(TStringArray tokens)
         itemsProcessed++;
         
         // Verifica se é JSON: começa com { ou tem : e estrutura JSON ({, }, [, ])
-        // Caso especial: se é o primeiro token após coordenadas (i==5) e tem : mas não tem estrutura,
+        // Caso especial: se é o primeiro token de items e tem : mas não tem estrutura,
         // pode ser início de JSON fragmentado - tratamos como JSON
         bool looksLikeJsonToken = hasColon && (hasOpenBrace || hasCloseBrace || hasOpenBracket || hasCloseBracket);
-        bool isPotentialJsonStart = (i == 5 && hasColon && !hasOpenBrace && !hasCloseBrace && !hasOpenBracket && !hasCloseBracket);
+        bool isPotentialJsonStart = (i == itemStartIndex + 1 && hasColon && !hasOpenBrace && !hasCloseBrace && !hasOpenBracket && !hasCloseBracket);
         bool isJsonStart = isJsonToken || looksLikeJsonToken || isPotentialJsonStart;
         
         if (isJsonStart)
@@ -1089,17 +1136,41 @@ bool ExecuteCreateContainer(TStringArray tokens)
     return true;
 }
 
-bool ExecuteCreateWeapon(TStringArray tokens)
+bool ExecuteCreateWeapon(TStringArray tokens, PlayerBase player = null)
 {
-    // Formato: SYSTEM createweapon CoordX CoordY {"type":"AKM","attachments":[...]}
-    if (tokens.Count() < 5)
-    {
-        WriteToLog("ExecuteCreateWeapon(): Parâmetros insuficientes", LogFile.INIT, false, LogType.ERROR);
-        return false;
-    }
+    // Formato SYSTEM: SYSTEM createweapon CoordX CoordY {"type":"AKM","attachments":[...]}
+    // Formato USER: playerID createweapon {"type":"AKM","attachments":[...]}
+    float coordX;
+    float coordY;
+    int jsonStartIndex;
     
-    float coordX = tokens[2].ToFloat();
-    float coordY = tokens[3].ToFloat();
+    if (player)
+    {
+        // Modo usuário: usa posição do jogador
+        if (tokens.Count() < 3)
+        {
+            WriteToLog("ExecuteCreateWeapon(): Parâmetros insuficientes (modo usuário)", LogFile.INIT, false, LogType.ERROR);
+            return false;
+        }
+        
+        vector playerPos = player.GetPosition();
+        coordX = playerPos[0];
+        coordY = playerPos[2];
+        jsonStartIndex = 2; // JSON começa no token[2]
+    }
+    else
+    {
+        // Modo SYSTEM: precisa de coordenadas explícitas
+        if (tokens.Count() < 5)
+        {
+            WriteToLog("ExecuteCreateWeapon(): Parâmetros insuficientes (modo SYSTEM)", LogFile.INIT, false, LogType.ERROR);
+            return false;
+        }
+        
+        coordX = tokens[2].ToFloat();
+        coordY = tokens[3].ToFloat();
+        jsonStartIndex = 4; // JSON começa no token[4]
+    }
     
     // Criar vetor de posição
     vector weaponPos = Vector(coordX, 0, coordY);
@@ -1109,9 +1180,9 @@ bool ExecuteCreateWeapon(TStringArray tokens)
     
     // Reconstruir JSON (pode estar fragmentado em múltiplos tokens)
     string jsonString = "";
-    for (int i = 4; i < tokens.Count(); i++)
+    for (int i = jsonStartIndex; i < tokens.Count(); i++)
     {
-        if (i > 4)
+        if (i > jsonStartIndex)
             jsonString += " ";
         jsonString += tokens[i];
     }
