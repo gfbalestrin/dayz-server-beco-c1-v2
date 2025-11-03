@@ -93,6 +93,9 @@
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="wall-tab" data-bs-toggle="tab" data-bs-target="#wall-tab-pane" type="button" role="tab">WallZones</button>
           </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="teleport-tab" data-bs-toggle="tab" data-bs-target="#teleport-tab-pane" type="button" role="tab">Teleporte</button>
+          </li>
         </ul>
         <div class="tab-content pt-3">
           <!-- SPAWN TAB -->
@@ -166,6 +169,31 @@
                   <button type="button" class="btn btn-sm btn-outline-success" id="dmWallAddPickBtn"><i class="fas fa-location-crosshairs me-1"></i>Adicionar (Clique no Mapa)</button>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- TELEPORT TAB -->
+          <div class="tab-pane fade" id="teleport-tab-pane" role="tabpanel">
+            <div class="mb-2">
+              <label class="form-label small">Coordenadas de destino:</label>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">X</span>
+                <input type="text" class="form-control" id="dmTpX" readonly>
+                <span class="input-group-text">Z</span>
+                <input type="text" class="form-control" id="dmTpZ" readonly>
+              </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small">Jogador:</label>
+              <input type="text" id="dmTeleportSearch" class="form-control form-control-sm mb-2" placeholder="Filtrar por nome ou Steam...">
+              <select id="dmTeleportPlayerDropdown" class="form-select form-select-sm">
+                <option value="">Carregando jogadores...</option>
+              </select>
+            </div>
+            <div class="d-grid">
+              <button type="button" class="btn btn-sm btn-primary" id="dmTeleportBtn">
+                <i class="fas fa-map-marker-alt me-1"></i>Teleportar
+              </button>
             </div>
           </div>
         </div>

@@ -16,6 +16,9 @@ let dmSelectedWallIndex = null;
 let dmCanvasRenderer = null; // legado (mantido para compat)
 let dmRendererPoly = null;
 let dmRendererPoints = null;
+let dmTeleportCoord = null;
+let dmTeleportPlayers = [];
+let dmTeleportSelectedPlayerId = localStorage.getItem('dmTeleportSelectedPlayerId') || '';
 
 function createVehicleIcon() {
   return L.divIcon({
@@ -272,6 +275,12 @@ $(document).ready(function() {
   $('#dmWallRemoveBtn').on('click', dmWallRemove);
   $('#dmWallAddPickBtn').on('click', function(){ dmSetPickMode('wall-add'); });
   $('#dmWallAddManualBtn').on('click', dmWallAddManual);
+
+  // Teleporte
+  $('#teleport-tab').on('shown.bs.tab', function(){ dmLoadOnlinePlayers(); if (dmTeleportCoord) { $('#dmTpX').val(dmTeleportCoord.x.toFixed(2)); $('#dmTpZ').val(dmTeleportCoord.z.toFixed(2)); } });
+  $('#dmTeleportBtn').on('click', dmExecuteTeleport);
+  $('#dmTeleportSearch').on('input', function(){ dmRenderTeleportOptions($(this).val().trim().toLowerCase()); });
+  $('#dmTeleportPlayerDropdown').on('change', function(){ dmTeleportSelectedPlayerId = $(this).val(); localStorage.setItem('dmTeleportSelectedPlayerId', dmTeleportSelectedPlayerId); });
 });
 
 function dmOpenEditor(kind, preselectIdx){
@@ -280,13 +289,13 @@ function dmOpenEditor(kind, preselectIdx){
     if (typeof preselectIdx === 'number') {
       dmSelectedSpawnIndex = preselectIdx;
       const pt = dmLastConfig.spawnZones?.[preselectIdx];
-      if (pt) { $('#dmSpawnX').val(pt[0].toFixed(2)); $('#dmSpawnZ').val(pt[1].toFixed(2)); }
+      if (pt) { $('#dmSpawnX').val(pt[0].toFixed(2)); $('#dmSpawnZ').val(pt[1].toFixed(2)); dmTeleportCoord = { x: pt[0], z: pt[1] }; $('#dmTpX').val(pt[0].toFixed(2)); $('#dmTpZ').val(pt[1].toFixed(2)); }
     }
   } else if (kind === 'wall') {
     if (typeof preselectIdx === 'number') {
       dmSelectedWallIndex = preselectIdx;
       const pt = dmLastConfig.wallZones?.[preselectIdx];
-      if (pt) { $('#dmWallX').val(pt[0].toFixed(2)); $('#dmWallZ').val(pt[1].toFixed(2)); }
+      if (pt) { $('#dmWallX').val(pt[0].toFixed(2)); $('#dmWallZ').val(pt[1].toFixed(2)); dmTeleportCoord = { x: pt[0], z: pt[1] }; $('#dmTpX').val(pt[0].toFixed(2)); $('#dmTpZ').val(pt[1].toFixed(2)); }
     }
   }
   dmRenderPointsLists();
@@ -297,6 +306,8 @@ function dmOpenEditor(kind, preselectIdx){
   } else {
     document.getElementById('wall-tab').click();
   }
+  // Carregar jogadores online (aba Teleporte)
+  dmLoadOnlinePlayers();
 }
 
 function dmRenderPointsLists(){
@@ -308,7 +319,7 @@ function dmRenderPointsLists(){
     const x = pt[0], z = pt[1];
     const item = $('<button type="button" class="list-group-item list-group-item-action"></button>')
       .text(`#${idx+1}  X=${x.toFixed(2)}  Z=${z.toFixed(2)}`)
-      .on('click', function(){ dmSelectedSpawnIndex = idx; $('#dmSpawnX').val(x.toFixed(2)); $('#dmSpawnZ').val(z.toFixed(2)); spawnList.find('.active').removeClass('active'); $(this).addClass('active'); });
+      .on('click', function(){ dmSelectedSpawnIndex = idx; $('#dmSpawnX').val(x.toFixed(2)); $('#dmSpawnZ').val(z.toFixed(2)); dmTeleportCoord = { x, z }; $('#dmTpX').val(x.toFixed(2)); $('#dmTpZ').val(z.toFixed(2)); spawnList.find('.active').removeClass('active'); $(this).addClass('active'); });
     if (idx === dmSelectedSpawnIndex) item.addClass('active');
     spawnList.append(item);
   });
@@ -316,7 +327,7 @@ function dmRenderPointsLists(){
     const x = pt[0], z = pt[1];
     const item = $('<button type="button" class="list-group-item list-group-item-action"></button>')
       .text(`#${idx+1}  X=${x.toFixed(2)}  Z=${z.toFixed(2)}`)
-      .on('click', function(){ dmSelectedWallIndex = idx; $('#dmWallX').val(x.toFixed(2)); $('#dmWallZ').val(z.toFixed(2)); wallList.find('.active').removeClass('active'); $(this).addClass('active'); });
+      .on('click', function(){ dmSelectedWallIndex = idx; $('#dmWallX').val(x.toFixed(2)); $('#dmWallZ').val(z.toFixed(2)); dmTeleportCoord = { x, z }; $('#dmTpX').val(x.toFixed(2)); $('#dmTpZ').val(z.toFixed(2)); wallList.find('.active').removeClass('active'); $(this).addClass('active'); });
     if (idx === dmSelectedWallIndex) item.addClass('active');
     wallList.append(item);
   });
@@ -422,6 +433,48 @@ function dmSetActive(){
 function dmApiError(xhr){
   const err = (xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)) || 'Erro';
   alert(err);
+}
+
+function dmLoadOnlinePlayers(){
+  const dd = $('#dmTeleportPlayerDropdown');
+  dd.html('<option value="">Carregando jogadores...</option>');
+  $.get('/api/players/online/positions')
+    .done(function(data){
+      dmTeleportPlayers = data.players || [];
+      $('#dmTeleportSearch').val('');
+      dmRenderTeleportOptions('');
+    })
+    .fail(function(){ dd.html('<option value="">Erro ao carregar jogadores</option>'); });
+}
+
+function dmRenderTeleportOptions(query){
+  const dd = $('#dmTeleportPlayerDropdown');
+  dd.empty();
+  dd.append('<option value="">Selecione um jogador</option>');
+  const list = dmTeleportPlayers.filter(p => {
+    const name = (p.player_name || '').toLowerCase();
+    const steam = (p.steam_name || '').toLowerCase();
+    return !query || name.includes(query) || steam.includes(query);
+  });
+  list.forEach(function(p){
+    const opt = $('<option></option>').val(p.player_id).text(`${p.player_name}${p.steam_name ? ' ('+p.steam_name+')' : ''}`);
+    dd.append(opt);
+  });
+  if (dmTeleportSelectedPlayerId) {
+    dd.val(dmTeleportSelectedPlayerId);
+  }
+}
+
+function dmExecuteTeleport(){
+  const playerId = $('#dmTeleportPlayerDropdown').val();
+  if (!playerId) { alert('Selecione um jogador'); return; }
+  if (!dmTeleportCoord) { alert('Coord. inválida'); return; }
+  const coord_x = dmTeleportCoord.x;
+  const coord_y = dmTeleportCoord.z; // eixo norte-sul
+  const payload = { coord_x, coord_y, coord_z: 0 };
+  $.ajax({ url: `/api/players/${playerId}/teleport`, method: 'POST', contentType: 'application/json', data: JSON.stringify(payload) })
+    .done(function(resp){ alert(resp.message || 'Teleportado com sucesso'); })
+    .fail(dmApiError);
 }
 
 
