@@ -108,7 +108,15 @@ $(document).ready(function() {
     $('#filterAttachmentTypeConfig').on('change', applyAttachmentFiltersConfig);
     
     // Event listeners - Subitems modal
-    $('#btnSaveSubitems').on('click', saveSubitemsConfiguration);
+    // Usar função intermediária que sempre chama window.saveSubitemsConfiguration
+    // Isso garante que o wrapper (quando criado) ou a função original seja sempre usada
+    $('#btnSaveSubitems').on('click', function() {
+        if (window.saveSubitemsConfiguration) {
+            window.saveSubitemsConfiguration();
+        } else {
+            saveSubitemsConfiguration();
+        }
+    });
     
     // Event listeners - Filtros de explosivos
     $('#explosiveSearchLoadout').on('input', applyExplosiveFiltersLoadout);
@@ -569,7 +577,67 @@ function loadExplosivesToVisual(explosivesData) {
     updateSelectedExplosivesDisplay();
 }
 
+// Função auxiliar recursiva para carregar subitems
+function loadSubitemsToVisual(subitemsData, itemsDataLoadout) {
+    if (!subitemsData || !Array.isArray(subitemsData) || subitemsData.length === 0) {
+        return [];
+    }
+    
+    return subitemsData.map(function(subitemData) {
+        const subitem = itemsDataLoadout.find(i => i.name_type === subitemData.name_type);
+        
+        if (subitem) {
+            // Carregar subitems recursivamente se existirem
+            const loadedSubitems = loadSubitemsToVisual(subitemData.subitems, itemsDataLoadout);
+            
+            return {
+                id: subitem.id,
+                name: subitem.name,
+                name_type: subitem.name_type,
+                type_name: subitem.type_name || subitemData.type_name || '',
+                slots: subitem.slots,
+                width: subitem.width,
+                height: subitem.height,
+                storage_slots: subitem.storage_slots || 0,
+                storage_width: subitem.storage_width || 0,
+                storage_height: subitem.storage_height || 0,
+                localization: subitem.localization || subitemData.localization || '',
+                subitems: loadedSubitems,
+                canHaveSubitems: false, // Será atualizado quando necessário
+                compatibleChildren: [],
+                img: subitem.img || null
+            };
+        } else {
+            // Item não encontrado, usar dados do JSON
+            return {
+                name_type: subitemData.name_type,
+                type_name: subitemData.type_name || '',
+                slots: subitemData.slots,
+                width: subitemData.width,
+                height: subitemData.height,
+                storage_slots: subitemData.storage_slots || 0,
+                storage_width: subitemData.storage_width || 0,
+                storage_height: subitemData.storage_height || 0,
+                localization: subitemData.localization || '',
+                subitems: loadSubitemsToVisual(subitemData.subitems, itemsDataLoadout),
+                canHaveSubitems: false,
+                compatibleChildren: [],
+                img: null
+            };
+        }
+    });
+}
+
 function loadItemsToVisual(itemsData) {
+    // Processar items sequencialmente para garantir que subitems sejam carregados corretamente
+    let processedCount = 0;
+    const totalItems = itemsData.length;
+    
+    if (totalItems === 0) {
+        updateSelectedItemsDisplay();
+        return;
+    }
+    
     itemsData.forEach(function(itemData) {
         const item = itemsDataLoadout.find(i => i.name_type === itemData.name_type);
         if (item) {
@@ -578,48 +646,57 @@ function loadItemsToVisual(itemsData) {
                 url: `/api/manage/items/${item.id}/compatibility`,
                 method: 'GET',
                 success: function(response) {
-                    const compatibility = response.compatibility;
-                    selectedItems.push({
-                        id: item.id,
-                        name: item.name,
-                        name_type: item.name_type,
-                        type_name: item.type_name || itemData.type_name || '',
-                        slots: item.slots,
-                        width: item.width,
-                        height: item.height,
-                        storage_slots: item.storage_slots || 0,
-                        storage_width: item.storage_width || 0,
-                        storage_height: item.storage_height || 0,
-                        localization: item.localization || itemData.localization || '',
-                        subitems: [],
-                        canHaveSubitems: compatibility.children && compatibility.children.length > 0,
-                        compatibleChildren: compatibility.children || [],
-                        img: item.img || null
-                    });
-                    updateSelectedItemsDisplay();
+                    const compatibility = response.compatibility || { children: [] };
+                    
+                    // Carregar subitems recursivamente se existirem
+                    const loadedSubitems = loadSubitemsToVisual(itemData.subitems, itemsDataLoadout);
+                    
+                    // Para cada subitem carregado, buscar compatibilidade se necessário
+                    if (loadedSubitems.length > 0) {
+                        let subitemsProcessed = 0;
+                        loadedSubitems.forEach(function(subitem, index) {
+                            if (subitem.id) {
+                                $.ajax({
+                                    url: `/api/manage/items/${subitem.id}/compatibility`,
+                                    method: 'GET',
+                                    success: function(subResponse) {
+                                        const subCompatibility = subResponse.compatibility || { children: [] };
+                                        loadedSubitems[index].canHaveSubitems = subCompatibility.children && subCompatibility.children.length > 0;
+                                        loadedSubitems[index].compatibleChildren = subCompatibility.children || [];
+                                        subitemsProcessed++;
+                                        if (subitemsProcessed === loadedSubitems.length) {
+                                            finishLoadingItem(item, itemData, compatibility, loadedSubitems);
+                                        }
+                                    },
+                                    error: function() {
+                                        loadedSubitems[index].canHaveSubitems = false;
+                                        loadedSubitems[index].compatibleChildren = [];
+                                        subitemsProcessed++;
+                                        if (subitemsProcessed === loadedSubitems.length) {
+                                            finishLoadingItem(item, itemData, compatibility, loadedSubitems);
+                                        }
+                                    }
+                                });
+                            } else {
+                                subitemsProcessed++;
+                                if (subitemsProcessed === loadedSubitems.length) {
+                                    finishLoadingItem(item, itemData, compatibility, loadedSubitems);
+                                }
+                            }
+                        });
+                    } else {
+                        finishLoadingItem(item, itemData, compatibility, loadedSubitems);
+                    }
                 },
                 error: function() {
-                    selectedItems.push({
-                        id: item.id,
-                        name: item.name,
-                        name_type: item.name_type,
-                        type_name: item.type_name || itemData.type_name || '',
-                        slots: item.slots,
-                        width: item.width,
-                        height: item.height,
-                        storage_slots: item.storage_slots || 0,
-                        storage_width: item.storage_width || 0,
-                        storage_height: item.storage_height || 0,
-                        localization: item.localization || itemData.localization || '',
-                        subitems: [],
-                        canHaveSubitems: false,
-                        compatibleChildren: [],
-                        img: item.img || null
-                    });
-                    updateSelectedItemsDisplay();
+                    // Carregar subitems mesmo sem compatibilidade
+                    const loadedSubitems = loadSubitemsToVisual(itemData.subitems, itemsDataLoadout);
+                    finishLoadingItem(item, itemData, { children: [] }, loadedSubitems);
                 }
             });
         } else {
+            // Item não encontrado, usar dados do JSON
+            const loadedSubitems = loadSubitemsToVisual(itemData.subitems, itemsDataLoadout);
             selectedItems.push({
                 name_type: itemData.name_type,
                 type_name: itemData.type_name || '',
@@ -630,14 +707,42 @@ function loadItemsToVisual(itemsData) {
                 storage_width: itemData.storage_width || 0,
                 storage_height: itemData.storage_height || 0,
                 localization: itemData.localization || '',
-                subitems: [],
+                subitems: loadedSubitems,
                 canHaveSubitems: false,
                 compatibleChildren: [],
                 img: null
             });
+            processedCount++;
+            if (processedCount === totalItems) {
+                updateSelectedItemsDisplay();
+            }
         }
     });
-    updateSelectedItemsDisplay();
+    
+    function finishLoadingItem(item, itemData, compatibility, loadedSubitems) {
+        selectedItems.push({
+            id: item.id,
+            name: item.name,
+            name_type: item.name_type,
+            type_name: item.type_name || itemData.type_name || '',
+            slots: item.slots,
+            width: item.width,
+            height: item.height,
+            storage_slots: item.storage_slots || 0,
+            storage_width: item.storage_width || 0,
+            storage_height: item.storage_height || 0,
+            localization: item.localization || itemData.localization || '',
+            subitems: loadedSubitems,
+            canHaveSubitems: compatibility.children && compatibility.children.length > 0,
+            compatibleChildren: compatibility.children || [],
+            img: item.img || null
+        });
+        
+        processedCount++;
+        if (processedCount === totalItems) {
+            updateSelectedItemsDisplay();
+        }
+    }
 }
 
 // Função saveCustomLoadout antiga removida - agora usa página dedicada
@@ -2283,6 +2388,7 @@ function renderItemWithSubitems(item, itemIndex, depth, parentItemIndex) {
 }
 
 // Função auxiliar para abrir modal de subitems de um subitem no display principal
+// Para subitems, precisamos encontrar o item na hierarquia e abrir o modal como se fosse um item principal temporário
 function openSubitemsModalForSubitemInDisplay(parentItemIndex, subitemNameType) {
     // Encontrar o item principal
     const mainItem = selectedItems[parentItemIndex];
@@ -2291,32 +2397,252 @@ function openSubitemsModalForSubitemInDisplay(parentItemIndex, subitemNameType) 
         return;
     }
     
-    // Encontrar o subitem na hierarquia usando o name_type
-    const findSubitemInHierarchy = function(item, targetNameType, depth = 0) {
+    // Função melhorada para encontrar subitem na hierarquia (suporta múltiplos níveis)
+    // Retorna tanto o subitem quanto o caminho para encontrá-lo
+    const findSubitemInHierarchyWithPath = function(item, targetNameType, currentPath = []) {
         if (item.subitems && item.subitems.length > 0) {
             for (let i = 0; i < item.subitems.length; i++) {
-                if (item.subitems[i].name_type === targetNameType) {
-                    return { subitem: item.subitems[i], depth: depth + 1 };
+                const subitem = item.subitems[i];
+                const newPath = [...currentPath, i]; // Armazenar índice para acesso direto
+                
+                if (subitem.name_type === targetNameType) {
+                    return { subitem: subitem, path: newPath, parentArray: item.subitems, index: i };
                 }
-                const found = findSubitemInHierarchy(item.subitems[i], targetNameType, depth + 1);
+                
+                // Buscar recursivamente em subitems
+                const found = findSubitemInHierarchyWithPath(subitem, targetNameType, newPath);
                 if (found) return found;
             }
         }
         return null;
     };
     
-    const found = findSubitemInHierarchy(mainItem, subitemNameType);
+    const found = findSubitemInHierarchyWithPath(mainItem, subitemNameType);
     if (!found || !found.subitem) {
         showAlert('warning', 'Subitem não encontrado na hierarquia.');
+        console.error('Subitem não encontrado:', subitemNameType, 'em item:', mainItem.name);
         return;
     }
     
-    // Construir caminho e abrir modal
-    const depth = found.depth;
-    const path = buildItemPath(mainItem, found.subitem);
+    // Salvar referências para uso no wrapper
+    const targetSubitem = found.subitem;
+    const targetParentArray = found.parentArray;
+    const targetIndex = found.index;
     
-    // Abrir modal usando a função existente
-    openSubitemsModalForSubitem(found.subitem, -1, depth, path);
+    console.log('Abrindo modal para subitem:', targetSubitem.name, 'Índice:', targetIndex, 'Path:', found.path);
+    
+    // Abrir modal - criar um item temporário no selectedItems para poder usar openSubitemsModal
+    const tempIndex = selectedItems.length;
+    
+    // Temporariamente adicionar o subitem como um item principal para poder usar openSubitemsModal
+    const originalSubitems = targetSubitem.subitems ? JSON.parse(JSON.stringify(targetSubitem.subitems)) : [];
+    const tempItem = {
+        ...targetSubitem,
+        subitems: originalSubitems
+    };
+    
+    // Adicionar temporariamente
+    selectedItems.push(tempItem);
+    
+    // Abrir modal
+    openSubitemsModal(tempIndex);
+    
+    // Criar um wrapper para saveSubitemsConfiguration que salva no lugar correto
+    // Garantir que window.saveSubitemsConfiguration existe antes de criar o wrapper
+    if (typeof window.saveSubitemsConfiguration === 'undefined') {
+        window.saveSubitemsConfiguration = saveSubitemsConfiguration;
+    }
+    
+    const originalSave = window.saveSubitemsConfiguration;
+    
+    console.log('🔧 Criando wrapper para saveSubitemsConfiguration');
+    console.log('ParentItemIndex:', parentItemIndex);
+    console.log('SubitemNameType:', subitemNameType);
+    
+    window.saveSubitemsConfiguration = function() {
+        console.log('🔧 WRAPPER chamado (não função original)');
+        console.log('Verificando se é subitem...');
+        
+        // Verificar se é um item temporário (subitem) checando se o índice é >= parentItemIndex + 1
+        // Ou verificar se o itemIndex corresponde ao tempIndex
+        const itemIndex = parseInt($('#subitemsItemIndex').val());
+        console.log('ItemIndex do modal:', itemIndex);
+        console.log('TempIndex:', tempIndex);
+        console.log('ParentItemIndex:', parentItemIndex);
+        
+        // Se o itemIndex é o tempIndex, então é um subitem
+        if (itemIndex === tempIndex) {
+            console.log('✅ É um subitem, usando lógica do wrapper');
+            
+            // Buscar o item principal novamente para garantir referência atualizada
+            const mainItemCurrent = selectedItems[parentItemIndex];
+        if (!mainItemCurrent) {
+            showAlert('danger', 'Item principal não encontrado.');
+            return;
+        }
+        
+        // Buscar o subitem novamente usando a mesma estratégia
+        const foundCurrent = findSubitemInHierarchyWithPath(mainItemCurrent, subitemNameType);
+        if (!foundCurrent || !foundCurrent.subitem) {
+            showAlert('danger', 'Subitem não encontrado na hierarquia.');
+            console.error('Subitem não encontrado ao salvar:', subitemNameType);
+            return;
+        }
+        
+        // Obter referência direta ao subitem na hierarquia
+        const currentSubitem = foundCurrent.subitem;
+        const currentParentArray = foundCurrent.parentArray;
+        const currentIndex = foundCurrent.index;
+        
+        console.log('=== DEBUG: Salvando subitems de subitem ===');
+        console.log('Subitem encontrado:', currentSubitem.name);
+        console.log('ParentArray existe:', !!currentParentArray);
+        console.log('Index:', currentIndex);
+        console.log('ParentArray[currentIndex] existe:', !!(currentParentArray && currentParentArray[currentIndex]));
+        console.log('Subitem atual antes:', JSON.stringify(currentSubitem.subitems || []));
+        
+        // IMPORTANTE: Ler de currentSelectedSubitems (mesmo que a função original)
+        // currentSelectedSubitems contém os subitems selecionados no modal
+        console.log('ItemIndex do modal:', parseInt($('#subitemsItemIndex').val()));
+        console.log('currentSelectedSubitems.length:', currentSelectedSubitems ? currentSelectedSubitems.length : 0);
+        console.log('currentSelectedSubitems:', currentSelectedSubitems);
+        
+        // Usar currentSelectedSubitems ao invés de tempItemCurrent.subitems
+        // Isso garante que estamos usando os subitems selecionados no modal
+        if (currentSelectedSubitems && currentSelectedSubitems.length > 0) {
+            // Fazer deep copy dos subitems selecionados (mesma lógica da função original)
+            const subitemsToSave = currentSelectedSubitems.map(function(subitem) {
+                return {
+                    id: subitem.id,
+                    name: subitem.name,
+                    name_type: subitem.name_type,
+                    type_name: subitem.type_name || '',
+                    slots: subitem.slots,
+                    width: subitem.width,
+                    height: subitem.height,
+                    storage_slots: subitem.storage_slots || 0,
+                    storage_width: subitem.storage_width || 0,
+                    storage_height: subitem.storage_height || 0,
+                    localization: subitem.localization || '',
+                    subitems: subitem.subitems && subitem.subitems.length > 0 ? JSON.parse(JSON.stringify(subitem.subitems)) : [],
+                    canHaveSubitems: subitem.canHaveSubitems || false,
+                    compatibleChildren: subitem.compatibleChildren || [],
+                    img: subitem.img || null
+                };
+            });
+            
+            console.log('Subitems para salvar:', subitemsToSave.length);
+            
+            // IMPORTANTE: Atualizar diretamente no subitem usando a referência encontrada
+            // Isso garante que estamos atualizando a referência correta na hierarquia
+            // Usar both approaches: atualizar via parentArray E diretamente no subitem
+            if (currentParentArray && currentParentArray[currentIndex] && currentParentArray[currentIndex] === currentSubitem) {
+                // Confirmar que a referência está correta
+                currentParentArray[currentIndex].subitems = JSON.parse(JSON.stringify(subitemsToSave));
+                currentSubitem.subitems = JSON.parse(JSON.stringify(subitemsToSave)); // Garantir sincronização
+                console.log('✅ Subitems salvos via parentArray para subitem:', currentParentArray[currentIndex].name);
+                console.log('✅ Subitems salvos:', currentParentArray[currentIndex].subitems);
+            } else if (currentSubitem) {
+                // Atualizar diretamente no subitem encontrado (a referência é a mesma na hierarquia)
+                currentSubitem.subitems = JSON.parse(JSON.stringify(subitemsToSave));
+                console.log('✅ Subitems salvos diretamente no subitem:', currentSubitem.name);
+                console.log('✅ Subitems salvos:', currentSubitem.subitems);
+                
+                // Também atualizar via parentArray se possível
+                if (currentParentArray && currentParentArray[currentIndex]) {
+                    currentParentArray[currentIndex].subitems = JSON.parse(JSON.stringify(subitemsToSave));
+                }
+            } else {
+                console.error('❌ Erro: Não foi possível encontrar referência válida para atualizar');
+            }
+            
+            // Verificar se a atualização foi propagada
+            console.log('Subitem após atualização:', JSON.stringify(currentSubitem.subitems || []));
+        } else {
+            // Se não há subitems selecionados, limpar array
+            console.log('⚠️ AVISO: currentSelectedSubitems está vazio ou não existe');
+            console.log('currentSelectedSubitems:', currentSelectedSubitems);
+            console.log('Limpar array de subitems do subitem');
+            
+            // Limpar array de subitems
+            if (currentSubitem) {
+                currentSubitem.subitems = [];
+            }
+            if (currentParentArray && currentParentArray[currentIndex]) {
+                currentParentArray[currentIndex].subitems = [];
+            }
+        }
+        
+        console.log('=== FIM DEBUG ===');
+        
+        // Verificar se a atualização foi propagada corretamente na hierarquia
+        // Criar função local para buscar novamente
+        const findSubitemForVerification = function(item, targetNameType) {
+            if (item.subitems && item.subitems.length > 0) {
+                for (let i = 0; i < item.subitems.length; i++) {
+                    if (item.subitems[i].name_type === targetNameType) {
+                        return item.subitems[i];
+                    }
+                    const found = findSubitemForVerification(item.subitems[i], targetNameType);
+                    if (found) return found;
+                }
+            }
+            return null;
+        };
+        
+        const verifySubitem = findSubitemForVerification(mainItemCurrent, subitemNameType);
+        if (verifySubitem) {
+            console.log('✅ Verificação: Subitem após atualização na hierarquia:', verifySubitem.name);
+            console.log('✅ Subitems após atualização:', verifySubitem.subitems);
+            
+            // Verificar se os subitems foram salvos corretamente
+            const hasSubitems = verifySubitem.subitems && verifySubitem.subitems.length > 0;
+            if (hasSubitems) {
+                console.log('✅ SUCESSO: Subitems persistidos corretamente na hierarquia');
+            } else {
+                console.warn('⚠️ AVISO: Subitems não foram encontrados após atualização');
+            }
+        }
+        
+        // Remover item temporário
+        if (selectedItems.length > tempIndex && selectedItems[tempIndex] === tempItem) {
+            selectedItems.pop();
+        }
+        
+        // Restaurar função original
+        window.saveSubitemsConfiguration = originalSave;
+        
+        // Atualizar display e preview
+        updateSelectedItemsDisplay();
+        updateJSONPreview();
+        
+        // Verificar novamente após atualizar display
+        const finalCheck = findSubitemForVerification(mainItemCurrent, subitemNameType);
+        if (finalCheck) {
+            console.log('✅ Verificação final: Subitems na hierarquia:', finalCheck.subitems);
+        }
+        
+        // Fechar modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('subitemsModal'));
+        if (modal) {
+            modal.hide();
+        }
+        } else {
+            console.log('❌ Não é subitem, chamando função original');
+            // Não é um subitem, chamar função original
+            return originalSave.apply(this, arguments);
+        }
+    };
+    
+    // Também atualizar cancelar do modal para remover item temporário
+    $('#subitemsModal').one('hidden.bs.modal', function() {
+        // Remover item temporário se ainda existir
+        if (selectedItems.length > tempIndex && selectedItems[tempIndex] === tempItem) {
+            selectedItems.pop();
+        }
+        // Restaurar função original
+        window.saveSubitemsConfiguration = originalSave;
+    });
 }
 
 function calculateItemDepth(item, targetSubitem, currentDepth = 0) {
@@ -2358,14 +2684,7 @@ function removeItemFromLoadout(index) {
 let currentSubitemsData = []; // Items compatíveis filtrados
 let currentSelectedSubitems = []; // Subitems selecionados no modal
 
-function openSubitemsModal(itemIndex, depth = 1, parentPath = '') {
-    const MAX_DEPTH = 5; // Limitar profundidade máxima
-    
-    if (depth > MAX_DEPTH) {
-        showAlert('warning', `Profundidade máxima de ${MAX_DEPTH} níveis atingida. Não é possível adicionar mais subitems recursivamente.`);
-        return;
-    }
-    
+function openSubitemsModal(itemIndex) {
     const item = selectedItems[itemIndex];
     if (!item) return;
     
@@ -2376,13 +2695,10 @@ function openSubitemsModal(itemIndex, depth = 1, parentPath = '') {
     
     // Salvar contexto do modal
     $('#subitemsItemIndex').val(itemIndex);
-    $('#subitemsItemIndex').data('original-item-index', itemIndex); // Rastrear item principal
-    $('#subitemsDepth').val(depth);
-    $('#subitemsParentPath').val(parentPath || item.name);
+    $('#subitemsItemIndex').data('original-item-index', itemIndex);
     
     // Atualizar título
     $('#subitemsParentName').text(item.name);
-    $('#subitemsDepthIndicator').text(`Nível ${depth}`);
     
     // Atualizar informações
     $('#subitemsParentInfo').html(`
@@ -2452,58 +2768,13 @@ function applySubitemsFilters() {
     const location = $('#filterSubitemLocation').val();
     const storage = $('#filterSubitemStorage').val();
     
-    // Verificar se estamos editando item principal ou subitem recursivo
-    const itemIndexStr = $('#subitemsItemIndex').val();
-    let compatibleIds = [];
+    // Buscar item principal (sempre é item principal agora, sem recursão dentro do modal)
+    const itemIndex = parseInt($('#subitemsItemIndex').val());
+    const item = selectedItems[itemIndex];
     
-    if (itemIndexStr.startsWith('subitem_')) {
-        // Estamos editando um subitem recursivo
-        // Buscar o subitem atual usando o parentPath
-        const parentPath = $('#subitemsParentPath').val();
-        const originalItemIndex = $('#subitemsItemIndex').data('original-item-index');
-        
-        if (originalItemIndex !== undefined && originalItemIndex !== null) {
-            const mainItem = selectedItems[originalItemIndex];
-            if (mainItem) {
-                // Encontrar o subitem atual usando o parentPath
-                const findSubitemByPath = function(item, pathParts, currentIndex = 0) {
-                    if (currentIndex >= pathParts.length - 1) {
-                        // Este é o subitem que queremos
-                        return item;
-                    }
-                    
-                    const targetName = pathParts[currentIndex + 1]; // +1 porque o primeiro é o item principal
-                    if (item.subitems && item.subitems.length > 0) {
-                        for (let i = 0; i < item.subitems.length; i++) {
-                            if (item.subitems[i].name === targetName) {
-                                return findSubitemByPath(item.subitems[i], pathParts, currentIndex + 1);
-                            }
-                        }
-                    }
-                    return null;
-                };
-                
-                const pathParts = parentPath.split(' > ');
-                const currentSubitem = findSubitemByPath(mainItem, pathParts);
-                
-                if (currentSubitem && currentSubitem.compatibleChildren) {
-                    compatibleIds = currentSubitem.compatibleChildren.map(child => child.id || child);
-                } else {
-                    // Fallback: usar currentSubitemsData se disponível
-                    if (currentSubitemsData.length > 0) {
-                        compatibleIds = currentSubitemsData.map(i => i.id);
-                    }
-                }
-            }
-        }
-    } else {
-        // Item principal
-        const itemIndex = parseInt(itemIndexStr);
-        const item = selectedItems[itemIndex];
-        if (!item || !item.compatibleChildren) return;
-        
-        compatibleIds = item.compatibleChildren.map(child => child.id || child);
-    }
+    if (!item || !item.compatibleChildren) return;
+    
+    const compatibleIds = item.compatibleChildren.map(child => child.id || child);
     
     if (compatibleIds.length === 0) return;
     
@@ -2589,13 +2860,6 @@ function renderSubitemsGrid() {
 }
 
 function selectSubitemForItem(subitemId) {
-    // Verificar profundidade máxima
-    const depth = parseInt($('#subitemsDepth').val());
-    if (depth >= 5) {
-        showAlert('warning', 'Profundidade máxima de 5 níveis atingida.');
-        return;
-    }
-    
     // Buscar item nos dados carregados
     const subitem = itemsDataLoadout.find(i => i.id === subitemId);
     if (!subitem) {
@@ -2708,16 +2972,11 @@ function updateSelectedSubitemsDisplay() {
                             <div>
                                 <strong>${subitem.name}</strong>
                                 ${subitem.localization ? `<br><small class="text-muted">Localização: ${subitem.localization}</small>` : ''}
-                                ${subitem.canHaveSubitems ? `<br><small class="text-info">Pode receber subitems</small>` : ''}
+                                ${subitem.canHaveSubitems ? `<br><small class="text-info">Pode receber subitems (adicionar após salvar)</small>` : ''}
                                 ${subitem.subitems && subitem.subitems.length > 0 ? `<br><small class="text-secondary">Subitems: ${subitem.subitems.length}</small>` : ''}
                             </div>
                         </div>
                         <div class="ms-3">
-                            ${subitem.canHaveSubitems ? `
-                                <button class="btn btn-sm btn-info me-1" onclick="openSubitemSubitemsModal(${index}); return false;">
-                                    <i class="fas fa-layer-group"></i> Subitems
-                                </button>
-                            ` : ''}
                             <button class="btn btn-sm btn-danger" onclick="removeSubitemFromSelection(${subitem.id}); return false;">
                                 <i class="fas fa-trash"></i> Remover
                             </button>
@@ -2730,147 +2989,46 @@ function updateSelectedSubitemsDisplay() {
     });
 }
 
-// Função recursiva para abrir modal de subitems de um subitem
-function openSubitemSubitemsModal(subitemIndex) {
-    const parentIndex = parseInt($('#subitemsItemIndex').val());
-    const depth = parseInt($('#subitemsDepth').val()) + 1;
-    const parentPath = $('#subitemsParentPath').val();
-    
-    // Criar novo caminho
-    const subitem = currentSelectedSubitems[subitemIndex];
-    const newPath = `${parentPath} > ${subitem.name}`;
-    
-    // Temporariamente salvar o estado atual de selectedSubitems
-    // e usar o subitem selecionado como base
-    const originalItemIndex = parentIndex;
-    const originalSelectedItems = selectedItems;
-    
-    // Criar um item temporário para usar na função openSubitemsModal
-    // Mas precisamos adaptar a função para funcionar com currentSelectedSubitems
-    // Vou criar uma função auxiliar
-    openSubitemsModalForSubitem(subitem, subitemIndex, depth, newPath);
-}
-
-function openSubitemsModalForSubitem(subitem, subitemIndex, depth, parentPath) {
-    if (depth > 5) {
-        showAlert('warning', 'Profundidade máxima de 5 níveis atingida.');
-        return;
-    }
-    
-    if (!subitem.canHaveSubitems || !subitem.compatibleChildren || subitem.compatibleChildren.length === 0) {
-        showAlert('info', 'Este subitem não pode receber subitems ou não possui subitems compatíveis.');
-        return;
-    }
-    
-    // Salvar o itemIndex original do item principal no data attribute para rastrear
-    const originalItemIndex = $('#subitemsItemIndex').data('original-item-index') || parseInt($('#subitemsItemIndex').val());
-    if (originalItemIndex && !isNaN(originalItemIndex)) {
-        $('#subitemsItemIndex').data('original-item-index', originalItemIndex);
-    }
-    
-    // Atualizar contexto do modal (usar um índice especial para subitems)
-    $('#subitemsItemIndex').val('subitem_' + subitemIndex);
-    $('#subitemsDepth').val(depth);
-    $('#subitemsParentPath').val(parentPath);
-    
-    // Atualizar título
-    $('#subitemsParentName').text(subitem.name);
-    $('#subitemsDepthIndicator').text(`Nível ${depth}`);
-    
-    // Atualizar informações
-    $('#subitemsParentInfo').html(`
-        Item: <strong>${subitem.name}</strong> | 
-        Subitems compatíveis: <strong>${subitem.compatibleChildren.length}</strong> | 
-        Subitems selecionados: <strong>${subitem.subitems ? subitem.subitems.length : 0}</strong>
-    `);
-    
-    // Inicializar arrays - usar os subitems do subitem atual
-    currentSubitemsData = [];
-    currentSelectedSubitems = subitem.subitems ? JSON.parse(JSON.stringify(subitem.subitems)) : [];
-    
-    // Filtrar itemsDataLoadout para pegar apenas os compatíveis
-    const compatibleIds = subitem.compatibleChildren.map(child => child.id || child);
-    currentSubitemsData = itemsDataLoadout.filter(i => compatibleIds.includes(i.id));
-    
-    // Carregar tipos de item no filtro
-    loadSubitemTypes();
-    
-    // Renderizar grid e lista de selecionados
-    renderSubitemsGrid();
-    updateSelectedSubitemsDisplay();
-    
-    // Inicializar event listeners dos filtros
-    initSubitemsFilters();
-    
-    // Abrir modal
-    const modal = new bootstrap.Modal(document.getElementById('subitemsModal'));
-    modal.show();
-}
-
-// Função auxiliar para atualizar subitems recursivamente
-function updateSubitemsRecursively(item, newSubitems, targetDepth, currentDepth = 1) {
-    if (currentDepth >= targetDepth) {
-        // Encontramos o nível correto
-        item.subitems = JSON.parse(JSON.stringify(newSubitems));
-        return true;
-    }
-    
-    // Procurar recursivamente nos subitems
-    if (item.subitems && item.subitems.length > 0) {
-        for (let i = 0; i < item.subitems.length; i++) {
-            if (updateSubitemsRecursively(item.subitems[i], newSubitems, targetDepth, currentDepth + 1)) {
-                return true;
-            }
-        }
-    }
-    
-    return false;
-}
-
-// Rastrear o caminho do item que está sendo editado
-let editingSubitemPath = [];
+// Função removida: openSubitemSubitemsModal - recursividade dentro do modal não é mais necessária
+// Função removida: openSubitemsModalForSubitem - recursividade dentro do modal não é mais necessária
 
 function saveSubitemsConfiguration() {
-    const itemIndexStr = $('#subitemsItemIndex').val();
+    // Sempre salvar subitems do item principal (sem recursão dentro do modal)
+    const itemIndex = parseInt($('#subitemsItemIndex').val());
+    const item = selectedItems[itemIndex];
     
-    if (itemIndexStr.startsWith('subitem_')) {
-        // Estamos editando um subitem recursivo
-        // Buscar o item principal usando o data attribute
-        const originalItemIndex = $('#subitemsItemIndex').data('original-item-index');
-        const parentPath = $('#subitemsParentPath').val();
-        
-        if (originalItemIndex !== undefined && originalItemIndex !== null) {
-            const mainItem = selectedItems[originalItemIndex];
-            
-            if (!mainItem) {
-                showAlert('danger', 'Item principal não encontrado.');
-                return;
-            }
-            
-            // Atualizar recursivamente usando o parentPath para encontrar o subitem correto
-            const updated = updateSubitemsByPath(mainItem, parentPath, currentSelectedSubitems);
-            
-            if (!updated) {
-                showAlert('warning', 'Não foi possível localizar o subitem para atualização. Tente novamente.');
-                return;
-            }
-        } else {
-            showAlert('danger', 'Não foi possível identificar o item principal.');
-            return;
-        }
-    } else {
-        // Salvar subitems do item principal
-        const itemIndex = parseInt(itemIndexStr);
-        const item = selectedItems[itemIndex];
-        
-        if (!item) {
-            showAlert('danger', 'Item não encontrado.');
-            return;
-        }
-        
-        // Atualizar subitems do item
-        item.subitems = JSON.parse(JSON.stringify(currentSelectedSubitems));
+    if (!item) {
+        showAlert('danger', 'Item não encontrado.');
+        return;
     }
+    
+    // Fazer deep copy dos subitems selecionados para garantir que todas as propriedades sejam copiadas
+    // Preservar subitems recursivos existentes nos objetos
+    const subitemsToSave = currentSelectedSubitems.map(function(subitem) {
+        return {
+            id: subitem.id,
+            name: subitem.name,
+            name_type: subitem.name_type,
+            type_name: subitem.type_name || '',
+            slots: subitem.slots,
+            width: subitem.width,
+            height: subitem.height,
+            storage_slots: subitem.storage_slots || 0,
+            storage_width: subitem.storage_width || 0,
+            storage_height: subitem.storage_height || 0,
+            localization: subitem.localization || '',
+            subitems: subitem.subitems && subitem.subitems.length > 0 ? JSON.parse(JSON.stringify(subitem.subitems)) : [],
+            canHaveSubitems: subitem.canHaveSubitems || false,
+            compatibleChildren: subitem.compatibleChildren || [],
+            img: subitem.img || null
+        };
+    });
+    
+    // Atualizar subitems do item com deep copy
+    item.subitems = JSON.parse(JSON.stringify(subitemsToSave));
+    
+    // Debug: verificar se os subitems foram salvos
+    console.log('Subitems salvos para item PRINCIPAL:', item.name, item.subitems);
     
     // Atualizar display e preview
     updateSelectedItemsDisplay();
@@ -2883,36 +3041,13 @@ function saveSubitemsConfiguration() {
     }
 }
 
-function updateSubitemsByPath(item, path, newSubitems) {
-    // path tem formato "Item > Subitem > Subsubitem"
-    const pathParts = path.split(' > ').slice(1); // Remover primeiro (item principal)
-    
-    if (pathParts.length === 0) {
-        // Estamos no item principal
-        item.subitems = JSON.parse(JSON.stringify(newSubitems));
-        return true;
-    }
-    
-    // Procurar o subitem pelo nome
-    const targetName = pathParts[0];
-    if (item.subitems && item.subitems.length > 0) {
-        for (let i = 0; i < item.subitems.length; i++) {
-            if (item.subitems[i].name === targetName) {
-                // Encontrar subitem correto
-                if (pathParts.length === 1) {
-                    // Este é o subitem que queremos atualizar
-                    item.subitems[i].subitems = JSON.parse(JSON.stringify(newSubitems));
-                    return true;
-                } else {
-                    // Continuar recursivamente
-                    return updateSubitemsByPath(item.subitems[i], pathParts.slice(1).join(' > '), newSubitems);
-                }
-            }
-        }
-    }
-    
-    return false;
+// Garantir que saveSubitemsConfiguration está disponível globalmente
+// Isso permite que o wrapper substitua temporariamente window.saveSubitemsConfiguration
+if (typeof window.saveSubitemsConfiguration === 'undefined') {
+    window.saveSubitemsConfiguration = saveSubitemsConfiguration;
 }
+
+// Função removida: updateSubitemsByPath - não é mais necessária sem recursão dentro do modal
 
 // ============================================================================
 // MODO VISUAL - MONTAGEM DE JSON
@@ -3001,7 +3136,15 @@ function buildLoadoutFromVisual() {
 }
 
 function buildItemsWithSubitems(items) {
+    if (!items || !Array.isArray(items)) {
+        return [];
+    }
+    
     return items.map(function(item) {
+        if (!item) {
+            return null;
+        }
+        
         const itemData = {
             name_type: item.name_type,
             type_name: item.type_name || '',
@@ -3011,11 +3154,20 @@ function buildItemsWithSubitems(items) {
             storage_slots: item.storage_slots || 0,
             storage_width: item.storage_width || 0,
             storage_height: item.storage_height || 0,
-            localization: item.localization || '',
-            subitems: item.subitems && item.subitems.length > 0 ? buildItemsWithSubitems(item.subitems) : []
+            localization: item.localization || ''
         };
         
+        // Processar subitems recursivamente se existirem
+        if (item.subitems && Array.isArray(item.subitems) && item.subitems.length > 0) {
+            itemData.subitems = buildItemsWithSubitems(item.subitems);
+        } else {
+            itemData.subitems = [];
+        }
+        
         return itemData;
+    }).filter(function(item) {
+        // Remover nulls caso existam
+        return item !== null;
     });
 }
 
