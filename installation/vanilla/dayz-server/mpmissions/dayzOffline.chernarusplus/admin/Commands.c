@@ -193,6 +193,7 @@ bool ExecuteCommand(TStringArray tokens)
             break;
 
         case "kill":
+            target.SetAllowDamage(true);
             target.SetHealth("", "", 0);
             target.MessageStatus("Você foi eliminado");
             break;
