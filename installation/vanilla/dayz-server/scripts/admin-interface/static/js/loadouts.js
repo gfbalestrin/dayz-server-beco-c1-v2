@@ -2366,7 +2366,11 @@ function renderItemWithSubitems(item, itemIndex, depth, parentItemIndex) {
                             <button class="btn btn-sm btn-danger" onclick="removeItemFromLoadout(${itemIndex}); return false;">
                                 <i class="fas fa-trash"></i> Remover
                             </button>
-                        ` : ''}
+                        ` : `
+                            <button class="btn btn-sm btn-danger" onclick="removeSubitemFromLoadout(${actualParentIndex}, '${item.name_type}'); return false;">
+                                <i class="fas fa-trash"></i> Remover
+                            </button>
+                        `}
                     </div>
                 </div>
             </div>
@@ -2678,6 +2682,66 @@ function removeItemFromLoadout(index) {
     updateSelectedItemsDisplay();
     updateJSONPreview();
     applyItemFiltersLoadout();
+}
+
+function removeSubitemFromLoadout(parentItemIndex, subitemNameType) {
+    // Confirmar remoção
+    if (!confirm(`Tem certeza que deseja remover este subitem?`)) {
+        return;
+    }
+    
+    // Encontrar o item principal
+    const mainItem = selectedItems[parentItemIndex];
+    if (!mainItem) {
+        showAlert('danger', 'Item principal não encontrado.');
+        return;
+    }
+    
+    // Função para encontrar subitem na hierarquia e retornar referências para remoção
+    const findSubitemInHierarchyWithPath = function(item, targetNameType, currentPath = []) {
+        if (item.subitems && item.subitems.length > 0) {
+            for (let i = 0; i < item.subitems.length; i++) {
+                const subitem = item.subitems[i];
+                const newPath = [...currentPath, i];
+                
+                if (subitem.name_type === targetNameType) {
+                    return { subitem: subitem, path: newPath, parentArray: item.subitems, index: i };
+                }
+                
+                // Buscar recursivamente em subitems
+                const found = findSubitemInHierarchyWithPath(subitem, targetNameType, newPath);
+                if (found) return found;
+            }
+        }
+        return null;
+    };
+    
+    // Encontrar o subitem na hierarquia
+    const found = findSubitemInHierarchyWithPath(mainItem, subitemNameType);
+    if (!found || !found.subitem) {
+        showAlert('warning', 'Subitem não encontrado na hierarquia.');
+        console.error('Subitem não encontrado:', subitemNameType, 'em item:', mainItem.name);
+        return;
+    }
+    
+    // Remover o subitem do array usando a referência encontrada
+    const parentArray = found.parentArray;
+    const index = found.index;
+    
+    if (parentArray && parentArray[index]) {
+        parentArray.splice(index, 1);
+        console.log('✅ Subitem removido:', found.subitem.name, 'do item:', mainItem.name);
+        
+        // Atualizar display e preview
+        updateSelectedItemsDisplay();
+        updateJSONPreview();
+        applyItemFiltersLoadout();
+        
+        showAlert('success', 'Subitem removido com sucesso.');
+    } else {
+        showAlert('danger', 'Erro ao remover subitem.');
+        console.error('Não foi possível encontrar referência válida para remover:', subitemNameType);
+    }
 }
 
 // Variáveis globais para subitems modal
