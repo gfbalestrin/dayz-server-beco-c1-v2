@@ -2,6 +2,9 @@
 // VARIÁVEIS GLOBAIS
 // ============================================================================
 
+// Loadouts protegidos que não podem ser renomeados, desativados ou deletados
+const PROTECTED_LOADOUTS = ['admin', 'deathmatch'];
+
 let customLoadoutsTable;
 let playerLoadoutsTable;
 let allPlayers = [];
@@ -224,7 +227,14 @@ function initializeCustomTable() {
         order: [[0, 'desc']],
         columns: [
             { data: 'id', width: '5%' },
-            { data: 'name', width: '25%' },
+            { 
+                data: 'name', 
+                width: '25%',
+                render: function(data, type, row) {
+                    const isProtected = PROTECTED_LOADOUTS.includes(data.toLowerCase());
+                    return data + (isProtected ? ' <span class="badge bg-warning" title="Loadout protegido"><i class="fas fa-shield-alt"></i></span>' : '');
+                }
+            },
             { 
                 data: 'is_active', 
                 width: '10%',
@@ -260,13 +270,15 @@ function initializeCustomTable() {
                 width: '20%',
                 orderable: false,
                 render: function(data, type, row) {
+                    const isProtected = PROTECTED_LOADOUTS.includes(row.name.toLowerCase());
+                    const deleteButton = isProtected ? '' : `<button class="btn btn-sm btn-danger" onclick="deleteCustomLoadout(${row.id}, '${row.name.replace(/'/g, "\\'")}')" title="Deletar">
+                            <i class="fas fa-trash"></i>
+                        </button>`;
                     return `
                         <button class="btn btn-sm btn-primary me-1" onclick="editCustomLoadout(${row.id})" title="Editar">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteCustomLoadout(${row.id}, '${row.name.replace(/'/g, "\\'")}')" title="Deletar">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        ${deleteButton}
                     `;
                 }
             }
@@ -364,6 +376,13 @@ function resetLoadoutForm() {
     $('#customLoadoutData').val(JSON.stringify(window.defaultLoadoutTemplate, null, 4));
     $('#customJSONValidation').empty();
     
+    // Remover aviso de loadout protegido se existir
+    $('#protectedLoadoutWarning').remove();
+    
+    // Resetar campos para editável
+    $('#customLoadoutName').prop('readonly', false);
+    $('#customLoadoutActive').prop('disabled', false);
+    
     // Resetar modo visual
     loadoutMode = 'visual';
     selectedWeapons = {};
@@ -384,11 +403,27 @@ function loadLoadoutForEdit(id) {
         success: function(response) {
             if (response.success) {
                 const loadout = response.loadout;
+                const isProtected = PROTECTED_LOADOUTS.includes(loadout.name.toLowerCase());
+                
                 $('#customLoadoutId').val(loadout.id);
                 $('#customLoadoutName').val(loadout.name);
                 $('#customLoadoutActive').val(loadout.is_active ? 'true' : 'false');
                 $('#customLoadoutData').val(JSON.stringify(loadout.loadout_data, null, 4));
                 $('#customJSONValidation').empty();
+                
+                // Se for loadout protegido, desabilitar campos de nome e status
+                if (isProtected) {
+                    $('#customLoadoutName').prop('readonly', true);
+                    $('#customLoadoutActive').prop('disabled', true);
+                    // Adicionar aviso visual
+                    if ($('#protectedLoadoutWarning').length === 0) {
+                        $('#customLoadoutName').after('<div id="protectedLoadoutWarning" class="alert alert-warning mt-2"><i class="fas fa-shield-alt"></i> Este é um loadout protegido. Nome e status não podem ser alterados.</div>');
+                    }
+                } else {
+                    $('#customLoadoutName').prop('readonly', false);
+                    $('#customLoadoutActive').prop('disabled', false);
+                    $('#protectedLoadoutWarning').remove();
+                }
                 
                 // Carregar dados para modo visual
                 loadoutMode = 'visual';
@@ -811,6 +846,12 @@ function loadItemsToVisual(itemsData) {
 // Função saveCustomLoadout antiga removida - agora usa página dedicada
 
 function deleteCustomLoadout(id, name) {
+    // Verificar se é loadout protegido
+    if (PROTECTED_LOADOUTS.includes(name.toLowerCase())) {
+        showAlert('warning', 'Loadouts protegidos não podem ser deletados');
+        return;
+    }
+    
     if (!confirm(`Tem certeza que deseja deletar o loadout "${name}"?`)) {
         return;
     }

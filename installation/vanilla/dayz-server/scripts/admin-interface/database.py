@@ -2120,6 +2120,9 @@ def get_unique_audit_actions() -> List[str]:
 # LOADOUTS CUSTOM
 # ============================================================================
 
+# Loadouts protegidos que não podem ser renomeados, desativados ou deletados
+PROTECTED_LOADOUTS = ['admin', 'deathmatch']
+
 def get_loadouts_custom() -> List[Dict]:
     """Retorna todos os loadouts custom"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:
@@ -2168,12 +2171,32 @@ def update_loadout_custom(loadout_id: int, name: str, is_active: bool, loadout_d
     """Atualiza um loadout custom"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:
         cursor = conn.cursor()
-        loadout_json = json.dumps(loadout_data, ensure_ascii=False)
-        cursor.execute("""
-            UPDATE loadouts_custom
-            SET name = ?, is_active = ?, loadout_data = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (name, 1 if is_active else 0, loadout_json, loadout_id))
+        
+        # Verificar se o loadout atual é protegido
+        cursor.execute("SELECT name FROM loadouts_custom WHERE id = ?", (loadout_id,))
+        result = cursor.fetchone()
+        if not result:
+            return False
+        
+        current_name = result[0]
+        is_protected = current_name.lower() in [p.lower() for p in PROTECTED_LOADOUTS]
+        
+        # Se protegido, só permitir atualização do loadout_data
+        if is_protected:
+            loadout_json = json.dumps(loadout_data, ensure_ascii=False)
+            cursor.execute("""
+                UPDATE loadouts_custom
+                SET loadout_data = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (loadout_json, loadout_id))
+        else:
+            loadout_json = json.dumps(loadout_data, ensure_ascii=False)
+            cursor.execute("""
+                UPDATE loadouts_custom
+                SET name = ?, is_active = ?, loadout_data = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (name, 1 if is_active else 0, loadout_json, loadout_id))
+        
         conn.commit()
         return cursor.rowcount > 0
 
@@ -2181,9 +2204,48 @@ def delete_loadout_custom(loadout_id: int) -> bool:
     """Deleta um loadout custom"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:
         cursor = conn.cursor()
+        
+        # Verificar se o loadout é protegido
+        cursor.execute("SELECT name FROM loadouts_custom WHERE id = ?", (loadout_id,))
+        result = cursor.fetchone()
+        if not result:
+            return False
+        
+        current_name = result[0]
+        is_protected = current_name.lower() in [p.lower() for p in PROTECTED_LOADOUTS]
+        
+        # Não permitir deletar loadouts protegidos
+        if is_protected:
+            return False
+        
         cursor.execute("DELETE FROM loadouts_custom WHERE id = ?", (loadout_id,))
         conn.commit()
         return cursor.rowcount > 0
+
+def ensure_protected_loadouts_exist():
+    """Garante que os loadouts protegidos existam no banco de dados"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        
+        for protected_name in PROTECTED_LOADOUTS:
+            # Verificar se já existe
+            cursor.execute("SELECT id FROM loadouts_custom WHERE LOWER(name) = LOWER(?)", (protected_name,))
+            existing = cursor.fetchone()
+            
+            if not existing:
+                # Criar loadout vazio
+                empty_loadout = {
+                    "weapons": {},
+                    "explosives": [],
+                    "items": []
+                }
+                loadout_json = json.dumps(empty_loadout, ensure_ascii=False)
+                cursor.execute("""
+                    INSERT INTO loadouts_custom (name, is_active, loadout_data, created_at, updated_at)
+                    VALUES (?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, (protected_name, loadout_json))
+        
+        conn.commit()
 
 # ============================================================================
 # LOADOUTS PLAYERS

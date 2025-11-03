@@ -50,7 +50,8 @@ from database import (
     # Loadouts Functions
     get_loadouts_custom, get_loadout_custom_by_id, create_loadout_custom, update_loadout_custom, delete_loadout_custom,
     get_loadouts_by_player, get_loadout_player_by_id, create_loadout_player, update_loadout_player, delete_loadout_player,
-    get_players_with_loadouts, sync_custom_loadouts_to_file, sync_player_loadouts_to_file
+    get_players_with_loadouts, sync_custom_loadouts_to_file, sync_player_loadouts_to_file,
+    PROTECTED_LOADOUTS, ensure_protected_loadouts_exist
 )
 from datetime import datetime
 
@@ -2642,6 +2643,17 @@ def api_loadouts_custom_update(loadout_id):
         if not name or not loadout_data:
             return jsonify({'success': False, 'message': 'Nome e dados do loadout são obrigatórios'}), 400
         
+        # Verificar se é loadout protegido tentando alterar nome ou status
+        loadout = get_loadout_custom_by_id(loadout_id)
+        if loadout:
+            current_name = loadout['name']
+            is_protected = current_name.lower() in [p.lower() for p in PROTECTED_LOADOUTS]
+            
+            if is_protected:
+                # Verificar se está tentando mudar nome ou status
+                if name.lower() != current_name.lower() or is_active != loadout['is_active']:
+                    return jsonify({'success': False, 'message': 'Loadouts protegidos não podem ter nome ou status alterados'}), 403
+        
         success = update_loadout_custom(loadout_id, name, is_active, loadout_data)
         if not success:
             return jsonify({'success': False, 'message': 'Loadout não encontrado ou erro ao atualizar'}), 404
@@ -2671,6 +2683,12 @@ def api_loadouts_custom_delete(loadout_id):
         loadout = get_loadout_custom_by_id(loadout_id)
         if not loadout:
             return jsonify({'success': False, 'message': 'Loadout não encontrado'}), 404
+        
+        # Verificar se é loadout protegido
+        current_name = loadout['name']
+        is_protected = current_name.lower() in [p.lower() for p in PROTECTED_LOADOUTS]
+        if is_protected:
+            return jsonify({'success': False, 'message': 'Loadouts protegidos não podem ser deletados'}), 403
         
         success = delete_loadout_custom(loadout_id)
         if not success:
@@ -2845,5 +2863,9 @@ if __name__ == '__main__':
     print(f"🌐 Acesse: http://{config.HOST}:{config.PORT}")
     print(f"👤 Usuário: {config.ADMIN_USERNAME}")
     print(f"\n⚠️  Pressione Ctrl+C para parar o servidor\n")
+    
+    # Garantir que loadouts protegidos existam
+    ensure_protected_loadouts_exist()
+    print("✅ Loadouts protegidos verificados")
     
     app.run(host=config.HOST, port=config.PORT, debug=config.DEBUG)
