@@ -1903,6 +1903,12 @@ class CustomMission: MissionServer
 			WriteToLog("StartingEquipSetup(): Player é admin, pulando equipamento inicial.", LogFile.INIT, false, LogType.DEBUG);
 			return;
 		}
+
+		ref array<ref LoadoutPlayer> loadoutsPlayer = GetAllLoudoutsFromPlayer(playerId);
+		if (!loadoutsPlayer) {
+			WriteToLog("Nenhum loadout encontrado para o playerId: " + playerId, LogFile.INIT, false, LogType.INFO);
+			return;
+		}
 		
 		EntityAI itemClothing;
 		EntityAI itemEnt;

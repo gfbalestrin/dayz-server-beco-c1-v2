@@ -471,41 +471,7 @@ if [[ "$DayzWipeOnRestart" == "1" ]]; then
 cat <<EOF > "$DayzFolder/scripts/update.sh"
 #!/bin/bash
 
-set -euo pipefail
 
-echo "[INFO] Iniciando update do servidor DayZ..."
-
-echo "[INFO] Executando wipe..."
-cd "$DayzFolder/scripts" && ./wipe.sh
-echo "[INFO] Wipe concluído."
-
-# Atualiza o servidor via SteamCMD
-echo "[INFO] Atualizando servidor via SteamCMD..."
-cd "$DayzFolder"
-/home/$LinuxUserName/servers/steamcmd/steamcmd.sh +force_install_dir "$DayzFolder/" +login $SteamAccount +app_update 223350 validate +quit
-
-cd "$DayzFolder/mpmissions/$DayzMpmission/"
-rm init.c
-echo "Baixando init.c para Deathmatch..."
-curl -o init.c https://raw.githubusercontent.com/gfbalestrin/dayz-server-beco-c1-v2/refs/heads/main/installation/deathmatch/dayz-server/mpmissions/$DayzMpmission/init.c
-
-chown "$LinuxUserName:$LinuxUserName" init.c
-
-echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/commands_to_execute.txt
-echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_to_send.txt
-echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_private_to_send.txt
-echo > $DayzFolder/profiles/dayz-server.log
-echo > $DayzFolder/profiles/dayz-server.err
-
-# Cria diretórios de posições para hoje e amanhã
-#echo "[INFO] Criando diretórios de posições..."
-#TODAY_DATE=\$(date "+%Y-%m-%d")
-#TOMORROW_DATE=\$(date -d "+1 day" "+%Y-%m-%d")
-#mkdir -p "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/\$TODAY_DATE"
-#mkdir -p "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/\$TOMORROW_DATE"
-#chown -R "$LinuxUserName:$LinuxUserName" "$DayzFolder/mpmissions/$DayzMpmission/admin/positions/"
-
-echo "[INFO] Update concluído com sucesso."
 EOF
 else
 cat <<EOF > "$DayzFolder/scripts/update.sh"
@@ -524,8 +490,7 @@ if [ -f "$DayzFolder/scripts/clear_databases.sh" ]; then
     ./clear_databases.sh
 fi
 
-cd "$DayzFolder/scripts"
-source ./config.sh
+cd "$DayzFolder/scripts" && source ./config.sh
 CurrentDate=\$(date "+%d/%m/%Y %H:%M:%S")
 ScriptName=\$(basename "\$0")
 SEND_DISCORD_WEBHOOK "Servidor reiniciando..." "\$DiscordWebhookLogs" "\$CurrentDate" "\$ScriptName"
@@ -549,6 +514,8 @@ cd "$DayzFolder/mpmissions/$DayzMpmission/"
 
 # Remove arquivos existentes para evitar conflitos (cuidar para não apagar arquivos importantes do deathmatch)
 rm -f init.c
+cp -Rap admin/files /tmp/files
+cp -Rap admin/loadouts /tmp/loadouts
 rm -rf admin
 
 echo "[INFO] Baixando arquivos do servidor via Git..."
@@ -568,6 +535,8 @@ fi
 echo "[INFO] Copiando arquivos para Vanilla..."
 cp "\$REPO_DIR/installation/vanilla/dayz-server/mpmissions/$DayzMpmission/init.c" .
 cp -r "\$REPO_DIR/installation/vanilla/dayz-server/mpmissions/$DayzMpmission/admin" .
+cp -Rap /tmp/files $REPO_DIR/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files
+cp -Rap /tmp/loadouts $REPO_DIR/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/loadouts
 
 # Define permissões corretas apenas nos arquivos copiados
 chown "$LinuxUserName:$LinuxUserName" init.c 2>/dev/null || echo "Aviso: Não foi possível alterar permissões do init.c"
