@@ -1871,6 +1871,11 @@ class CustomMission: MissionServer
 		{
 			WriteToLog("CreateCharacter(): " + playerName + " é admin.", LogFile.INIT, false, LogType.DEBUG);
 			m_player.SetAllowDamage(false);
+			m_player.SetHealth("", "", 100);
+            m_player.SetHealth("GlobalHealth", "Blood", 5000);
+            m_player.SetHealth("GlobalHealth", "Shock", 5000);
+            m_player.GetStatEnergy().Set(4000);
+            m_player.GetStatWater().Set(4000);
 			GiveAdminLoadout(m_player, playerId);
 		} else {
 			WriteToLog("CreateCharacter(): " + playerName + " é jogador comum.", LogFile.INIT, false, LogType.DEBUG);
