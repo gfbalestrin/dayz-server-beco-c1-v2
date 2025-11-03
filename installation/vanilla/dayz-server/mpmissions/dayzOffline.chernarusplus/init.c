@@ -157,6 +157,13 @@ class CustomMission: MissionServer
 	float m_AdminCheckCooldown60 = 60.0;
 	float m_AdminCheckTimer60 = 0.0;
 
+	// Deathmatch
+	string regionStr;
+	string customMessage;
+	ref array<vector> spawnZones;	
+	ref array<vector> wallZones;
+	SafeZoneDataSpawns spawns;
+
 	void CustomMission()
 	{
 		ResetLog();
@@ -164,14 +171,105 @@ class CustomMission: MissionServer
 		WriteToLog("CustomMission(): Inicializando CustomMission", LogFile.INIT, false, LogType.INFO);
 
 		FixedMessages = new array<string>;
-		//FixedMessages.Insert("Para visualizar os comandos digite no chat: !help");
+
+		if (IsDeathmatchEnabled) 
+		{
+			FixedMessages.Insert("Para visualizar os comandos digite no chat: !help");
+
+			currentMap = LoadActiveRegionData(DeathMatchConfigJsonFile);
+			if (currentMap)
+			{
+				WriteToLog("CustomMission(): SafeZoneData carregado", LogFile.INIT, false, LogType.INFO);
+
+				// Configura para próximo mapa
+				ToggleActiveRegion(DeathMatchConfigJsonFile);
+				// Instancia classe de votação de mapa
+				g_VoteMapManager = new VoteMapManager();
+				// Instancia classe de votação de kick
+				g_VoteKickManager = new VoteKickManager();
+
+				customMessage = currentMap.CustomMessage;
+				regionStr = currentMap.Region;
+
+				if (currentMap.SpawnZones)
+				{
+					spawnZones = currentMap.GetSpawnZoneVectors();
+					WriteToLog("CustomMission(): spawnZones carregadas", LogFile.INIT, false, LogType.INFO);
+					foreach (vector spawnZone : spawnZones) {
+						WriteToLog("spawnZone: " + spawnZone.ToString(), LogFile.INIT, false, LogType.DEBUG);
+					}
+				}
+				else
+				{
+					WriteToLog("CustomMission(): spawnZones nulas, inicializando vazia", LogFile.INIT, false, LogType.ERROR);
+					spawnZones = new array<vector>;
+				}
+
+				if (currentMap.WallZones)
+				{
+					wallZones = currentMap.GetWallZoneVectors();
+					WriteToLog("CustomMission(): wallZones carregadas", LogFile.INIT, false, LogType.INFO);
+					foreach (vector wallZone : wallZones) {
+						WriteToLog("wallZone: " + wallZone.ToString(), LogFile.INIT, false, LogType.DEBUG);
+					}
+				}
+				else
+				{
+					WriteToLog("CustomMission(): wallZones nulas, inicializando vazia", LogFile.INIT, false, LogType.ERROR);
+					wallZones = new array<vector>;
+				}
+
+				if (wallZones.Count() > 0)
+				{
+					WriteToLog("CustomMission(): Construindo wallzones (" + wallZones.Count() + ")", LogFile.INIT, false, LogType.INFO);
+					array<vector> points = new array<vector>;
+					for (int i = 0; i < wallZones.Count(); i++)
+					{
+						points.Insert(wallZones[i]);
+					}
+					// CreateLinePathFromPoints(points, "Land_Container_1Bo", 6.0, 1.0, 0.0);
+					// CreateLinePathFromPoints(points, "Land_Container_1Bo", 6.0, 3.5, 0.0);
+					CreateLinePathFromPoints(points, "StaticObj_Roadblock_Wood_Long_DE", 3.0, 0.5, 90.0);
+					WriteToLog("CustomMission(): Wallzones construídas com sucesso", LogFile.INIT, false, LogType.INFO);
+					
+				}
+
+				if (currentMap.Spawns)
+				{
+					spawns = currentMap.Spawns;
+					WriteToLog("CustomMission(): Spawns carregados", LogFile.INIT, false, LogType.INFO);
+					if (spawns.Vehicles)
+					{
+						foreach (SafeZoneDataVehicle vehicle : spawns.Vehicles) {
+							bool successSpawnVehicle = SpawnVehicleWithParts(vehicle.GetCoord(), vehicle.name);
+							if (successSpawnVehicle)
+								WriteToLog("Veículo " + vehicle.name + " criado com sucesso na posição " + vehicle.coord, LogFile.INIT, false, LogType.DEBUG);
+							else
+								WriteToLog("Falha ao criar veículo " + vehicle.name + " criado com sucesso na posição " + vehicle.coord, LogFile.INIT, false, LogType.ERROR);
+						}
+					}				
+				}
+				else
+				{
+					WriteToLog("CustomMission(): nenhum Spawns configurado", LogFile.INIT, false, LogType.ERROR);
+				}
+				
+			}
+			else
+			{
+				WriteToLog("CustomMission(): Erro ao carregar SafeZoneData", LogFile.INIT, false, LogType.ERROR);
+			}
+		}
 	}
 
 	override void OnInit()
     {
         super.OnInit();
-        // Aguarda o mundo carregar, detecta veículos e inicia rastreamento
-    	GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(this.InitVehicleTracking, 10000, false);
+		if (!IsDeathmatchEnabled)
+		{
+			// Aguarda o mundo carregar, detecta veículos e inicia rastreamento
+			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(this.InitVehicleTracking, 10000, false);
+		}        
     }
 
 	override void OnMissionStart()
@@ -180,11 +278,15 @@ class CustomMission: MissionServer
 
 		WriteToLog("OnMissionStart(): Servidor reiniciado com sucesso!", LogFile.INIT, false, LogType.INFO);
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SendStartEvent, 5000, false);
-		// Loop contínuo para aplicar efeitos aos admins
-		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitAdminLoop, 5000, false); // aguarda 5 segundos
-        ActivePlayers = new array<ref ActivePlayer>();
-		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(LogLootContainersDetailed, 5000, false);
-		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(ScanFences, 5000, false);
+
+		if (!IsDeathmatchEnabled)
+		{
+			// Loop contínuo para aplicar efeitos aos admins
+			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitAdminLoop, 5000, false); // aguarda 5 segundos
+			ActivePlayers = new array<ref ActivePlayer>();
+			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(LogLootContainersDetailed, 5000, false);
+			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(ScanFences, 5000, false);
+		}		
     }
 
 	void LogLootContainersDetailed()
@@ -1841,9 +1943,7 @@ class CustomMission: MissionServer
 			array<string> privMsgs = CheckPrivateMessages();
 			
 			// Detecta e desconecta jogadores ghost automaticamente (aparentemente resolvido e não é necessário mais)
-			//DetectAndDisconnectGhosts();
-
-			
+			//DetectAndDisconnectGhosts();			
 
 			array<Man> players = new array<Man>;
 			GetGame().GetPlayers(players);
@@ -1861,6 +1961,13 @@ class CustomMission: MissionServer
 				string playerId = identity.GetId();
 				string playerName = identity.GetName();		
 				string steamId = identity.GetPlainId();
+
+				if (IsDeathmatchEnabled)
+				{
+					// Verifica zona de barreira
+					if (wallZones)
+						CheckPlayerAreaPolygonal(player, wallZones);
+				}
 				
 				// Mensagens públicas
 				if (msgs)
@@ -1913,10 +2020,22 @@ class CustomMission: MissionServer
 	if (m_AdminCheckTimer60 >= m_AdminCheckCooldown60)
 	{
 		m_AdminCheckTimer60 = 0.0;
-		CleanTrackedVehicles(); // Limpa veículos destruídos do array
+		if (IsDeathmatchEnabled)
+		{
+			AppendMessage(customMessage);
+			foreach (string msgFixed : FixedMessages)
+			{
+				if (!g_VoteMapManager.GetStatusVotingMap())
+					AppendMessage(msgFixed);
+			}
+			CleanUpDeadEntitiesNearPlayers();
+		} else {
+			CleanTrackedVehicles(); // Limpa veículos destruídos do array
+			SendVehiclesPositions();
+		}
+		
 		ListActivePlayers();
-		SendPlayersPositions();
-		SendVehiclesPositions();
+		SendPlayersPositions();		
 	}
 	}
 	
@@ -1936,8 +2055,25 @@ class CustomMission: MissionServer
 		string steamId    = identity.GetPlainId();
 
 		Entity playerEnt;
-		playerEnt = GetGame().CreatePlayer( identity, characterName, pos, 0, "NONE" );
-		Class.CastTo( m_player, playerEnt );
+		if (IsDeathmatchEnabled)
+		{
+			// Gera posição segura de respawn
+			vector safePosition = GetRandomSafeSpawnPosition(spawnZones);
+			WriteToLog("CreateCharacter(): Posicionando jogador em: " + safePosition.ToString(), LogFile.INIT, false, LogType.DEBUG);
+			// Cria nova entidade do jogador
+			playerEnt = GetGame().CreatePlayer(identity, characterName, safePosition, 0, "NONE");
+			if (!playerEnt) {
+				WriteToLog("CreateCharacter(): Erro ao criar player!", LogFile.INIT, false, LogType.ERROR);
+				return null;
+			}
+		} else {
+			playerEnt = GetGame().CreatePlayer( identity, characterName, pos, 0, "NONE" );
+		}
+		
+		if (!Class.CastTo(m_player, playerEnt)) {
+			WriteToLog("CreateCharacter(): Erro ao fazer cast para PlayerBase", LogFile.INIT, false, LogType.ERROR);
+			return null;
+		}
 
 		GetGame().SelectPlayer( identity, m_player );
 
@@ -1958,6 +2094,17 @@ class CustomMission: MissionServer
 
 			if (!GiveCustomLoadout(m_player, playerId)) {
 				WriteToLog("CreateCharacter(): Loadout customizado não encontrado. Aplicando padrão.", LogFile.INIT, false, LogType.DEBUG);
+				if (IsDeathmatchEnabled)
+				{
+					GiveDefaultDeathmatchLoadout(m_player, playerId);
+				}					
+			}
+
+			if (IsDeathmatchEnabled)
+			{
+				// Stats/posição/dano depois
+				GetGame().GetCallQueue(CALL_CATEGORY_GAMEPLAY).CallLater(PostSpawnInit, 300, false, m_player, pos);
+				ScheduleSpawnStaminaBurst(m_player);
 			}
 
 			m_player.SetAllowDamage(true);
@@ -1966,8 +2113,75 @@ class CustomMission: MissionServer
 		return m_player;
 	}
 
+	void PostSpawnInit(PlayerBase p, vector pos)
+	{
+		if (!p) return;
+
+		// Reforça posição (autoridade do servidor)
+		p.SetPosition(pos);
+
+		// Stats base
+		p.SetHealth("", "", 100);
+		p.SetHealth("GlobalHealth", "Blood", 5000);
+		p.SetHealth("GlobalHealth", "Shock", 5000); // <-- não 0
+
+		p.GetStatEnergy().Set(4000);
+		p.GetStatWater().Set(4000);
+
+		// Recarrega stamina para evitar micro-travas
+		StaminaHandler sh = p.GetStaminaHandler();
+		if (sh) sh.SetStamina(sh.GetStaminaMax());
+
+		// Libera dano após estabilizar
+		p.SetAllowDamage(true);
+	}
+
+	void BoostStaminaOnce(PlayerBase player)
+	{
+		if (!player) return;
+		StaminaHandler sh = player.GetStaminaHandler();
+		if (sh) sh.SetStamina(sh.GetStaminaMax());
+	}
+
+	void BlockSprintWindow(PlayerBase p)
+	{
+		if (!p) return;
+		StaminaHandler sh = p.GetStaminaHandler();
+		if (!sh) return;
+
+		// Bloqueia sprint (sem travar WASD)
+		sh.SetStamina(0);
+
+		auto q = GetGame().GetCallQueue(CALL_CATEGORY_GAMEPLAY);
+		q.CallLater(BoostStaminaOnce, 400, false, p);  // libera depois
+	}
+
+	// Dispara 3 pulses espaçados (cobre janela de sync inicial)
+	void ScheduleSpawnStaminaBurst(PlayerBase player)
+	{
+		auto q = GetGame().GetCallQueue(CALL_CATEGORY_GAMEPLAY);
+		q.CallLater(BoostStaminaOnce,  50, false, player);
+		q.CallLater(BoostStaminaOnce, 250, false, player);
+		q.CallLater(BoostStaminaOnce,1000, false, player);
+	}
+
+	override void OnClientRespawnEvent(PlayerIdentity identity, PlayerBase player)
+	{
+		super.OnClientRespawnEvent(identity, player);
+		if (IsDeathmatchEnabled)
+		{
+			BlockSprintWindow(player);
+			ScheduleSpawnStaminaBurst(player);
+		}		
+	}
+
 	override void StartingEquipSetup(PlayerBase player, bool clothesChosen)
 	{
+		if (IsDeathmatchEnabled)
+		{
+			return;
+		}
+
 		// Obter playerId do player
 		string playerId = GetPlayerId(player);
 		
