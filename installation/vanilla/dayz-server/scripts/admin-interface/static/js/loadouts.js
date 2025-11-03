@@ -1899,67 +1899,118 @@ function updateSelectedWeaponDisplay(weaponType) {
         `;
     }
     
-    const card = $(`
-        <div class="card mb-2">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div class="flex-grow-1">
-                        <div class="d-flex align-items-center mb-2">
-                            <img src="${weapon.img || 'https://via.placeholder.com/80?text=No+Image'}" 
-                                 alt="${weapon.name}" 
-                                 class="img-thumbnail me-3 selected-weapon-img-main" 
-                                 onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
-                            <div>
-                                <strong>${weapon.name}</strong>
-                                <br>
-                                <small class="text-muted">${weapon.name_type}</small>
+    // Alterar classe do container para grid horizontal
+    container.removeClass('items-tree').addClass('selected-weapons-grid');
+    
+    // Renderizar arma com componentes em grid horizontal
+    const weaponHtml = renderSelectedWeaponCard(weaponConfig, weaponType);
+    container.append(weaponHtml);
+}
+
+function renderSelectedWeaponCard(weaponConfig, weaponType) {
+    const weapon = weaponConfig.weapon;
+    const magazine = weaponConfig.magazine;
+    const ammunition = weaponConfig.ammunition;
+    const attachments = weaponConfig.attachments || [];
+    
+    // Card principal da arma (destacado)
+    const weaponCard = $(`
+        <div class="selected-weapon-card-main">
+            <div class="card h-100 selected-weapon-main-card">
+                <div class="card-body p-3">
+                    <div class="row">
+                        <!-- Coluna da Arma -->
+                        <div class="col-md-6 col-lg-5">
+                            <div class="d-flex flex-column align-items-center h-100">
+                                <img src="${weapon.img || 'https://via.placeholder.com/200?text=No+Image'}" 
+                                     alt="${weapon.name}" 
+                                     class="img-thumbnail mb-3 selected-weapon-img-main" 
+                                     style="max-width: 200px; max-height: 200px; width: auto; height: auto; object-fit: contain;"
+                                     onerror="this.src='https://via.placeholder.com/200?text=No+Image'">
+                                <div class="text-center mb-3">
+                                    <h5 class="mb-1"><strong>${weapon.name}</strong></h5>
+                                    <small class="text-muted d-block">${weapon.name_type}</small>
+                                </div>
+                                <div class="d-flex gap-2 w-100 justify-content-center">
+                                    <button class="btn btn-sm btn-warning" onclick="openWeaponConfigModalWithData('${weaponType}'); event.preventDefault(); event.stopPropagation(); return false;" title="Configurar">
+                                        <i class="fas fa-cog"></i> Configurar
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" onclick="removeWeaponFromLoadout('${weaponType}'); event.preventDefault(); event.stopPropagation(); return false;" title="Remover">
+                                        <i class="fas fa-trash"></i> Remover
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        
-                        ${magazine ? `
-                            <div class="mb-2">
-                                <strong>Magazine:</strong>
-                                <div class="mt-1">
-                                    ${magazineHtml}
-                                    <span class="ms-2">${magazine.capacity ? `(${magazine.capacity} cap.)` : ''}</span>
+                        <!-- Coluna dos Componentes -->
+                        <div class="col-md-6 col-lg-7">
+                            ${magazine || ammunition || attachments.length > 0 ? `
+                                <div class="selected-weapon-components">
+                                    <h6 class="text-muted mb-2"><i class="fas fa-link me-2"></i>Componentes:</h6>
+                                    <div class="selected-components-grid">
+                                        ${magazine ? `
+                                            <div class="selected-component-card">
+                                                <div class="card h-100">
+                                                    <div class="card-body p-2 text-center">
+                                                        <img src="${magazine.img || 'https://via.placeholder.com/80?text=No+Image'}" 
+                                                             alt="${magazine.name}" 
+                                                             class="img-thumbnail mb-2" 
+                                                             style="width: 80px; height: 80px; object-fit: contain;"
+                                                             onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                                                        <div>
+                                                            <small class="text-muted d-block"><i class="fas fa-clipboard-list"></i> Magazine</small>
+                                                            <strong class="d-block small">${magazine.name}</strong>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ` : ''}
+                                        ${ammunition ? `
+                                            <div class="selected-component-card">
+                                                <div class="card h-100">
+                                                    <div class="card-body p-2 text-center">
+                                                        <img src="${ammunition.img || 'https://via.placeholder.com/80?text=No+Image'}" 
+                                                             alt="${ammunition.name}" 
+                                                             class="img-thumbnail mb-2" 
+                                                             style="width: 80px; height: 80px; object-fit: contain;"
+                                                             onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                                                        <div>
+                                                            <small class="text-muted d-block"><i class="fas fa-bolt"></i> Ammunition</small>
+                                                            <strong class="d-block small">${ammunition.name}</strong>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ` : ''}
+                                        ${attachments.map(function(att) {
+                                            return `
+                                                <div class="selected-component-card">
+                                                    <div class="card h-100">
+                                                        <div class="card-body p-2 text-center">
+                                                            <img src="${att.img || 'https://via.placeholder.com/80?text=No+Image'}" 
+                                                                 alt="${att.name}" 
+                                                                 class="img-thumbnail mb-2" 
+                                                                 style="width: 80px; height: 80px; object-fit: contain;"
+                                                                 onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
+                                                            <div>
+                                                                <small class="text-muted d-block"><i class="fas fa-puzzle-piece"></i> ${att.type || 'Attachment'}</small>
+                                                                <strong class="d-block small">${att.name}</strong>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            `;
+                                        }).join('')}
+                                    </div>
                                 </div>
-                            </div>
-                        ` : '<div class="mb-2"><strong>Magazine:</strong> <span class="text-muted">Nenhum</span></div>'}
-                        
-                        ${ammunition ? `
-                            <div class="mb-2">
-                                <strong>Ammunition:</strong>
-                                <div class="mt-1">
-                                    ${ammunitionHtml}
-                                </div>
-                            </div>
-                        ` : '<div class="mb-2"><strong>Ammunition:</strong> <span class="text-muted">Nenhum</span></div>'}
-                        
-                        ${attachments.length > 0 ? `
-                            <div class="mb-2">
-                                <strong>Attachments (${attachments.length}):</strong>
-                                <div class="mt-1">
-                                    ${attachmentsHtml}
-                                </div>
-                            </div>
-                        ` : '<div class="mb-2"><strong>Attachments:</strong> <span class="text-muted">Nenhum</span></div>'}
-                    </div>
-                    <div class="ms-3">
-                        <button class="btn btn-sm btn-primary me-1" onclick="openWeaponConfigModalWithData('${weaponType}'); event.preventDefault(); event.stopPropagation(); return false;">
-                            <i class="fas fa-cog"></i> Configurar
-                        </button>
-                        <button class="btn btn-sm btn-danger" onclick="removeWeaponFromLoadout('${weaponType}'); event.preventDefault(); event.stopPropagation(); return false;">
-                            <i class="fas fa-trash"></i> Remover
-                        </button>
+                            ` : '<div class="text-muted text-center"><small>Nenhum componente configurado</small></div>'}
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     `);
-    container.append(card);
     
-    // Não chamar applyWeaponFiltersLoadout aqui para evitar recursão infinita
-    // O grid será atualizado separadamente quando necessário (ao aplicar filtros)
+    return weaponCard;
 }
 
 function updateSelectedWeaponsDisplay() {

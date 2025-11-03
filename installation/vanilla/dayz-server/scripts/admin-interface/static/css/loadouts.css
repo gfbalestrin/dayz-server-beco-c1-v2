@@ -259,6 +259,91 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+/* Grid horizontal para armas selecionadas */
+.selected-weapons-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+    padding: 10px;
+}
+
+.selected-weapon-card-main {
+    transition: all 0.2s;
+    width: 100%;
+}
+
+.selected-weapon-main-card {
+    border: 2px solid #0d6efd;
+    background: linear-gradient(135deg, #e8f4fd 0%, #ffffff 100%);
+    transition: all 0.2s;
+    width: 100%;
+}
+
+.selected-weapon-main-card:hover {
+    border-color: #0b5ed7;
+    box-shadow: 0 4px 12px rgba(13, 110, 253, 0.25);
+    transform: translateY(-2px);
+}
+
+.selected-weapon-img-main {
+    border: 2px solid #0d6efd;
+    box-shadow: 0 2px 8px rgba(13, 110, 253, 0.2);
+}
+
+/* Componentes da arma */
+.selected-weapon-components {
+    width: 100%;
+    height: 100%;
+}
+
+.selected-components-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.selected-component-card {
+    transition: all 0.2s;
+}
+
+.selected-component-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.selected-component-card .card {
+    border: 1px solid #e9ecef;
+    background: #ffffff;
+    transition: all 0.2s;
+}
+
+.selected-component-card .card:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Responsividade para mobile */
+@media (max-width: 768px) {
+    .selected-weapon-card-main .row {
+        flex-direction: column;
+    }
+    
+    .selected-weapon-card-main .col-md-6,
+    .selected-weapon-card-main .col-lg-5,
+    .selected-weapon-card-main .col-lg-7 {
+        width: 100%;
+        margin-bottom: 15px;
+    }
+    
+    .selected-components-grid {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    }
+}
+
 /* Estilos removidos: selected-subitems-grid e selected-subitem-card
  * Subitems não são mais exibidos embaixo do item principal
  * O usuário deve clicar no botão "Subitems" para ver/gerenciar os subitems no modal
