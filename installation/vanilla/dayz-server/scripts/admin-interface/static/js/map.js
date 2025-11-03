@@ -12,7 +12,7 @@ let fenceMarkers = {};
 let killMarkers = [];
 let playersData = {}; // Armazenar dados dos jogadores
 let currentPointContext = null; // Contexto do ponto para ações
-let currentFilter = null;
+let selectedPlayerFilters = []; // Array de player IDs selecionados
 let autoRefreshInterval = null;
 let showTrails = false;
 let showPlayers = true;
@@ -111,7 +111,6 @@ $(document).ready(function() {
     $('#refreshBtn').on('click', loadPositions);
     $('#autoRefreshCheck').on('change', toggleAutoRefresh);
     $('#onlineOnlyCheck').on('change', filterPlayers);
-    $('#playerFilter').on('change', filterPlayers);
     $('#toggleTrailsBtn').on('click', toggleTrails);
     $('#togglePlayersBtn').on('click', togglePlayersDisplay);
     $('#toggleVehiclesBtn').on('click', toggleVehiclesDisplay);
@@ -119,6 +118,15 @@ $(document).ready(function() {
     $('#toggleFencesBtn').on('click', toggleFencesDisplay);
     $('#toggleKillsBtn').on('click', toggleKills);
     $('#applyTrailFilter').on('click', applyTrailDateFilter);
+    
+    // Event listeners para o novo sistema de filtro de jogadores
+    $('#playerSearchInput').on('input', handlePlayerSearch);
+    $('#playerSearchInput').on('focus', handlePlayerSearch);
+    $('#playerSearchInput').on('blur', function() {
+        // Delay para permitir clique nos resultados
+        setTimeout(() => $('#playerSearchResults').hide(), 200);
+    });
+    $('#clearAllFiltersBtn').on('click', clearAllPlayerFilters);
     
     // Event listener para atalhos de filtro de trails
     $('[data-filter]').on('click', function() {
@@ -135,7 +143,9 @@ $(document).ready(function() {
     const playerIdFilter = urlParams.get('player_id');
     if (playerIdFilter) {
         setTimeout(function() {
-            $('#playerFilter').val(playerIdFilter);
+            // Adicionar ao array de filtros ao invés de usar select
+            selectedPlayerFilters.push(playerIdFilter);
+            updateSelectedPlayersBadges();
             filterPlayers();
         }, 500); // Aguardar carga completa do mapa
     }
@@ -267,7 +277,7 @@ function loadPositions() {
  */
 function updatePositions(data) {
     // Remover marcadores antigos se não houver filtro
-    if (!currentFilter) {
+    if (selectedPlayerFilters.length === 0) {
         Object.keys(playerMarkers).forEach(function(key) {
             map.removeLayer(playerMarkers[key]);
         });
@@ -289,8 +299,8 @@ function updatePositions(data) {
             isOnline: player.is_online
         };
         
-        // Aplicar filtro se existir
-        if (currentFilter && currentFilter !== playerId) {
+        // Aplicar filtro se existir (múltiplos jogadores)
+        if (selectedPlayerFilters.length > 0 && !selectedPlayerFilters.includes(playerId)) {
             // Remover marcador se não corresponde ao filtro
             if (playerMarkers[playerId]) {
                 map.removeLayer(playerMarkers[playerId]);
@@ -365,6 +375,11 @@ function updatePositions(data) {
         
         playerMarkers[playerId] = marker;
     });
+    
+    // Atualizar badges após carregar dados (para atualizar status online/offline)
+    if (selectedPlayerFilters.length > 0) {
+        updateSelectedPlayersBadges();
+    }
     
     // Atualizar contadores na UI
     $('#mapOnlineCount').text(onlineCount);
@@ -592,10 +607,144 @@ function togglePlayersDisplay() {
 }
 
 /**
+ * Pesquisar jogadores
+ */
+function handlePlayerSearch() {
+    const searchTerm = $('#playerSearchInput').val().toLowerCase().trim();
+    const resultsContainer = $('#playerSearchResults');
+    
+    if (searchTerm === '') {
+        resultsContainer.hide();
+        return;
+    }
+    
+    // Filtrar jogadores que correspondem à pesquisa
+    const matchingPlayers = Object.keys(playersData)
+        .filter(playerId => {
+            const player = playersData[playerId];
+            const name = (player.name || '').toLowerCase();
+            const steamName = (player.steamName || '').toLowerCase();
+            
+            // Não mostrar jogadores já selecionados
+            if (selectedPlayerFilters.includes(playerId)) {
+                return false;
+            }
+            
+            return name.includes(searchTerm) || 
+                   steamName.includes(searchTerm) || 
+                   playerId.toLowerCase().includes(searchTerm);
+        })
+        .slice(0, 10); // Limitar a 10 resultados
+    
+    if (matchingPlayers.length === 0) {
+        resultsContainer.html('<div class="list-group-item text-muted">Nenhum jogador encontrado</div>');
+        resultsContainer.show();
+        return;
+    }
+    
+    // Renderizar resultados
+    resultsContainer.empty();
+    matchingPlayers.forEach(playerId => {
+        const player = playersData[playerId];
+        const displayName = player.name || playerId;
+        const steamName = player.steamName ? ` (${player.steamName})` : '';
+        const statusIcon = player.isOnline ? '🟢' : '🔴';
+        
+        const item = $('<div class="list-group-item"></div>')
+            .html(`${statusIcon} ${displayName}${steamName}`)
+            .on('click', function() {
+                addPlayerToFilter(playerId);
+            });
+        
+        resultsContainer.append(item);
+    });
+    
+    resultsContainer.show();
+}
+
+/**
+ * Adicionar jogador ao filtro
+ */
+function addPlayerToFilter(playerId) {
+    if (selectedPlayerFilters.includes(playerId)) {
+        return;
+    }
+    
+    selectedPlayerFilters.push(playerId);
+    
+    // Limpar campo de pesquisa
+    $('#playerSearchInput').val('');
+    $('#playerSearchResults').hide();
+    
+    // Atualizar UI
+    updateSelectedPlayersBadges();
+    
+    // Aplicar filtro
+    filterPlayers();
+}
+
+/**
+ * Remover jogador do filtro
+ */
+function removePlayerFromFilter(playerId) {
+    const index = selectedPlayerFilters.indexOf(playerId);
+    if (index > -1) {
+        selectedPlayerFilters.splice(index, 1);
+    }
+    
+    // Atualizar UI
+    updateSelectedPlayersBadges();
+    
+    // Aplicar filtro
+    filterPlayers();
+}
+
+/**
+ * Atualizar badges de jogadores selecionados
+ */
+function updateSelectedPlayersBadges() {
+    const container = $('#selectedPlayersBadges');
+    container.empty();
+    
+    if (selectedPlayerFilters.length === 0) {
+        $('#clearAllFiltersBtn').hide();
+        return;
+    }
+    
+    $('#clearAllFiltersBtn').show();
+    
+    selectedPlayerFilters.forEach(playerId => {
+        const player = playersData[playerId];
+        const displayName = player ? (player.name || playerId) : playerId;
+        const steamName = player && player.steamName ? ` (${player.steamName})` : '';
+        const statusIcon = player && player.isOnline ? '🟢' : '🔴';
+        
+        const badge = $('<span class="badge bg-primary"></span>')
+            .html(`${statusIcon} ${displayName}${steamName} <i class="fas fa-times remove-player"></i>`)
+            .find('.remove-player')
+            .on('click', function(e) {
+                e.stopPropagation();
+                removePlayerFromFilter(playerId);
+            })
+            .end();
+        
+        container.append(badge);
+    });
+}
+
+/**
+ * Limpar todos os filtros de jogadores
+ */
+function clearAllPlayerFilters() {
+    selectedPlayerFilters = [];
+    updateSelectedPlayersBadges();
+    filterPlayers();
+}
+
+/**
  * Filtrar jogadores
  */
 function filterPlayers() {
-    currentFilter = $('#playerFilter').val();
     
     // Se trails estão ativos, limpar todos antes de recarregar
     if (showTrails) {

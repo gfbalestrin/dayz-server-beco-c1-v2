@@ -427,3 +427,51 @@
     color: white;
     border-color: #0d6efd;
 }
+
+/* Filtro de jogadores */
+#playerSearchResults {
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin-top: 4px;
+}
+
+#playerSearchResults .list-group-item {
+    padding: 0.5rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    border: none;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+#playerSearchResults .list-group-item:hover {
+    background-color: #f8f9fa;
+}
+
+#playerSearchResults .list-group-item:last-child {
+    border-bottom: none;
+}
+
+/* Badges de jogadores selecionados */
+#selectedPlayersBadges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+#selectedPlayersBadges .badge {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+#selectedPlayersBadges .badge .remove-player {
+    cursor: pointer;
+    margin-left: 0.25rem;
+    opacity: 0.7;
+}
+
+#selectedPlayersBadges .badge .remove-player:hover {
+    opacity: 1;
+}

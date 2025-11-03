@@ -118,15 +118,28 @@
                     </div>
                 </div>
                 <div class="mb-2">
-                    <label class="form-label small">Filtrar Jogador:</label>
-                    <select class="form-select form-select-sm" id="playerFilter">
-                        <option value="">Todos</option>
-                        {% for player in players %}
-                        <option value="{{ player.PlayerID }}">
-                            {{ player.PlayerName or player.PlayerID }}{% if player.SteamName %} ({{ player.SteamName }}){% endif %}
-                        </option>
-                        {% endfor %}
-                    </select>
+                    <label class="form-label small">Filtrar Jogadores:</label>
+                    
+                    <!-- Campo de pesquisa -->
+                    <input type="text" 
+                           class="form-control form-control-sm mb-2" 
+                           id="playerSearchInput" 
+                           placeholder="Pesquisar jogador...">
+                    
+                    <!-- Lista de jogadores filtrados (dropdown) -->
+                    <div class="list-group" id="playerSearchResults" style="max-height: 150px; overflow-y: auto; display: none;">
+                        <!-- Resultados da pesquisa aparecerão aqui -->
+                    </div>
+                    
+                    <!-- Badges dos jogadores selecionados -->
+                    <div id="selectedPlayersBadges" class="mt-2">
+                        <!-- Badges aparecerão aqui -->
+                    </div>
+                    
+                    <!-- Botão para limpar todos -->
+                    <button type="button" class="btn btn-sm btn-outline-secondary w-100 mt-2" id="clearAllFiltersBtn" style="display: none;">
+                        <i class="fas fa-times me-1"></i>Limpar Filtros
+                    </button>
                 </div>
                 <div class="mb-2">
                     <label class="form-label small">Auto-Refresh:</label>
