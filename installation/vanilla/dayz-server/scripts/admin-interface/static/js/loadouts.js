@@ -2130,6 +2130,9 @@ function removeExplosiveFromLoadout(explosiveId) {
 
 // Funções para items (simplificadas por enquanto, subitems serão adicionados depois)
 function applyItemFiltersLoadout() {
+    // Salvar posições de scroll antes de filtrar
+    const savedScrollPositions = saveGridScrollPositions();
+    
     const search = $('#itemSearchLoadout').val().toLowerCase();
     const typeId = $('#filterItemTypeLoadout').val();
     const location = $('#filterItemLocationLoadout').val();
@@ -2168,10 +2171,48 @@ function applyItemFiltersLoadout() {
     // Renderizar grids separados por tipo
     // O filtro de localização será aplicado nos dados, mas os grids são separados por tipo
     renderItemsGridLoadoutByType(filtered);
+    
+    // Restaurar posições de scroll após filtrar
+    // Usar setTimeout para garantir que o DOM foi atualizado
+    setTimeout(function() {
+        restoreGridScrollPositions(savedScrollPositions);
+    }, 50);
+}
+
+// Função auxiliar para salvar posições de scroll dos grids
+function saveGridScrollPositions() {
+    const scrollPositions = {};
+    const container = document.getElementById('itemsGridsByType');
+    if (!container) return scrollPositions;
+    
+    const grids = container.querySelectorAll('.items-grid-scrollable');
+    grids.forEach(function(grid) {
+        const gridId = grid.id;
+        if (gridId) {
+            scrollPositions[gridId] = grid.scrollLeft;
+        }
+    });
+    
+    return scrollPositions;
+}
+
+// Função auxiliar para restaurar posições de scroll dos grids
+function restoreGridScrollPositions(scrollPositions) {
+    if (!scrollPositions) return;
+    
+    Object.keys(scrollPositions).forEach(function(gridId) {
+        const grid = document.getElementById(gridId);
+        if (grid) {
+            grid.scrollLeft = scrollPositions[gridId];
+        }
+    });
 }
 
 function renderItemsGridLoadoutByType(data) {
     const container = $('#itemsGridsByType');
+    
+    // Salvar posições de scroll antes de renderizar
+    const savedScrollPositions = saveGridScrollPositions();
     
     // Obter tipos únicos dos itens filtrados
     const typesMap = {};
@@ -2296,6 +2337,12 @@ function renderItemsGridLoadoutByType(data) {
     
     // Inicializar navegação para todos os grids criados
     initGridNavigation();
+    
+    // Restaurar posições de scroll após renderizar
+    // Usar setTimeout para garantir que o DOM foi atualizado
+    setTimeout(function() {
+        restoreGridScrollPositions(savedScrollPositions);
+    }, 0);
 }
 
 function renderItemsGridLoadoutForType(data, typeId, gridId) {
@@ -2329,9 +2376,24 @@ function renderItemsGridLoadoutForType(data, typeId, gridId) {
         const card = $(`
             <div class="weapon-card ${isSelected ? 'selected' : ''}" data-item-id="${item.id}">
                 <div class="weapon-actions">
-                    <button class="btn btn-sm ${isSelected ? 'btn-warning' : 'btn-success'}" onclick="selectItemForLoadout(${item.id}); event.stopPropagation(); return false;" title="${isSelected ? 'Configurar' : 'Adicionar'}">
-                        <i class="fas fa-${isSelected ? 'cog' : 'plus'}"></i>
-                    </button>
+                    ${isSelected ? `
+                        <button class="btn btn-sm btn-danger me-1" onclick="removeItemFromLoadoutByGrid(${item.id}, '${gridId}'); event.stopPropagation(); return false;" title="Remover">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        ${item.canHaveSubitems ? `
+                            <button class="btn btn-sm btn-warning" onclick="openSubitemsModal(${selectedItems.findIndex(i => i.id === item.id)}); event.stopPropagation(); return false;" title="Configurar Subitems">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                        ` : `
+                            <button class="btn btn-sm btn-info" onclick="selectItemForLoadout(${item.id}); event.stopPropagation(); return false;" title="Configurar">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                        `}
+                    ` : `
+                        <button class="btn btn-sm btn-success" onclick="selectItemForLoadout(${item.id}); event.stopPropagation(); return false;" title="Adicionar">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    `}
                 </div>
                 <img src="${item.img || 'https://via.placeholder.com/120?text=No+Image'}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/120?text=No+Image'">
                 <div class="weapon-name">${item.name}</div>
@@ -2450,14 +2512,18 @@ function selectItemForLoadout(itemId) {
                 }
             });
         } else {
-            // Item já existe, mostrar mensagem ou abrir modal para adicionar subitems
+            // Item já existe - toggle: remover se clicado novamente
             const itemIndex = selectedItems.findIndex(i => i.id === itemId);
             if (itemIndex >= 0) {
                 const item = selectedItems[itemIndex];
+                // Se o item pode ter subitems, abrir modal ao invés de remover
                 if (item.canHaveSubitems) {
                     openSubitemsModal(itemIndex);
                 } else {
-                    showAlert('info', 'Este item já está selecionado. Funcionalidade de subitems será implementada em breve.');
+                    // Remover item se clicado novamente (toggle)
+                    removeItemFromLoadout(itemIndex);
+                    // Atualizar grids para refletir remoção
+                    applyItemFiltersLoadout();
                 }
             }
         }
@@ -2488,12 +2554,56 @@ function updateSelectedItemsDisplay() {
         return;
     }
     
-    // Renderizar items recursivamente
+    // Alterar classe do container para grid horizontal
+    container.removeClass('items-tree').addClass('selected-items-grid');
+    
+    // Renderizar items principais em grid horizontal
     selectedItems.forEach(function(item, index) {
-        const itemHtml = renderItemWithSubitems(item, index, 0, index); // Passar itemIndex principal
+        const itemHtml = renderSelectedItemCard(item, index);
         container.append(itemHtml);
     });
 }
+
+function renderSelectedItemCard(item, itemIndex) {
+    // Card principal do item
+    const card = $(`
+        <div class="selected-item-card" data-item-index="${itemIndex}">
+            <div class="card h-100">
+                <div class="card-body p-2">
+                    <div class="d-flex flex-column align-items-center">
+                        <img src="${item.img || 'https://via.placeholder.com/100?text=No+Image'}" 
+                             alt="${item.name}" 
+                             class="img-thumbnail mb-2" 
+                             style="width: 100px; height: 100px; object-fit: cover;"
+                             onerror="this.src='https://via.placeholder.com/100?text=No+Image'">
+                        <div class="text-center mb-2">
+                            <strong class="d-block">${item.name}</strong>
+                            <small class="text-muted d-block">${item.name_type}</small>
+                            ${item.subitems && item.subitems.length > 0 ? `<small class="text-info d-block mt-1"><i class="fas fa-layer-group"></i> ${item.subitems.length} subitem(s)</small>` : ''}
+                        </div>
+                        <div class="btn-group btn-group-sm w-100" role="group">
+                            ${item.canHaveSubitems ? `
+                                <button class="btn btn-info" onclick="openSubitemsModal(${itemIndex}); return false;" title="Subitems">
+                                    <i class="fas fa-layer-group"></i> Subitems
+                                    ${item.subitems && item.subitems.length > 0 ? ` <span class="badge bg-light text-dark">${item.subitems.length}</span>` : ''}
+                                </button>
+                            ` : ''}
+                            <button class="btn btn-danger" onclick="removeItemFromLoadout(${itemIndex}); return false;" title="Remover">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `);
+    
+    return card;
+}
+
+// Função removida: renderSelectedSubitemsGrid
+// Subitems não são mais exibidos embaixo do item principal
+// O usuário deve clicar no botão "Subitems" para ver/gerenciar os subitems no modal
 
 // Função recursiva para renderizar item com seus subitems
 function renderItemWithSubitems(item, itemIndex, depth, parentItemIndex) {
@@ -2856,6 +2966,32 @@ function removeItemFromLoadout(index) {
     updateJSONPreview();
     applyItemFiltersLoadout();
     markLoadoutChanged();
+}
+
+function removeItemFromLoadoutByGrid(itemId, gridId) {
+    // Encontrar índice do item
+    const index = selectedItems.findIndex(i => i.id === itemId);
+    if (index >= 0) {
+        // Salvar posição de scroll antes de remover
+        const grid = document.getElementById(gridId);
+        const savedScroll = grid ? grid.scrollLeft : 0;
+        
+        // Remover item
+        selectedItems.splice(index, 1);
+        updateSelectedItemsDisplay();
+        updateJSONPreview();
+        
+        // Aplicar filtros (isso vai re-renderizar os grids)
+        applyItemFiltersLoadout();
+        markLoadoutChanged();
+        
+        // Restaurar scroll após um pequeno delay
+        setTimeout(function() {
+            if (grid) {
+                grid.scrollLeft = savedScroll;
+            }
+        }, 10);
+    }
 }
 
 function removeSubitemFromLoadout(parentItemIndex, subitemNameType) {

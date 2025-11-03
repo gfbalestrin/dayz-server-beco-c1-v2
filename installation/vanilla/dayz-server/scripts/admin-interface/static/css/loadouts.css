@@ -232,7 +232,39 @@
     color: #004085;
 }
 
-/* Estilos para visualização recursiva de subitems */
+/* Grid horizontal para itens selecionados */
+.selected-items-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    padding: 10px;
+}
+
+.selected-item-card {
+    transition: all 0.2s;
+}
+
+.selected-item-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.selected-item-card .card {
+    border: 1px solid #dee2e6;
+    transition: all 0.2s;
+}
+
+.selected-item-card .card:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Estilos removidos: selected-subitems-grid e selected-subitem-card
+ * Subitems não são mais exibidos embaixo do item principal
+ * O usuário deve clicar no botão "Subitems" para ver/gerenciar os subitems no modal
+ */
+
+/* Estilos para visualização recursiva de subitems (mantido para compatibilidade) */
 .item-display-card {
     transition: all 0.2s;
 }
