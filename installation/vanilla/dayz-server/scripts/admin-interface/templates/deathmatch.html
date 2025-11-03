@@ -74,6 +74,9 @@
           <button type="button" class="btn btn-sm btn-outline-secondary" id="dmToggleDeletedBtn">
             <i class="fas fa-ban me-1"></i>Marcar como Excluído
           </button>
+          <button type="button" class="btn btn-sm btn-success" id="dmOpenCreateMapModalBtn" data-bs-toggle="modal" data-bs-target="#dmCreateMapModal">
+            <i class="fas fa-plus me-1"></i>Novo Mapa
+          </button>
         </div>
       </div>
     </div>
@@ -138,6 +141,31 @@
             </div>
           </div>
 
+<!-- Modal Criar Novo Mapa -->
+<div class="modal fade" id="dmCreateMapModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-plus me-2"></i>Criar Novo Mapa</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label small">Nome (Region):</label>
+          <input type="text" id="dmCreateRegion" class="form-control form-control-sm" placeholder="Nome do mapa">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small">Mensagem (CustomMessage):</label>
+          <textarea id="dmCreateCustomMessage" class="form-control form-control-sm" rows="3" placeholder="Mensagem opcional"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="dmCreateMapBtn"><i class="fas fa-save me-1"></i>Criar</button>
+      </div>
+    </div>
+  </div>
+</div>
           <!-- WALL TAB -->
           <div class="tab-pane fade" id="wall-tab-pane" role="tabpanel">
             <div class="row g-2">

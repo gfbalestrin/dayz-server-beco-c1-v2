@@ -157,11 +157,14 @@ function dmDrawConfig(cfg) {
   }
 
   // Ajustar rótulo do botão de exclusão conforme status
+  const isInvalid = !(Array.isArray(cfg.spawnZones) && cfg.spawnZones.length >= 1 && Array.isArray(cfg.wallZones) && cfg.wallZones.length >= 3);
   if (cfg.isDeleted) {
     $('#dmToggleDeletedBtn').removeClass('btn-outline-secondary').addClass('btn-outline-success').html('<i class="fas fa-undo me-1"></i>Reverter Exclusão');
   } else {
     $('#dmToggleDeletedBtn').removeClass('btn-outline-success').addClass('btn-outline-secondary').html('<i class="fas fa-ban me-1"></i>Marcar como Excluído');
   }
+  // Desabilitar "Tornar Ativo" se excluído ou inválido
+  $('#dmSetActiveBtn').prop('disabled', cfg.isDeleted || isInvalid).attr('title', (cfg.isDeleted ? 'Mapa excluído' : (isInvalid ? 'Mapa inválido: adicione pelo menos 1 Spawn e 3 WallZones' : '')));
 }
 
 function dmLoad() {
@@ -260,6 +263,12 @@ function dmLoadMaps() {
 }
 
 $(document).ready(function() {
+  // Garantir que o modal não fique preso em contextos de empilhamento do mapa
+  const createModal = document.getElementById('dmCreateMapModal');
+  if (createModal && createModal.parentElement !== document.body) {
+    document.body.appendChild(createModal);
+  }
+
   dmInitMap();
   dmLoadMaps();
   dmLoad();
@@ -270,6 +279,8 @@ $(document).ready(function() {
   $('#dmMetaSaveBtn').on('click', dmSaveMeta);
   $('#dmSetActiveBtn').on('click', dmSetActive);
   $('#dmToggleDeletedBtn').on('click', dmToggleDeleted);
+  // Abertura do modal é via data-bs-* no botão
+  $('#dmCreateMapBtn').on('click', dmCreateMap);
 
   // Spawn handlers
   $('#dmSpawnEditPickBtn').on('click', function(){ if (dmEnsureSpawnSelected()) dmSetPickMode('spawn-edit'); });
@@ -446,6 +457,31 @@ function dmToggleDeleted(){
   $.ajax({ url: '/api/deathmatch/map/set-deleted', method: 'POST', contentType: 'application/json', data: JSON.stringify({ regionId: dmCurrentRegionId(), isDeleted }) })
     .done(()=>{ dmLoadMaps(); dmLoad(); })
     .fail(dmApiError);
+}
+
+function dmCreateMap(){
+  const region = ($('#dmCreateRegion').val() || '').trim();
+  const customMessage = ($('#dmCreateCustomMessage').val() || '').trim();
+  $('#dmCreateMapBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Criando...');
+  $.ajax({ url: '/api/deathmatch/map/create', method: 'POST', contentType: 'application/json', data: JSON.stringify({ region, customMessage }) })
+    .done(function(resp){
+      const newId = resp.regionId;
+      // Fechar modal
+      bootstrap.Modal.getInstance(document.getElementById('dmCreateMapModal')).hide();
+      // Limpar campos
+      $('#dmCreateRegion').val('');
+      $('#dmCreateCustomMessage').val('');
+      // Recarregar lista e selecionar novo mapa
+      dmLoadMaps();
+      setTimeout(function(){
+        if (newId) {
+          $('#dmRegionSelect').val(String(newId));
+          dmLoad();
+        }
+      }, 200);
+    })
+    .fail(dmApiError)
+    .always(function(){ $('#dmCreateMapBtn').prop('disabled', false).html('<i class="fas fa-save me-1"></i>Criar'); });
 }
 
 function dmApiError(xhr){

@@ -453,6 +453,7 @@ def api_deathmatch_config():
         'customMessage': selected.get('CustomMessage'),
         'active': bool(selected.get('Active')),
         'isDeleted': bool(selected.get('IsDeleted')),
+        'valid': (len(selected.get('SpawnZones') or []) >= 1 and len(selected.get('WallZones') or []) >= 3),
         'spawnZones': spawn_zones,
         'wallZones': wall_zones,
         'spawns': {
@@ -488,7 +489,8 @@ def api_deathmatch_maps():
             'regionId': item.get('RegionId'),
             'region': item.get('Region'),
             'active': bool(item.get('Active')),
-            'isDeleted': bool(item.get('IsDeleted'))
+            'isDeleted': bool(item.get('IsDeleted')),
+            'valid': (len(item.get('SpawnZones') or []) >= 1 and len(item.get('WallZones') or []) >= 3)
         })
 
     return jsonify({ 'maps': maps })
@@ -534,6 +536,11 @@ def api_deathmatch_set_active():
         found = False
         for item in data:
             if int(item.get('RegionId', -1)) == int(region_id):
+                # validação: não permitir ativar se excluído ou inválido
+                if bool(item.get('IsDeleted')):
+                    return jsonify({ 'error': 'Mapa está marcado como excluído' }), 400
+                if not (len(item.get('SpawnZones') or []) >= 1 and len(item.get('WallZones') or []) >= 3):
+                    return jsonify({ 'error': 'Mapa inválido: precisa de ao menos 1 Spawn e 3 WallZones' }), 400
                 item['Active'] = True
                 found = True
             else:
@@ -570,6 +577,43 @@ def api_deathmatch_update_meta():
         return jsonify({ 'error': str(e) }), 500
 
 
+@app.route('/api/deathmatch/map/create', methods=['POST'])
+@admin_required
+def api_deathmatch_create():
+    payload = request.get_json(silent=True) or {}
+    region_name = (payload.get('region') or '').strip()
+    custom_message = (payload.get('customMessage') or '').strip()
+    provided_id = payload.get('regionId')
+    try:
+        data = _dm_read_all()
+        # Determinar novo RegionId
+        existing_ids = [int(item.get('RegionId', 0)) for item in data if item.get('RegionId') is not None]
+        next_id = (max(existing_ids) + 1) if existing_ids else 1
+        if provided_id is not None:
+            provided_id = int(provided_id)
+            if provided_id in existing_ids:
+                return jsonify({ 'error': f'RegionId {provided_id} já existe' }), 400
+            new_id = provided_id
+        else:
+            new_id = next_id
+
+        new_item = {
+            'RegionId': new_id,
+            'Active': False,
+            'IsDeleted': True,
+            'Region': region_name or f'Região {new_id}',
+            'CustomMessage': custom_message or '',
+            'SpawnZones': [],
+            'WallZones': [],
+            'Spawns': { 'Vehicles': [] }
+        }
+        data.append(new_item)
+        _dm_write_all(data)
+        return jsonify({ 'message': 'Mapa criado com sucesso', 'regionId': new_id })
+    except Exception as e:
+        return jsonify({ 'error': str(e) }), 500
+
+
 @app.route('/api/deathmatch/map/set-deleted', methods=['POST'])
 @admin_required
 def api_deathmatch_set_deleted():
@@ -583,6 +627,10 @@ def api_deathmatch_set_deleted():
         target = next((item for item in data if int(item.get('RegionId', -1)) == int(region_id)), None)
         if not target:
             return jsonify({ 'error': f'Região {region_id} não encontrada' }), 404
+        # Se tentar reverter exclusão, validar consistência
+        if bool(is_deleted) is False:
+            if not (len(target.get('SpawnZones') or []) >= 1 and len(target.get('WallZones') or []) >= 3):
+                return jsonify({ 'error': 'Não é possível reverter exclusão: mapa inválido (mín: 1 Spawn e 3 WallZones)' }), 400
         target['IsDeleted'] = bool(is_deleted)
         _dm_write_all(data)
         return jsonify({ 'message': 'Status de exclusão atualizado com sucesso' })
