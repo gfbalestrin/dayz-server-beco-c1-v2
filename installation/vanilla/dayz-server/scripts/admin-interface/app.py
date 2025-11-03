@@ -51,7 +51,9 @@ from database import (
     get_loadouts_custom, get_loadout_custom_by_id, create_loadout_custom, update_loadout_custom, delete_loadout_custom,
     get_loadouts_by_player, get_loadout_player_by_id, create_loadout_player, update_loadout_player, delete_loadout_player,
     get_players_with_loadouts, sync_custom_loadouts_to_file, sync_player_loadouts_to_file,
-    PROTECTED_LOADOUTS, ensure_protected_loadouts_exist
+    PROTECTED_LOADOUTS, ensure_protected_loadouts_exist,
+    # Admin Functions
+    get_admin_ids, get_admins_with_player_info, add_admin_id, remove_admin_id
 )
 from datetime import datetime
 
@@ -841,6 +843,77 @@ def api_all_players_with_status():
     """API com todos os jogadores e seus status para atualização automática"""
     players = get_all_players_with_status()
     return jsonify({'players': players})
+
+@app.route('/api/admins/list')
+@admin_required
+def api_admins_list():
+    """API com lista de administradores e suas informações do banco de dados"""
+    admins = get_admins_with_player_info()
+    return jsonify({'admins': admins})
+
+@app.route('/api/admins/add', methods=['POST'])
+@admin_required
+@audit_action('ADMIN_ADD')
+def api_admins_add():
+    """Adiciona um administrador"""
+    data = request.get_json()
+    player_id = data.get('player_id')
+    
+    if not player_id or not player_id.strip():
+        return jsonify({'success': False, 'message': 'Player ID é obrigatório'}), 400
+    
+    player_id = player_id.strip()
+    
+    # Verificar se o Player ID existe no banco (OBRIGATÓRIO)
+    player = get_player_by_id(player_id)
+    if not player:
+        return jsonify({
+            'success': False, 
+            'message': 'Player ID não encontrado no banco de dados. Apenas jogadores que estão na database podem ser adicionados como administradores.'
+        }), 400
+    
+    # Adicionar admin
+    success = add_admin_id(player_id)
+    
+    if success:
+        log_user_action(
+            session.get('user_id'),
+            session.get('username', 'Unknown'),
+            'ADD_ADMIN',
+            {'player_id': player_id},
+            get_client_ip()
+        )
+        return jsonify({'success': True, 'message': 'Administrador adicionado com sucesso!'})
+    else:
+        return jsonify({'success': False, 'message': 'Erro ao adicionar administrador. Player ID já existe ou ocorreu um erro.'}), 400
+
+@app.route('/api/admins/remove', methods=['POST'])
+@admin_required
+@audit_action('ADMIN_REMOVE')
+def api_admins_remove():
+    """Remove um administrador"""
+    data = request.get_json()
+    player_id = data.get('player_id')
+    
+    if not player_id or not player_id.strip():
+        return jsonify({'success': False, 'message': 'Player ID é obrigatório'}), 400
+    
+    player_id = player_id.strip()
+    
+    # Remover admin
+    success = remove_admin_id(player_id)
+    
+    if success:
+        log_user_action(
+            session.get('user_id'),
+            session.get('username', 'Unknown'),
+            'REMOVE_ADMIN',
+            {'player_id': player_id},
+            get_client_ip()
+        )
+        return jsonify({'success': True, 'message': 'Administrador removido com sucesso!'})
+    else:
+        return jsonify({'success': False, 'message': 'Erro ao remover administrador. Player ID não encontrado ou ocorreu um erro.'}), 400
 
 @app.route('/api/players/<player_id>/action', methods=['POST'])
 @admin_required

@@ -2577,3 +2577,135 @@ def migrate_custom_loadouts_from_files() -> bool:
     except Exception as e:
         print(f"Erro ao migrar loadouts custom: {str(e)}")
         return False
+
+# ============================================================================
+# FUNÇÕES DE ADMINISTRADORES
+# ============================================================================
+
+def get_admin_ids() -> List[str]:
+    """Retorna lista de Player IDs dos administradores do arquivo admin_ids.txt"""
+    try:
+        if not os.path.exists(config.ADMIN_IDS_FILE):
+            return []
+        
+        admin_ids = []
+        with open(config.ADMIN_IDS_FILE, 'r') as f:
+            for line in f:
+                player_id = line.strip()
+                if player_id:
+                    admin_ids.append(player_id)
+        
+        return admin_ids
+    except Exception as e:
+        print(f"Erro ao ler admin_ids.txt: {str(e)}")
+        return []
+
+def get_admins_with_player_info() -> List[Dict]:
+    """Retorna lista de administradores com informações do banco de dados"""
+    admin_ids = get_admin_ids()
+    
+    if not admin_ids:
+        return []
+    
+    # Correlacionar com players_database
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        
+        # Criar placeholders para a query IN
+        placeholders = ','.join('?' * len(admin_ids))
+        
+        cursor.execute(f"""
+            SELECT PlayerID, PlayerName, SteamID, SteamName
+            FROM players_database
+            WHERE PlayerID IN ({placeholders})
+        """, admin_ids)
+        
+        players_dict = {row['PlayerID']: dict(row) for row in cursor.fetchall()}
+    
+    # Construir lista de administradores com informações do banco ou placeholders
+    admins = []
+    for player_id in admin_ids:
+        if player_id in players_dict:
+            admin_info = players_dict[player_id]
+            admins.append({
+                'PlayerID': admin_info['PlayerID'],
+                'PlayerName': admin_info['PlayerName'],
+                'SteamID': admin_info['SteamID'],
+                'SteamName': admin_info['SteamName']
+            })
+        else:
+            # Player ID não encontrado no banco ainda
+            admins.append({
+                'PlayerID': player_id,
+                'PlayerName': None,
+                'SteamID': None,
+                'SteamName': None
+            })
+    
+    return admins
+
+def add_admin_id(player_id: str) -> bool:
+    """Adiciona um Player ID ao arquivo admin_ids.txt (com lock de arquivo)"""
+    import fcntl
+    
+    if not player_id or not player_id.strip():
+        return False
+    
+    player_id = player_id.strip()
+    
+    # Verificar se já existe
+    existing_ids = get_admin_ids()
+    if player_id in existing_ids:
+        return False
+    
+    try:
+        # Criar diretório se não existir
+        os.makedirs(os.path.dirname(config.ADMIN_IDS_FILE), exist_ok=True)
+        
+        with open(config.ADMIN_IDS_FILE, 'a') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.write(f"{player_id}\n")
+                f.flush()
+                os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        
+        return True
+    except Exception as e:
+        print(f"Erro ao adicionar admin ID: {str(e)}")
+        return False
+
+def remove_admin_id(player_id: str) -> bool:
+    """Remove um Player ID do arquivo admin_ids.txt (com lock de arquivo)"""
+    import fcntl
+    
+    if not player_id or not player_id.strip():
+        return False
+    
+    player_id = player_id.strip()
+    
+    # Ler todos os IDs
+    admin_ids = get_admin_ids()
+    
+    if player_id not in admin_ids:
+        return False
+    
+    # Remover o ID da lista
+    admin_ids.remove(player_id)
+    
+    try:
+        with open(config.ADMIN_IDS_FILE, 'w') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                for admin_id in admin_ids:
+                    f.write(f"{admin_id}\n")
+                f.flush()
+                os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        
+        return True
+    except Exception as e:
+        print(f"Erro ao remover admin ID: {str(e)}")
+        return False

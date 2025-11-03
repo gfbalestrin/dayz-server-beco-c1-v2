@@ -6,6 +6,12 @@ let currentRefreshInterval = 30000; // 30 segundos padrão
 let nextRefreshTime = 0;
 let searchTimeout = null;
 
+// Variáveis para administradores
+let adminsData = [];
+let adminsTable = null;
+let adminSearchTimeout = null;
+let adminIds = new Set(); // Set para verificação rápida de admin IDs
+
 // Função para escapar HTML e prevenir XSS
 function escapeHtml(text) {
     const map = {
@@ -181,6 +187,14 @@ function renderActions(player) {
         return '<span class="text-muted">-</span>';
     }
     
+    // Verificar se o jogador já é administrador
+    const isAdmin = adminIds.has(player.PlayerID);
+    const addAdminButton = isAdmin ? '' : `
+        <button class="btn btn-outline-primary" onclick="addAdminFromPlayer('${player.PlayerID}')" title="Adicionar como Administrador">
+            <i class="fas fa-user-shield"></i>
+        </button>
+    `;
+    
     return `
         <div class="btn-group btn-group-sm" role="group">
             <button class="btn btn-primary" onclick="redirectToSpawning('${player.PlayerID}')" title="Spawnar Itens">
@@ -207,6 +221,7 @@ function renderActions(player) {
             <button class="btn btn-info" onclick="executeAction('${player.PlayerID}', 'desbug')" title="Desbug">
                 <i class="fas fa-wrench"></i>
             </button>
+            ${addAdminButton}
         </div>
     `;
 }
@@ -258,6 +273,9 @@ function loadPlayers() {
             const offlineCount = playersData.length - onlineCount;
             console.log(`[loadPlayers] Dados carregados: ${playersData.length} total, ${onlineCount} online, ${offlineCount} offline`);
             renderPlayersTable();
+            // Após renderizar a tabela de jogadores, carregar administradores
+            // Isso garante que a tabela esteja criada antes de atualizar os botões
+            loadAdmins();
         },
         error: function(xhr) {
             showToast('Erro', 'Erro ao carregar jogadores', 'error');
@@ -455,10 +473,24 @@ $(document).ready(function() {
     });
     
     // Carregar dados iniciais
+    // loadAdmins() será chamado automaticamente após loadPlayers() completar
     loadPlayers();
     
     // Iniciar auto-refresh
     updateRefreshInterval();
+    
+    // Event listeners para administradores
+    $('#adminSearchInput').on('input', function() {
+        const searchTerm = $(this).val();
+        
+        if (adminSearchTimeout) {
+            clearTimeout(adminSearchTimeout);
+        }
+        
+        adminSearchTimeout = setTimeout(function() {
+            renderAdminsTable();
+        }, 300);
+    });
     
     // Tornar funções globais para uso nos botões inline
     window.copyPlayerId = copyPlayerId;
@@ -467,6 +499,8 @@ $(document).ready(function() {
     window.deactivateGodMode = deactivateGodMode;
     window.toggleStamina = toggleStamina;
     window.redirectToSpawning = redirectToSpawning;
+    window.removeAdmin = removeAdmin;
+    window.addAdminFromPlayer = addAdminFromPlayer;
     
     // Limpar intervalos ao sair da página
     $(window).on('beforeunload', function() {
@@ -475,4 +509,226 @@ $(document).ready(function() {
         }
     });
 });
+
+// ============================================================================
+// FUNÇÕES DE ADMINISTRADORES
+// ============================================================================
+
+// Função para carregar administradores
+function loadAdmins() {
+    $.ajax({
+        url: '/api/admins/list',
+        method: 'GET',
+        success: function(response) {
+            adminsData = response.admins || [];
+            // Atualizar Set de admin IDs para verificação rápida
+            adminIds = new Set(adminsData.map(admin => admin.PlayerID));
+            console.log(`[loadAdmins] Dados carregados: ${adminsData.length} administradores`);
+            renderAdminsTable();
+            // Atualizar tabela de jogadores apenas se ela já foi criada
+            // Isso evita renderização duplicada que causa erro de contagem de colunas
+            if ($.fn.DataTable.isDataTable('#playersTable') && table) {
+                updatePlayersTableActions();
+            }
+        },
+        error: function(xhr) {
+            console.error('Erro ao carregar administradores:', xhr);
+            showToast('Erro', 'Erro ao carregar administradores', 'error');
+        }
+    });
+}
+
+// Função para atualizar apenas as ações na tabela de jogadores (sem recriar o DataTable)
+function updatePlayersTableActions() {
+    if (!$.fn.DataTable.isDataTable('#playersTable') || !table) {
+        return;
+    }
+    
+    try {
+        // Atualizar as células de ações usando a API do DataTables
+        // Isso garante que apenas as linhas visíveis na página atual sejam atualizadas
+        const searchTerm = $('#searchInput').val();
+        const filteredData = filterPlayersData(playersData, searchTerm);
+        
+        table.rows().every(function() {
+            const rowData = this.data();
+            const rowNode = this.node();
+            
+            // Encontrar o Player ID na linha atual
+            // O Player ID está na segunda coluna (índice 1)
+            const playerIdCell = $(rowNode).find('td').eq(1);
+            const button = playerIdCell.find('button');
+            if (button.length > 0) {
+                const onclickAttr = button.attr('onclick');
+                const match = onclickAttr ? onclickAttr.match(/copyPlayerId\('([^']+)'\)/) : null;
+                
+                if (match && match[1]) {
+                    const playerId = match[1];
+                    // Encontrar o player correspondente nos dados filtrados
+                    const player = filteredData.find(p => p.PlayerID === playerId);
+                    
+                    if (player) {
+                        const actionCell = $(rowNode).find('td').eq(6);
+                        if (actionCell.length > 0) {
+                            actionCell.html(renderActions(player));
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Redesenhar a tabela para aplicar mudanças
+        table.draw(false);
+    } catch (error) {
+        console.error('[updatePlayersTableActions] Erro ao atualizar ações:', error);
+        // Em caso de erro, recarregar a tabela inteira de forma segura
+        if ($.fn.DataTable.isDataTable('#playersTable')) {
+            table.destroy();
+            table = null;
+        }
+        renderPlayersTable();
+    }
+}
+
+// Função para filtrar administradores
+function filterAdminsData(data, searchTerm) {
+    if (!searchTerm || searchTerm.trim() === '') {
+        return data;
+    }
+    
+    const term = searchTerm.toLowerCase().trim();
+    
+    return data.filter(admin => {
+        const playerName = (admin.PlayerName || '').toLowerCase();
+        const steamName = (admin.SteamName || '').toLowerCase();
+        const playerId = (admin.PlayerID || '').toLowerCase();
+        
+        return playerName.includes(term) || 
+               steamName.includes(term) || 
+               playerId.includes(term);
+    });
+}
+
+// Função para renderizar tabela de administradores
+function renderAdminsTable() {
+    const searchTerm = $('#adminSearchInput').val();
+    let filteredData = filterAdminsData(adminsData, searchTerm);
+    
+    console.log(`[renderAdminsTable] Renderizando tabela com ${filteredData.length} administradores filtrados`);
+    
+    // Destruir DataTable se existir
+    if ($.fn.DataTable.isDataTable('#adminsTable')) {
+        adminsTable.clear();
+        adminsTable.destroy();
+        adminsTable = null;
+    }
+    
+    // Limpar e preencher tbody
+    const tbody = $('#adminsTableBody');
+    tbody.empty();
+    
+    if (filteredData.length === 0) {
+        // Criar linha com 4 células separadas (sem colspan) para evitar erro do DataTables
+        tbody.append('<tr><td class="text-center">Nenhum administrador encontrado</td><td></td><td></td><td></td></tr>');
+    } else {
+        // Renderizar cada administrador
+        filteredData.forEach(admin => {
+            const playerIdButton = `
+                <button class="btn btn-sm btn-outline-secondary" onclick="copyPlayerId('${admin.PlayerID}')" title="Copiar Player ID">
+                    <i class="fas fa-copy me-1"></i>ID
+                </button>
+            `;
+            
+            const playerName = escapeHtml(admin.PlayerName || 'Não encontrado no banco');
+            const steamName = admin.SteamName ? createSteamLink(admin.SteamID, admin.SteamName) : '<span class="text-muted">-</span>';
+            
+            const row = `
+                <tr>
+                    <td>${playerIdButton}</td>
+                    <td>${playerName}</td>
+                    <td>${steamName}</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" onclick="removeAdmin('${admin.PlayerID}')" title="Remover Administrador">
+                            <i class="fas fa-trash me-1"></i>Remover
+                        </button>
+                    </td>
+                </tr>
+            `;
+            tbody.append(row);
+        });
+    }
+    
+    // Recriar DataTable
+    adminsTable = $('#adminsTable').DataTable({
+        language: {
+            url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/pt-BR.json'
+        },
+        pageLength: 25,
+        responsive: true,
+        columnDefs: [
+            { orderable: false, targets: [0, 3] } // Player ID e Ações não são ordenáveis
+        ]
+    });
+}
+
+// Função para adicionar administrador a partir da lista de jogadores
+function addAdminFromPlayer(playerId) {
+    if (!playerId || !playerId.trim()) {
+        showToast('Erro', 'Player ID é obrigatório', 'error');
+        return;
+    }
+    
+    if (!confirm('Tem certeza que deseja adicionar este jogador como administrador?')) {
+        return;
+    }
+    
+    playerId = playerId.trim();
+    
+    $.ajax({
+        url: '/api/admins/add',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ player_id: playerId }),
+        success: function(response) {
+            if (response.success) {
+                showToast('Sucesso', response.message, 'success');
+                // Recarregar lista de administradores e jogadores para atualizar botões
+                loadAdmins();
+            } else {
+                showToast('Erro', response.message || 'Erro ao adicionar administrador', 'error');
+            }
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            showToast('Erro', error.message || 'Erro ao adicionar administrador', 'error');
+        }
+    });
+}
+
+// Função para remover administrador
+function removeAdmin(playerId) {
+    if (!confirm('Tem certeza que deseja remover este administrador?')) {
+        return;
+    }
+    
+    $.ajax({
+        url: '/api/admins/remove',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ player_id: playerId }),
+        success: function(response) {
+            if (response.success) {
+                showToast('Sucesso', response.message, 'success');
+                // Recarregar lista de administradores (isso também atualiza os botões na lista de jogadores)
+                loadAdmins();
+            } else {
+                showToast('Erro', response.message || 'Erro ao remover administrador', 'error');
+            }
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            showToast('Erro', error.message || 'Erro ao remover administrador', 'error');
+        }
+    });
+}
 
