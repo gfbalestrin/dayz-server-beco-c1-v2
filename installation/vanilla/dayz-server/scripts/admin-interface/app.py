@@ -2140,24 +2140,12 @@ def api_spawn_weapon_kit():
     if not kit:
         return jsonify({'success': False, 'message': 'Kit não encontrado'}), 404
     
-    # Buscar posição mais recente do jogador
-    player_coords = get_player_coords(player_id)
-    if not player_coords or len(player_coords) == 0:
-        return jsonify({'success': False, 'message': 'Jogador não encontrado ou sem posição'}), 404
-    
-    # Pegar coordenadas mais recentes (primeira da lista)
-    latest_coord = player_coords[0]
-    
     try:
         # Montar JSON do weapon kit usando função existente
         weapon_json = build_weapon_kit_json(kit)
         
-        # Usar coordenadas do jogador
-        coord_x = latest_coord['CoordX']
-        coord_y = latest_coord['CoordY']
-        
-        # Montar comando createweapon (cria arma montada próxima ao jogador)
-        command = f"SYSTEM createweapon {coord_x} {coord_y} {weapon_json}\n"
+        # Montar comando createweapon usando playerID (usa posição atual do jogador)
+        command = f"{player_id} createweapon {weapon_json}\n"
         
         # Escrever no arquivo com file locking
         with open(config.COMMANDS_FILE, 'a') as f:
@@ -2203,16 +2191,6 @@ def api_spawn_loot_kit():
     kit = get_loot_kit_by_id(kit_id)
     if not kit:
         return jsonify({'success': False, 'message': 'Kit não encontrado'}), 404
-    
-    # Buscar posição mais recente do jogador
-    player_coords = get_player_coords(player_id)
-    if not player_coords or len(player_coords) == 0:
-        return jsonify({'success': False, 'message': 'Jogador não encontrado ou sem posição'}), 404
-    
-    # Pegar coordenadas mais recentes (primeira da lista)
-    latest_coord = player_coords[0]
-    coord_x = latest_coord['CoordX']
-    coord_y = latest_coord['CoordY']
     
     try:
         # Montar lista de itens (mesma lógica de api_spawn_loot_kit_coords)
@@ -2261,10 +2239,10 @@ def api_spawn_loot_kit():
         # Combinar: weapon kits primeiro (são grandes), depois itens simples ordenados
         items = weapon_kit_items + simple_items_sorted
         
-        # Montar comando createcontainer nas coordenadas do jogador
+        # Montar comando createcontainer usando playerID (usa posição atual do jogador)
         container_type = kit['container_name_type']
         items_str = ' '.join(items)
-        command = f"SYSTEM createcontainer {container_type} {coord_x} {coord_y} {items_str}\n"
+        command = f"{player_id} createcontainer {container_type} {items_str}\n"
         
         # Escrever no arquivo com file locking
         with open(config.COMMANDS_FILE, 'a') as f:
@@ -2276,7 +2254,7 @@ def api_spawn_loot_kit():
             finally:
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         
-        logger.info(f"Kit de loot {kit_id} spawnado para {player_id} em ({coord_x}, {coord_y})")
+        logger.info(f"Kit de loot {kit_id} spawnado para {player_id}")
         return jsonify({
             'success': True,
             'message': f'Kit de loot spawnado com sucesso!'
