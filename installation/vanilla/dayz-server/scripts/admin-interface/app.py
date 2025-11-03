@@ -269,21 +269,21 @@ def change_password_required():
     return render_template('change_password_required.html')
 
 @app.route('/')
-@login_required
+@admin_required
 def index():
     """Lista de jogadores - Página principal"""
     players_list = get_all_players_with_status()
     return render_template('players.html', players=players_list)
 
 @app.route('/players')
-@login_required
+@admin_required
 def players():
     """Lista de jogadores"""
     players_list = get_all_players_with_status()
     return render_template('players.html', players=players_list)
 
 @app.route('/player/<player_id>/coords')
-@login_required
+@admin_required
 def player_coords(player_id):
     """Coordenadas de um jogador específico"""
     player = get_player_by_id(player_id)
@@ -300,14 +300,14 @@ def player_coords(player_id):
     return render_template('player_coords.html', player=player, coords=coords)
 
 @app.route('/logs/adm')
-@login_required
+@admin_required
 def logs_adm():
     """Logs administrativos"""
     logs = get_logs_adm()
     return render_template('logs_adm.html', logs=logs)
 
 @app.route('/logs/custom')
-@login_required
+@admin_required
 def logs_custom():
     """Logs customizados"""
     logs = get_logs_custom()
@@ -350,14 +350,14 @@ def logs_audit():
                          })
 
 @app.route('/vehicles')
-@login_required
+@admin_required
 def vehicles():
     """Tracking de veículos"""
     vehicles = get_vehicles_tracking()
     return render_template('vehicles.html', vehicles=vehicles)
 
 @app.route('/map')
-@login_required
+@admin_required
 def map_view():
     """Visualização do mapa"""
     players_list = get_all_players()
@@ -365,7 +365,7 @@ def map_view():
     return render_template('map.html', players=players_list, player_id_filter=player_id_filter)
 
 @app.route('/api/players/positions')
-@login_required
+@admin_required
 def api_positions():
     """API com posições atuais de todos os jogadores"""
     positions = get_players_last_position()
@@ -400,7 +400,7 @@ def api_positions():
     return jsonify(result)
 
 @app.route('/api/players/<player_id>/trail')
-@login_required
+@admin_required
 def api_player_trail(player_id):
     """API com trail de um jogador específico"""
     limit = request.args.get('limit', 100, type=int)
@@ -426,7 +426,7 @@ def api_player_trail(player_id):
     return jsonify(result)
 
 @app.route('/api/players/online/positions')
-@login_required
+@admin_required
 def api_online_positions():
     """API com posições apenas de jogadores online"""
     positions = get_online_players_positions()
@@ -453,7 +453,7 @@ def api_online_positions():
     return jsonify(result)
 
 @app.route('/api/vehicles/positions')
-@login_required
+@admin_required
 def api_vehicles_positions():
     """API com posições atuais de todos os veículos"""
     vehicles = get_vehicles_last_position()
@@ -482,7 +482,7 @@ def api_vehicles_positions():
     return jsonify(result)
 
 @app.route('/api/vehicles/map-positions')
-@login_required
+@admin_required
 def api_vehicles_map_positions():
     """API com posições atuais dos veículos para o mapa (otimizado)"""
     vehicles = get_vehicles_map_positions()
@@ -511,7 +511,7 @@ def api_vehicles_map_positions():
     return jsonify(result)
 
 @app.route('/api/containers/positions')
-@login_required
+@admin_required
 def api_containers_positions():
     """API com posições atuais dos containers com seus items"""
     containers = get_containers_last_position()
@@ -554,7 +554,7 @@ def api_containers_positions():
     return jsonify(result)
 
 @app.route('/api/fences/positions')
-@login_required
+@admin_required
 def api_fences_positions():
     """API com posições atuais dos fences (construções)"""
     fences = get_fences_last_position()
@@ -581,7 +581,7 @@ def api_fences_positions():
     return jsonify(result)
 
 @app.route('/api/players/search')
-@login_required
+@admin_required
 def api_search_players():
     """API para busca de jogadores"""
     query = request.args.get('q', '')
@@ -592,7 +592,7 @@ def api_search_players():
     return jsonify(results)
 
 @app.route('/api/players/<player_id>/restore-backup', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('RESTORE_BACKUP')
 def api_restore_backup(player_id):
     """API para restaurar backup de um jogador"""
@@ -690,7 +690,7 @@ def api_restore_backup(player_id):
         }), 500
 
 @app.route('/api/players/<player_id>/teleport', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('TELEPORT_PLAYER')
 def api_teleport_player(player_id):
     """API para teleportar jogador para uma posição usando sistema de comandos DayZ"""
@@ -766,7 +766,7 @@ def api_teleport_player(player_id):
         }), 500
 
 @app.route('/api/events/kills')
-@login_required
+@admin_required
 def api_kills():
     """API com eventos de kills recentes"""
     limit = request.args.get('limit', 100, type=int)
@@ -829,21 +829,21 @@ def api_kills():
     return jsonify(result)
 
 @app.route('/api/players/online')
-@login_required
+@admin_required
 def api_online_players():
     """API com jogadores online e suas informações"""
     players = get_online_players()
     return jsonify({'players': players})
 
 @app.route('/api/players/all-with-status')
-@login_required
+@admin_required
 def api_all_players_with_status():
     """API com todos os jogadores e seus status para atualização automática"""
     players = get_all_players_with_status()
     return jsonify({'players': players})
 
 @app.route('/api/players/<player_id>/action', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('PLAYER_ACTION')
 def api_player_action(player_id):
     """Executar ação administrativa em jogador"""
@@ -890,13 +890,13 @@ def api_player_action(player_id):
         }), 500
 
 @app.route('/spawning')
-@login_required
+@admin_required
 def spawning():
     """Página de spawning de itens e veículos"""
     return render_template('spawning.html')
 
 @app.route('/api/items/weapons')
-@login_required
+@admin_required
 def api_weapons():
     """API para buscar armas"""
     search = request.args.get('search', '')
@@ -904,7 +904,7 @@ def api_weapons():
     return jsonify({'weapons': weapons})
 
 @app.route('/api/items/items')
-@login_required
+@admin_required
 def api_items():
     """API para buscar itens"""
     type_id = request.args.get('type_id', type=int)
@@ -913,14 +913,14 @@ def api_items():
     return jsonify({'items': items})
 
 @app.route('/api/items/types')
-@login_required
+@admin_required
 def api_item_types():
     """API para buscar tipos de itens"""
     types = get_item_types()
     return jsonify({'types': types})
 
 @app.route('/api/spawn/item', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('SPAWN_ITEM')
 def api_spawn_item():
     """Spawnar item para jogador ou em coordenadas"""
@@ -964,7 +964,7 @@ def api_spawn_item():
         }), 500
 
 @app.route('/api/spawn/vehicle', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('SPAWN_VEHICLE')
 def api_spawn_vehicle():
     """Spawnar veículo em coordenadas ou próximo a jogador"""
@@ -1007,7 +1007,7 @@ def api_spawn_vehicle():
         }), 500
 
 @app.route('/api/spawn/item-at-coords', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('SPAWN_ITEM_COORDS')
 def api_spawn_item_at_coords():
     """Spawnar item em coordenadas específicas usando comando createitem"""
@@ -1052,7 +1052,7 @@ def api_spawn_item_at_coords():
         }), 500
 
 @app.route('/api/spawn/vehicle-at-coords', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('SPAWN_VEHICLE_COORDS')
 def api_spawn_vehicle_at_coords():
     """Spawnar veículo em coordenadas específicas usando comando createvehicle"""
@@ -1096,7 +1096,7 @@ def api_spawn_vehicle_at_coords():
         }), 500
 
 @app.route('/api/items/explosives')
-@login_required
+@admin_required
 def api_explosives():
     search = request.args.get('search', '')
     limit = int(request.args.get('limit', 50))
@@ -1104,7 +1104,7 @@ def api_explosives():
     return jsonify({'explosives': explosives})
 
 @app.route('/api/items/ammunitions')
-@login_required
+@admin_required
 def api_ammunitions():
     search = request.args.get('search', '')
     caliber_id = request.args.get('caliber_id', type=int)
@@ -1114,13 +1114,13 @@ def api_ammunitions():
     return jsonify({'ammunitions': ammunitions})
 
 @app.route('/api/items/calibers')
-@login_required
+@admin_required
 def api_calibers():
     calibers = get_calibers()
     return jsonify({'calibers': calibers})
 
 @app.route('/api/items/magazines')
-@login_required
+@admin_required
 def api_magazines():
     search = request.args.get('search', '')
     weapon_id = request.args.get('weapon_id', type=int)
@@ -1129,7 +1129,7 @@ def api_magazines():
     return jsonify({'magazines': magazines})
 
 @app.route('/api/items/attachments')
-@login_required
+@admin_required
 def api_attachments():
     search = request.args.get('search', '')
     type_filter = request.args.get('type', '')
@@ -1139,44 +1139,44 @@ def api_attachments():
     return jsonify({'attachments': attachments})
 
 @app.route('/api/items/attachment-types')
-@login_required
+@admin_required
 def api_attachment_types():
     types = get_attachment_types()
     return jsonify({'types': types})
 
 # Endpoints "get all" para kits (sem limite)
 @app.route('/api/items/all-explosives')
-@login_required
+@admin_required
 def api_all_explosives():
     explosives = get_all_explosives()
     return jsonify({'explosives': explosives})
 
 @app.route('/api/items/all-ammunitions')
-@login_required
+@admin_required
 def api_all_ammunitions():
     ammunitions = get_all_ammunitions()
     return jsonify({'ammunitions': ammunitions})
 
 @app.route('/api/items/all-magazines')
-@login_required
+@admin_required
 def api_all_magazines():
     magazines = get_all_magazines()
     return jsonify({'magazines': magazines})
 
 @app.route('/api/items/all-attachments')
-@login_required
+@admin_required
 def api_all_attachments():
     attachments = get_all_attachments()
     return jsonify({'attachments': attachments})
 
 @app.route('/api/weapons/<int:weapon_id>/compatible-items')
-@login_required
+@admin_required
 def api_weapon_compatible_items(weapon_id):
     items = get_weapon_compatible_items(weapon_id)
     return jsonify(items)
 
 @app.route('/api/spawn/loadout', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('SPAWN_LOADOUT')
 def api_spawn_loadout():
     """Spawnar arma com múltiplos acessórios"""
@@ -1222,20 +1222,20 @@ def api_spawn_loadout():
 # ============================================================================
 
 @app.route('/items-manage')
-@login_required
+@admin_required
 def items_manage():
     """Página de gerenciamento do banco de dados de itens"""
     return render_template('items_manage.html')
 
 # === WEAPONS ===
 @app.route('/api/manage/weapons', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_weapons_list():
     weapons = get_weapons_with_calibers(limit=1000)
     return jsonify({'weapons': weapons})
 
 @app.route('/api/manage/weapons/<int:weapon_id>', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_weapon_detail(weapon_id):
     weapon = get_weapon_by_id(weapon_id)
     if not weapon:
@@ -1244,7 +1244,7 @@ def api_manage_weapon_detail(weapon_id):
     return jsonify({'weapon': weapon, 'relationships': relationships})
 
 @app.route('/api/manage/weapons', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('CREATE_WEAPON')
 def api_manage_weapon_create():
     data = request.get_json()
@@ -1255,7 +1255,7 @@ def api_manage_weapon_create():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/weapons/<int:weapon_id>', methods=['PUT'])
-@login_required
+@admin_required
 @audit_action('UPDATE_WEAPON')
 def api_manage_weapon_update(weapon_id):
     data = request.get_json()
@@ -1266,7 +1266,7 @@ def api_manage_weapon_update(weapon_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/weapons/<int:weapon_id>', methods=['DELETE'])
-@login_required
+@admin_required
 @audit_action('DELETE_WEAPON')
 def api_manage_weapon_delete(weapon_id):
     try:
@@ -1276,7 +1276,7 @@ def api_manage_weapon_delete(weapon_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/weapons/<int:weapon_id>/relationships', methods=['PUT'])
-@login_required
+@admin_required
 @audit_action('UPDATE_WEAPON_RELATIONSHIPS')
 def api_manage_weapon_relationships_update(weapon_id):
     data = request.get_json()
@@ -1293,20 +1293,20 @@ def api_manage_weapon_relationships_update(weapon_id):
 
 # === CALIBERS ===
 @app.route('/api/manage/calibers', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_calibers_list():
     calibers = get_calibers()
     return jsonify({'calibers': calibers})
 
 @app.route('/api/manage/calibers-list', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_calibers_list_simple():
     """Retorna apenas id e name dos calibres para filtros"""
     calibers = get_all_calibers()
     return jsonify({'calibers': calibers})
 
 @app.route('/api/manage/calibers/<int:caliber_id>', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_caliber_detail(caliber_id):
     caliber = get_caliber_by_id(caliber_id)
     if not caliber:
@@ -1314,7 +1314,7 @@ def api_manage_caliber_detail(caliber_id):
     return jsonify({'caliber': caliber})
 
 @app.route('/api/manage/calibers', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('CREATE_CALIBER')
 def api_manage_caliber_create():
     data = request.get_json()
@@ -1325,7 +1325,7 @@ def api_manage_caliber_create():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/calibers/<int:caliber_id>', methods=['PUT'])
-@login_required
+@admin_required
 @audit_action('UPDATE_CALIBER')
 def api_manage_caliber_update(caliber_id):
     data = request.get_json()
@@ -1336,7 +1336,7 @@ def api_manage_caliber_update(caliber_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/calibers/<int:caliber_id>', methods=['DELETE'])
-@login_required
+@admin_required
 @audit_action('DELETE_CALIBER')
 def api_manage_caliber_delete(caliber_id):
     try:
@@ -1347,13 +1347,13 @@ def api_manage_caliber_delete(caliber_id):
 
 # === AMMUNITIONS ===
 @app.route('/api/manage/ammunitions', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_ammunitions_list():
     ammunitions = get_ammunitions(limit=1000)
     return jsonify({'ammunitions': ammunitions})
 
 @app.route('/api/manage/ammunitions/<int:ammo_id>', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_ammunition_detail(ammo_id):
     ammunition = get_ammunition_by_id(ammo_id)
     if not ammunition:
@@ -1361,7 +1361,7 @@ def api_manage_ammunition_detail(ammo_id):
     return jsonify({'ammunition': ammunition})
 
 @app.route('/api/manage/ammunitions', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('CREATE_AMMUNITION')
 def api_manage_ammunition_create():
     data = request.get_json()
@@ -1372,7 +1372,7 @@ def api_manage_ammunition_create():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/ammunitions/<int:ammo_id>', methods=['PUT'])
-@login_required
+@admin_required
 @audit_action('UPDATE_AMMUNITION')
 def api_manage_ammunition_update(ammo_id):
     data = request.get_json()
@@ -1383,7 +1383,7 @@ def api_manage_ammunition_update(ammo_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/ammunitions/<int:ammo_id>', methods=['DELETE'])
-@login_required
+@admin_required
 @audit_action('DELETE_AMMUNITION')
 def api_manage_ammunition_delete(ammo_id):
     try:
@@ -1394,13 +1394,13 @@ def api_manage_ammunition_delete(ammo_id):
 
 # === MAGAZINES ===
 @app.route('/api/manage/magazines', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_magazines_list():
     magazines = get_magazines(limit=1000)
     return jsonify({'magazines': magazines})
 
 @app.route('/api/manage/magazines/<int:mag_id>', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_magazine_detail(mag_id):
     magazine = get_magazine_by_id(mag_id)
     if not magazine:
@@ -1408,7 +1408,7 @@ def api_manage_magazine_detail(mag_id):
     return jsonify({'magazine': magazine})
 
 @app.route('/api/manage/magazines', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('CREATE_MAGAZINE')
 def api_manage_magazine_create():
     data = request.get_json()
@@ -1419,7 +1419,7 @@ def api_manage_magazine_create():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/magazines/<int:mag_id>', methods=['PUT'])
-@login_required
+@admin_required
 @audit_action('UPDATE_MAGAZINE')
 def api_manage_magazine_update(mag_id):
     data = request.get_json()
@@ -1430,7 +1430,7 @@ def api_manage_magazine_update(mag_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/magazines/<int:mag_id>', methods=['DELETE'])
-@login_required
+@admin_required
 @audit_action('DELETE_MAGAZINE')
 def api_manage_magazine_delete(mag_id):
     try:
@@ -1441,13 +1441,13 @@ def api_manage_magazine_delete(mag_id):
 
 # === ATTACHMENTS ===
 @app.route('/api/manage/attachments', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_attachments_list():
     attachments = get_attachments(limit=1000)
     return jsonify({'attachments': attachments})
 
 @app.route('/api/manage/attachments/<int:att_id>', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_attachment_detail(att_id):
     attachment = get_attachment_by_id(att_id)
     if not attachment:
@@ -1455,7 +1455,7 @@ def api_manage_attachment_detail(att_id):
     return jsonify({'attachment': attachment})
 
 @app.route('/api/manage/attachments', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('CREATE_ATTACHMENT')
 def api_manage_attachment_create():
     data = request.get_json()
@@ -1466,7 +1466,7 @@ def api_manage_attachment_create():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/attachments/<int:att_id>', methods=['PUT'])
-@login_required
+@admin_required
 @audit_action('UPDATE_ATTACHMENT')
 def api_manage_attachment_update(att_id):
     data = request.get_json()
@@ -1477,7 +1477,7 @@ def api_manage_attachment_update(att_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/attachments/<int:att_id>', methods=['DELETE'])
-@login_required
+@admin_required
 @audit_action('DELETE_ATTACHMENT')
 def api_manage_attachment_delete(att_id):
     try:
@@ -1488,13 +1488,13 @@ def api_manage_attachment_delete(att_id):
 
 # === EXPLOSIVES ===
 @app.route('/api/manage/explosives', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_explosives_list():
     explosives = get_explosives(limit=1000)
     return jsonify({'explosives': explosives})
 
 @app.route('/api/manage/explosives/<int:exp_id>', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_explosive_detail(exp_id):
     explosive = get_explosive_by_id(exp_id)
     if not explosive:
@@ -1502,7 +1502,7 @@ def api_manage_explosive_detail(exp_id):
     return jsonify({'explosive': explosive})
 
 @app.route('/api/manage/explosives', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('CREATE_EXPLOSIVE')
 def api_manage_explosive_create():
     data = request.get_json()
@@ -1513,7 +1513,7 @@ def api_manage_explosive_create():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/explosives/<int:exp_id>', methods=['PUT'])
-@login_required
+@admin_required
 @audit_action('UPDATE_EXPLOSIVE')
 def api_manage_explosive_update(exp_id):
     data = request.get_json()
@@ -1524,7 +1524,7 @@ def api_manage_explosive_update(exp_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/explosives/<int:exp_id>', methods=['DELETE'])
-@login_required
+@admin_required
 @audit_action('DELETE_EXPLOSIVE')
 def api_manage_explosive_delete(exp_id):
     try:
@@ -1535,13 +1535,13 @@ def api_manage_explosive_delete(exp_id):
 
 # === ITEM_TYPES ===
 @app.route('/api/manage/item-types', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_item_types_list():
     types = get_item_types()
     return jsonify({'types': types})
 
 @app.route('/api/manage/item-types/<int:type_id>', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_item_type_detail(type_id):
     item_type = get_item_type_by_id(type_id)
     if not item_type:
@@ -1549,7 +1549,7 @@ def api_manage_item_type_detail(type_id):
     return jsonify({'type': item_type})
 
 @app.route('/api/manage/item-types', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('CREATE_ITEM_TYPE')
 def api_manage_item_type_create():
     data = request.get_json()
@@ -1560,7 +1560,7 @@ def api_manage_item_type_create():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/item-types/<int:type_id>', methods=['PUT'])
-@login_required
+@admin_required
 @audit_action('UPDATE_ITEM_TYPE')
 def api_manage_item_type_update(type_id):
     data = request.get_json()
@@ -1571,7 +1571,7 @@ def api_manage_item_type_update(type_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/item-types/<int:type_id>', methods=['DELETE'])
-@login_required
+@admin_required
 @audit_action('DELETE_ITEM_TYPE')
 def api_manage_item_type_delete(type_id):
     try:
@@ -1582,13 +1582,13 @@ def api_manage_item_type_delete(type_id):
 
 # === ITEMS ===
 @app.route('/api/manage/items', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_items_list():
     items = get_items(limit=1000)
     return jsonify({'items': items})
 
 @app.route('/api/manage/items/<int:item_id>', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_item_detail(item_id):
     item = get_item_by_id(item_id)
     if not item:
@@ -1597,7 +1597,7 @@ def api_manage_item_detail(item_id):
     return jsonify({'item': item, 'compatibility': compatibility})
 
 @app.route('/api/manage/items', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('CREATE_ITEM')
 def api_manage_item_create():
     data = request.get_json()
@@ -1608,7 +1608,7 @@ def api_manage_item_create():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/items/<int:item_id>', methods=['PUT'])
-@login_required
+@admin_required
 @audit_action('UPDATE_ITEM')
 def api_manage_item_update(item_id):
     data = request.get_json()
@@ -1619,7 +1619,7 @@ def api_manage_item_update(item_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/items/<int:item_id>', methods=['DELETE'])
-@login_required
+@admin_required
 @audit_action('DELETE_ITEM')
 def api_manage_item_delete(item_id):
     try:
@@ -1629,14 +1629,14 @@ def api_manage_item_delete(item_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/items/<int:item_id>/compatibility', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_item_compatibility_get(item_id):
     """Retorna compatibilidade de um item"""
     compatibility = get_item_compatibility(item_id)
     return jsonify({'compatibility': compatibility})
 
 @app.route('/api/manage/items/<int:item_id>/compatibility', methods=['PUT'])
-@login_required
+@admin_required
 @audit_action('UPDATE_ITEM_COMPATIBILITY')
 def api_manage_item_compatibility_update(item_id):
     data = request.get_json()
@@ -1650,7 +1650,7 @@ def api_manage_item_compatibility_update(item_id):
 
 # === VALIDAÇÃO ===
 @app.route('/api/validate/item-type/<name_type>')
-@login_required
+@admin_required
 def api_validate_item_type(name_type):
     """Valida se o item type existe no types.xml"""
     is_valid = validate_item_type(name_type)
@@ -1662,13 +1662,13 @@ def not_found(e):
 
 # === RELACIONAMENTOS INVERSOS ===
 @app.route('/api/manage/magazines/<int:mag_id>/weapons', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_magazine_weapons_get(mag_id):
     weapons = get_magazine_weapons(mag_id)
     return jsonify({'weapons': weapons})
 
 @app.route('/api/manage/magazines/<int:mag_id>/weapons', methods=['PUT'])
-@login_required
+@admin_required
 @audit_action('UPDATE_MAGAZINE_WEAPONS')
 def api_manage_magazine_weapons_update(mag_id):
     data = request.get_json()
@@ -1680,13 +1680,13 @@ def api_manage_magazine_weapons_update(mag_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/ammunitions/<int:ammo_id>/weapons', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_ammunition_weapons_get(ammo_id):
     weapons = get_ammunition_weapons(ammo_id)
     return jsonify({'weapons': weapons})
 
 @app.route('/api/manage/ammunitions/<int:ammo_id>/weapons', methods=['PUT'])
-@login_required
+@admin_required
 @audit_action('UPDATE_AMMUNITION_WEAPONS')
 def api_manage_ammunition_weapons_update(ammo_id):
     data = request.get_json()
@@ -1698,13 +1698,13 @@ def api_manage_ammunition_weapons_update(ammo_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/attachments/<int:att_id>/weapons', methods=['GET'])
-@login_required
+@admin_required
 def api_manage_attachment_weapons_get(att_id):
     weapons = get_attachment_weapons(att_id)
     return jsonify({'weapons': weapons})
 
 @app.route('/api/manage/attachments/<int:att_id>/weapons', methods=['PUT'])
-@login_required
+@admin_required
 @audit_action('UPDATE_ATTACHMENT_WEAPONS')
 def api_manage_attachment_weapons_update(att_id):
     data = request.get_json()
@@ -1720,7 +1720,7 @@ def api_manage_attachment_weapons_update(att_id):
 # ============================================================================
 
 @app.route('/kits-manage')
-@login_required
+@admin_required
 def kits_manage():
     """Página de gerenciamento de kits de armas e loot"""
     return render_template('kits_manage.html')
@@ -1733,13 +1733,13 @@ def users_manage():
 
 # === WEAPON KITS ===
 @app.route('/api/kits/weapons', methods=['GET'])
-@login_required
+@admin_required
 def api_weapon_kits_list():
     kits = get_weapon_kits()
     return jsonify({'kits': kits})
 
 @app.route('/api/kits/weapons/<int:kit_id>', methods=['GET'])
-@login_required
+@admin_required
 def api_weapon_kit_detail(kit_id):
     kit = get_weapon_kit_by_id(kit_id)
     if not kit:
@@ -1747,7 +1747,7 @@ def api_weapon_kit_detail(kit_id):
     return jsonify({'kit': kit})
 
 @app.route('/api/kits/weapons', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('CREATE_WEAPON_KIT')
 def api_weapon_kit_create():
     data = request.get_json()
@@ -1758,7 +1758,7 @@ def api_weapon_kit_create():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/kits/weapons/<int:kit_id>', methods=['PUT'])
-@login_required
+@admin_required
 @audit_action('UPDATE_WEAPON_KIT')
 def api_weapon_kit_update(kit_id):
     data = request.get_json()
@@ -1769,7 +1769,7 @@ def api_weapon_kit_update(kit_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/kits/weapons/<int:kit_id>', methods=['DELETE'])
-@login_required
+@admin_required
 @audit_action('DELETE_WEAPON_KIT')
 def api_weapon_kit_delete(kit_id):
     try:
@@ -1780,13 +1780,13 @@ def api_weapon_kit_delete(kit_id):
 
 # === LOOT KITS ===
 @app.route('/api/kits/loot', methods=['GET'])
-@login_required
+@admin_required
 def api_loot_kits_list():
     kits = get_loot_kits()
     return jsonify({'kits': kits})
 
 @app.route('/api/kits/loot/<int:kit_id>', methods=['GET'])
-@login_required
+@admin_required
 def api_loot_kit_detail(kit_id):
     kit = get_loot_kit_by_id(kit_id)
     if not kit:
@@ -1794,7 +1794,7 @@ def api_loot_kit_detail(kit_id):
     return jsonify({'kit': kit})
 
 @app.route('/api/kits/loot', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('CREATE_LOOT_KIT')
 def api_loot_kit_create():
     data = request.get_json()
@@ -1805,7 +1805,7 @@ def api_loot_kit_create():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/kits/loot/<int:kit_id>', methods=['PUT'])
-@login_required
+@admin_required
 @audit_action('UPDATE_LOOT_KIT')
 def api_loot_kit_update(kit_id):
     data = request.get_json()
@@ -1816,7 +1816,7 @@ def api_loot_kit_update(kit_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/kits/loot/<int:kit_id>', methods=['DELETE'])
-@login_required
+@admin_required
 @audit_action('DELETE_LOOT_KIT')
 def api_loot_kit_delete(kit_id):
     try:
@@ -1826,19 +1826,19 @@ def api_loot_kit_delete(kit_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/kits/storage-containers', methods=['GET'])
-@login_required
+@admin_required
 def api_storage_containers():
     containers = get_storage_containers()
     return jsonify({'containers': containers})
 
 @app.route('/api/kits/loot/<int:kit_id>/space', methods=['GET'])
-@login_required
+@admin_required
 def api_loot_kit_space(kit_id):
     space_used = calculate_loot_kit_space(kit_id)
     return jsonify({'space_used': space_used})
 
 @app.route('/api/kits/loot/validate-space', methods=['POST'])
-@login_required
+@admin_required
 def api_validate_loot_kit_space():
     """Valida se os itens cabem no container usando cálculo 2D"""
     data = request.get_json()
@@ -2021,7 +2021,7 @@ def build_weapon_kit_json(weapon_kit):
     return json.dumps(json_obj, separators=(',', ':'))
 
 @app.route('/api/spawn/weapon-kit', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('SPAWN_WEAPON_KIT')
 def api_spawn_weapon_kit():
     """Spawnar kit de arma para jogador"""
@@ -2085,7 +2085,7 @@ def api_spawn_weapon_kit():
         }), 500
 
 @app.route('/api/spawn/loot-kit', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('SPAWN_LOOT_KIT')
 def api_spawn_loot_kit():
     """Spawnar kit de loot para jogador"""
@@ -2192,7 +2192,7 @@ def api_spawn_loot_kit():
         }), 500
 
 @app.route('/api/spawn/weapon-kit-coords', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('SPAWN_WEAPON_KIT_COORDS')
 def api_spawn_weapon_kit_coords():
     """Spawnar weapon kit em coordenadas do mapa usando createweapon"""
@@ -2241,7 +2241,7 @@ def api_spawn_weapon_kit_coords():
         }), 500
 
 @app.route('/api/spawn/loot-kit-coords', methods=['POST'])
-@login_required
+@admin_required
 @audit_action('SPAWN_LOOT_KIT_COORDS')
 def api_spawn_loot_kit_coords():
     """Spawnar kit de loot em coordenadas do mapa usando createcontainer"""
@@ -2552,31 +2552,31 @@ def api_manage_admins_delete(admin_id):
 # ============================================================================
 
 @app.route('/loadouts')
-@login_required
+@admin_required
 def loadouts():
     """Tela principal de gerenciamento de loadouts"""
     return render_template('loadouts.html')
 
 @app.route('/loadouts/custom/new')
-@login_required
+@admin_required
 def loadout_custom_new():
     """Página de criação de novo loadout custom"""
     return render_template('loadout_edit.html', loadout_id=None, is_edit=False, loadout_type='custom')
 
 @app.route('/loadouts/custom/<int:loadout_id>/edit')
-@login_required
+@admin_required
 def loadout_custom_edit(loadout_id):
     """Página de edição de loadout custom"""
     return render_template('loadout_edit.html', loadout_id=loadout_id, is_edit=True, loadout_type='custom')
 
 @app.route('/loadouts/players/<player_id>/new')
-@login_required
+@admin_required
 def loadout_player_new(player_id):
     """Página de criação de novo loadout para jogador"""
     return render_template('loadout_edit.html', loadout_id=None, is_edit=False, loadout_type='player', player_id=player_id)
 
 @app.route('/loadouts/players/<player_id>/<int:loadout_id>/edit')
-@login_required
+@admin_required
 def loadout_player_edit(player_id, loadout_id):
     """Página de edição de loadout de jogador"""
     return render_template('loadout_edit.html', loadout_id=loadout_id, is_edit=True, loadout_type='player', player_id=player_id)
@@ -2586,7 +2586,7 @@ def loadout_player_edit(player_id, loadout_id):
 # ============================================================================
 
 @app.route('/api/loadouts/custom', methods=['GET'])
-@login_required
+@admin_required
 def api_loadouts_custom_list():
     """Lista todos os loadouts custom"""
     try:
@@ -2596,7 +2596,7 @@ def api_loadouts_custom_list():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/loadouts/custom/<int:loadout_id>', methods=['GET'])
-@login_required
+@admin_required
 def api_loadouts_custom_get(loadout_id):
     """Obtém um loadout custom por ID"""
     try:
@@ -2608,7 +2608,7 @@ def api_loadouts_custom_get(loadout_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/loadouts/custom', methods=['POST'])
-@login_required
+@admin_required
 @admin_required
 def api_loadouts_custom_create():
     """Cria um novo loadout custom"""
@@ -2642,7 +2642,7 @@ def api_loadouts_custom_create():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/loadouts/custom/<int:loadout_id>', methods=['PUT'])
-@login_required
+@admin_required
 @admin_required
 def api_loadouts_custom_update(loadout_id):
     """Atualiza um loadout custom"""
@@ -2687,7 +2687,7 @@ def api_loadouts_custom_update(loadout_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/loadouts/custom/<int:loadout_id>', methods=['DELETE'])
-@login_required
+@admin_required
 @admin_required
 def api_loadouts_custom_delete(loadout_id):
     """Deleta um loadout custom"""
@@ -2727,7 +2727,7 @@ def api_loadouts_custom_delete(loadout_id):
 # ============================================================================
 
 @app.route('/api/loadouts/players/list', methods=['GET'])
-@login_required
+@admin_required
 def api_loadouts_players_list_all():
     """Lista todos os jogadores da tabela players_database"""
     try:
@@ -2737,7 +2737,7 @@ def api_loadouts_players_list_all():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/loadouts/players', methods=['GET'])
-@login_required
+@admin_required
 def api_loadouts_players_list():
     """Lista jogadores que possuem loadouts"""
     try:
@@ -2747,7 +2747,7 @@ def api_loadouts_players_list():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/loadouts/players/<player_id>', methods=['GET'])
-@login_required
+@admin_required
 def api_loadouts_players_get(player_id):
     """Obtém loadouts de um jogador"""
     try:
@@ -2757,7 +2757,7 @@ def api_loadouts_players_get(player_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/loadouts/players/<player_id>', methods=['POST'])
-@login_required
+@admin_required
 @admin_required
 def api_loadouts_players_create(player_id):
     """Cria um novo loadout para um jogador"""
@@ -2798,7 +2798,7 @@ def api_loadouts_players_create(player_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/loadouts/players/<player_id>/<int:loadout_id>', methods=['PUT'])
-@login_required
+@admin_required
 @admin_required
 def api_loadouts_players_update(player_id, loadout_id):
     """Atualiza um loadout de jogador (loadout_id é o ID interno, não o ID do banco)"""
@@ -2834,7 +2834,7 @@ def api_loadouts_players_update(player_id, loadout_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/loadouts/players/<player_id>/<int:loadout_id>', methods=['DELETE'])
-@login_required
+@admin_required
 @admin_required
 def api_loadouts_players_delete(player_id, loadout_id):
     """Deleta um loadout de jogador (loadout_id é o ID interno, não o ID do banco)"""
