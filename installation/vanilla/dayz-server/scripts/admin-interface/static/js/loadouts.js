@@ -2068,36 +2068,48 @@ function updateSelectedExplosivesDisplay() {
         return;
     }
     
-    selectedExplosives.forEach(function(explosive) {
-        const card = $(`
-            <div class="card mb-2">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center">
-                            <img src="${explosive.img || 'https://via.placeholder.com/80?text=No+Image'}" 
-                                 alt="${explosive.name}" 
-                                 class="img-thumbnail me-3 selected-explosive-img" 
-                                 onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
-                            <div>
-                                <strong>${explosive.name}</strong> (x${explosive.quantity})
-                                <br>
-                                <small class="text-muted">${explosive.name_type}</small>
-                            </div>
+    // Alterar classe do container para grid horizontal
+    container.removeClass('items-tree').addClass('selected-items-grid');
+    
+    // Renderizar explosivos em grid horizontal
+    selectedExplosives.forEach(function(explosive, index) {
+        const explosiveHtml = renderSelectedExplosiveCard(explosive, index);
+        container.append(explosiveHtml);
+    });
+}
+
+function renderSelectedExplosiveCard(explosive, index) {
+    // Card do explosivo
+    const card = $(`
+        <div class="selected-item-card" data-explosive-index="${index}" data-explosive-id="${explosive.id}">
+            <div class="card h-100">
+                <div class="card-body p-2">
+                    <div class="d-flex flex-column align-items-center">
+                        <img src="${explosive.img || 'https://via.placeholder.com/100?text=No+Image'}" 
+                             alt="${explosive.name}" 
+                             class="img-thumbnail mb-2" 
+                             style="width: 100px; height: 100px; object-fit: cover;"
+                             onerror="this.src='https://via.placeholder.com/100?text=No+Image'">
+                        <div class="text-center mb-2">
+                            <strong class="d-block">${explosive.name}</strong>
+                            <small class="text-muted d-block">${explosive.name_type}</small>
+                            <small class="text-info d-block mt-1"><i class="fas fa-box"></i> Quantidade: <strong>${explosive.quantity}</strong></small>
                         </div>
-                        <div>
-                            <button class="btn btn-sm btn-primary me-1" onclick="editExplosiveQuantity(${explosive.id}); event.preventDefault(); event.stopPropagation(); return false;">
-                                <i class="fas fa-edit"></i> Quantidade
+                        <div class="btn-group btn-group-sm w-100" role="group">
+                            <button class="btn btn-primary" onclick="editExplosiveQuantity(${explosive.id}); event.preventDefault(); event.stopPropagation(); return false;" title="Editar Quantidade">
+                                <i class="fas fa-edit"></i> Qtd
                             </button>
-                            <button class="btn btn-sm btn-danger" onclick="removeExplosiveFromLoadout(${explosive.id}); event.preventDefault(); event.stopPropagation(); return false;">
-                                <i class="fas fa-trash"></i> Remover
+                            <button class="btn btn-danger" onclick="removeExplosiveFromLoadout(${explosive.id}); event.preventDefault(); event.stopPropagation(); return false;" title="Remover">
+                                <i class="fas fa-trash"></i>
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
-        `);
-        container.append(card);
-    });
+        </div>
+    `);
+    
+    return card;
 }
 
 function editExplosiveQuantity(explosiveId) {
