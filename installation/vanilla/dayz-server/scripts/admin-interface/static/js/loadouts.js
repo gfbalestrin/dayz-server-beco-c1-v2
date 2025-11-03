@@ -2214,20 +2214,64 @@ function renderItemsGridLoadoutByType(data) {
         return a.name.localeCompare(b.name);
     });
     
-    // Criar grid para cada tipo
+    // Localizações possíveis (para segundo nível de separação)
+    const locations = [
+        { key: 'head', label: 'Head', icon: 'fa-hard-hat' },
+        { key: 'face', label: 'Face', icon: 'fa-user-secret' },
+        { key: 'torso', label: 'Torso', icon: 'fa-tshirt' },
+        { key: 'legs', label: 'Legs', icon: 'fa-running' },
+        { key: 'foot', label: 'Foot', icon: 'fa-shoe-prints' },
+        { key: 'hands', label: 'Hands', icon: 'fa-hand-paper' },
+        { key: 'back', label: 'Back', icon: 'fa-backpack' },
+        { key: 'none', label: 'Sem Localização', icon: 'fa-box' }
+    ];
+    
+    // Criar seção para cada tipo
     typesArray.forEach(function(type) {
         if (type.items.length === 0) return; // Pular tipos sem itens
         
         const typeKey = type.id === 'none' ? 'None' : `Type${type.id}`;
-        const gridId = `itemsGridLoadout${typeKey}`;
-        const sectionId = `itemsSection${typeKey}`;
+        const typeSectionId = `itemsTypeSection${typeKey}`;
         
-        // Criar seção se não existir
-        let section = $(`#${sectionId}`);
-        if (section.length === 0) {
-            section = $(`
-                <div class="mb-4 items-location-section" id="${sectionId}">
-                    <h6 class="mb-2"><i class="fas fa-tag me-2"></i>${type.name}</h6>
+        // Agrupar itens deste tipo por localização
+        const itemsByLocation = {};
+        type.items.forEach(function(item) {
+            const locationKey = item.localization || 'none';
+            
+            if (!itemsByLocation[locationKey]) {
+                itemsByLocation[locationKey] = [];
+            }
+            itemsByLocation[locationKey].push(item);
+        });
+        
+        // Criar seção principal do tipo se não existir
+        let typeSection = $(`#${typeSectionId}`);
+        if (typeSection.length === 0) {
+            typeSection = $(`
+                <div class="mb-5 items-type-section" id="${typeSectionId}">
+                    <h5 class="mb-3"><i class="fas fa-tag me-2"></i>${type.name}</h5>
+                </div>
+            `);
+            container.append(typeSection);
+        } else {
+            // Limpar conteúdo anterior da seção
+            typeSection.find('.items-location-subsection').remove();
+        }
+        
+        // Criar sub-seções por localização dentro deste tipo
+        locations.forEach(function(loc) {
+            const locationKey = loc.key;
+            const itemsForLocation = itemsByLocation[locationKey] || [];
+            
+            if (itemsForLocation.length === 0) return; // Pular localizações sem itens
+            
+            const gridId = `itemsGridLoadout${typeKey}Location${locationKey === 'none' ? 'None' : (locationKey.charAt(0).toUpperCase() + locationKey.slice(1))}`;
+            const locationSubsectionId = `itemsLocationSubsection${typeKey}${locationKey === 'none' ? 'None' : (locationKey.charAt(0).toUpperCase() + locationKey.slice(1))}`;
+            
+            // Criar sub-seção de localização
+            const locationSubsection = $(`
+                <div class="mb-4 items-location-subsection ms-4" id="${locationSubsectionId}">
+                    <h6 class="mb-2"><i class="fas ${loc.icon} me-2"></i>${loc.label}</h6>
                     <div class="items-grid-container">
                         <button type="button" class="grid-nav-prev" data-grid="${gridId}" aria-label="Anterior" onclick="scrollGridPrev('${gridId}'); return false;"><i class="fas fa-chevron-left"></i></button>
                         <div id="${gridId}" class="weapons-grid items-grid-scrollable"></div>
@@ -2235,18 +2279,19 @@ function renderItemsGridLoadoutByType(data) {
                     </div>
                 </div>
             `);
-            container.append(section);
-        }
-        
-        // Renderizar grid para este tipo
-        renderItemsGridLoadoutForType(type.items, type.id, gridId);
-        
-        // Inicializar navegação para este grid
-        const gridElement = document.getElementById(gridId);
-        if (gridElement) {
-            initGridDragSwipe(gridElement);
-            updateGridNavigationButtons(gridId);
-        }
+            
+            typeSection.append(locationSubsection);
+            
+            // Renderizar grid para esta localização
+            renderItemsGridLoadoutForType(itemsForLocation, type.id, gridId);
+            
+            // Inicializar navegação para este grid
+            const gridElement = document.getElementById(gridId);
+            if (gridElement) {
+                initGridDragSwipe(gridElement);
+                updateGridNavigationButtons(gridId);
+            }
+        });
     });
     
     // Inicializar navegação para todos os grids criados

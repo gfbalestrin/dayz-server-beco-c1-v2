@@ -362,7 +362,27 @@
     object-fit: contain;
 }
 
-/* Grids de itens por localização */
+/* Seção de tipo (primeiro nível) */
+.items-type-section {
+    border-bottom: 2px solid #dee2e6;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+}
+.items-type-section:last-child {
+    border-bottom: none;
+}
+
+/* Sub-seção de localização (segundo nível, dentro do tipo) */
+.items-location-subsection {
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+}
+.items-location-subsection:last-child {
+    border-bottom: none;
+}
+
+/* Grids de itens por localização (mantido para compatibilidade) */
 .items-location-section {
     border-bottom: 1px solid #dee2e6;
     padding-bottom: 15px;
