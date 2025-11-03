@@ -2165,43 +2165,96 @@ function applyItemFiltersLoadout() {
         return match;
     });
     
-    // Renderizar grids separados por localização
-    // O filtro de localização será aplicado nos dados
-    renderItemsGridLoadoutByLocation(filtered);
+    // Renderizar grids separados por tipo
+    // O filtro de localização será aplicado nos dados, mas os grids são separados por tipo
+    renderItemsGridLoadoutByType(filtered);
 }
 
-function renderItemsGridLoadoutByLocation(data) {
-    // Localizações possíveis
-    const locations = [
-        { key: 'head', label: 'Head', icon: 'fa-hard-hat' },
-        { key: 'face', label: 'Face', icon: 'fa-user-secret' },
-        { key: 'torso', label: 'Torso', icon: 'fa-tshirt' },
-        { key: 'legs', label: 'Legs', icon: 'fa-running' },
-        { key: 'foot', label: 'Foot', icon: 'fa-shoe-prints' },
-        { key: 'hands', label: 'Hands', icon: 'fa-hand-paper' },
-        { key: 'back', label: 'Back', icon: 'fa-backpack' },
-        { key: 'none', label: 'Sem Localização', icon: 'fa-box' } // Sem localização (vazio ou null)
-    ];
+function renderItemsGridLoadoutByType(data) {
+    const container = $('#itemsGridsByType');
     
-    // Renderizar cada localização em seu próprio grid
-    locations.forEach(function(loc) {
-        const itemsForLocation = data.filter(function(item) {
-            if (loc.key === 'none') {
-                return !item.localization || item.localization === '';
-            }
-            return item.localization === loc.key;
-        });
+    // Obter tipos únicos dos itens filtrados
+    const typesMap = {};
+    data.forEach(function(item) {
+        const typeId = item.type_id || 'none';
         
-        // Renderizar grid para esta localização
-        renderItemsGridLoadoutForLocation(itemsForLocation, loc.key);
+        // Buscar nome do tipo em itemTypesDataLoadout se não estiver no item
+        let typeName = item.type_name;
+        if (!typeName && typeId !== 'none' && itemTypesDataLoadout && itemTypesDataLoadout.length > 0) {
+            const typeInfo = itemTypesDataLoadout.find(function(t) {
+                return t.id === typeId || t.id === parseInt(typeId);
+            });
+            if (typeInfo) {
+                typeName = typeInfo.name;
+            }
+        }
+        
+        // Se ainda não tiver nome, usar "Sem Tipo"
+        if (!typeName) {
+            typeName = 'Sem Tipo';
+        }
+        
+        if (!typesMap[typeId]) {
+            typesMap[typeId] = {
+                id: typeId,
+                name: typeName,
+                items: []
+            };
+        }
+        typesMap[typeId].items.push(item);
     });
+    
+    // Limpar container
+    container.empty();
+    
+    // Obter tipos ordenados por nome
+    const typesArray = Object.values(typesMap).sort(function(a, b) {
+        if (a.id === 'none') return 1; // Sem Tipo sempre no final
+        if (b.id === 'none') return -1;
+        return a.name.localeCompare(b.name);
+    });
+    
+    // Criar grid para cada tipo
+    typesArray.forEach(function(type) {
+        if (type.items.length === 0) return; // Pular tipos sem itens
+        
+        const typeKey = type.id === 'none' ? 'None' : `Type${type.id}`;
+        const gridId = `itemsGridLoadout${typeKey}`;
+        const sectionId = `itemsSection${typeKey}`;
+        
+        // Criar seção se não existir
+        let section = $(`#${sectionId}`);
+        if (section.length === 0) {
+            section = $(`
+                <div class="mb-4 items-location-section" id="${sectionId}">
+                    <h6 class="mb-2"><i class="fas fa-tag me-2"></i>${type.name}</h6>
+                    <div class="items-grid-container">
+                        <button type="button" class="grid-nav-prev" data-grid="${gridId}" aria-label="Anterior" onclick="scrollGridPrev('${gridId}'); return false;"><i class="fas fa-chevron-left"></i></button>
+                        <div id="${gridId}" class="weapons-grid items-grid-scrollable"></div>
+                        <button type="button" class="grid-nav-next" data-grid="${gridId}" aria-label="Próximo" onclick="scrollGridNext('${gridId}'); return false;"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                </div>
+            `);
+            container.append(section);
+        }
+        
+        // Renderizar grid para este tipo
+        renderItemsGridLoadoutForType(type.items, type.id, gridId);
+        
+        // Inicializar navegação para este grid
+        const gridElement = document.getElementById(gridId);
+        if (gridElement) {
+            initGridDragSwipe(gridElement);
+            updateGridNavigationButtons(gridId);
+        }
+    });
+    
+    // Inicializar navegação para todos os grids criados
+    initGridNavigation();
 }
 
-function renderItemsGridLoadoutForLocation(data, location) {
-    // Mapear location para ID do grid (capitalizar primeira letra)
-    const locationKey = location === 'none' ? 'None' : (location.charAt(0).toUpperCase() + location.slice(1));
-    const grid = $(`#itemsGridLoadout${locationKey}`);
-    const section = grid.parent('.items-location-section');
+function renderItemsGridLoadoutForType(data, typeId, gridId) {
+    const grid = $(`#${gridId}`);
     
     // Se o grid não existe, não precisa renderizar
     if (grid.length === 0) {
@@ -2212,6 +2265,7 @@ function renderItemsGridLoadoutForLocation(data, location) {
     
     if (data.length === 0) {
         // Ocultar seção se não houver itens
+        const section = grid.closest('.items-location-section');
         if (section.length > 0) {
             section.hide();
         }
@@ -2219,6 +2273,7 @@ function renderItemsGridLoadoutForLocation(data, location) {
     }
     
     // Mostrar seção se houver itens
+    const section = grid.closest('.items-location-section');
     if (section.length > 0) {
         section.show();
     }
@@ -2247,10 +2302,10 @@ function renderItemsGridLoadoutForLocation(data, location) {
     });
 }
 
-// Função mantida para compatibilidade (será chamada quando filtro de localização estiver ativo)
+// Função mantida para compatibilidade
 function renderItemsGridLoadout(data) {
-    // Esta função agora apenas chama renderItemsGridLoadoutByLocation
-    renderItemsGridLoadoutByLocation(data);
+    // Esta função agora apenas chama renderItemsGridLoadoutByType
+    renderItemsGridLoadoutByType(data);
 }
 
 function selectItemForLoadout(itemId) {
@@ -3425,27 +3480,30 @@ function validateLoadoutVisual() {
 
 function initGridNavigation() {
     console.log('initGridNavigation chamada');
-    // Inicializar navegação para todos os grids de itens
-    const gridIds = [
-        "itemsGridLoadoutHead",
-        "itemsGridLoadoutFace",
-        "itemsGridLoadoutTorso",
-        "itemsGridLoadoutLegs",
-        "itemsGridLoadoutFoot",
-        "itemsGridLoadoutHands",
-        "itemsGridLoadoutBack",
-        "itemsGridLoadoutNone"
-    ];
+    // Encontrar todos os grids dinamicamente no container
+    const container = document.getElementById('itemsGridsByType');
+    if (!container) {
+        console.log('Container itemsGridsByType não encontrado');
+        return;
+    }
     
-    gridIds.forEach(function(gridId) {
-        const grid = document.getElementById(gridId);
-        if (!grid) {
-            console.log('Grid não encontrado:', gridId);
+    // Encontrar todos os grids com classe items-grid-scrollable dentro do container
+    const grids = container.querySelectorAll('.items-grid-scrollable');
+    
+    grids.forEach(function(grid) {
+        const gridId = grid.id;
+        if (!gridId) {
+            console.log('Grid sem ID encontrado');
             return;
         }
         
+        console.log('Inicializando navegação para grid:', gridId);
+        
         // Atualizar visibilidade das setas
         updateGridNavigationButtons(gridId);
+        
+        // Inicializar drag/swipe
+        initGridDragSwipe(grid);
         
         // Adicionar listeners para scroll
         grid.addEventListener("scroll", function() {

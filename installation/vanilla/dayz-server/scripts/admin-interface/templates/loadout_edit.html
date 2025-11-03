@@ -295,87 +295,9 @@
                                 <div id="selectedItemsList" class="items-tree"></div>
                             </div>
                             
-                            <!-- Grids de Itens Separados por Localização -->
-                            <div id="itemsGridsByLocation">
-                                <!-- Head -->
-                                <div class="mb-4 items-location-section">
-                                    <h6 class="mb-2"><i class="fas fa-hard-hat me-2"></i>Head</h6>
-                                    <div class="items-grid-container">
-                                        <button type="button" class="grid-nav-prev" data-grid="itemsGridLoadoutHead" aria-label="Anterior" onclick="scrollGridPrev('itemsGridLoadoutHead'); return false;"><i class="fas fa-chevron-left"></i></button>
-                                        <div id="itemsGridLoadoutHead" class="weapons-grid items-grid-scrollable"></div>
-                                        <button type="button" class="grid-nav-next" data-grid="itemsGridLoadoutHead" aria-label="Próximo" onclick="scrollGridNext('itemsGridLoadoutHead'); return false;"><i class="fas fa-chevron-right"></i></button>
-                                    </div>
-                                </div>
-                                
-                                <!-- Face -->
-                                <div class="mb-4 items-location-section">
-                                    <h6 class="mb-2"><i class="fas fa-user-secret me-2"></i>Face</h6>
-                                    <div class="items-grid-container">
-                                        <button type="button" class="grid-nav-prev" data-grid="itemsGridLoadoutFace" aria-label="Anterior" onclick="scrollGridPrev('itemsGridLoadoutFace'); return false;"><i class="fas fa-chevron-left"></i></button>
-                                        <div id="itemsGridLoadoutFace" class="weapons-grid items-grid-scrollable"></div>
-                                        <button type="button" class="grid-nav-next" data-grid="itemsGridLoadoutFace" aria-label="Próximo" onclick="scrollGridNext('itemsGridLoadoutFace'); return false;"><i class="fas fa-chevron-right"></i></button>
-                                    </div>
-                                </div>
-                                
-                                <!-- Torso -->
-                                <div class="mb-4 items-location-section">
-                                    <h6 class="mb-2"><i class="fas fa-tshirt me-2"></i>Torso</h6>
-                                    <div class="items-grid-container">
-                                        <button type="button" class="grid-nav-prev" data-grid="itemsGridLoadoutTorso" aria-label="Anterior" onclick="scrollGridPrev('itemsGridLoadoutTorso'); return false;"><i class="fas fa-chevron-left"></i></button>
-                                        <div id="itemsGridLoadoutTorso" class="weapons-grid items-grid-scrollable"></div>
-                                        <button type="button" class="grid-nav-next" data-grid="itemsGridLoadoutTorso" aria-label="Próximo" onclick="scrollGridNext('itemsGridLoadoutTorso'); return false;"><i class="fas fa-chevron-right"></i></button>
-                                    </div>
-                                </div>
-                                
-                                <!-- Legs -->
-                                <div class="mb-4 items-location-section">
-                                    <h6 class="mb-2"><i class="fas fa-running me-2"></i>Legs</h6>
-                                    <div class="items-grid-container">
-                                        <button type="button" class="grid-nav-prev" data-grid="itemsGridLoadoutLegs" aria-label="Anterior" onclick="scrollGridPrev('itemsGridLoadoutLegs'); return false;"><i class="fas fa-chevron-left"></i></button>
-                                        <div id="itemsGridLoadoutLegs" class="weapons-grid items-grid-scrollable"></div>
-                                        <button type="button" class="grid-nav-next" data-grid="itemsGridLoadoutLegs" aria-label="Próximo" onclick="scrollGridNext('itemsGridLoadoutLegs'); return false;"><i class="fas fa-chevron-right"></i></button>
-                                    </div>
-                                </div>
-                                
-                                <!-- Foot -->
-                                <div class="mb-4 items-location-section">
-                                    <h6 class="mb-2"><i class="fas fa-shoe-prints me-2"></i>Foot</h6>
-                                    <div class="items-grid-container">
-                                        <button type="button" class="grid-nav-prev" data-grid="itemsGridLoadoutFoot" aria-label="Anterior" onclick="scrollGridPrev('itemsGridLoadoutFoot'); return false;"><i class="fas fa-chevron-left"></i></button>
-                                        <div id="itemsGridLoadoutFoot" class="weapons-grid items-grid-scrollable"></div>
-                                        <button type="button" class="grid-nav-next" data-grid="itemsGridLoadoutFoot" aria-label="Próximo" onclick="scrollGridNext('itemsGridLoadoutFoot'); return false;"><i class="fas fa-chevron-right"></i></button>
-                                    </div>
-                                </div>
-                                
-                                <!-- Hands -->
-                                <div class="mb-4 items-location-section">
-                                    <h6 class="mb-2"><i class="fas fa-hand-paper me-2"></i>Hands</h6>
-                                    <div class="items-grid-container">
-                                        <button type="button" class="grid-nav-prev" data-grid="itemsGridLoadoutHands" aria-label="Anterior" onclick="scrollGridPrev('itemsGridLoadoutHands'); return false;"><i class="fas fa-chevron-left"></i></button>
-                                        <div id="itemsGridLoadoutHands" class="weapons-grid items-grid-scrollable"></div>
-                                        <button type="button" class="grid-nav-next" data-grid="itemsGridLoadoutHands" aria-label="Próximo" onclick="scrollGridNext('itemsGridLoadoutHands'); return false;"><i class="fas fa-chevron-right"></i></button>
-                                    </div>
-                                </div>
-                                
-                                <!-- Back -->
-                                <div class="mb-4 items-location-section">
-                                    <h6 class="mb-2"><i class="fas fa-backpack me-2"></i>Back</h6>
-                                    <div class="items-grid-container">
-                                        <button type="button" class="grid-nav-prev" data-grid="itemsGridLoadoutBack" aria-label="Anterior" onclick="scrollGridPrev('itemsGridLoadoutBack'); return false;"><i class="fas fa-chevron-left"></i></button>
-                                        <div id="itemsGridLoadoutBack" class="weapons-grid items-grid-scrollable"></div>
-                                        <button type="button" class="grid-nav-next" data-grid="itemsGridLoadoutBack" aria-label="Próximo" onclick="scrollGridNext('itemsGridLoadoutBack'); return false;"><i class="fas fa-chevron-right"></i></button>
-                                    </div>
-                                </div>
-                                
-                                <!-- Sem Localização -->
-                                <div class="mb-4 items-location-section">
-                                    <h6 class="mb-2"><i class="fas fa-box me-2"></i>Sem Localização</h6>
-                                    <div class="items-grid-container">
-                                        <button type="button" class="grid-nav-prev" data-grid="itemsGridLoadoutNone" aria-label="Anterior" onclick="scrollGridPrev('itemsGridLoadoutNone'); return false;"><i class="fas fa-chevron-left"></i></button>
-                                        <div id="itemsGridLoadoutNone" class="weapons-grid items-grid-scrollable"></div>
-                                        <button type="button" class="grid-nav-next" data-grid="itemsGridLoadoutNone" aria-label="Próximo" onclick="scrollGridNext('itemsGridLoadoutNone'); return false;"><i class="fas fa-chevron-right"></i></button>
-                                    </div>
-                                </div>
+                            <!-- Grids de Itens Separados por Tipo (Gerados dinamicamente) -->
+                            <div id="itemsGridsByType">
+                                <!-- Grids serão gerados dinamicamente via JavaScript -->
                             </div>
                         </div>
                     </div>
