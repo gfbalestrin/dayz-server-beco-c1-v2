@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Deathmatch - DayZ Admin Interface{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/map.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-2">
+    <h2 class="mb-0">
+        <i class="fas fa-crosshairs me-2"></i>Deathmatch
+    </h2>
+    <div class="d-flex gap-2 align-items-center">
+        <div class="badge bg-primary me-2">
+            <span id="dmRegionName">--</span>
+        </div>
+        <select id="dmRegionSelect" class="form-select form-select-sm" style="width: 260px;">
+            <option value="">Carregando mapas...</option>
+        </select>
+    </div>
+  </div>
+
+<div class="row">
+  <div class="col-lg-9 mb-3">
+    <div id="map" class="map-container" data-map-image="{{ url_for('static', filename='img/chernarus.jpeg') }}"></div>
+  </div>
+  <div class="col-lg-3">
+    <div class="card mb-2">
+      <div class="card-header bg-success">
+        <i class="fas fa-eye me-2"></i>Visualizar
+      </div>
+      <div class="card-body p-2">
+        <div class="small text-muted mb-2">Zonas ativas do mapa Deathmatch</div>
+        <div class="d-grid gap-1">
+          <button type="button" class="btn btn-sm btn-primary" id="dmRefreshBtn">
+            <i class="fas fa-sync-alt me-1"></i>Atualizar
+          </button>
+        </div>
+        <div class="mt-3">
+          <div class="badge bg-success me-1" title="SpawnZones"><i class="fas fa-circle"></i> <span id="dmSpawnCount">0</span> Spawns</div>
+          <div class="badge bg-warning" title="WallZones"><i class="fas fa-draw-polygon"></i> <span id="dmWallCount">0</span> Pts Parede</div>
+        </div>
+      </div>
+    </div>
+  </div>
+ </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='js/deathmatch.js') }}"></script>
+{% endblock %}
+
+

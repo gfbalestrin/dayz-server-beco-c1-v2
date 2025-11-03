@@ -5,6 +5,7 @@ from flask import Flask, render_template, request, session, redirect, url_for, j
 from functools import wraps
 import config
 import json
+import os
 from packing_algorithm import can_fit_items_in_container, pack_items_ffdh
 from database import (
     get_all_players, get_player_coords, get_player_coords_backup,
@@ -365,6 +366,129 @@ def map_view():
     players_list = get_all_players()
     player_id_filter = request.args.get('player_id', None)
     return render_template('map.html', players=players_list, player_id_filter=player_id_filter)
+
+# ----------------------
+# Deathmatch Views & API
+# ----------------------
+
+@app.route('/deathmatch')
+@admin_required
+def deathmatch():
+    """Tela Deathmatch com mapa e overlays das zonas configuradas"""
+    return render_template('deathmatch.html')
+
+
+@app.route('/api/deathmatch/config')
+@admin_required
+def api_deathmatch_config():
+    """Retorna um mapa do deathmatch_config.json com listas de pontos (X,Z).
+    Se query param 'regionId' for fornecido, retorna esse; caso contrário, retorna o ativo.
+    """
+    # Caminho do arquivo de configuração
+    cfg_path = os.path.join(
+        os.path.dirname(__file__),
+        '..', '..', 'mpmissions', 'dayzOffline.chernarusplus', 'admin', 'files', 'deathmatch_config.json'
+    )
+    cfg_path = os.path.normpath(cfg_path)
+
+    try:
+        with open(cfg_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except Exception as e:
+        return jsonify({ 'error': f'Falha ao ler configuração: {str(e)}' }), 500
+
+    if not isinstance(data, list) or len(data) == 0:
+        return jsonify({ 'error': 'Configuração inválida ou vazia' }), 404
+
+    # Seleção por query param
+    region_id = request.args.get('regionId', type=int)
+    selected = None
+    if region_id is not None:
+        selected = next((item for item in data if int(item.get('RegionId', -1)) == region_id), None)
+        if not selected:
+            return jsonify({ 'error': f'Região {region_id} não encontrada' }), 404
+    else:
+        selected = next((item for item in data if item.get('Active') is True), None)
+        if not selected:
+            return jsonify({ 'error': 'Nenhum mapa ativo encontrado' }), 404
+
+    def parse_coord_str(coord_str):
+        # Aceita formatos "x, y, z" ou "x y z"; retorna (x, z) como float
+        if not coord_str:
+            return None
+        # Normalizar separadores e espaços
+        parts = [p.strip() for p in coord_str.replace(',', ' ').split() if p.strip()]
+        if len(parts) < 3:
+            return None
+        try:
+            x = float(parts[0])
+            z = float(parts[2])
+            return [x, z]
+        except:
+            return None
+
+    spawn_zones = []
+    for s in selected.get('SpawnZones', []) or []:
+        pt = parse_coord_str(s)
+        if pt:
+            spawn_zones.append(pt)
+
+    wall_zones = []
+    for w in selected.get('WallZones', []) or []:
+        pt = parse_coord_str(w)
+        if pt:
+            wall_zones.append(pt)
+
+    spawns = selected.get('Spawns', {}) or {}
+    vehicles = []
+    for v in spawns.get('Vehicles', []) or []:
+        name = v.get('name')
+        coord = parse_coord_str(v.get('coord'))
+        if coord:
+            vehicles.append({ 'name': name, 'coord': coord })
+
+    result = {
+        'regionId': selected.get('RegionId'),
+        'region': selected.get('Region'),
+        'customMessage': selected.get('CustomMessage'),
+        'spawnZones': spawn_zones,
+        'wallZones': wall_zones,
+        'spawns': {
+            'vehicles': vehicles
+        }
+    }
+
+    return jsonify(result)
+
+
+@app.route('/api/deathmatch/maps')
+@admin_required
+def api_deathmatch_maps():
+    """Lista todos os mapas do deathmatch com status de ativo."""
+    cfg_path = os.path.join(
+        os.path.dirname(__file__),
+        '..', '..', 'mpmissions', 'dayzOffline.chernarusplus', 'admin', 'files', 'deathmatch_config.json'
+    )
+    cfg_path = os.path.normpath(cfg_path)
+
+    try:
+        with open(cfg_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except Exception as e:
+        return jsonify({ 'error': f'Falha ao ler configuração: {str(e)}' }), 500
+
+    if not isinstance(data, list) or len(data) == 0:
+        return jsonify({ 'maps': [] })
+
+    maps = []
+    for item in data:
+        maps.append({
+            'regionId': item.get('RegionId'),
+            'region': item.get('Region'),
+            'active': bool(item.get('Active'))
+        })
+
+    return jsonify({ 'maps': maps })
 
 @app.route('/api/players/positions')
 @admin_required
