@@ -1886,10 +1886,20 @@ class CustomMission: MissionServer
 
 	override void StartingEquipSetup(PlayerBase player, bool clothesChosen)
 	{
+		// Obter playerId do player
+		string playerId = GetPlayerId(player);
+		
+		// Se for admin, não dar equipamento inicial (já recebe loadout admin)
+		if (CheckIfIsAdmin(playerId))
+		{
+			WriteToLog("StartingEquipSetup(): Player é admin, pulando equipamento inicial.", LogFile.INIT, false, LogType.DEBUG);
+			return;
+		}
+		
 		EntityAI itemClothing;
 		EntityAI itemEnt;
 		ItemBase itemBs;
-		float rand;
+		float rand;		
 
 		itemClothing = player.FindAttachmentBySlotName( "Body" );
 		if ( itemClothing )
