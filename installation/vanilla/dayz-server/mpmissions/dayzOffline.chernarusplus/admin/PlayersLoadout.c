@@ -293,9 +293,9 @@ EntityAI CreateItemWithSubitems(EntityAI parent, LoadoutItem itemData, PlayerBas
     return item;
 }
 
-bool GiveDefaultLoadout(PlayerBase player, string playerId)
+bool GiveDefaultDeathmatchLoadout(PlayerBase player, string playerId)
 {
-    string jsonPlayerId = LoadoutDefaultJsonFile;
+    string jsonPlayerId = LoadoutCustomJsonFile;
     FileHandle handle2 = OpenFile(jsonPlayerId, FileMode.READ);
     if (!handle2)
     {
@@ -318,7 +318,10 @@ bool GiveDefaultLoadout(PlayerBase player, string playerId)
     {
         if (!entry2) continue;
 
-        if (entry2.IsActive)
+        string entryName = entry2.Name;
+        entryName.ToLower();
+        
+        if (entryName == "deathmatch" && entry2.IsActive)
         {
             loadoutPlayer = entry2;
             break;

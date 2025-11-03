@@ -1879,6 +1879,14 @@ class CustomMission: MissionServer
 			GiveAdminLoadout(m_player, playerId);
 		} else {
 			WriteToLog("CreateCharacter(): " + playerName + " é jogador comum.", LogFile.INIT, false, LogType.DEBUG);
+
+			m_player.SetAllowDamage(false);
+
+			if (!GiveCustomLoadout(m_player, playerId)) {
+				WriteToLog("CreateCharacter(): Loadout customizado não encontrado. Aplicando padrão.", LogFile.INIT, false, LogType.DEBUG);
+			}
+
+			m_player.SetAllowDamage(true);
 		}
 
 		return m_player;

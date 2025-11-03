@@ -56,22 +56,39 @@ $(document).ready(function() {
         $('#btnSaveCustomLoadout').on('click', saveCustomLoadout);
         $('#btnSaveCustomLoadoutTop').on('click', saveCustomLoadout);
         
-        $('#btnValidateCustomJSON').on('click', () => validateJSON('custom'));
-        $('#btnFormatCustomJSON').on('click', () => formatJSON('custom'));
+        // Event listeners para botões JSON serão adicionados dinamicamente conforme tipo
         
-        // Detectar alterações nos campos básicos
-        $('#customLoadoutName').on('input change', markLoadoutChanged);
-        $('#customLoadoutActive').on('change', markLoadoutChanged);
+        // Detectar tipo de loadout
+        const loadoutType = $('#loadoutType').val() || 'custom';
+        
+        // Detectar alterações nos campos básicos conforme tipo
+        if (loadoutType === 'player') {
+            $('#playerLoadoutId').on('input change', markLoadoutChanged);
+            $('#playerLoadoutName').on('input change', markLoadoutChanged);
+            $('#playerLoadoutActive').on('change', markLoadoutChanged);
+            $('#playerLoadoutData').on('input', function() {
+                if (loadoutMode === 'json') {
+                    markLoadoutChanged();
+                }
+            });
+            // Event listeners para botões JSON de player
+            $('#btnValidatePlayerJSON').on('click', () => validateJSON('player'));
+            $('#btnFormatPlayerJSON').on('click', () => formatJSON('player'));
+        } else {
+            $('#customLoadoutName').on('input change', markLoadoutChanged);
+            $('#customLoadoutActive').on('change', markLoadoutChanged);
+            $('#customLoadoutData').on('input', function() {
+                if (loadoutMode === 'json') {
+                    markLoadoutChanged();
+                }
+            });
+            // Event listeners para botões JSON de custom
+            $('#btnValidateCustomJSON').on('click', () => validateJSON('custom'));
+            $('#btnFormatCustomJSON').on('click', () => formatJSON('custom'));
+        }
         
         // Detectar mudanças no modo (visual/JSON)
         $('input[name="loadoutMode"]').on('change', markLoadoutChanged);
-        
-        // Detectar mudanças no JSON (se modo JSON estiver ativo)
-        $('#customLoadoutData').on('input', function() {
-            if (loadoutMode === 'json') {
-                markLoadoutChanged();
-            }
-        });
         
         // Confirmação ao tentar sair da página
         window.addEventListener('beforeunload', function(e) {
@@ -83,15 +100,35 @@ $(document).ready(function() {
         });
         
         // Carregar dados se estiver na página de edição
-        const loadoutId = $('#customLoadoutId').val();
-        if (loadoutId) {
-            // Está editando, carregar dados
-            loadLoadoutForEdit(loadoutId);
+        const currentLoadoutType = $('#loadoutType').val() || 'custom';
+        if (currentLoadoutType === 'player') {
+            const playerId = $('#playerLoadoutPlayerId').val();
+            const loadoutId = $('#playerLoadoutLoadoutId').val();
+            if (playerId && loadoutId) {
+                // Está editando loadout de player, carregar dados
+                loadPlayerLoadoutForEdit(playerId, parseInt(loadoutId));
+            } else if (playerId) {
+                // Novo loadout de player, não precisa calcular ID (será gerado pela API)
+                resetLoadoutForm();
+                loadoutHasChanges = false;
+                updateChangesIndicator();
+            } else {
+                // Sem player_id, apenas resetar
+                resetLoadoutForm();
+                loadoutHasChanges = false;
+                updateChangesIndicator();
+            }
         } else {
-            // Novo loadout, resetar
-            resetLoadoutForm();
-            loadoutHasChanges = false; // Resetar flag ao criar novo
-            updateChangesIndicator();
+            const loadoutId = $('#customLoadoutId').val();
+            if (loadoutId) {
+                // Está editando loadout custom, carregar dados
+                loadLoadoutForEdit(loadoutId);
+            } else {
+                // Novo loadout custom, resetar
+                resetLoadoutForm();
+                loadoutHasChanges = false;
+                updateChangesIndicator();
+            }
         }
     }
     
@@ -114,7 +151,8 @@ $(document).ready(function() {
     });
     
     // Carregar dados da primeira aba se estiver na página de edição
-    if ($('#customLoadoutId').length > 0 || window.location.pathname.includes('/loadouts/custom/')) {
+    const currentLoadoutType = $('#loadoutType').val() || 'custom';
+    if ($('#customLoadoutId').length > 0 || $('#playerLoadoutPlayerId').length > 0 || window.location.pathname.includes('/loadouts/')) {
         // Está na página de edição, carregar dados da primeira aba
         if (($('#loadout-primary-weapon-tab').hasClass('active') || $('#loadout-secondary-weapon-tab').hasClass('active') || $('#loadout-small-weapon-tab').hasClass('active')) && weaponsDataLoadout.length === 0) {
             loadWeaponsForLoadout();
@@ -161,7 +199,14 @@ $(document).ready(function() {
     
     // Event listeners - Player Loadouts
     $('#playerSelect').on('change', onPlayerSelectChange);
-    $('#btnAddPlayerLoadout').on('click', showAddPlayerLoadoutModal);
+    $('#btnAddPlayerLoadout').on('click', function() {
+        if (!selectedPlayerId) {
+            showAlert('warning', 'Selecione um jogador primeiro');
+            return;
+        }
+        // Redirecionar para página de criação visual
+        window.location.href = `/loadouts/players/${selectedPlayerId}/new`;
+    });
     $('#btnSavePlayerLoadout').on('click', savePlayerLoadout);
     $('#btnValidatePlayerJSON').on('click', () => validateJSON('player'));
     $('#btnFormatPlayerJSON').on('click', () => formatJSON('player'));
@@ -334,8 +379,11 @@ function initializePlayerTable() {
                 orderable: false,
                 render: function(data, type, row) {
                     return `
-                        <button class="btn btn-sm btn-primary me-1" onclick="editPlayerLoadout('${row.player_id}', ${row.loadout_id}, ${row.id})" title="Editar">
+                        <button class="btn btn-sm btn-primary me-1" onclick="editPlayerLoadout('${row.player_id}', ${row.loadout_id}, ${row.id})" title="Editar Visual">
                             <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-secondary me-1" onclick="editPlayerLoadoutModal('${row.player_id}', ${row.loadout_id}, ${row.id})" title="Editar JSON">
+                            <i class="fas fa-code"></i>
                         </button>
                         <button class="btn btn-sm btn-danger" onclick="deletePlayerLoadout('${row.player_id}', ${row.loadout_id}, '${row.name.replace(/'/g, "\\'")}')" title="Deletar">
                             <i class="fas fa-trash"></i>
@@ -370,18 +418,29 @@ function loadCustomLoadouts() {
 }
 
 function resetLoadoutForm() {
-    // Resetar dados
-    $('#customLoadoutName').val('');
-    $('#customLoadoutActive').val('false');
-    $('#customLoadoutData').val(JSON.stringify(window.defaultLoadoutTemplate, null, 4));
-    $('#customJSONValidation').empty();
+    const loadoutType = $('#loadoutType').val() || 'custom';
     
-    // Remover aviso de loadout protegido se existir
-    $('#protectedLoadoutWarning').remove();
-    
-    // Resetar campos para editável
-    $('#customLoadoutName').prop('readonly', false);
-    $('#customLoadoutActive').prop('disabled', false);
+    if (loadoutType === 'player') {
+        // Resetar campos de player loadout
+        $('#playerLoadoutId').val('');
+        $('#playerLoadoutName').val('');
+        $('#playerLoadoutActive').val('false');
+        $('#playerLoadoutData').val(JSON.stringify(window.defaultLoadoutTemplate, null, 4));
+        $('#playerJSONValidation').empty();
+    } else {
+        // Resetar dados custom
+        $('#customLoadoutName').val('');
+        $('#customLoadoutActive').val('false');
+        $('#customLoadoutData').val(JSON.stringify(window.defaultLoadoutTemplate, null, 4));
+        $('#customJSONValidation').empty();
+        
+        // Remover aviso de loadout protegido se existir
+        $('#protectedLoadoutWarning').remove();
+        
+        // Resetar campos para editável
+        $('#customLoadoutName').prop('readonly', false);
+        $('#customLoadoutActive').prop('disabled', false);
+    }
     
     // Resetar modo visual
     loadoutMode = 'visual';
@@ -459,7 +518,65 @@ function loadLoadoutForEdit(id) {
     });
 }
 
+function loadPlayerLoadoutForEdit(playerId, loadoutId) {
+    $.ajax({
+        url: `/api/loadouts/players/${playerId}`,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                const loadout = response.loadouts.find(l => l.loadout_id === loadoutId);
+                if (!loadout) {
+                    showAlert('danger', 'Loadout não encontrado');
+                    return;
+                }
+                
+                // O ID do banco (db_id) está em loadout.id
+                $('#playerLoadoutPlayerId').val(playerId);
+                $('#playerLoadoutLoadoutId').val(loadout.id); // ID do banco
+                $('#playerLoadoutId').val(loadout.loadout_id); // ID interno do loadout
+                $('#playerLoadoutName').val(loadout.name);
+                $('#playerLoadoutActive').val(loadout.is_active ? 'true' : 'false');
+                $('#playerLoadoutData').val(JSON.stringify(loadout.loadout_data, null, 4));
+                $('#playerJSONValidation').empty();
+                
+                // Carregar dados para modo visual
+                loadoutMode = 'visual';
+                // Carregar dados primeiro se necessário
+                if (weaponsDataLoadout.length === 0) {
+                    loadWeaponsForLoadout();
+                }
+                if (explosivesDataLoadout.length === 0) {
+                    loadExplosivesForLoadout();
+                }
+                if (itemsDataLoadout.length === 0) {
+                    loadItemsForLoadout();
+                }
+                
+                // Aguardar um pouco para os dados carregarem
+                setTimeout(function() {
+                    loadLoadoutToVisual(loadout.loadout_data);
+                    $('#modeVisual').prop('checked', true);
+                    $('#modeJSON').prop('checked', false);
+                    toggleLoadoutMode();
+                    // Resetar flag de alterações após carregar dados
+                    loadoutHasChanges = false;
+                    updateChangesIndicator();
+                }, 500);
+            } else {
+                showAlert('danger', 'Erro ao carregar loadout: ' + response.message);
+            }
+        },
+        error: function(xhr) {
+            showAlert('danger', 'Erro ao carregar loadout');
+            console.error('Erro:', xhr);
+        }
+    });
+}
+
 function toggleLoadoutMode() {
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const jsonTextarea = loadoutType === 'player' ? '#playerLoadoutData' : '#customLoadoutData';
+    
     if (loadoutMode === 'visual') {
         $('#visualModeContent').show();
         $('#jsonModeContent').hide();
@@ -469,7 +586,7 @@ function toggleLoadoutMode() {
         // Se carregou do modo visual, montar JSON antes de mostrar
         if (selectedWeapons || selectedExplosives.length > 0 || selectedItems.length > 0) {
             const loadoutData = buildLoadoutFromVisual();
-            $('#customLoadoutData').val(JSON.stringify(loadoutData, null, 4));
+            $(jsonTextarea).val(JSON.stringify(loadoutData, null, 4));
         }
     }
 }
@@ -891,7 +1008,7 @@ function loadPlayers() {
                 select.append('<option value="">-- Selecione um jogador --</option>');
                 response.players.forEach(function(player) {
                     const displayName = player.PlayerName || player.PlayerID || 'Jogador sem nome';
-                    select.append(`<option value="${player.PlayerID}">${displayName}</option>`);
+                    select.append(`<option value="${player.PlayerID}">${displayName} (${player.SteamName})</option>`);
                 });
             } else {
                 showAlert('danger', 'Erro ao carregar jogadores: ' + response.message);
@@ -963,6 +1080,12 @@ function showAddPlayerLoadoutModal() {
 }
 
 function editPlayerLoadout(playerId, loadoutId, dbId) {
+    // Redirecionar para página de edição visual
+    window.location.href = `/loadouts/players/${playerId}/${loadoutId}/edit`;
+}
+
+function editPlayerLoadoutModal(playerId, loadoutId, dbId) {
+    // Abrir modal JSON (função original)
     $.ajax({
         url: `/api/loadouts/players/${playerId}`,
         method: 'GET',
@@ -3213,9 +3336,15 @@ function updateSubitemsModalBreadcrumb() {
 
 // Função auxiliar para salvar subitems em um item usando parentPath
 function saveSubitemsToItem(targetItem, parentPath, subitemsToSave) {
+    console.log('=== saveSubitemsToItem INÍCIO ===');
+    console.log('targetItem:', targetItem.name || targetItem.name_type);
+    console.log('parentPath:', parentPath);
+    console.log('subitemsToSave count:', subitemsToSave.length);
+    
     if (!parentPath || parentPath.length === 0) {
-        // Se não há caminho, salvar diretamente no item
+        console.log('Salvando diretamente (sem parentPath)');
         targetItem.subitems = JSON.parse(JSON.stringify(subitemsToSave));
+        console.log('=== saveSubitemsToItem FIM (direto) ===');
         return targetItem;
     }
     
@@ -3223,16 +3352,28 @@ function saveSubitemsToItem(targetItem, parentPath, subitemsToSave) {
     let currentItem = targetItem;
     for (let i = 0; i < parentPath.length; i++) {
         const pathIndex = parentPath[i];
+        console.log(`Navegando nível ${i}, índice ${pathIndex}`);
+        console.log('currentItem:', currentItem.name || currentItem.name_type);
+        console.log('currentItem.subitems existe?', !!currentItem.subitems);
+        console.log('currentItem.subitems.length:', currentItem.subitems ? currentItem.subitems.length : 'N/A');
+        
         if (currentItem.subitems && currentItem.subitems[pathIndex]) {
+            console.log(`✓ Item encontrado no índice ${pathIndex}:`, currentItem.subitems[pathIndex].name || currentItem.subitems[pathIndex].name_type);
             currentItem = currentItem.subitems[pathIndex];
         } else {
-            console.error('Caminho inválido ao salvar subitems:', parentPath);
+            console.error('✗ ERRO: Caminho inválido ao salvar subitems');
+            console.error('pathIndex:', pathIndex);
+            console.error('currentItem.subitems:', currentItem.subitems);
+            console.error('parentPath completo:', parentPath);
+            console.error('Nível que falhou:', i);
+            console.error('=== saveSubitemsToItem FIM (erro) ===');
             return null;
         }
     }
     
-    // Salvar subitems no item encontrado
+    console.log('✓ Navegação completa! Salvando subitems em:', currentItem.name || currentItem.name_type);
     currentItem.subitems = JSON.parse(JSON.stringify(subitemsToSave));
+    console.log('=== saveSubitemsToItem FIM (sucesso) ===');
     return currentItem;
 }
 
@@ -3905,14 +4046,40 @@ function saveSubitemsConfiguration() {
         };
     });
     
+    // Debug: estado inicial
+    console.log('=== saveSubitemsConfiguration DEBUG ===');
+    console.log('itemIndex:', itemIndex);
+    console.log('item:', item.name || item.name_type);
+    console.log('item.subitems:', item.subitems);
+    console.log('currentSubitemsContext:', currentSubitemsContext);
+    console.log('subitemsModalContextStack.length:', subitemsModalContextStack.length);
+    console.log('subitemsToSave count:', subitemsToSave.length);
+    
     // Se estamos em nível recursivo, salvar usando parentPath
     if (currentSubitemsContext && currentSubitemsContext.parentPath && currentSubitemsContext.parentPath.length > 0) {
-        // Salvar subitems no nível correto da hierarquia
+        console.log('Modo recursivo detectado, parentPath:', currentSubitemsContext.parentPath);
+        
+        // CORREÇÃO: Antes de salvar recursivamente, garantir que item.subitems
+        // contenha os subitems do nível anterior (da pilha de contexto)
+        if (subitemsModalContextStack.length > 0) {
+            const parentContext = subitemsModalContextStack[subitemsModalContextStack.length - 1];
+            if (parentContext && parentContext.selectedSubitems) {
+                // Atualizar item.subitems com os dados do contexto pai
+                item.subitems = JSON.parse(JSON.stringify(parentContext.selectedSubitems));
+                console.log('DEBUG: item.subitems atualizado do contexto pai:', item.subitems.length);
+            }
+        }
+        
+        // Agora salvar subitems no nível correto da hierarquia
         const saved = saveSubitemsToItem(item, currentSubitemsContext.parentPath, subitemsToSave);
         if (!saved) {
             showAlert('danger', 'Erro ao salvar subitems na hierarquia.');
             return;
         }
+        
+        // Debug: confirmar salvamento no objeto item
+        console.log('DEBUG: Salvou subitems recursivos via saveSubitemsToItem');
+        console.log('DEBUG: Item após save:', JSON.stringify(item, null, 2));
         
         // Atualizar subitems no contexto da pilha para manter consistência
         // O último contexto na pilha deve ter o subitem atualizado
@@ -4088,16 +4255,66 @@ function buildItemsWithSubitems(items) {
 function updateJSONPreview() {
     if (loadoutMode === 'visual') {
         const loadoutData = buildLoadoutFromVisual();
+        const loadoutType = $('#loadoutType').val() || 'custom';
+        
+        // Atualizar preview JSON
         $('#jsonPreview').val(JSON.stringify(loadoutData, null, 4));
+        
+        // Também atualizar o textarea do modo JSON se estiver visível
+        if (loadoutType === 'player') {
+            $('#playerLoadoutData').val(JSON.stringify(loadoutData, null, 4));
+        } else {
+            $('#customLoadoutData').val(JSON.stringify(loadoutData, null, 4));
+        }
     }
 }
 
 // Atualizar saveCustomLoadout para usar modo visual quando necessário
 function saveCustomLoadout() {
-    const id = $('#customLoadoutId').val();
-    const name = $('#customLoadoutName').val();
-    const isActive = $('#customLoadoutActive').val() === 'true';
-    let loadoutData;
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    let id, name, isActive, loadoutData;
+    let url, method, redirectUrl;
+    
+    // Detectar tipo e usar campos corretos
+    if (loadoutType === 'player') {
+        const playerId = $('#playerLoadoutPlayerId').val();
+        const loadoutId = parseInt($('#playerLoadoutId').val());
+        const dbLoadoutId = $('#playerLoadoutLoadoutId').val();
+        name = $('#playerLoadoutName').val();
+        isActive = $('#playerLoadoutActive').val() === 'true';
+        
+        if (!playerId || !name) {
+            showAlert('danger', 'Player ID e nome são obrigatórios');
+            return;
+        }
+        
+        // URLs para player loadouts
+        if (dbLoadoutId) {
+            // Editando - usar PUT
+            url = `/api/loadouts/players/${playerId}/${loadoutId}`;
+            method = 'PUT';
+        } else {
+            // Criando - usar POST
+            url = `/api/loadouts/players/${playerId}`;
+            method = 'POST';
+        }
+        redirectUrl = '/loadouts#players-tab';
+    } else {
+        // Custom loadout
+        id = $('#customLoadoutId').val();
+        name = $('#customLoadoutName').val();
+        isActive = $('#customLoadoutActive').val() === 'true';
+        
+        if (!name) {
+            showAlert('danger', 'Nome é obrigatório');
+            return;
+        }
+        
+        // URLs para custom loadouts
+        url = id ? `/api/loadouts/custom/${id}` : '/api/loadouts/custom';
+        method = id ? 'PUT' : 'POST';
+        redirectUrl = '/loadouts#custom-tab';
+    }
     
     // Se estiver no modo visual, montar JSON das seleções
     if (loadoutMode === 'visual') {
@@ -4108,8 +4325,9 @@ function saveCustomLoadout() {
         loadoutData = buildLoadoutFromVisual();
     } else {
         // Modo JSON manual
+        const jsonTextarea = loadoutType === 'player' ? '#playerLoadoutData' : '#customLoadoutData';
         try {
-            loadoutData = JSON.parse($('#customLoadoutData').val());
+            loadoutData = JSON.parse($(jsonTextarea).val());
             // Validar estrutura
             if (!validateLoadoutStructure(loadoutData)) {
                 showAlert('danger', 'Estrutura do loadout inválida');
@@ -4126,25 +4344,47 @@ function saveCustomLoadout() {
         return;
     }
     
-    const url = id ? `/api/loadouts/custom/${id}` : '/api/loadouts/custom';
-    const method = id ? 'PUT' : 'POST';
+    // Preparar dados para envio
+    let dataToSend;
+    if (loadoutType === 'player') {
+        const playerId = $('#playerLoadoutPlayerId').val();
+        const loadoutId = parseInt($('#playerLoadoutId').val());
+        const dbLoadoutId = $('#playerLoadoutLoadoutId').val();
+        
+        dataToSend = {
+            name: name,
+            is_active: isActive,
+            loadout_data: loadoutData
+        };
+        // Se existe dbLoadoutId, estamos editando
+        if (dbLoadoutId) {
+            dataToSend.db_id = dbLoadoutId;
+            dataToSend.loadout_id = loadoutId; // Só enviar loadout_id ao editar
+            // Usar loadoutId atual para garantir que está correto
+            url = `/api/loadouts/players/${playerId}/${loadoutId}`;
+            method = 'PUT';
+        }
+        // Ao criar, não enviar loadout_id (será gerado automaticamente pela API)
+    } else {
+        dataToSend = {
+            name: name,
+            is_active: isActive,
+            loadout_data: loadoutData
+        };
+    }
     
     $.ajax({
         url: url,
         method: method,
         contentType: 'application/json',
-        data: JSON.stringify({
-            name: name,
-            is_active: isActive,
-            loadout_data: loadoutData
-        }),
+        data: JSON.stringify(dataToSend),
         success: function(response) {
             if (response.success) {
                 // Marcar como salvo antes de redirecionar
                 loadoutHasChanges = false;
                 updateChangesIndicator();
                 // Redirecionar para página de listagem
-                window.location.href = '/loadouts#custom-tab';
+                window.location.href = redirectUrl;
             } else {
                 showAlert('danger', 'Erro: ' + response.message);
             }

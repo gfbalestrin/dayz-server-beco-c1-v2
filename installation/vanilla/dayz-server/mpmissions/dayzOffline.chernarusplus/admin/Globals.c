@@ -1,6 +1,4 @@
 string DeathMatchConfigJsonFile = "$mission:admin/files/deathmatch_config.json";
-string LoadoutDefaultJsonFile = "$mission:admin/loadouts/default.json";
-string LoadoutAdminJsonFile = "$mission:admin/loadouts/admin.json";
 string LoadoutCustomJsonFile = "$mission:admin/loadouts/custom.json";
 string LoadoutPlayersIdsJsonFile = "$mission:admin/loadouts/players_ids.json";
 string LoadoutPlayersFolder = "$mission:admin/loadouts/players/";

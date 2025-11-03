@@ -2561,13 +2561,25 @@ def loadouts():
 @login_required
 def loadout_custom_new():
     """Página de criação de novo loadout custom"""
-    return render_template('loadout_edit.html', loadout_id=None, is_edit=False)
+    return render_template('loadout_edit.html', loadout_id=None, is_edit=False, loadout_type='custom')
 
 @app.route('/loadouts/custom/<int:loadout_id>/edit')
 @login_required
 def loadout_custom_edit(loadout_id):
     """Página de edição de loadout custom"""
-    return render_template('loadout_edit.html', loadout_id=loadout_id, is_edit=True)
+    return render_template('loadout_edit.html', loadout_id=loadout_id, is_edit=True, loadout_type='custom')
+
+@app.route('/loadouts/players/<player_id>/new')
+@login_required
+def loadout_player_new(player_id):
+    """Página de criação de novo loadout para jogador"""
+    return render_template('loadout_edit.html', loadout_id=None, is_edit=False, loadout_type='player', player_id=player_id)
+
+@app.route('/loadouts/players/<player_id>/<int:loadout_id>/edit')
+@login_required
+def loadout_player_edit(player_id, loadout_id):
+    """Página de edição de loadout de jogador"""
+    return render_template('loadout_edit.html', loadout_id=loadout_id, is_edit=True, loadout_type='player', player_id=player_id)
 
 # ============================================================================
 # API - LOADOUTS CUSTOM
@@ -2751,17 +2763,23 @@ def api_loadouts_players_create(player_id):
     """Cria um novo loadout para um jogador"""
     try:
         data = request.get_json()
-        loadout_id = data.get('loadout_id')  # ID interno do loadout no JSON do jogador
+        loadout_id = data.get('loadout_id')  # ID interno opcional (será gerado automaticamente se None)
         name = data.get('name')
         is_active = data.get('is_active', False)
         loadout_data = data.get('loadout_data', {})
         
-        if not loadout_id or not name or not loadout_data:
-            return jsonify({'success': False, 'message': 'ID do loadout, nome e dados são obrigatórios'}), 400
+        if not name or not loadout_data:
+            return jsonify({'success': False, 'message': 'Nome e dados são obrigatórios'}), 400
         
+        # Criar loadout (loadout_id será gerado automaticamente se None)
         db_id = create_loadout_player(player_id, loadout_id, name, is_active, loadout_data)
         if not db_id:
             return jsonify({'success': False, 'message': 'Erro ao criar loadout'}), 500
+        
+        # Buscar o loadout_id gerado para retornar
+        from database import get_loadout_player_by_id
+        created_loadout = get_loadout_player_by_id(db_id)
+        generated_loadout_id = created_loadout['loadout_id'] if created_loadout else None
         
         # Sincronizar com arquivo JSON
         sync_player_loadouts_to_file(player_id)
@@ -2771,11 +2789,11 @@ def api_loadouts_players_create(player_id):
             session.get('user_id'),
             session.get('username', 'Unknown'),
             'CREATE_LOADOUT_PLAYER',
-            {'player_id': player_id, 'loadout_id': loadout_id, 'name': name},
+            {'player_id': player_id, 'loadout_id': generated_loadout_id, 'name': name},
             get_client_ip()
         )
         
-        return jsonify({'success': True, 'message': 'Loadout criado com sucesso', 'db_id': db_id})
+        return jsonify({'success': True, 'message': 'Loadout criado com sucesso', 'db_id': db_id, 'loadout_id': generated_loadout_id})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 

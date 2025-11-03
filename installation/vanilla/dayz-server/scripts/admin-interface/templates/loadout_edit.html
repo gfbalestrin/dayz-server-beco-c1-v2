@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{% if is_edit %}Editar{% else %}Criar{% endif %} Loadout Custom{% endblock %}
+{% block title %}{% if is_edit %}Editar{% else %}Criar{% endif %} Loadout {% if loadout_type == 'player' %}Player{% else %}Custom{% endif %}{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
@@ -13,15 +13,19 @@
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{{ url_for('loadouts') }}">Loadouts</a></li>
+            {% if loadout_type == 'player' %}
+            <li class="breadcrumb-item"><a href="{{ url_for('loadouts') }}#players-tab">Loadouts Players</a></li>
+            {% else %}
             <li class="breadcrumb-item"><a href="{{ url_for('loadouts') }}#custom-tab">Loadouts Custom</a></li>
+            {% endif %}
             <li class="breadcrumb-item active" aria-current="page">{% if is_edit %}Editar{% else %}Criar{% endif %} Loadout</li>
         </ol>
     </nav>
 
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="fas fa-layer-group me-2"></i>{% if is_edit %}Editar{% else %}Criar Novo{% endif %} Loadout Custom</h2>
-        <a href="{{ url_for('loadouts') }}#custom-tab" class="btn btn-secondary">
+        <h2><i class="fas fa-layer-group me-2"></i>{% if is_edit %}Editar{% else %}Criar Novo{% endif %} Loadout {% if loadout_type == 'player' %}Player{% else %}Custom{% endif %}</h2>
+        <a href="{{ url_for('loadouts') }}#{% if loadout_type == 'player' %}players-tab{% else %}custom-tab{% endif %}" class="btn btn-secondary">
             <i class="fas fa-arrow-left me-2"></i>Voltar
         </a>
     </div>
@@ -48,7 +52,13 @@
     </div>
 
     <form id="customLoadoutForm" onsubmit="return false;">
+        <input type="hidden" id="loadoutType" value="{{ loadout_type if loadout_type else 'custom' }}">
+        {% if loadout_type == 'player' %}
+        <input type="hidden" id="playerLoadoutPlayerId" value="{{ player_id if player_id else '' }}">
+        <input type="hidden" id="playerLoadoutLoadoutId" value="{{ loadout_id if loadout_id else '' }}">
+        {% else %}
         <input type="hidden" id="customLoadoutId" value="{{ loadout_id if loadout_id else '' }}">
+        {% endif %}
         
         <!-- Campos Básicos -->
         <div class="card mb-4">
@@ -57,6 +67,24 @@
             </div>
             <div class="card-body">
                 <div class="row mb-3">
+                    {% if loadout_type == 'player' %}
+                    <div class="col-md-4">
+                        <label for="playerLoadoutId" class="form-label">ID do Loadout:</label>
+                        <input type="number" class="form-control" id="playerLoadoutId" required min="1">
+                        <small class="form-text text-muted">ID interno do loadout no arquivo JSON do jogador</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="playerLoadoutName" class="form-label">Nome do Loadout:</label>
+                        <input type="text" class="form-control" id="playerLoadoutName" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="playerLoadoutActive" class="form-label">Status:</label>
+                        <select class="form-select" id="playerLoadoutActive">
+                            <option value="false">Inativo</option>
+                            <option value="true">Ativo</option>
+                        </select>
+                    </div>
+                    {% else %}
                     <div class="col-md-6">
                         <label for="customLoadoutName" class="form-label">Nome do Loadout:</label>
                         <input type="text" class="form-control" id="customLoadoutName" required>
@@ -68,6 +96,7 @@
                             <option value="true">Ativo</option>
                         </select>
                     </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -327,6 +356,20 @@
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
+                        {% if loadout_type == 'player' %}
+                        <label for="playerLoadoutData" class="form-label">Dados do Loadout (JSON):</label>
+                        <textarea class="form-control font-monospace" id="playerLoadoutData" rows="20"></textarea>
+                        <small class="form-text text-muted">
+                            Formato esperado: Objeto Loadout completo com weapons, explosives e items.
+                            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="btnValidatePlayerJSON">
+                                <i class="fas fa-check me-1"></i>Validar JSON
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary ms-1" id="btnFormatPlayerJSON">
+                                <i class="fas fa-code me-1"></i>Formatar JSON
+                            </button>
+                        </small>
+                        <div id="playerJSONValidation" class="mt-2"></div>
+                        {% else %}
                         <label for="customLoadoutData" class="form-label">Dados do Loadout (JSON):</label>
                         <textarea class="form-control font-monospace" id="customLoadoutData" rows="20"></textarea>
                         <small class="form-text text-muted">
@@ -339,6 +382,7 @@
                             </button>
                         </small>
                         <div id="customJSONValidation" class="mt-2"></div>
+                        {% endif %}
                     </div>
                 </div>
             </div>

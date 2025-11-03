@@ -2288,6 +2288,16 @@ def create_loadout_player(player_id: str, loadout_id: int, name: str, is_active:
     """Cria um novo loadout para um jogador"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:
         cursor = conn.cursor()
+        
+        # Se loadout_id for None, calcular automaticamente o próximo ID disponível
+        if loadout_id is None:
+            cursor.execute("""
+                SELECT MAX(loadout_id) FROM loadouts_players WHERE player_id = ?
+            """, (player_id,))
+            result = cursor.fetchone()
+            max_id = result[0] if result[0] is not None else 0
+            loadout_id = max_id + 1
+        
         loadout_json = json.dumps(loadout_data, ensure_ascii=False)
         cursor.execute("""
             INSERT INTO loadouts_players (player_id, loadout_id, name, is_active, loadout_data, updated_at)
@@ -2309,13 +2319,57 @@ def update_loadout_player(db_id: int, loadout_id: int, name: str, is_active: boo
         conn.commit()
         return cursor.rowcount > 0
 
+def reorder_player_loadout_ids(player_id: str) -> bool:
+    """Reordena os IDs dos loadouts de um jogador sequencialmente (1, 2, 3...)"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        
+        # Buscar todos loadouts do jogador ordenados por loadout_id
+        cursor.execute("""
+            SELECT id, loadout_id 
+            FROM loadouts_players 
+            WHERE player_id = ? 
+            ORDER BY loadout_id
+        """, (player_id,))
+        loadouts = cursor.fetchall()
+        
+        # Atualizar IDs sequencialmente
+        for index, loadout in enumerate(loadouts, start=1):
+            new_loadout_id = index
+            old_loadout_id = loadout['loadout_id']
+            
+            # Só atualizar se o ID mudou
+            if new_loadout_id != old_loadout_id:
+                cursor.execute("""
+                    UPDATE loadouts_players 
+                    SET loadout_id = ? 
+                    WHERE id = ?
+                """, (new_loadout_id, loadout['id']))
+        
+        conn.commit()
+        return True
+
 def delete_loadout_player(db_id: int) -> bool:
     """Deleta um loadout de player"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:
         cursor = conn.cursor()
+        
+        # Buscar player_id antes de deletar
+        cursor.execute("SELECT player_id FROM loadouts_players WHERE id = ?", (db_id,))
+        result = cursor.fetchone()
+        if not result:
+            return False
+        
+        player_id = result[0]
+        
+        # Deletar loadout
         cursor.execute("DELETE FROM loadouts_players WHERE id = ?", (db_id,))
         conn.commit()
-        return cursor.rowcount > 0
+        
+        # Reordenar IDs após deletar
+        reorder_player_loadout_ids(player_id)
+        
+        return True
 
 def get_players_with_loadouts() -> List[Dict]:
     """Retorna lista de jogadores que possuem loadouts"""
