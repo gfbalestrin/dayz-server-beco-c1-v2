@@ -432,10 +432,16 @@
                 <h5 class="modal-title">
                     Configurar Subitems: <span id="subitemsParentName"></span>
                 </h5>
+                <button type="button" class="btn btn-secondary me-2" id="btnBackSubitemsModal" onclick="navigateBackInSubitemsModal(); return false;" style="display: none;">
+                    <i class="fas fa-arrow-left me-2"></i>Voltar
+                </button>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="subitemsItemIndex">
+                
+                <!-- Breadcrumb de navegação hierárquica -->
+                <div id="subitemsBreadcrumb" class="mb-3"></div>
                 
                 <!-- Informações do item pai -->
                 <div class="alert alert-info mb-3">

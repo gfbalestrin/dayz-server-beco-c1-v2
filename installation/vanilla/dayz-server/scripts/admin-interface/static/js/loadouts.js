@@ -3121,6 +3121,91 @@ function removeSubitemFromLoadout(parentItemIndex, subitemNameType) {
 // Variáveis globais para subitems modal
 let currentSubitemsData = []; // Items compatíveis filtrados
 let currentSelectedSubitems = []; // Subitems selecionados no modal
+let subitemsModalContextStack = []; // Pilha de contextos para navegação recursiva
+let currentSubitemsContext = null; // Contexto atual do modal (null = nível principal)
+
+// Função auxiliar para criar contexto do modal
+function createSubitemsModalContext(itemIndex, itemData, selectedSubitems, parentPath, breadcrumb) {
+    return {
+        itemIndex: itemIndex,
+        itemData: JSON.parse(JSON.stringify(itemData)), // Deep copy
+        selectedSubitems: JSON.parse(JSON.stringify(selectedSubitems)), // Deep copy
+        parentPath: parentPath ? [...parentPath] : [], // Cópia do array
+        breadcrumb: breadcrumb || ''
+    };
+}
+
+// Função auxiliar para atualizar breadcrumb no modal
+function updateSubitemsModalBreadcrumb() {
+    const breadcrumbContainer = $('#subitemsBreadcrumb');
+    if (!breadcrumbContainer.length) return;
+    
+    const itemIndex = parseInt($('#subitemsItemIndex').val());
+    const item = selectedItems[itemIndex];
+    if (!item) return;
+    
+    let breadcrumbHtml = '<nav aria-label="breadcrumb"><ol class="breadcrumb mb-2">';
+    
+    // Se estamos no nível principal
+    if (!currentSubitemsContext && subitemsModalContextStack.length === 0) {
+        breadcrumbHtml += `<li class="breadcrumb-item active">${item.name}</li>`;
+    } else {
+        // Sempre adicionar item principal como primeiro nível (clicável para voltar)
+        breadcrumbHtml += `<li class="breadcrumb-item"><a href="#" onclick="navigateToSubitemsLevel(-1); return false;">${item.name}</a></li>`;
+        
+        // Adicionar níveis anteriores da pilha
+        subitemsModalContextStack.forEach(function(context, index) {
+            breadcrumbHtml += `<li class="breadcrumb-item"><a href="#" onclick="navigateToSubitemsLevel(${index}); return false;">${context.itemData.name}</a></li>`;
+        });
+        
+        // Adicionar nível atual
+        if (currentSubitemsContext) {
+            breadcrumbHtml += `<li class="breadcrumb-item active">${currentSubitemsContext.itemData.name}</li>`;
+        } else {
+            breadcrumbHtml += `<li class="breadcrumb-item active">${item.name}</li>`;
+        }
+    }
+    
+    breadcrumbHtml += '</ol></nav>';
+    breadcrumbContainer.html(breadcrumbHtml);
+}
+
+// Função auxiliar para salvar subitems em um item usando parentPath
+function saveSubitemsToItem(targetItem, parentPath, subitemsToSave) {
+    if (!parentPath || parentPath.length === 0) {
+        // Se não há caminho, salvar diretamente no item
+        targetItem.subitems = JSON.parse(JSON.stringify(subitemsToSave));
+        return targetItem;
+    }
+    
+    // Navegar pelo caminho até o subitem correto
+    let currentItem = targetItem;
+    for (let i = 0; i < parentPath.length; i++) {
+        const pathIndex = parentPath[i];
+        if (currentItem.subitems && currentItem.subitems[pathIndex]) {
+            currentItem = currentItem.subitems[pathIndex];
+        } else {
+            console.error('Caminho inválido ao salvar subitems:', parentPath);
+            return null;
+        }
+    }
+    
+    // Salvar subitems no item encontrado
+    currentItem.subitems = JSON.parse(JSON.stringify(subitemsToSave));
+    return currentItem;
+}
+
+// Função auxiliar para atualizar visibilidade do botão voltar
+function updateBackButtonVisibility() {
+    const backButton = $('#btnBackSubitemsModal');
+    if (backButton.length) {
+        if (subitemsModalContextStack.length > 0 || currentSubitemsContext !== null) {
+            backButton.show();
+        } else {
+            backButton.hide();
+        }
+    }
+}
 
 function openSubitemsModal(itemIndex) {
     const item = selectedItems[itemIndex];
@@ -3130,6 +3215,10 @@ function openSubitemsModal(itemIndex) {
         showAlert('info', 'Este item não pode receber subitems ou não possui subitems compatíveis.');
         return;
     }
+    
+    // Resetar pilha de contexto quando abrir do nível principal
+    subitemsModalContextStack = [];
+    currentSubitemsContext = null;
     
     // Salvar contexto do modal
     $('#subitemsItemIndex').val(itemIndex);
@@ -3159,6 +3248,10 @@ function openSubitemsModal(itemIndex) {
     // Renderizar grid e lista de selecionados
     renderSubitemsGrid();
     updateSelectedSubitemsDisplay();
+    updateSubitemsModalBreadcrumb();
+    
+    // Mostrar/ocultar botão voltar baseado na pilha
+    updateBackButtonVisibility();
     
     // Inicializar event listeners dos filtros
     initSubitemsFilters();
@@ -3410,11 +3503,17 @@ function updateSelectedSubitemsDisplay() {
                             <div>
                                 <strong>${subitem.name}</strong>
                                 ${subitem.localization ? `<br><small class="text-muted">Localização: ${subitem.localization}</small>` : ''}
-                                ${subitem.canHaveSubitems ? `<br><small class="text-info">Pode receber subitems (adicionar após salvar)</small>` : ''}
+                                ${subitem.canHaveSubitems ? `<br><small class="text-info">Pode receber subitems</small>` : ''}
                                 ${subitem.subitems && subitem.subitems.length > 0 ? `<br><small class="text-secondary">Subitems: ${subitem.subitems.length}</small>` : ''}
                             </div>
                         </div>
                         <div class="ms-3">
+                            ${subitem.canHaveSubitems ? `
+                                <button class="btn btn-sm btn-info me-1" onclick="openSubitemsModalForSubitemInModal(${index}); return false;" title="Configurar Subitems">
+                                    <i class="fas fa-layer-group"></i> Subitems
+                                    ${subitem.subitems && subitem.subitems.length > 0 ? ` <span class="badge bg-light text-dark">${subitem.subitems.length}</span>` : ''}
+                                </button>
+                            ` : ''}
                             <button class="btn btn-sm btn-danger" onclick="removeSubitemFromSelection(${subitem.id}); return false;">
                                 <i class="fas fa-trash"></i> Remover
                             </button>
@@ -3427,11 +3526,314 @@ function updateSelectedSubitemsDisplay() {
     });
 }
 
-// Função removida: openSubitemSubitemsModal - recursividade dentro do modal não é mais necessária
-// Função removida: openSubitemsModalForSubitem - recursividade dentro do modal não é mais necessária
+// Função para abrir modal recursivamente para subitems de um subitem dentro do modal
+function openSubitemsModalForSubitemInModal(subitemIndex) {
+    const subitem = currentSelectedSubitems[subitemIndex];
+    if (!subitem) {
+        showAlert('danger', 'Subitem não encontrado.');
+        return;
+    }
+    
+    if (!subitem.canHaveSubitems || !subitem.compatibleChildren || subitem.compatibleChildren.length === 0) {
+        showAlert('info', 'Este subitem não pode receber subitems ou não possui subitems compatíveis.');
+        return;
+    }
+    
+    // Obter itemIndex original do modal
+    const originalItemIndex = parseInt($('#subitemsItemIndex').val());
+    const originalItem = selectedItems[originalItemIndex];
+    if (!originalItem) {
+        showAlert('danger', 'Item principal não encontrado.');
+        return;
+    }
+    
+    // Salvar contexto atual na pilha antes de navegar
+    if (currentSubitemsContext) {
+        // Se já estamos em um nível recursivo, salvar contexto atual na pilha
+        // Atualizar os selectedSubitems do contexto atual antes de salvar
+        currentSubitemsContext.selectedSubitems = JSON.parse(JSON.stringify(currentSelectedSubitems));
+        subitemsModalContextStack.push(currentSubitemsContext);
+    } else {
+        // Se não há contexto atual, criar um para o nível principal
+        const mainContext = createSubitemsModalContext(
+            originalItemIndex,
+            originalItem,
+            currentSelectedSubitems,
+            [],
+            originalItem.name
+        );
+        subitemsModalContextStack.push(mainContext);
+    }
+    
+    // Calcular parentPath para o novo nível
+    const newParentPath = currentSubitemsContext ? 
+        [...currentSubitemsContext.parentPath, subitemIndex] : 
+        [subitemIndex];
+    
+    // Calcular breadcrumb para o novo nível
+    const newBreadcrumb = currentSubitemsContext ? 
+        `${currentSubitemsContext.breadcrumb} > ${subitem.name}` : 
+        `${originalItem.name} > ${subitem.name}`;
+    
+    // Definir novo contexto atual
+    currentSubitemsContext = createSubitemsModalContext(
+        originalItemIndex,
+        subitem,
+        subitem.subitems ? JSON.parse(JSON.stringify(subitem.subitems)) : [],
+        newParentPath,
+        newBreadcrumb
+    );
+    
+    // Atualizar título
+    $('#subitemsParentName').text(subitem.name);
+    
+    // Atualizar informações
+    $('#subitemsParentInfo').html(`
+        Item: <strong>${subitem.name}</strong> | 
+        Subitems compatíveis: <strong>${subitem.compatibleChildren.length}</strong> | 
+        Subitems selecionados: <strong>${subitem.subitems ? subitem.subitems.length : 0}</strong>
+    `);
+    
+    // Atualizar arrays para o novo nível
+    currentSelectedSubitems = currentSubitemsContext.selectedSubitems;
+    
+    // Filtrar itemsDataLoadout para pegar apenas os compatíveis
+    const compatibleIds = subitem.compatibleChildren.map(child => child.id || child);
+    currentSubitemsData = itemsDataLoadout.filter(i => compatibleIds.includes(i.id));
+    
+    // Carregar tipos de item no filtro
+    loadSubitemTypes();
+    
+    // Renderizar grid e lista de selecionados
+    renderSubitemsGrid();
+    updateSelectedSubitemsDisplay();
+    updateSubitemsModalBreadcrumb();
+    updateBackButtonVisibility();
+    
+    // Inicializar event listeners dos filtros
+    initSubitemsFilters();
+}
+
+// Função para voltar um nível na hierarquia
+function navigateBackInSubitemsModal() {
+    if (subitemsModalContextStack.length === 0 && currentSubitemsContext === null) {
+        // Já estamos no nível principal, não há para onde voltar
+        return;
+    }
+    
+    // Obter itemIndex original
+    const originalItemIndex = parseInt($('#subitemsItemIndex').val());
+    const originalItem = selectedItems[originalItemIndex];
+    if (!originalItem) {
+        showAlert('danger', 'Item principal não encontrado.');
+        return;
+    }
+    
+    // Se estamos em um nível recursivo, atualizar os subitems do contexto atual
+    // antes de voltar, para preservar as alterações
+    if (currentSubitemsContext && currentSubitemsContext.parentPath && currentSubitemsContext.parentPath.length > 0) {
+        // Salvar subitems do nível atual antes de voltar
+        const subitemsToSave = currentSelectedSubitems.map(function(subitem) {
+            return {
+                id: subitem.id,
+                name: subitem.name,
+                name_type: subitem.name_type,
+                type_name: subitem.type_name || '',
+                slots: subitem.slots,
+                width: subitem.width,
+                height: subitem.height,
+                storage_slots: subitem.storage_slots || 0,
+                storage_width: subitem.storage_width || 0,
+                storage_height: subitem.storage_height || 0,
+                localization: subitem.localization || '',
+                subitems: subitem.subitems && subitem.subitems.length > 0 ? JSON.parse(JSON.stringify(subitem.subitems)) : [],
+                canHaveSubitems: subitem.canHaveSubitems || false,
+                compatibleChildren: subitem.compatibleChildren || [],
+                img: subitem.img || null
+            };
+        });
+        
+        // Atualizar no item principal usando parentPath
+        saveSubitemsToItem(originalItem, currentSubitemsContext.parentPath, subitemsToSave);
+        
+        // Atualizar no contexto da pilha se existir
+        if (subitemsModalContextStack.length > 0) {
+            const lastContext = subitemsModalContextStack[subitemsModalContextStack.length - 1];
+            if (lastContext && lastContext.selectedSubitems) {
+                const parentIndex = currentSubitemsContext.parentPath[currentSubitemsContext.parentPath.length - 1];
+                if (lastContext.selectedSubitems[parentIndex]) {
+                    lastContext.selectedSubitems[parentIndex].subitems = JSON.parse(JSON.stringify(subitemsToSave));
+                }
+            }
+        }
+    }
+    
+    // Restaurar contexto anterior
+    if (subitemsModalContextStack.length > 0) {
+        const previousContext = subitemsModalContextStack.pop();
+        currentSubitemsContext = previousContext;
+        
+        // Atualizar arrays
+        currentSelectedSubitems = previousContext.selectedSubitems;
+        
+        // Filtrar itemsDataLoadout para pegar apenas os compatíveis
+        const compatibleIds = previousContext.itemData.compatibleChildren.map(child => child.id || child);
+        currentSubitemsData = itemsDataLoadout.filter(i => compatibleIds.includes(i.id));
+        
+        // Atualizar título
+        $('#subitemsParentName').text(previousContext.itemData.name);
+        
+        // Atualizar informações
+        $('#subitemsParentInfo').html(`
+            Item: <strong>${previousContext.itemData.name}</strong> | 
+            Subitems compatíveis: <strong>${previousContext.itemData.compatibleChildren.length}</strong> | 
+            Subitems selecionados: <strong>${previousContext.selectedSubitems.length}</strong>
+        `);
+    } else {
+        // Voltar para o nível principal
+        currentSubitemsContext = null;
+        currentSelectedSubitems = originalItem.subitems ? JSON.parse(JSON.stringify(originalItem.subitems)) : [];
+        
+        // Filtrar itemsDataLoadout para pegar apenas os compatíveis
+        const compatibleIds = originalItem.compatibleChildren.map(child => child.id || child);
+        currentSubitemsData = itemsDataLoadout.filter(i => compatibleIds.includes(i.id));
+        
+        // Atualizar título
+        $('#subitemsParentName').text(originalItem.name);
+        
+        // Atualizar informações
+        $('#subitemsParentInfo').html(`
+            Item: <strong>${originalItem.name}</strong> | 
+            Subitems compatíveis: <strong>${originalItem.compatibleChildren.length}</strong> | 
+            Subitems selecionados: <strong>${originalItem.subitems ? originalItem.subitems.length : 0}</strong>
+        `);
+    }
+    
+    // Carregar tipos de item no filtro
+    loadSubitemTypes();
+    
+    // Renderizar grid e lista de selecionados
+    renderSubitemsGrid();
+    updateSelectedSubitemsDisplay();
+    updateSubitemsModalBreadcrumb();
+    updateBackButtonVisibility();
+    
+    // Inicializar event listeners dos filtros
+    initSubitemsFilters();
+}
+
+// Função para navegar para um nível específico (usada pelo breadcrumb)
+function navigateToSubitemsLevel(stackIndex) {
+    // Obter itemIndex original
+    const originalItemIndex = parseInt($('#subitemsItemIndex').val());
+    const originalItem = selectedItems[originalItemIndex];
+    if (!originalItem) {
+        showAlert('danger', 'Item principal não encontrado.');
+        return;
+    }
+    
+    // Se estamos em um nível recursivo, salvar alterações antes de navegar
+    if (currentSubitemsContext && currentSubitemsContext.parentPath && currentSubitemsContext.parentPath.length > 0) {
+        const subitemsToSave = currentSelectedSubitems.map(function(subitem) {
+            return {
+                id: subitem.id,
+                name: subitem.name,
+                name_type: subitem.name_type,
+                type_name: subitem.type_name || '',
+                slots: subitem.slots,
+                width: subitem.width,
+                height: subitem.height,
+                storage_slots: subitem.storage_slots || 0,
+                storage_width: subitem.storage_width || 0,
+                storage_height: subitem.storage_height || 0,
+                localization: subitem.localization || '',
+                subitems: subitem.subitems && subitem.subitems.length > 0 ? JSON.parse(JSON.stringify(subitem.subitems)) : [],
+                canHaveSubitems: subitem.canHaveSubitems || false,
+                compatibleChildren: subitem.compatibleChildren || [],
+                img: subitem.img || null
+            };
+        });
+        
+        // Salvar no item principal
+        saveSubitemsToItem(originalItem, currentSubitemsContext.parentPath, subitemsToSave);
+        
+        // Atualizar nos contextos da pilha
+        if (subitemsModalContextStack.length > 0) {
+            const lastContext = subitemsModalContextStack[subitemsModalContextStack.length - 1];
+            if (lastContext && lastContext.selectedSubitems) {
+                const parentIndex = currentSubitemsContext.parentPath[currentSubitemsContext.parentPath.length - 1];
+                if (lastContext.selectedSubitems[parentIndex]) {
+                    lastContext.selectedSubitems[parentIndex].subitems = JSON.parse(JSON.stringify(subitemsToSave));
+                }
+            }
+        }
+    }
+    
+    // Se stackIndex é -1, voltar ao nível principal
+    if (stackIndex < 0) {
+        // Limpar contextos e voltar ao principal
+        subitemsModalContextStack = [];
+        currentSubitemsContext = null;
+        currentSelectedSubitems = originalItem.subitems ? JSON.parse(JSON.stringify(originalItem.subitems)) : [];
+        
+        const compatibleIds = originalItem.compatibleChildren.map(child => child.id || child);
+        currentSubitemsData = itemsDataLoadout.filter(i => compatibleIds.includes(i.id));
+        
+        $('#subitemsParentName').text(originalItem.name);
+        $('#subitemsParentInfo').html(`
+            Item: <strong>${originalItem.name}</strong> | 
+            Subitems compatíveis: <strong>${originalItem.compatibleChildren.length}</strong> | 
+            Subitems selecionados: <strong>${originalItem.subitems ? originalItem.subitems.length : 0}</strong>
+        `);
+        
+        loadSubitemTypes();
+        renderSubitemsGrid();
+        updateSelectedSubitemsDisplay();
+        updateSubitemsModalBreadcrumb();
+        updateBackButtonVisibility();
+        initSubitemsFilters();
+        return;
+    }
+    
+    // Navegar até o nível desejado, descartando contextos mais profundos
+    // Mas primeiro, salvar alterações dos contextos que serão descartados
+    while (subitemsModalContextStack.length > stackIndex + 1) {
+        const contextToDiscard = subitemsModalContextStack.pop();
+        // Não precisamos salvar pois o contexto atual já foi salvo acima
+    }
+    
+    // Restaurar contexto do índice desejado
+    if (stackIndex < subitemsModalContextStack.length) {
+        const targetContext = subitemsModalContextStack[stackIndex];
+        if (targetContext) {
+            currentSubitemsContext = targetContext;
+            currentSelectedSubitems = targetContext.selectedSubitems;
+            
+            const compatibleIds = targetContext.itemData.compatibleChildren.map(child => child.id || child);
+            currentSubitemsData = itemsDataLoadout.filter(i => compatibleIds.includes(i.id));
+            
+            $('#subitemsParentName').text(targetContext.itemData.name);
+            $('#subitemsParentInfo').html(`
+                Item: <strong>${targetContext.itemData.name}</strong> | 
+                Subitems compatíveis: <strong>${targetContext.itemData.compatibleChildren.length}</strong> | 
+                Subitems selecionados: <strong>${targetContext.selectedSubitems.length}</strong>
+            `);
+            
+            loadSubitemTypes();
+            renderSubitemsGrid();
+            updateSelectedSubitemsDisplay();
+            updateSubitemsModalBreadcrumb();
+            updateBackButtonVisibility();
+            initSubitemsFilters();
+            return;
+        }
+    }
+    
+    // Se chegou aqui, algo deu errado, voltar ao nível principal
+    navigateBackInSubitemsModal();
+}
 
 function saveSubitemsConfiguration() {
-    // Sempre salvar subitems do item principal (sem recursão dentro do modal)
     const itemIndex = parseInt($('#subitemsItemIndex').val());
     const item = selectedItems[itemIndex];
     
@@ -3462,11 +3864,39 @@ function saveSubitemsConfiguration() {
         };
     });
     
-    // Atualizar subitems do item com deep copy
-    item.subitems = JSON.parse(JSON.stringify(subitemsToSave));
+    // Se estamos em nível recursivo, salvar usando parentPath
+    if (currentSubitemsContext && currentSubitemsContext.parentPath && currentSubitemsContext.parentPath.length > 0) {
+        // Salvar subitems no nível correto da hierarquia
+        const saved = saveSubitemsToItem(item, currentSubitemsContext.parentPath, subitemsToSave);
+        if (!saved) {
+            showAlert('danger', 'Erro ao salvar subitems na hierarquia.');
+            return;
+        }
+        
+        // Atualizar subitems no contexto da pilha para manter consistência
+        // O último contexto na pilha deve ter o subitem atualizado
+        if (subitemsModalContextStack.length > 0) {
+            const lastContext = subitemsModalContextStack[subitemsModalContextStack.length - 1];
+            if (lastContext && lastContext.selectedSubitems) {
+                // Encontrar o índice do subitem pai no contexto anterior
+                const parentIndex = currentSubitemsContext.parentPath[currentSubitemsContext.parentPath.length - 1];
+                if (lastContext.selectedSubitems[parentIndex]) {
+                    // Atualizar os subitems do subitem pai
+                    lastContext.selectedSubitems[parentIndex].subitems = JSON.parse(JSON.stringify(subitemsToSave));
+                }
+            }
+        }
+    } else {
+        // Estamos no nível principal, salvar diretamente
+        item.subitems = JSON.parse(JSON.stringify(subitemsToSave));
+    }
     
     // Debug: verificar se os subitems foram salvos
-    console.log('Subitems salvos para item PRINCIPAL:', item.name, item.subitems);
+    if (currentSubitemsContext && currentSubitemsContext.parentPath && currentSubitemsContext.parentPath.length > 0) {
+        console.log('Subitems salvos para nível RECURSIVO:', currentSubitemsContext.itemData.name, subitemsToSave);
+    } else {
+        console.log('Subitems salvos para item PRINCIPAL:', item.name, item.subitems);
+    }
     
     // Atualizar display e preview
     updateSelectedItemsDisplay();
@@ -3478,6 +3908,10 @@ function saveSubitemsConfiguration() {
     if (modal) {
         modal.hide();
     }
+    
+    // Limpar contextos após salvar
+    subitemsModalContextStack = [];
+    currentSubitemsContext = null;
 }
 
 // Garantir que saveSubitemsConfiguration está disponível globalmente
