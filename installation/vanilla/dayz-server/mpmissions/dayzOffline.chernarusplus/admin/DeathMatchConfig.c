@@ -5,7 +5,7 @@ ref SafeZoneData LoadActiveRegionData(string path)
 	JsonFileLoader<array<ref SafeZoneData>>.JsonLoadFile(path, maps);
 
 	foreach (ref SafeZoneData data : maps) {
-		if (data && data.Active) {
+		if (data && data.Active && !data.IsDeleted) {
 			WriteToLog("Região ativa encontrada:", LogFile.INIT, false, LogType.DEBUG);
 			WriteToLog("Region: " + data.Region, LogFile.INIT, false, LogType.DEBUG);
 			WriteToLog("Mensagem personalizada: " + data.CustomMessage, LogFile.INIT, false, LogType.DEBUG);
@@ -34,14 +34,27 @@ void ToggleActiveRegion(string path)
 
     int activeIndex = -1;
     for (int i = 0; i < zones.Count(); i++) {
-        if (zones[i].Active) {
+        if (zones[i].Active && !zones[i].IsDeleted) {
             zones[i].Active = false;
             activeIndex = i;
             break;
         }
     }
 
-    int nextIndex = (activeIndex + 1) % zones.Count(); // loop circular
+    int nextIndex = activeIndex + 1;
+    if (nextIndex >= zones.Count()) {
+        nextIndex = 0;
+    }
+
+    // Procurar o próximo mapa que não está deletado
+    int tries = 0;
+    while (zones[nextIndex].IsDeleted && tries < zones.Count()) {
+        nextIndex++;
+        if (nextIndex >= zones.Count()) {
+            nextIndex = 0;
+        }
+        tries++;
+    }
     zones[nextIndex].Active = true;
 
     JsonFileLoader<array<ref SafeZoneData>>.JsonSaveFile(path, zones);
