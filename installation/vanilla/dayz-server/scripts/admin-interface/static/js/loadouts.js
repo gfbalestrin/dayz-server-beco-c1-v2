@@ -12,6 +12,7 @@ let loadoutMode = 'visual'; // 'visual' ou 'json'
 let selectedWeapons = {}; // { primary: {...}, secondary: {...}, small: {...} }
 let selectedExplosives = []; // [{id, name, name_type, quantity, slots, width, height}]
 let selectedItems = []; // [{id, name, name_type, ...compatibilidade...}]
+let loadoutHasChanges = false; // Controla se há alterações não salvas
 
 // Dados carregados para seleção
 let weaponsDataLoadout = [];
@@ -48,9 +49,35 @@ $(document).ready(function() {
     
     // Event listeners para página de edição/criação
     if ($('#customLoadoutForm').length > 0) {
+        // Botões de salvar (topo e final)
         $('#btnSaveCustomLoadout').on('click', saveCustomLoadout);
+        $('#btnSaveCustomLoadoutTop').on('click', saveCustomLoadout);
+        
         $('#btnValidateCustomJSON').on('click', () => validateJSON('custom'));
         $('#btnFormatCustomJSON').on('click', () => formatJSON('custom'));
+        
+        // Detectar alterações nos campos básicos
+        $('#customLoadoutName').on('input change', markLoadoutChanged);
+        $('#customLoadoutActive').on('change', markLoadoutChanged);
+        
+        // Detectar mudanças no modo (visual/JSON)
+        $('input[name="loadoutMode"]').on('change', markLoadoutChanged);
+        
+        // Detectar mudanças no JSON (se modo JSON estiver ativo)
+        $('#customLoadoutData').on('input', function() {
+            if (loadoutMode === 'json') {
+                markLoadoutChanged();
+            }
+        });
+        
+        // Confirmação ao tentar sair da página
+        window.addEventListener('beforeunload', function(e) {
+            if (loadoutHasChanges) {
+                e.preventDefault();
+                e.returnValue = ''; // Chrome requer returnValue
+                return ''; // Alguns browsers
+            }
+        });
         
         // Carregar dados se estiver na página de edição
         const loadoutId = $('#customLoadoutId').val();
@@ -60,6 +87,8 @@ $(document).ready(function() {
         } else {
             // Novo loadout, resetar
             resetLoadoutForm();
+            loadoutHasChanges = false; // Resetar flag ao criar novo
+            updateChangesIndicator();
         }
     }
     
@@ -148,6 +177,37 @@ $(document).ready(function() {
         "items": []
     };
 });
+
+// ============================================================================
+// FUNÇÕES AUXILIARES - DETECÇÃO DE ALTERAÇÕES
+// ============================================================================
+
+function markLoadoutChanged() {
+    loadoutHasChanges = true;
+    updateChangesIndicator();
+}
+
+function updateChangesIndicator() {
+    const indicator = $('#loadoutChangesIndicator');
+    if (indicator.length > 0) {
+        if (loadoutHasChanges) {
+            indicator.show();
+        } else {
+            indicator.hide();
+        }
+    }
+}
+
+function handleCancelLoadout() {
+    if (loadoutHasChanges) {
+        if (!confirm('Você tem alterações não salvas. Tem certeza que deseja cancelar?')) {
+            return false;
+        }
+    }
+    // Redirecionar para página de listagem
+    window.location.href = '/loadouts#custom-tab';
+    return false;
+}
 
 // ============================================================================
 // INICIALIZAÇÃO DAS TABELAS
@@ -349,6 +409,9 @@ function loadLoadoutForEdit(id) {
                     $('#modeVisual').prop('checked', true);
                     $('#modeJSON').prop('checked', false);
                     toggleLoadoutMode();
+                    // Resetar flag de alterações após carregar dados
+                    loadoutHasChanges = false;
+                    updateChangesIndicator();
                 }, 500);
             } else {
                 showAlert('danger', 'Erro ao carregar loadout: ' + response.message);
@@ -1306,6 +1369,7 @@ function selectWeaponByType(weaponId, weaponType) {
                         // Atualizar grid para destacar a arma selecionada (sem recursão - renderWeaponsGridLoadout não chama mais updateSelectedWeaponDisplay)
                         applyWeaponFiltersLoadout(weaponType);
                         updateJSONPreview();
+                        markLoadoutChanged();
                         openWeaponConfigModalWithData(weaponType);
                     });
                 } catch (error) {
@@ -1762,6 +1826,7 @@ function saveWeaponConfiguration() {
     const weaponType = $('#weaponConfigType').val();
     updateSelectedWeaponDisplay(weaponType);
     updateJSONPreview();
+    markLoadoutChanged();
     
     const modalElement = document.getElementById('weaponConfigModal');
     const modalInstance = bootstrap.Modal.getInstance(modalElement);
@@ -1908,6 +1973,7 @@ function removeWeaponFromLoadout(weaponType) {
     delete selectedWeapons[weaponType];
     updateSelectedWeaponsDisplay();
     updateJSONPreview();
+    markLoadoutChanged();
 }
 
 // Funções para explosivos e items (continuarei no próximo passo devido ao limite de tamanho)
@@ -1990,6 +2056,7 @@ function selectExplosiveForLoadout(explosiveId) {
     updateSelectedExplosivesDisplay();
     updateJSONPreview();
     applyExplosiveFiltersLoadout();
+    markLoadoutChanged();
 }
 
 function updateSelectedExplosivesDisplay() {
@@ -2046,6 +2113,7 @@ function editExplosiveQuantity(explosiveId) {
     explosive.quantity = parseInt(newQuantity) || 1;
     updateSelectedExplosivesDisplay();
     updateJSONPreview();
+    markLoadoutChanged();
     return true;
 }
 
@@ -2056,6 +2124,7 @@ function removeExplosiveFromLoadout(explosiveId) {
         updateSelectedExplosivesDisplay();
         updateJSONPreview();
         applyExplosiveFiltersLoadout();
+        markLoadoutChanged();
     }
 }
 
@@ -2225,6 +2294,7 @@ function selectItemForLoadout(itemId) {
                         updateSelectedItemsDisplay();
                         updateJSONPreview();
                         applyItemFiltersLoadout();
+                        markLoadoutChanged();
                     } catch (error) {
                         showAlert('danger', 'Erro ao processar compatibilidade do item: ' + error.message);
                         console.error('Erro ao processar resposta:', error);
@@ -2249,6 +2319,7 @@ function selectItemForLoadout(itemId) {
                         updateSelectedItemsDisplay();
                         updateJSONPreview();
                         applyItemFiltersLoadout();
+                        markLoadoutChanged();
                     }
                 },
                 error: function(xhr) {
@@ -2275,6 +2346,7 @@ function selectItemForLoadout(itemId) {
                     updateSelectedItemsDisplay();
                     updateJSONPreview();
                     applyItemFiltersLoadout();
+                    markLoadoutChanged();
                 }
             });
         } else {
@@ -2619,6 +2691,7 @@ function openSubitemsModalForSubitemInDisplay(parentItemIndex, subitemNameType) 
         // Atualizar display e preview
         updateSelectedItemsDisplay();
         updateJSONPreview();
+        markLoadoutChanged();
         
         // Verificar novamente após atualizar display
         const finalCheck = findSubitemForVerification(mainItemCurrent, subitemNameType);
@@ -2682,6 +2755,7 @@ function removeItemFromLoadout(index) {
     updateSelectedItemsDisplay();
     updateJSONPreview();
     applyItemFiltersLoadout();
+    markLoadoutChanged();
 }
 
 function removeSubitemFromLoadout(parentItemIndex, subitemNameType) {
@@ -2736,6 +2810,7 @@ function removeSubitemFromLoadout(parentItemIndex, subitemNameType) {
         updateSelectedItemsDisplay();
         updateJSONPreview();
         applyItemFiltersLoadout();
+        markLoadoutChanged();
         
         showAlert('success', 'Subitem removido com sucesso.');
     } else {
@@ -3097,6 +3172,7 @@ function saveSubitemsConfiguration() {
     // Atualizar display e preview
     updateSelectedItemsDisplay();
     updateJSONPreview();
+    markLoadoutChanged();
     
     // Fechar modal
     const modal = bootstrap.Modal.getInstance(document.getElementById('subitemsModal'));
@@ -3290,6 +3366,9 @@ function saveCustomLoadout() {
         }),
         success: function(response) {
             if (response.success) {
+                // Marcar como salvo antes de redirecionar
+                loadoutHasChanges = false;
+                updateChangesIndicator();
                 // Redirecionar para página de listagem
                 window.location.href = '/loadouts#custom-tab';
             } else {
