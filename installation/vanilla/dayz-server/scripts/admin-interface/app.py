@@ -490,6 +490,134 @@ def api_deathmatch_maps():
 
     return jsonify({ 'maps': maps })
 
+
+def _dm_cfg_path():
+    return os.path.normpath(os.path.join(
+        os.path.dirname(__file__),
+        '..', '..', 'mpmissions', 'dayzOffline.chernarusplus', 'admin', 'files', 'deathmatch_config.json'
+    ))
+
+
+def _dm_read_all():
+    with open(_dm_cfg_path(), 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
+def _dm_write_all(data):
+    with open(_dm_cfg_path(), 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
+
+def _validate_coord(x, z):
+    try:
+        x = float(x)
+        z = float(z)
+    except:
+        return None
+    if x < 0 or z < 0 or x > 15360 or z > 15360:
+        return None
+    return x, z
+
+
+@app.route('/api/deathmatch/map/set-active', methods=['POST'])
+@admin_required
+def api_deathmatch_set_active():
+    payload = request.get_json(silent=True) or {}
+    region_id = payload.get('regionId')
+    if region_id is None:
+        return jsonify({ 'error': 'regionId é obrigatório' }), 400
+    try:
+        data = _dm_read_all()
+        found = False
+        for item in data:
+            if int(item.get('RegionId', -1)) == int(region_id):
+                item['Active'] = True
+                found = True
+            else:
+                item['Active'] = False
+        if not found:
+            return jsonify({ 'error': f'Região {region_id} não encontrada' }), 404
+        _dm_write_all(data)
+        return jsonify({ 'message': 'Mapa definido como ativo com sucesso' })
+    except Exception as e:
+        return jsonify({ 'error': str(e) }), 500
+
+
+@app.route('/api/deathmatch/map/update-meta', methods=['PATCH'])
+@admin_required
+def api_deathmatch_update_meta():
+    payload = request.get_json(silent=True) or {}
+    region_id = payload.get('regionId')
+    region_name = payload.get('region')
+    custom_message = payload.get('customMessage')
+    if region_id is None:
+        return jsonify({ 'error': 'regionId é obrigatório' }), 400
+    try:
+        data = _dm_read_all()
+        target = next((item for item in data if int(item.get('RegionId', -1)) == int(region_id)), None)
+        if not target:
+            return jsonify({ 'error': f'Região {region_id} não encontrada' }), 404
+        if region_name is not None:
+            target['Region'] = str(region_name)
+        if custom_message is not None:
+            target['CustomMessage'] = str(custom_message)
+        _dm_write_all(data)
+        return jsonify({ 'message': 'Metadados atualizados com sucesso' })
+    except Exception as e:
+        return jsonify({ 'error': str(e) }), 500
+
+
+@app.route('/api/deathmatch/map/points', methods=['POST'])
+@admin_required
+def api_deathmatch_points():
+    payload = request.get_json(silent=True) or {}
+    region_id = payload.get('regionId')
+    kind = payload.get('kind')  # 'spawn' | 'wall'
+    action = payload.get('action')  # 'add' | 'update' | 'remove'
+    index = payload.get('index')
+    coord = payload.get('coord') or {}
+
+    if region_id is None or kind not in ['spawn', 'wall'] or action not in ['add', 'update', 'remove']:
+        return jsonify({ 'error': 'Parâmetros inválidos' }), 400
+
+    key = 'SpawnZones' if kind == 'spawn' else 'WallZones'
+
+    try:
+        data = _dm_read_all()
+        target = next((item for item in data if int(item.get('RegionId', -1)) == int(region_id)), None)
+        if not target:
+            return jsonify({ 'error': f'Região {region_id} não encontrada' }), 404
+
+        points = target.get(key) or []
+
+        def _format_coord(x, z):
+            # Padronizar como "x, 0, z"
+            return f"{x:.6f}, 0, {z:.6f}"
+
+        if action in ['add', 'update']:
+            xz = _validate_coord(coord.get('x'), coord.get('z'))
+            if not xz:
+                return jsonify({ 'error': 'Coordenadas inválidas. Use 0..15360' }), 400
+            x, z = xz
+
+        if action == 'add':
+            points.append(_format_coord(x, z))
+        elif action == 'update':
+            if index is None or index < 0 or index >= len(points):
+                return jsonify({ 'error': 'Índice inválido' }), 400
+            points[index] = _format_coord(x, z)
+        elif action == 'remove':
+            if index is None or index < 0 or index >= len(points):
+                return jsonify({ 'error': 'Índice inválido' }), 400
+            points.pop(index)
+
+        target[key] = points
+        _dm_write_all(data)
+
+        return jsonify({ 'message': 'OK', 'count': len(points) })
+    except Exception as e:
+        return jsonify({ 'error': str(e) }), 500
+
 @app.route('/api/players/positions')
 @admin_required
 def api_positions():

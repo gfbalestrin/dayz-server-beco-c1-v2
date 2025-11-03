@@ -8,6 +8,14 @@ let map; // mapa exclusivo desta página (não usar map.js)
 let dmSpawnMarkers = [];
 let dmWallPolygon = null;
 let dmVehicleMarkers = [];
+let dmWallPointMarkers = [];
+let dmLastConfig = null;
+let dmPickMode = null; // 'spawn-edit' | 'spawn-add' | 'wall-edit' | 'wall-add' | null
+let dmSelectedSpawnIndex = null;
+let dmSelectedWallIndex = null;
+let dmCanvasRenderer = null; // legado (mantido para compat)
+let dmRendererPoly = null;
+let dmRendererPoints = null;
 
 function createVehicleIcon() {
   return L.divIcon({
@@ -24,6 +32,8 @@ function dmClearLayers() {
     map.removeLayer(dmWallPolygon);
     dmWallPolygon = null;
   }
+  dmWallPointMarkers.forEach(m => map.removeLayer(m));
+  dmWallPointMarkers = [];
   dmVehicleMarkers.forEach(m => map.removeLayer(m));
   dmVehicleMarkers = [];
 }
@@ -39,13 +49,16 @@ function dmDayzToPixel(x, z) {
 
 function dmDrawConfig(cfg) {
   dmClearLayers();
+  dmLastConfig = cfg;
 
   // Nome/região
   $('#dmRegionName').text(cfg.region || `Região #${cfg.regionId || '-'}`);
+  $('#dmMetaRegion').val(cfg.region || '');
+  $('#dmMetaCustomMessage').val(cfg.customMessage || '');
 
   // SpawnZones -> pontos verdes
   const spawnZones = cfg.spawnZones || [];
-  spawnZones.forEach(function(pt) {
+  spawnZones.forEach(function(pt, idx) {
     const x = pt[0];
     const z = pt[1];
     const pixel = dmDayzToPixel(x, z);
@@ -55,12 +68,16 @@ function dmDrawConfig(cfg) {
       color: '#ffffff',
       weight: 1,
       opacity: 1,
-      fillOpacity: 1
+      fillOpacity: 1,
+      renderer: dmRendererPoints || dmCanvasRenderer
     }).addTo(map);
     marker.bindTooltip(`SpawnZone\nX=${x.toFixed(1)} Z=${z.toFixed(1)}`, {
       permanent: false,
       direction: 'top',
       className: 'trail-tooltip'
+    });
+    marker.on('click', function(){
+      dmOpenEditor('spawn', idx);
     });
     dmSpawnMarkers.push(marker);
   });
@@ -75,8 +92,34 @@ function dmDrawConfig(cfg) {
       weight: 2,
       opacity: 0.9,
       dashArray: '6,6',
-      fill: false
+      fill: false,
+      renderer: dmRendererPoly || dmCanvasRenderer
     }).addTo(map);
+
+    // Adicionar marcadores em cada vértice com tooltip de coordenadas
+    wallZones.forEach(function(pt, idx) {
+      const x = pt[0];
+      const z = pt[1];
+      const pixel = dmDayzToPixel(x, z);
+      const marker = L.circleMarker(pixel, {
+        radius: 4,
+        fillColor: '#ff8800',
+        color: '#ffffff',
+        weight: 1,
+        opacity: 1,
+        fillOpacity: 1,
+        renderer: dmRendererPoints || dmCanvasRenderer
+      }).addTo(map);
+      marker.bindTooltip(`WallZone P${idx + 1}\nX=${x.toFixed(1)} Z=${z.toFixed(1)}`, {
+        permanent: false,
+        direction: 'top',
+        className: 'trail-tooltip'
+      });
+      marker.on('click', function(){
+        dmOpenEditor('wall', idx);
+      });
+      dmWallPointMarkers.push(marker);
+    });
   }
   $('#dmWallCount').text(wallZones.length);
 
@@ -128,13 +171,18 @@ function dmInitMap() {
   map = L.map('map', {
     crs: L.CRS.Simple,
     minZoom: -2,
-    maxZoom: 3,
+    maxZoom: 2,
     maxBounds: [[0, 0], [4096, 4096]],
     maxBoundsViscosity: 1.0,
     zoom: -2,
     center: [2048, 2048],
     zoomControl: true,
-    attributionControl: false
+    attributionControl: false,
+    preferCanvas: true,
+    zoomAnimation: false,
+    markerZoomAnimation: false,
+    fadeAnimation: false,
+    inertia: false
   });
 
   const imageUrl = $('#map').data('map-image');
@@ -143,6 +191,42 @@ function dmInitMap() {
     interactive: false
   });
   imageOverlay.addTo(map);
+  // Panes com z-index controlado
+  map.createPane('dm-poly');
+  map.getPane('dm-poly').style.zIndex = 401;
+  map.createPane('dm-points');
+  map.getPane('dm-points').style.zIndex = 402;
+  // Renderers por pane
+  dmRendererPoly = L.canvas({ padding: 0.2, pane: 'dm-poly' });
+  dmRendererPoints = L.canvas({ padding: 0.2, pane: 'dm-points' });
+  dmCanvasRenderer = dmRendererPoints;
+  if (imageOverlay.bringToBack) imageOverlay.bringToBack();
+
+  map.on('click', function(e) {
+    if (!dmPickMode) return;
+    const lat = e.latlng.lat;
+    const lng = e.latlng.lng;
+    const x = (lng / 4096.0) * 15360.0;
+    const z = (lat / 4096.0) * 15360.0;
+    if (dmPickMode === 'spawn-edit') {
+      $('#dmSpawnX').val(x.toFixed(2));
+      $('#dmSpawnZ').val(z.toFixed(2));
+      $('#dmSpawnEditManualBtn').trigger('click');
+    } else if (dmPickMode === 'spawn-add') {
+      $('#dmSpawnAddX').val(x.toFixed(2));
+      $('#dmSpawnAddZ').val(z.toFixed(2));
+      $('#dmSpawnAddManualBtn').trigger('click');
+    } else if (dmPickMode === 'wall-edit') {
+      $('#dmWallX').val(x.toFixed(2));
+      $('#dmWallZ').val(z.toFixed(2));
+      $('#dmWallEditManualBtn').trigger('click');
+    } else if (dmPickMode === 'wall-add') {
+      $('#dmWallAddX').val(x.toFixed(2));
+      $('#dmWallAddZ').val(z.toFixed(2));
+      $('#dmWallAddManualBtn').trigger('click');
+    }
+    dmSetPickMode(null);
+  });
 }
 
 function dmLoadMaps() {
@@ -170,6 +254,174 @@ $(document).ready(function() {
   dmLoad();
   $('#dmRefreshBtn').on('click', dmLoad);
   $('#dmRegionSelect').on('change', dmLoad);
+  $('#dmOpenSpawnEditorBtn').on('click', function(){ dmOpenEditor('spawn'); });
+  $('#dmOpenWallEditorBtn').on('click', function(){ dmOpenEditor('wall'); });
+  $('#dmMetaSaveBtn').on('click', dmSaveMeta);
+  $('#dmSetActiveBtn').on('click', dmSetActive);
+
+  // Spawn handlers
+  $('#dmSpawnEditPickBtn').on('click', function(){ if (dmEnsureSpawnSelected()) dmSetPickMode('spawn-edit'); });
+  $('#dmSpawnEditManualBtn').on('click', dmSpawnEditManual);
+  $('#dmSpawnRemoveBtn').on('click', dmSpawnRemove);
+  $('#dmSpawnAddPickBtn').on('click', function(){ dmSetPickMode('spawn-add'); });
+  $('#dmSpawnAddManualBtn').on('click', dmSpawnAddManual);
+
+  // Wall handlers
+  $('#dmWallEditPickBtn').on('click', function(){ if (dmEnsureWallSelected()) dmSetPickMode('wall-edit'); });
+  $('#dmWallEditManualBtn').on('click', dmWallEditManual);
+  $('#dmWallRemoveBtn').on('click', dmWallRemove);
+  $('#dmWallAddPickBtn').on('click', function(){ dmSetPickMode('wall-add'); });
+  $('#dmWallAddManualBtn').on('click', dmWallAddManual);
 });
+
+function dmOpenEditor(kind, preselectIdx){
+  if (!dmLastConfig) return;
+  if (kind === 'spawn') {
+    if (typeof preselectIdx === 'number') {
+      dmSelectedSpawnIndex = preselectIdx;
+      const pt = dmLastConfig.spawnZones?.[preselectIdx];
+      if (pt) { $('#dmSpawnX').val(pt[0].toFixed(2)); $('#dmSpawnZ').val(pt[1].toFixed(2)); }
+    }
+  } else if (kind === 'wall') {
+    if (typeof preselectIdx === 'number') {
+      dmSelectedWallIndex = preselectIdx;
+      const pt = dmLastConfig.wallZones?.[preselectIdx];
+      if (pt) { $('#dmWallX').val(pt[0].toFixed(2)); $('#dmWallZ').val(pt[1].toFixed(2)); }
+    }
+  }
+  dmRenderPointsLists();
+  const modal = new bootstrap.Modal(document.getElementById('dmEditModal'));
+  modal.show();
+  if (kind === 'spawn') {
+    document.getElementById('spawn-tab').click();
+  } else {
+    document.getElementById('wall-tab').click();
+  }
+}
+
+function dmRenderPointsLists(){
+  const spawnList = $('#dmSpawnPointsList').empty();
+  const wallList = $('#dmWallPointsList').empty();
+  const sp = dmLastConfig?.spawnZones || [];
+  const wl = dmLastConfig?.wallZones || [];
+  sp.forEach((pt, idx)=>{
+    const x = pt[0], z = pt[1];
+    const item = $('<button type="button" class="list-group-item list-group-item-action"></button>')
+      .text(`#${idx+1}  X=${x.toFixed(2)}  Z=${z.toFixed(2)}`)
+      .on('click', function(){ dmSelectedSpawnIndex = idx; $('#dmSpawnX').val(x.toFixed(2)); $('#dmSpawnZ').val(z.toFixed(2)); spawnList.find('.active').removeClass('active'); $(this).addClass('active'); });
+    if (idx === dmSelectedSpawnIndex) item.addClass('active');
+    spawnList.append(item);
+  });
+  wl.forEach((pt, idx)=>{
+    const x = pt[0], z = pt[1];
+    const item = $('<button type="button" class="list-group-item list-group-item-action"></button>')
+      .text(`#${idx+1}  X=${x.toFixed(2)}  Z=${z.toFixed(2)}`)
+      .on('click', function(){ dmSelectedWallIndex = idx; $('#dmWallX').val(x.toFixed(2)); $('#dmWallZ').val(z.toFixed(2)); wallList.find('.active').removeClass('active'); $(this).addClass('active'); });
+    if (idx === dmSelectedWallIndex) item.addClass('active');
+    wallList.append(item);
+  });
+}
+
+function dmSetPickMode(mode){
+  dmPickMode = mode;
+  const c = map.getContainer();
+  c.style.cursor = mode ? 'crosshair' : '';
+}
+
+function dmCurrentRegionId(){
+  return $('#dmRegionSelect').val();
+}
+
+// ---- Spawn actions
+function dmEnsureSpawnSelected(){
+  if (dmSelectedSpawnIndex === null || dmSelectedSpawnIndex === undefined) {
+    alert('Selecione um ponto de SpawnZone na lista');
+    return false;
+  }
+  return true;
+}
+
+function dmSpawnEditManual(){
+  if (!dmEnsureSpawnSelected()) return;
+  const x = parseFloat($('#dmSpawnX').val());
+  const z = parseFloat($('#dmSpawnZ').val());
+  $.ajax({
+    url: '/api/deathmatch/map/points', method: 'POST', contentType: 'application/json',
+    data: JSON.stringify({ regionId: dmCurrentRegionId(), kind: 'spawn', action: 'update', index: dmSelectedSpawnIndex, coord: { x, z } })
+  }).done(()=>{ dmLoad(); dmRenderPointsLists(); }).fail(dmApiError);
+}
+
+function dmSpawnRemove(){
+  if (!dmEnsureSpawnSelected()) return;
+  $.ajax({
+    url: '/api/deathmatch/map/points', method: 'POST', contentType: 'application/json',
+    data: JSON.stringify({ regionId: dmCurrentRegionId(), kind: 'spawn', action: 'remove', index: dmSelectedSpawnIndex })
+  }).done(()=>{ dmSelectedSpawnIndex = null; dmLoad(); dmRenderPointsLists(); }).fail(dmApiError);
+}
+
+function dmSpawnAddManual(){
+  const x = parseFloat($('#dmSpawnAddX').val());
+  const z = parseFloat($('#dmSpawnAddZ').val());
+  $.ajax({
+    url: '/api/deathmatch/map/points', method: 'POST', contentType: 'application/json',
+    data: JSON.stringify({ regionId: dmCurrentRegionId(), kind: 'spawn', action: 'add', coord: { x, z } })
+  }).done(()=>{ $('#dmSpawnAddX').val(''); $('#dmSpawnAddZ').val(''); dmLoad(); dmRenderPointsLists(); }).fail(dmApiError);
+}
+
+// ---- Wall actions
+function dmEnsureWallSelected(){
+  if (dmSelectedWallIndex === null || dmSelectedWallIndex === undefined) {
+    alert('Selecione um ponto de WallZone na lista');
+    return false;
+  }
+  return true;
+}
+
+function dmWallEditManual(){
+  if (!dmEnsureWallSelected()) return;
+  const x = parseFloat($('#dmWallX').val());
+  const z = parseFloat($('#dmWallZ').val());
+  $.ajax({
+    url: '/api/deathmatch/map/points', method: 'POST', contentType: 'application/json',
+    data: JSON.stringify({ regionId: dmCurrentRegionId(), kind: 'wall', action: 'update', index: dmSelectedWallIndex, coord: { x, z } })
+  }).done(()=>{ dmLoad(); dmRenderPointsLists(); }).fail(dmApiError);
+}
+
+function dmWallRemove(){
+  if (!dmEnsureWallSelected()) return;
+  $.ajax({
+    url: '/api/deathmatch/map/points', method: 'POST', contentType: 'application/json',
+    data: JSON.stringify({ regionId: dmCurrentRegionId(), kind: 'wall', action: 'remove', index: dmSelectedWallIndex })
+  }).done(()=>{ dmSelectedWallIndex = null; dmLoad(); dmRenderPointsLists(); }).fail(dmApiError);
+}
+
+function dmWallAddManual(){
+  const x = parseFloat($('#dmWallAddX').val());
+  const z = parseFloat($('#dmWallAddZ').val());
+  $.ajax({
+    url: '/api/deathmatch/map/points', method: 'POST', contentType: 'application/json',
+    data: JSON.stringify({ regionId: dmCurrentRegionId(), kind: 'wall', action: 'add', coord: { x, z } })
+  }).done(()=>{ $('#dmWallAddX').val(''); $('#dmWallAddZ').val(''); dmLoad(); dmRenderPointsLists(); }).fail(dmApiError);
+}
+
+// ---- Meta
+function dmSaveMeta(){
+  const region = $('#dmMetaRegion').val();
+  const customMessage = $('#dmMetaCustomMessage').val();
+  $.ajax({ url: '/api/deathmatch/map/update-meta', method: 'PATCH', contentType: 'application/json', data: JSON.stringify({ regionId: dmCurrentRegionId(), region, customMessage }) })
+    .done(()=>{ dmLoadMaps(); dmLoad(); })
+    .fail(dmApiError);
+}
+
+function dmSetActive(){
+  $.ajax({ url: '/api/deathmatch/map/set-active', method: 'POST', contentType: 'application/json', data: JSON.stringify({ regionId: dmCurrentRegionId() }) })
+    .done(()=>{ dmLoadMaps(); })
+    .fail(dmApiError);
+}
+
+function dmApiError(xhr){
+  const err = (xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)) || 'Erro';
+  alert(err);
+}
 
 
