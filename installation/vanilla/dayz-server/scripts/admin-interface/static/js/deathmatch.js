@@ -9,6 +9,14 @@ let dmSpawnMarkers = [];
 let dmWallPolygon = null;
 let dmVehicleMarkers = [];
 
+function createVehicleIcon() {
+  return L.divIcon({
+    className: 'vehicle-marker',
+    html: '<div style="background-color: #28a745; border: 2px solid white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><i class="fas fa-car" style="color: white; font-size: 12px;"></i></div>',
+    iconSize: [20, 20]
+  });
+}
+
 function dmClearLayers() {
   dmSpawnMarkers.forEach(m => map.removeLayer(m));
   dmSpawnMarkers = [];
