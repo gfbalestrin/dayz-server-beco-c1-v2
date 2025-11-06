@@ -286,22 +286,17 @@ void HandleWeaponData(WeaponData weaponData, PlayerBase player, int quickBarSlot
         
     }
 
-    // Tentar anexar pistola no coldre quando criar uma pistola permitida (small_weapon)
+    // Tentar mover a pistola criada (small_weapon) para o coldre permitido, sem criar nova
     if (label == "small" && IsAllowedPistol(weaponData.name_type) && weaponEntity)
     {
         EntityAI holster = GetPlayerHolster(player);
         if (holster)
         {
-            // Tentar anexar a pistola no coldre
-            EntityAI attachedPistol = holster.GetInventory().CreateAttachment(weaponData.name_type);
-            if (attachedPistol)
-            {
-                WriteToLog("HandleWeaponData(): Pistola " + weaponData.name_type + " anexada ao coldre", LogFile.INIT, false, LogType.INFO);
-            }
+            bool movedToHolster = player.GetInventory().TakeEntityToTargetAttachment(holster, weaponEntity);
+            if (movedToHolster)
+                WriteToLog("HandleWeaponData(): Pistola " + weaponData.name_type + " movida para o coldre", LogFile.INIT, false, LogType.INFO);
             else
-            {
-                WriteToLog("HandleWeaponData(): Falha ao anexar pistola " + weaponData.name_type + " no coldre", LogFile.INIT, false, LogType.INFO);
-            }
+                WriteToLog("HandleWeaponData(): Falha ao mover pistola " + weaponData.name_type + " para o coldre", LogFile.INIT, false, LogType.INFO);
         }
     }
 
@@ -446,10 +441,9 @@ EntityAI CreateItemWithSubitems(EntityAI parent, LoadoutItem itemData, PlayerBas
         }
     }
 
-    // Tentar anexar pistola no coldre quando criar um coldre permitido
+    // Tentar anexar pistola já existente ao criar um coldre permitido
     if (!parent && item && IsAllowedHolster(itemData.name_type))
     {
-        // Buscar pistola permitida no inventário do jogador
         if (ALLOWED_PISTOLS && ALLOWED_PISTOLS.Count() > 0)
         {
             foreach (string pistolType : ALLOWED_PISTOLS)
@@ -457,11 +451,11 @@ EntityAI CreateItemWithSubitems(EntityAI parent, LoadoutItem itemData, PlayerBas
                 EntityAI pistol = FindPistolInInventory(player, pistolType);
                 if (pistol)
                 {
-                    // Tentar anexar a pistola no coldre
-                    EntityAI attachedPistol = item.GetInventory().CreateAttachment(pistolType);
-                    if (attachedPistol)
+                    // Move a pistola existente para o coldre como attachment (sem criar nova)
+                    bool moved = player.GetInventory().TakeEntityToTargetAttachment(item, pistol);
+                    if (moved)
                     {
-                        WriteToLog("CreateItemWithSubitems(): Pistola " + pistolType + " anexada ao coldre " + itemData.name_type, LogFile.INIT, false, LogType.INFO);
+                        WriteToLog("CreateItemWithSubitems(): Pistola existente " + pistolType + " movida para o coldre " + itemData.name_type, LogFile.INIT, false, LogType.INFO);
                         break;
                     }
                 }
