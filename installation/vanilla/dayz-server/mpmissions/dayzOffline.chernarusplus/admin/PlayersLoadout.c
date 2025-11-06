@@ -369,7 +369,7 @@ EntityAI GetPlayerHolster(PlayerBase player)
     if (!player) return null;
     
     // Buscar coldre no inventário do jogador
-    array<EntityAI> items = new array<EntityAI>();
+    ref array<EntityAI> items = new array<EntityAI>();
     player.GetInventory().EnumerateInventory(InventoryTraversalType.PREORDER, items);
     
     foreach (EntityAI item : items)
@@ -391,7 +391,7 @@ EntityAI FindPistolInInventory(PlayerBase player, string pistolType)
     if (!player || pistolType == "") return null;
     
     // Buscar pistola no inventário do jogador
-    array<EntityAI> items = new array<EntityAI>();
+    ref array<EntityAI> items = new array<EntityAI>();
     player.GetInventory().EnumerateInventory(InventoryTraversalType.PREORDER, items);
     
     foreach (EntityAI item : items)
@@ -452,7 +452,7 @@ EntityAI CreateItemWithSubitems(EntityAI parent, LoadoutItem itemData, PlayerBas
                 if (pistol)
                 {
                     // Move a pistola existente para o coldre como attachment (sem criar nova)
-                    bool moved = player.GetInventory().TakeEntityToTargetAttachment(item, pistol);
+                    bool moved = pistol.GetInventory().TryMoveToEntity(item, FindInventoryLocationType.ATTACHMENT);
                     if (moved)
                     {
                         WriteToLog("CreateItemWithSubitems(): Pistola existente " + pistolType + " movida para o coldre " + itemData.name_type, LogFile.INIT, false, LogType.INFO);
