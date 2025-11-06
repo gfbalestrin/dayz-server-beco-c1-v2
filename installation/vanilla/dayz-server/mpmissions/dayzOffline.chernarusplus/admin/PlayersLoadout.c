@@ -39,11 +39,19 @@ bool GiveCustomLoadout(PlayerBase player, string playerId)
         array<ref LoadoutItem> itemsWithoutStorage;
         SeparateItemsByStorage(data.items, itemsWithStorage, itemsWithoutStorage);
         
+        int quantity;
+        
         // Criar primeiro itens com storage (mochilas, etc)
         if (itemsWithStorage) {
             WriteToLog("Criando itens com storage primeiro...", LogFile.INIT, false, LogType.INFO);
             foreach (LoadoutItem itemWithStorage : itemsWithStorage) {
-                CreateItemWithSubitems(null, itemWithStorage, player);
+                quantity = itemWithStorage.quantity;
+                if (quantity <= 0)
+                    quantity = 1;
+                
+                for (int q = 0; q < quantity; q++) {
+                    CreateItemWithSubitems(null, itemWithStorage, player);
+                }
             }
         }
         
@@ -51,7 +59,13 @@ bool GiveCustomLoadout(PlayerBase player, string playerId)
         if (itemsWithoutStorage) {
             WriteToLog("Criando itens sem storage...", LogFile.INIT, false, LogType.INFO);
             foreach (LoadoutItem itemWithoutStorage : itemsWithoutStorage) {
-                CreateItemWithSubitems(null, itemWithoutStorage, player);
+                quantity = itemWithoutStorage.quantity;
+                if (quantity <= 0)
+                    quantity = 1;
+                
+                for (int q = 0; q < quantity; q++) {
+                    CreateItemWithSubitems(null, itemWithoutStorage, player);
+                }
             }
         }
     }
@@ -171,35 +185,43 @@ void HandleWeaponData(WeaponData weaponData, PlayerBase player, int quickBarSlot
     }
 
     if (possuiAttachments) {
+        int quantity;
+        
         foreach (WeaponAttachment att : weaponData.attachments) {
             if (!att || att.name_type == "") continue;
 
-            EntityAI attEntity = weaponEntity.GetInventory().CreateAttachment(att.name_type);
-            if (attEntity) {
-                WriteToLog("Anexado: " + att.name_type, LogFile.INIT, false, LogType.INFO);
-                if (att.battery) {
-                    EntityAI battery = attEntity.GetInventory().CreateAttachment("Battery9V");
-                    if (battery)
-                        WriteToLog("Bateria adicionada a: " + att.name_type, LogFile.INIT, false, LogType.INFO);
-                    else
-                        WriteToLog("Falha ao adicionar bateria à: " + att.name_type, LogFile.INIT, false, LogType.INFO);
-                }
-            } else {
-                WriteToLog("Falha ao anexar: " + att.name_type, LogFile.INIT, false, LogType.ERROR);
-                WriteToLog("Tentando criar no inventário do jogador...", LogFile.INIT, false, LogType.INFO);
-                EntityAI attEntity2 = player.GetInventory().CreateInInventory(att.name_type);
-                if (attEntity2) {
-                    WriteToLog("Criado no inventário: " + att.name_type, LogFile.INIT, false, LogType.INFO);
+            quantity = att.quantity;
+            if (quantity <= 0)
+                quantity = 1;
+            
+            for (int q = 0; q < quantity; q++) {
+                EntityAI attEntity = weaponEntity.GetInventory().CreateAttachment(att.name_type);
+                if (attEntity) {
+                    WriteToLog("Anexado: " + att.name_type, LogFile.INIT, false, LogType.INFO);
                     if (att.battery) {
-                        EntityAI battery2 = attEntity2.GetInventory().CreateAttachment("Battery9V");
-                        if (battery2)
+                        EntityAI battery = attEntity.GetInventory().CreateAttachment("Battery9V");
+                        if (battery)
                             WriteToLog("Bateria adicionada a: " + att.name_type, LogFile.INIT, false, LogType.INFO);
                         else
                             WriteToLog("Falha ao adicionar bateria à: " + att.name_type, LogFile.INIT, false, LogType.INFO);
                     }
                 } else {
-                    if (!TryCreateItemInInventoryOrOnGround(player, att.name_type))
-                        WriteToLog("Falha ao anexar: " + att.name_type, LogFile.INIT, false, LogType.ERROR);
+                    WriteToLog("Falha ao anexar: " + att.name_type, LogFile.INIT, false, LogType.ERROR);
+                    WriteToLog("Tentando criar no inventário do jogador...", LogFile.INIT, false, LogType.INFO);
+                    EntityAI attEntity2 = player.GetInventory().CreateInInventory(att.name_type);
+                    if (attEntity2) {
+                        WriteToLog("Criado no inventário: " + att.name_type, LogFile.INIT, false, LogType.INFO);
+                        if (att.battery) {
+                            EntityAI battery2 = attEntity2.GetInventory().CreateAttachment("Battery9V");
+                            if (battery2)
+                                WriteToLog("Bateria adicionada a: " + att.name_type, LogFile.INIT, false, LogType.INFO);
+                            else
+                                WriteToLog("Falha ao adicionar bateria à: " + att.name_type, LogFile.INIT, false, LogType.INFO);
+                        }
+                    } else {
+                        if (!TryCreateItemInInventoryOrOnGround(player, att.name_type))
+                            WriteToLog("Falha ao anexar: " + att.name_type, LogFile.INIT, false, LogType.ERROR);
+                    }
                 }
             }
         }
@@ -263,8 +285,8 @@ void HandleWeaponData(WeaponData weaponData, PlayerBase player, int quickBarSlot
     // Extra cria no inventário enquanto não tem customização
     if (possuiMagazine)
     {        
-        int qtdMagazineExtra = 3;
-        if (weaponData.magazine.slots > 4)
+        int qtdMagazineExtra = weaponData.magazine.quantity;
+        if (qtdMagazineExtra <= 0)
             qtdMagazineExtra = 1;
 
         WriteToLog("Criando pentes extras...", LogFile.INIT, false, LogType.INFO);
@@ -291,7 +313,11 @@ void HandleWeaponData(WeaponData weaponData, PlayerBase player, int quickBarSlot
     }
     if (possuiAmmo)
     {
-        for (int ammoExtraI = 0; ammoExtraI < 5; ammoExtraI++) {
+        int qtdAmmoExtra = weaponData.ammunitions.quantity;
+        if (qtdAmmoExtra <= 0)
+            qtdAmmoExtra = 1;
+        
+        for (int ammoExtraI = 0; ammoExtraI < qtdAmmoExtra; ammoExtraI++) {
             EntityAI ammoExtra = player.GetInventory().CreateInInventory(weaponData.ammunitions.name_type);
             if (!ammoExtra)
             {
@@ -502,18 +528,34 @@ bool GiveDefaultDeathmatchLoadout(PlayerBase player, string playerId)
         array<ref LoadoutItem> itemsWithoutStorage;
         SeparateItemsByStorage(data.items, itemsWithStorage, itemsWithoutStorage);
         
+        int quantity;
+        
         // Criar primeiro itens com storage (mochilas, etc)
         if (itemsWithStorage) {
             WriteToLog("Criando itens com storage primeiro...", LogFile.INIT, false, LogType.INFO);
-            foreach (ref LoadoutItem itemWithStorage : itemsWithStorage)
-                CreateItemWithSubitems(null, itemWithStorage, player);
+            foreach (ref LoadoutItem itemWithStorage : itemsWithStorage) {
+                quantity = itemWithStorage.quantity;
+                if (quantity <= 0)
+                    quantity = 1;
+                
+                for (int q = 0; q < quantity; q++) {
+                    CreateItemWithSubitems(null, itemWithStorage, player);
+                }
+            }
         }
         
         // Depois criar itens sem storage
         if (itemsWithoutStorage) {
             WriteToLog("Criando itens sem storage...", LogFile.INIT, false, LogType.INFO);
-            foreach (ref LoadoutItem itemWithoutStorage : itemsWithoutStorage)
-                CreateItemWithSubitems(null, itemWithoutStorage, player);
+            foreach (ref LoadoutItem itemWithoutStorage : itemsWithoutStorage) {
+                quantity = itemWithoutStorage.quantity;
+                if (quantity <= 0)
+                    quantity = 1;
+                
+                for (int q = 0; q < quantity; q++) {
+                    CreateItemWithSubitems(null, itemWithoutStorage, player);
+                }
+            }
         }
     }
 
@@ -620,11 +662,19 @@ bool GiveAdminLoadout(PlayerBase player, string playerId)
         array<ref LoadoutItem> itemsWithoutStorage;
         SeparateItemsByStorage(data.items, itemsWithStorage, itemsWithoutStorage);
         
+        int quantity;
+        
         // Criar primeiro itens com storage (mochilas, etc)
         if (itemsWithStorage) {
             WriteToLog("Criando itens com storage primeiro...", LogFile.INIT, false, LogType.INFO);
             foreach (LoadoutItem itemWithStorage : itemsWithStorage) {
-                CreateItemWithSubitems(null, itemWithStorage, player);
+                quantity = itemWithStorage.quantity;
+                if (quantity <= 0)
+                    quantity = 1;
+                
+                for (int q = 0; q < quantity; q++) {
+                    CreateItemWithSubitems(null, itemWithStorage, player);
+                }
             }
         }
         
@@ -632,7 +682,13 @@ bool GiveAdminLoadout(PlayerBase player, string playerId)
         if (itemsWithoutStorage) {
             WriteToLog("Criando itens sem storage...", LogFile.INIT, false, LogType.INFO);
             foreach (LoadoutItem itemWithoutStorage : itemsWithoutStorage) {
-                CreateItemWithSubitems(null, itemWithoutStorage, player);
+                quantity = itemWithoutStorage.quantity;
+                if (quantity <= 0)
+                    quantity = 1;
+                
+                for (int q = 0; q < quantity; q++) {
+                    CreateItemWithSubitems(null, itemWithoutStorage, player);
+                }
             }
         }
     }

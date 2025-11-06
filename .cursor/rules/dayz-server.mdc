@@ -14,6 +14,7 @@ Você está trabalhando em dois servidores DayZ customizados em Enforce Script:
 - Engine: Enfusion (Bohemia Interactive)
 - Não use IF/ELSE ternário
 - Evite realizar concatenação de string em multilinha
+- Não repita o nome de variáveis dentro da mesma função ou classe
 
 ## Estrutura do Projeto
 
