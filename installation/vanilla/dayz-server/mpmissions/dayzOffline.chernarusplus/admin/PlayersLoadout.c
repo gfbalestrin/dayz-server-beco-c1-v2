@@ -40,6 +40,7 @@ bool GiveCustomLoadout(PlayerBase player, string playerId)
         SeparateItemsByStorage(data.items, itemsWithStorage, itemsWithoutStorage);
         
         int quantity;
+        int q;
         
         // Criar primeiro itens com storage (mochilas, etc)
         if (itemsWithStorage) {
@@ -49,7 +50,7 @@ bool GiveCustomLoadout(PlayerBase player, string playerId)
                 if (quantity <= 0)
                     quantity = 1;
                 
-                for (int q = 0; q < quantity; q++) {
+                for (q = 0; q < quantity; q++) {
                     CreateItemWithSubitems(null, itemWithStorage, player);
                 }
             }
@@ -63,7 +64,7 @@ bool GiveCustomLoadout(PlayerBase player, string playerId)
                 if (quantity <= 0)
                     quantity = 1;
                 
-                for (int q = 0; q < quantity; q++) {
+                for (q = 0; q < quantity; q++) {
                     CreateItemWithSubitems(null, itemWithoutStorage, player);
                 }
             }
@@ -186,6 +187,7 @@ void HandleWeaponData(WeaponData weaponData, PlayerBase player, int quickBarSlot
 
     if (possuiAttachments) {
         int quantity;
+        int q;
         
         foreach (WeaponAttachment att : weaponData.attachments) {
             if (!att || att.name_type == "") continue;
@@ -194,7 +196,7 @@ void HandleWeaponData(WeaponData weaponData, PlayerBase player, int quickBarSlot
             if (quantity <= 0)
                 quantity = 1;
             
-            for (int q = 0; q < quantity; q++) {
+            for (q = 0; q < quantity; q++) {
                 EntityAI attEntity = weaponEntity.GetInventory().CreateAttachment(att.name_type);
                 if (attEntity) {
                     WriteToLog("Anexado: " + att.name_type, LogFile.INIT, false, LogType.INFO);
@@ -529,6 +531,7 @@ bool GiveDefaultDeathmatchLoadout(PlayerBase player, string playerId)
         SeparateItemsByStorage(data.items, itemsWithStorage, itemsWithoutStorage);
         
         int quantity;
+        int q;
         
         // Criar primeiro itens com storage (mochilas, etc)
         if (itemsWithStorage) {
@@ -538,7 +541,7 @@ bool GiveDefaultDeathmatchLoadout(PlayerBase player, string playerId)
                 if (quantity <= 0)
                     quantity = 1;
                 
-                for (int q = 0; q < quantity; q++) {
+                for (q = 0; q < quantity; q++) {
                     CreateItemWithSubitems(null, itemWithStorage, player);
                 }
             }
@@ -552,7 +555,7 @@ bool GiveDefaultDeathmatchLoadout(PlayerBase player, string playerId)
                 if (quantity <= 0)
                     quantity = 1;
                 
-                for (int q = 0; q < quantity; q++) {
+                for (q = 0; q < quantity; q++) {
                     CreateItemWithSubitems(null, itemWithoutStorage, player);
                 }
             }
@@ -663,6 +666,7 @@ bool GiveAdminLoadout(PlayerBase player, string playerId)
         SeparateItemsByStorage(data.items, itemsWithStorage, itemsWithoutStorage);
         
         int quantity;
+        int q;
         
         // Criar primeiro itens com storage (mochilas, etc)
         if (itemsWithStorage) {
@@ -672,7 +676,7 @@ bool GiveAdminLoadout(PlayerBase player, string playerId)
                 if (quantity <= 0)
                     quantity = 1;
                 
-                for (int q = 0; q < quantity; q++) {
+                for (q = 0; q < quantity; q++) {
                     CreateItemWithSubitems(null, itemWithStorage, player);
                 }
             }
@@ -686,7 +690,7 @@ bool GiveAdminLoadout(PlayerBase player, string playerId)
                 if (quantity <= 0)
                     quantity = 1;
                 
-                for (int q = 0; q < quantity; q++) {
+                for (q = 0; q < quantity; q++) {
                     CreateItemWithSubitems(null, itemWithoutStorage, player);
                 }
             }
