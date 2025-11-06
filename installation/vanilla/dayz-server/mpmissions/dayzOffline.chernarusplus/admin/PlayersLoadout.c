@@ -42,16 +42,16 @@ bool GiveCustomLoadout(PlayerBase player, string playerId)
         // Criar primeiro itens com storage (mochilas, etc)
         if (itemsWithStorage) {
             WriteToLog("Criando itens com storage primeiro...", LogFile.INIT, false, LogType.INFO);
-            foreach (LoadoutItem li : itemsWithStorage) {
-                CreateItemWithSubitems(null, li, player);
+            foreach (LoadoutItem itemWithStorage : itemsWithStorage) {
+                CreateItemWithSubitems(null, itemWithStorage, player);
             }
         }
         
         // Depois criar itens sem storage
         if (itemsWithoutStorage) {
             WriteToLog("Criando itens sem storage...", LogFile.INIT, false, LogType.INFO);
-            foreach (LoadoutItem li : itemsWithoutStorage) {
-                CreateItemWithSubitems(null, li, player);
+            foreach (LoadoutItem itemWithoutStorage : itemsWithoutStorage) {
+                CreateItemWithSubitems(null, itemWithoutStorage, player);
             }
         }
     }
@@ -376,15 +376,15 @@ bool GiveDefaultDeathmatchLoadout(PlayerBase player, string playerId)
         // Criar primeiro itens com storage (mochilas, etc)
         if (itemsWithStorage) {
             WriteToLog("Criando itens com storage primeiro...", LogFile.INIT, false, LogType.INFO);
-            foreach (ref LoadoutItem li : itemsWithStorage)
-                CreateItemWithSubitems(null, li, player);
+            foreach (ref LoadoutItem itemWithStorage : itemsWithStorage)
+                CreateItemWithSubitems(null, itemWithStorage, player);
         }
         
         // Depois criar itens sem storage
         if (itemsWithoutStorage) {
             WriteToLog("Criando itens sem storage...", LogFile.INIT, false, LogType.INFO);
-            foreach (ref LoadoutItem li : itemsWithoutStorage)
-                CreateItemWithSubitems(null, li, player);
+            foreach (ref LoadoutItem itemWithoutStorage : itemsWithoutStorage)
+                CreateItemWithSubitems(null, itemWithoutStorage, player);
         }
     }
 
@@ -469,16 +469,16 @@ bool GiveAdminLoadout(PlayerBase player, string playerId)
         // Criar primeiro itens com storage (mochilas, etc)
         if (itemsWithStorage) {
             WriteToLog("Criando itens com storage primeiro...", LogFile.INIT, false, LogType.INFO);
-            foreach (LoadoutItem li : itemsWithStorage) {
-                CreateItemWithSubitems(null, li, player);
+            foreach (LoadoutItem itemWithStorage : itemsWithStorage) {
+                CreateItemWithSubitems(null, itemWithStorage, player);
             }
         }
         
         // Depois criar itens sem storage
         if (itemsWithoutStorage) {
             WriteToLog("Criando itens sem storage...", LogFile.INIT, false, LogType.INFO);
-            foreach (LoadoutItem li : itemsWithoutStorage) {
-                CreateItemWithSubitems(null, li, player);
+            foreach (LoadoutItem itemWithoutStorage : itemsWithoutStorage) {
+                CreateItemWithSubitems(null, itemWithoutStorage, player);
             }
         }
     }
@@ -518,7 +518,7 @@ ref array<ref LoadoutPlayer> GetAllLoudoutsFromPlayer(string playerId)
     CloseFile(handle);
 
     ref array<ref LoadoutPlayerId> loadoutPlayersIds;
-    JsonFileLoader<ref array<ref LoadoutPlayerId>>.JsonLoadFile(jsonPlayersIds, loadoutPlayersIds);
+    JsonFileLoader<array<ref LoadoutPlayerId>>.JsonLoadFile(jsonPlayersIds, loadoutPlayersIds);
 
     if (!loadoutPlayersIds || loadoutPlayersIds.Count() == 0)
     {
@@ -555,7 +555,7 @@ ref array<ref LoadoutPlayer> GetAllLoudoutsFromPlayer(string playerId)
     }
     CloseFile(handle2);
     
-    JsonFileLoader<ref array<ref LoadoutPlayer>>.JsonLoadFile(jsonPlayerId, loadoutsPlayer);
+    JsonFileLoader<array<ref LoadoutPlayer>>.JsonLoadFile(jsonPlayerId, loadoutsPlayer);
 
     if (!loadoutsPlayer || loadoutsPlayer.Count() == 0)
     {
@@ -645,7 +645,7 @@ void ActiveLoadoutByName(string playerId, string loadoutName)
     CloseFile(handle);
 
     ref array<ref LoadoutPlayerId> loadoutPlayersIds;
-    JsonFileLoader<ref array<ref LoadoutPlayerId>>.JsonLoadFile(jsonPlayersIds, loadoutPlayersIds);
+    JsonFileLoader<array<ref LoadoutPlayerId>>.JsonLoadFile(jsonPlayersIds, loadoutPlayersIds);
 
     if (!loadoutPlayersIds || loadoutPlayersIds.Count() == 0)
     {
