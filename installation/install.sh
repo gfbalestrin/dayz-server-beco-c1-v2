@@ -513,9 +513,9 @@ fi
 cd "$DayzFolder/mpmissions/$DayzMpmission/"
 
 # Remove arquivos existentes para evitar conflitos (cuidar para não apagar arquivos importantes do deathmatch)
+cp -Rap admin/files /tmp/
+cp -Rap admin/loadouts /tmp/
 rm -f init.c
-cp -Rap admin/files /tmp/files
-cp -Rap admin/loadouts /tmp/loadouts
 rm -rf admin
 
 echo "[INFO] Baixando arquivos do servidor via Git..."
@@ -527,16 +527,19 @@ if [ ! -d "\$REPO_DIR" ]; then
     echo "[INFO] Clonando repositório (primeira vez)..."
     git clone https://github.com/gfbalestrin/dayz-server-beco-c1-v2.git "\$REPO_DIR"
 else
-    echo "[INFO] Atualizando repositório existente..."
-    cd "\$REPO_DIR" && git reset --hard HEAD &&git pull && cd -
+    echo "[INFO] Atualizando repositório existente..."    
+    cd "\$REPO_DIR"
+    git fetch --all
+    git reset --hard origin/main 
+    git clean -fdx
 fi
 
 # Copia arquivos específicos do vanilla
 echo "[INFO] Copiando arquivos para Vanilla..."
 cp "\$REPO_DIR/installation/vanilla/dayz-server/mpmissions/$DayzMpmission/init.c" .
 cp -r "\$REPO_DIR/installation/vanilla/dayz-server/mpmissions/$DayzMpmission/admin" .
-cp -Rap /tmp/files $REPO_DIR/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files
-cp -Rap /tmp/loadouts $REPO_DIR/installation/vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/loadouts
+cp -a /tmp/files/.    ./admin/files/
+cp -a /tmp/loadouts/. ./admin/loadouts/
 
 # Define permissões corretas apenas nos arquivos copiados
 chown "$LinuxUserName:$LinuxUserName" init.c 2>/dev/null || echo "Aviso: Não foi possível alterar permissões do init.c"

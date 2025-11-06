@@ -57,6 +57,11 @@ from database import (
     get_admin_ids, get_admins_with_player_info, add_admin_id, remove_admin_id
 )
 from datetime import datetime
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    # Fallback para Python < 3.9
+    from backports.zoneinfo import ZoneInfo
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
@@ -335,6 +340,32 @@ def logs_audit():
         start_date=start_date,
         end_date=end_date
     )
+    
+    # Converter TimeStamp de UTC para America/Sao_Paulo
+    sao_paulo_tz = ZoneInfo('America/Sao_Paulo')
+    for log in logs:
+        if log.get('TimeStamp'):
+            dt_timestamp = None
+            if isinstance(log['TimeStamp'], datetime):
+                # Se já é datetime, assumir UTC e converter
+                if log['TimeStamp'].tzinfo is None:
+                    dt_timestamp = log['TimeStamp'].replace(tzinfo=ZoneInfo('UTC')).astimezone(sao_paulo_tz)
+                else:
+                    dt_timestamp = log['TimeStamp'].astimezone(sao_paulo_tz)
+            elif isinstance(log['TimeStamp'], str):
+                # Se é string, parsear e converter
+                try:
+                    dt = datetime.fromisoformat(log['TimeStamp'].replace('Z', '+00:00'))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=ZoneInfo('UTC'))
+                    dt_timestamp = dt.astimezone(sao_paulo_tz)
+                except (ValueError, AttributeError):
+                    pass  # Manter string original se não conseguir parsear
+            
+            # Converter para string formatada para exibição no template
+            if dt_timestamp:
+                # Formato brasileiro: DD/MM/YYYY HH:MM:SS
+                log['TimeStamp'] = dt_timestamp.strftime('%d/%m/%Y %H:%M:%S')
     
     # Buscar lista de usuários e ações para filtros
     users = get_all_users()
@@ -2774,10 +2805,59 @@ def api_manage_users_get():
     """Listar todos os usuários (admin e player) - Admin e Super Admin podem acessar"""
     try:
         users = get_all_users()
-        # Não retornar senha no response
+        sao_paulo_tz = ZoneInfo('America/Sao_Paulo')
+        
+        # Não retornar senha no response e converter datas para timezone
         for user in users:
             if 'Password' in user:
                 del user['Password']
+            
+            # Converter CreatedAt de UTC para America/Sao_Paulo
+            if user.get('CreatedAt'):
+                dt_created = None
+                if isinstance(user['CreatedAt'], datetime):
+                    # Se já é datetime, assumir UTC e converter
+                    if user['CreatedAt'].tzinfo is None:
+                        dt_created = user['CreatedAt'].replace(tzinfo=ZoneInfo('UTC')).astimezone(sao_paulo_tz)
+                    else:
+                        dt_created = user['CreatedAt'].astimezone(sao_paulo_tz)
+                elif isinstance(user['CreatedAt'], str):
+                    # Se é string, parsear e converter
+                    try:
+                        dt = datetime.fromisoformat(user['CreatedAt'].replace('Z', '+00:00'))
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=ZoneInfo('UTC'))
+                        dt_created = dt.astimezone(sao_paulo_tz)
+                    except (ValueError, AttributeError):
+                        pass  # Manter string original se não conseguir parsear
+                
+                # Converter para string ISO format para JSON
+                if dt_created:
+                    user['CreatedAt'] = dt_created.isoformat()
+            
+            # Converter LastLogin de UTC para America/Sao_Paulo
+            if user.get('LastLogin'):
+                dt_lastlogin = None
+                if isinstance(user['LastLogin'], datetime):
+                    # Se já é datetime, assumir UTC e converter
+                    if user['LastLogin'].tzinfo is None:
+                        dt_lastlogin = user['LastLogin'].replace(tzinfo=ZoneInfo('UTC')).astimezone(sao_paulo_tz)
+                    else:
+                        dt_lastlogin = user['LastLogin'].astimezone(sao_paulo_tz)
+                elif isinstance(user['LastLogin'], str):
+                    # Se é string, parsear e converter
+                    try:
+                        dt = datetime.fromisoformat(user['LastLogin'].replace('Z', '+00:00'))
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=ZoneInfo('UTC'))
+                        dt_lastlogin = dt.astimezone(sao_paulo_tz)
+                    except (ValueError, AttributeError):
+                        pass  # Manter string original se não conseguir parsear
+                
+                # Converter para string ISO format para JSON
+                if dt_lastlogin:
+                    user['LastLogin'] = dt_lastlogin.isoformat()
+        
         return jsonify({'success': True, 'data': users})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
