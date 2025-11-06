@@ -286,6 +286,25 @@ void HandleWeaponData(WeaponData weaponData, PlayerBase player, int quickBarSlot
         
     }
 
+    // Tentar anexar pistola no coldre quando criar uma pistola permitida (small_weapon)
+    if (label == "small" && IsAllowedPistol(weaponData.name_type) && weaponEntity)
+    {
+        EntityAI holster = GetPlayerHolster(player);
+        if (holster)
+        {
+            // Tentar anexar a pistola no coldre
+            EntityAI attachedPistol = holster.GetInventory().CreateAttachment(weaponData.name_type);
+            if (attachedPistol)
+            {
+                WriteToLog("HandleWeaponData(): Pistola " + weaponData.name_type + " anexada ao coldre", LogFile.INIT, false, LogType.INFO);
+            }
+            else
+            {
+                WriteToLog("HandleWeaponData(): Falha ao anexar pistola " + weaponData.name_type + " no coldre", LogFile.INIT, false, LogType.INFO);
+            }
+        }
+    }
+
 }
 
 void SeparateItemsByStorage(array<ref LoadoutItem> items, out array<ref LoadoutItem> itemsWithStorage, out array<ref LoadoutItem> itemsWithoutStorage)
@@ -322,6 +341,78 @@ bool CanAttachGrenadeToVest(string grenadeType)
     return false;
 }
 
+bool IsAllowedHolster(string holsterType)
+{
+    if (!ALLOWED_HOLSTERS || holsterType == "")
+        return false;
+    
+    foreach (string allowedHolster : ALLOWED_HOLSTERS)
+    {
+        if (allowedHolster == holsterType)
+            return true;
+    }
+    
+    return false;
+}
+
+bool IsAllowedPistol(string pistolType)
+{
+    if (!ALLOWED_PISTOLS || pistolType == "")
+        return false;
+    
+    foreach (string allowedPistol : ALLOWED_PISTOLS)
+    {
+        if (allowedPistol == pistolType)
+            return true;
+    }
+    
+    return false;
+}
+
+EntityAI GetPlayerHolster(PlayerBase player)
+{
+    if (!player) return null;
+    
+    // Buscar coldre no inventário do jogador
+    array<EntityAI> items = new array<EntityAI>();
+    player.GetInventory().EnumerateInventory(InventoryTraversalType.PREORDER, items);
+    
+    foreach (EntityAI item : items)
+    {
+        if (!item) continue;
+        
+        string itemType = item.GetType();
+        if (IsAllowedHolster(itemType))
+        {
+            return item;
+        }
+    }
+    
+    return null;
+}
+
+EntityAI FindPistolInInventory(PlayerBase player, string pistolType)
+{
+    if (!player || pistolType == "") return null;
+    
+    // Buscar pistola no inventário do jogador
+    array<EntityAI> items = new array<EntityAI>();
+    player.GetInventory().EnumerateInventory(InventoryTraversalType.PREORDER, items);
+    
+    foreach (EntityAI item : items)
+    {
+        if (!item) continue;
+        
+        string itemType = item.GetType();
+        if (itemType == pistolType)
+        {
+            return item;
+        }
+    }
+    
+    return null;
+}
+
 // Removido: inserção automática genérica no colete
 
 EntityAI CreateItemWithSubitems(EntityAI parent, LoadoutItem itemData, PlayerBase player)
@@ -355,7 +446,28 @@ EntityAI CreateItemWithSubitems(EntityAI parent, LoadoutItem itemData, PlayerBas
         }
     }
 
-    // Inserção automática de granadas movida para o bloco de explosivos dos loadouts
+    // Tentar anexar pistola no coldre quando criar um coldre permitido
+    if (!parent && item && IsAllowedHolster(itemData.name_type))
+    {
+        // Buscar pistola permitida no inventário do jogador
+        if (ALLOWED_PISTOLS && ALLOWED_PISTOLS.Count() > 0)
+        {
+            foreach (string pistolType : ALLOWED_PISTOLS)
+            {
+                EntityAI pistol = FindPistolInInventory(player, pistolType);
+                if (pistol)
+                {
+                    // Tentar anexar a pistola no coldre
+                    EntityAI attachedPistol = item.GetInventory().CreateAttachment(pistolType);
+                    if (attachedPistol)
+                    {
+                        WriteToLog("CreateItemWithSubitems(): Pistola " + pistolType + " anexada ao coldre " + itemData.name_type, LogFile.INIT, false, LogType.INFO);
+                        break;
+                    }
+                }
+            }
+        }
+    }
 
     return item;
 }

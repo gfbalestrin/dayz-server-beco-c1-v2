@@ -47,13 +47,25 @@ ref array<ref ActivePlayer> g_PlayersWithInfiniteStamina;
 
 // Lista de tipos de granadas a serem inseridas automaticamente (modo sem slots)
 ref array<string> DEFAULT_GRENADE_TYPES;
+// Lista de coldres permitidos para anexar pistolas
+ref array<string> ALLOWED_HOLSTERS;
+// Lista de pistolas permitidas para anexar em coldres
+ref array<string> ALLOWED_PISTOLS;
 
 void InitializeVestGrenadeSlots()
 {
     DEFAULT_GRENADE_TYPES = new array<string>();
+    ALLOWED_HOLSTERS = new array<string>();
+    ALLOWED_PISTOLS = new array<string>();
 
     // Granadas padrão a tentar inserir (sem nomes de slots)
     DEFAULT_GRENADE_TYPES.Insert("M67Grenade");
 
-    WriteToLog("InitializeVestGrenadeSlots(): Granadas padrão inicializadas (modo sem slots)", LogFile.INIT, false, LogType.INFO);
+    // TODO: Adicionar os name_type dos coldres permitidos aqui
+    ALLOWED_HOLSTERS.Insert("PlateCarrierHolster");
+
+    // TODO: Adicionar os name_type das pistolas permitidas aqui
+    ALLOWED_PISTOLS.Insert("Glock19");
+
+    WriteToLog("InitializeVestGrenadeSlots(): Granadas, coldres e pistolas inicializados", LogFile.INIT, false, LogType.INFO);
 }
