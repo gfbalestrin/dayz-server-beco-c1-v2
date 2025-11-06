@@ -125,20 +125,25 @@ void HandleWeaponData(WeaponData weaponData, PlayerBase player, int quickBarSlot
         weaponEntity = player.GetHumanInventory().CreateInHands(weaponData.name_type);
     else
     {
-        if (label == "small")
+        if (label == "small" && IsAllowedPistol(weaponData.name_type))
         {
             EntityAI holster = GetPlayerHolster(player);
             if (holster)
             {
-                weaponEntity = holster.GetInventory().CreateAttachment(weaponData.name_type);                
-            } else {
+                weaponEntity = holster.GetInventory().CreateAttachment(weaponData.name_type);
+                if (weaponEntity)
+                {
+                    WriteToLog("HandleWeaponData(): Pistola " + weaponData.name_type + " criada no coldre", LogFile.INIT, false, LogType.INFO);
+                }
+            }
+            if (!weaponEntity)
+            {
                 weaponEntity = player.GetInventory().CreateInInventory(weaponData.name_type);
             }
         } else {
             weaponEntity = player.GetInventory().CreateInInventory(weaponData.name_type);
         }        
-    }
-        
+    }        
 
     if (!weaponEntity) {
         weaponEntity = TryCreateItemInInventoryOrOnGround(player, weaponData.name_type);
