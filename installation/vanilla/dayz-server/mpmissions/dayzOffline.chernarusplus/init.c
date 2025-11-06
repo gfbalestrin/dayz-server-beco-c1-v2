@@ -1430,6 +1430,10 @@ class CustomMission: MissionServer
 		// ============================================================================
 		if (eventTypeId == ClientConnectedEventTypeID)
 		{
+			if (IsDeathmatchEnabled)
+			{
+				return;
+			}
 			WriteToLog("EVENT: ClientConnectedEventTypeID - Cliente conectando ao servidor", LogFile.INIT, false, LogType.INFO);
 			ClientConnectedEventParams connectedParams = ClientConnectedEventParams.Cast(params);
 			if (!connectedParams) {
@@ -1454,6 +1458,10 @@ class CustomMission: MissionServer
 		// ============================================================================
 		else if (eventTypeId == ClientDisconnectedEventTypeID)
 		{
+			if (IsDeathmatchEnabled)
+			{
+				return;
+			}
 			WriteToLog("EVENT: ClientDisconnectedEventTypeID - Cliente desconectando", LogFile.INIT, false, LogType.INFO);
 			ClientDisconnectedEventParams disconnectedParams = ClientDisconnectedEventParams.Cast(params);
 			if (!disconnectedParams) {
@@ -1489,7 +1497,7 @@ class CustomMission: MissionServer
 			{
 				return;
 			}
-			
+
 			WriteToLog("EVENT: ClientNewEventTypeID - Novo jogador entrando pela primeira vez", LogFile.INIT, false, LogType.INFO);
 			ClientNewEventParams newParams = ClientNewEventParams.Cast(params);
 			if (!newParams) {
@@ -1521,11 +1529,12 @@ class CustomMission: MissionServer
 		// ============================================================================
 		else if (eventTypeId == ClientReadyEventTypeID)
 		{
-			WriteToLog("EVENT: ClientReadyEventTypeID - Cliente pronto para jogar", LogFile.INIT, false, LogType.INFO);
 			if (IsDeathmatchEnabled)
 			{
 				return;
 			}
+			WriteToLog("EVENT: ClientReadyEventTypeID - Cliente pronto para jogar", LogFile.INIT, false, LogType.INFO);
+			
 			ClientReadyEventParams readyParams = ClientReadyEventParams.Cast(params);
 			if (readyParams)
 			{
@@ -2114,8 +2123,8 @@ class CustomMission: MissionServer
 			if (IsDeathmatchEnabled)
 			{
 				// Stats/posição/dano depois
-				GetGame().GetCallQueue(CALL_CATEGORY_GAMEPLAY).CallLater(PostSpawnInit, 300, false, m_player, pos);
-				ScheduleSpawnStaminaBurst(m_player);
+				//GetGame().GetCallQueue(CALL_CATEGORY_GAMEPLAY).CallLater(PostSpawnInit, 300, false, m_player, pos);
+				//ScheduleSpawnStaminaBurst(m_player);
 			}
 
 			m_player.SetAllowDamage(true);

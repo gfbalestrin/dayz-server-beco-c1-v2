@@ -99,13 +99,23 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
 			INSERT_CUSTOM_LOG "Ignorando pois PlayerId está em branco" "INFO" "$ScriptName"
 			continue
 		fi
-		Command="${Content##*: }"
-        if [[ "$Command" == "!"* ]]; then
-            Command="${Command:1}"
-        fi
-        echo $Command
-        echo "$PlayerId $Command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
-        continue
+
+        if [[ "$DayzDeathmatch" -eq "1" ]] && ! grep -q "$PlayerId" "$DayzServerFolder/$DayzAdminIdsFile"; then
+			if [[ "$Content" == *"teleport"* ]]; then
+				continue
+			elif [[ "$Content" == *"godmode"* ]]; then
+				continue
+			elif [[ "$Content" == *"heal"* ]]; then
+				continue			
+			fi
+			Command="${Content##*: }"
+            if [[ "$Command" == "!"* ]]; then
+                Command="${Command:1}"
+            fi        
+            echo $Command
+            echo "$PlayerId $Command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
+            continue
+		fi		
     # Evento de morte por player
     elif [[ "$Content" == *"killed by Player"* ]]; then
         INSERT_CUSTOM_LOG "Evento de PVP detectado!" "INFO" "$ScriptName"
