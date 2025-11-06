@@ -107,7 +107,15 @@ void HandleWeaponLoadout(Weapons weapons, PlayerBase player, string playerId)
         HandleWeaponData(weapons.secondary_weapon, player, 1, "secondary", playerId);
 
     if (weapons.small_weapon)
+    {
+        EntityAI holsterDM = GetPlayerHolster(player);
+        if (!holsterDM)
+        {
+            WriteToLog("Coldre não encontrado para o player: " + playerId, LogFile.INIT, false, LogType.ERROR);
+        }
         HandleWeaponData(weapons.small_weapon, player, 2, "small", playerId);
+    }
+        
 }
 
 void HandleWeaponData(WeaponData weaponData, PlayerBase player, int quickBarSlot, string label, string playerId)
@@ -308,6 +316,12 @@ EntityAI GetPlayerVest(PlayerBase player)
     return player.FindAttachmentBySlotName("Vest");
 }
 
+EntityAI GetPlayerHolster(PlayerBase player)
+{
+    if (!player) return null;
+    return player.FindAttachmentBySlotName("Holster");
+}
+
 bool CanAttachGrenadeToVest(string grenadeType)
 {
     if (!DEFAULT_GRENADE_TYPES || grenadeType == "")
@@ -500,7 +514,7 @@ bool GiveDefaultDeathmatchLoadout(PlayerBase player, string playerId)
     if (data.explosives)
     {
         WriteToLog("Criando explosivos...", LogFile.INIT, false, LogType.INFO);
-        EntityAI vestDM = GetPlayerVest(player);
+        EntityAI vestDM = GetPlayerVest(player);        
         foreach (ref Explosive explosive : data.explosives)
         {
             for (int e = 0; e < explosive.quantity; e++)
