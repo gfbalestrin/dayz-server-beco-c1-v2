@@ -2232,6 +2232,11 @@ class CustomMission: MissionServer
 				// Stats/posição/dano depois
 				//GetGame().GetCallQueue(CALL_CATEGORY_GAMEPLAY).CallLater(PostSpawnInit, 300, false, m_player, pos);
 				//ScheduleSpawnStaminaBurst(m_player);
+				m_player.SetHealth("", "", 100);
+				m_player.SetHealth("GlobalHealth", "Blood", 5000);
+				m_player.SetHealth("GlobalHealth", "Shock", 5000);
+				m_player.GetStatEnergy().Set(4000);
+				m_player.GetStatWater().Set(4000);
 			}
 
 			m_player.SetAllowDamage(true);
