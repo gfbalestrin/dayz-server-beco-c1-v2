@@ -1,10 +1,10 @@
 #/bin/bash
 
-# SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# PARENT_DIR="$(dirname "$SCRIPT_DIR")"
-# cd "$PARENT_DIR"
-pwd
-source ./config.sh
+# Descobre o diretório onde este script está
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+# Carrega o config.sh do mesmo diretório
+source "$script_dir/config.sh"
 
 DISCORD_MESSAGE_ID="$DiscordChannelPlayersOnlineMessageId"
 DISCORD_BOT_TOKEN="$DiscordChannelPlayersOnlineBotToken"

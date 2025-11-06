@@ -1344,8 +1344,9 @@ class CustomMission: MissionServer
 				WriteToLog("  -> Posição do Player: " + pos.ToString(), LogFile.INIT, false, LogType.INFO);
 
 				vector newPos = pos;
-				newPos[1] = newPos[1] + 0.5;  // Move 0.5 metro para cima (eixo Y)							
-				pb.SetPosition(newPos);
+				newPos[1] = newPos[1] + 0.5;  // Move 0.5 metro para cima (eixo Y)		
+				if (!IsDeathmatchEnabled)
+					pb.SetPosition(newPos);
 
 				WriteToLog("  -> Posição alterada para: " + newPos[0].ToString() + " " + newPos[1].ToString() + " " + newPos[2].ToString(), LogFile.INIT, false, LogType.INFO);
 			}

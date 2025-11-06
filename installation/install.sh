@@ -467,13 +467,6 @@ confirm_step "Criação dos scripts de atualização e pós-inicialização"
 
 echo "Configurando script de update $DayzFolder/scripts/update.sh ..."
 
-if [[ "$DayzWipeOnRestart" == "1" ]]; then
-cat <<EOF > "$DayzFolder/scripts/update.sh"
-#!/bin/bash
-
-
-EOF
-else
 cat <<EOF > "$DayzFolder/scripts/update.sh"
 #!/bin/bash
 
@@ -490,13 +483,24 @@ if [ -f "$DayzFolder/scripts/clear_databases.sh" ]; then
     ./clear_databases.sh
 fi
 
-cd "$DayzFolder/scripts" && source ./config.sh
+cd "$DayzFolder/scripts" && source "$DayzFolder/scripts/config.sh"
 CurrentDate=\$(date "+%d/%m/%Y %H:%M:%S")
 ScriptName=\$(basename "\$0")
 SEND_DISCORD_WEBHOOK "Servidor reiniciando..." "\$DiscordWebhookLogs" "\$CurrentDate" "\$ScriptName"
-cd -
 
 "$AppFolder/$AppScriptUpdatePlayersOnlineFile" "RESET" 
+
+if [[ "\$DayzWipeOnRestart" == "1" ]]; then
+    echo "=== Realizando wipe do servidor DayZ ==="
+    INSERT_CUSTOM_LOG "Realizando wipe do servidor DayZ" "INFO" "\$ScriptName"
+    PROFILE_DIR="\$DayzServerFolder/mpmissions/$DayzMpmission/storage_1"
+    echo "PROFILE_DIR: \$PROFILE_DIR"
+    INSERT_CUSTOM_LOG "PROFILE_DIR: \$PROFILE_DIR" "INFO" "\$ScriptName"
+    rm -rf "\$PROFILE_DIR/players.db"
+    rm -rf "\$PROFILE_DIR/spawnpoints.bin"
+    rm -rf "\$PROFILE_DIR/data/*"
+    echo "Wipe completo!"
+fi
 
 # Atualiza o servidor via SteamCMD
 echo "[INFO] Atualizando servidor via SteamCMD..."
@@ -540,6 +544,17 @@ cp "\$REPO_DIR/installation/vanilla/dayz-server/mpmissions/$DayzMpmission/init.c
 cp -r "\$REPO_DIR/installation/vanilla/dayz-server/mpmissions/$DayzMpmission/admin" .
 cp -a /tmp/files/.    ./admin/files/
 cp -a /tmp/loadouts/. ./admin/loadouts/
+
+GLOBALS_FILE="$DayzFolder/mpmissions/$DayzMpmission/admin/Globals.c"
+if [[ "\$DayzDeathmatch" == "1" ]]; then
+    if grep -q "bool IsDeathmatchEnabled = false;" "\$GLOBALS_FILE"; then
+        sed -i 's/bool IsDeathmatchEnabled = false;/bool IsDeathmatchEnabled = true;/g' "\$GLOBALS_FILE"        
+    fi
+else
+    if grep -q "bool IsDeathmatchEnabled = true;" "\$GLOBALS_FILE"; then
+        sed -i 's/bool IsDeathmatchEnabled = true;/bool IsDeathmatchEnabled = false;/g' "\$GLOBALS_FILE"
+    fi
+fi
 
 # Define permissões corretas apenas nos arquivos copiados
 chown "$LinuxUserName:$LinuxUserName" init.c 2>/dev/null || echo "Aviso: Não foi possível alterar permissões do init.c"
@@ -592,7 +607,6 @@ chown -R "$LinuxUserName:$LinuxUserName" $DayzFolder/mpmissions/$DayzMpmission/d
 
 echo "[INFO] Update concluído com sucesso."
 EOF
-fi
 
 chmod +x "$DayzFolder/scripts/update.sh"
 
