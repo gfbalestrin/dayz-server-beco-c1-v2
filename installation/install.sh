@@ -498,7 +498,7 @@ if [[ "\$DayzWipeOnRestart" == "1" ]]; then
     INSERT_CUSTOM_LOG "PROFILE_DIR: \$PROFILE_DIR" "INFO" "\$ScriptName"
     rm -rf "\$PROFILE_DIR/players.db"
     rm -rf "\$PROFILE_DIR/spawnpoints.bin"
-    rm -rf "\$PROFILE_DIR/data/*"
+    rm -rf "\$PROFILE_DIR/data"
     echo "Wipe completo!"
 fi
 

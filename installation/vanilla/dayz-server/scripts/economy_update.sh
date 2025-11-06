@@ -234,8 +234,8 @@ copy_files() {
                 "mapgrouppos.xml"
                 "mapgroupproto.xml"
             )
-            LOG_DEBUG "Default - source_dir: $source_dir"
-            LOG_DEBUG "Default - total de arquivos: ${#files_to_copy[@]}"
+            #LOG_DEBUG "Default - source_dir: $source_dir"
+            #LOG_DEBUG "Default - total de arquivos: ${#files_to_copy[@]}"
             ;;
         *)
             LOG_ERROR "Evento desconhecido: $event"
@@ -269,13 +269,13 @@ copy_files() {
         local dest_file="$DEST_DIR/$file"
         local dest_dir=$(dirname "$dest_file")
         
-        LOG_DEBUG "Processando arquivo: $file"
-        LOG_DEBUG "  source_file: $source_file"
-        LOG_DEBUG "  dest_file: $dest_file"
-        LOG_DEBUG "  dest_dir: $dest_dir"
+        #LOG_DEBUG "Processando arquivo: $file"
+        #LOG_DEBUG "  source_file: $source_file"
+        #LOG_DEBUG "  dest_file: $dest_file"
+        #LOG_DEBUG "  dest_dir: $dest_dir"
         
         if [ -f "$source_file" ]; then
-            LOG_DEBUG "  Arquivo encontrado: $source_file"
+            #LOG_DEBUG "  Arquivo encontrado: $source_file"
             # Criar diretório de destino se não existir
             mkdir -p "$dest_dir"
             
@@ -293,7 +293,7 @@ copy_files() {
                     chown "$current_owner:$current_group" "$dest_file" 2>/dev/null
                     
                     files_copied=$((files_copied + 1))
-                    LOG_DEBUG "Copiado: $file (perm: $current_perms, owner: $current_owner:$current_group)"
+                    #LOG_DEBUG "Copiado: $file (perm: $current_perms, owner: $current_owner:$current_group)"
                 else
                     files_failed=$((files_failed + 1))
                     LOG_ERROR "Falha ao copiar: $file"
@@ -302,7 +302,7 @@ copy_files() {
                 # Arquivo novo - copiar e manter permissões padrão do diretório
                 if cp "$source_file" "$dest_file" 2>/dev/null; then
                     files_copied=$((files_copied + 1))
-                    LOG_DEBUG "Copiado: $file (arquivo novo)"
+                    #LOG_DEBUG "Copiado: $file (arquivo novo)"
                 else
                     files_failed=$((files_failed + 1))
                     LOG_ERROR "Falha ao copiar: $file"
@@ -316,10 +316,10 @@ copy_files() {
             fi
         else
             LOG_ERROR "Arquivo não encontrado: $source_file"
-            LOG_DEBUG "  Verificando se o diretório pai existe..."
+            #LOG_DEBUG "  Verificando se o diretório pai existe..."
             local parent_dir=$(dirname "$source_file")
             if [ -d "$parent_dir" ]; then
-                LOG_DEBUG "  Diretório pai existe, listando conteúdo:"
+                #LOG_DEBUG "  Diretório pai existe, listando conteúdo:"
                 ls -la "$parent_dir" 2>/dev/null || echo "Não foi possível listar"
             else
                 LOG_ERROR "  Diretório pai não existe: $parent_dir"
