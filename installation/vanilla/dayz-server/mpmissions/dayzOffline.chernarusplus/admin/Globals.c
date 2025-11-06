@@ -59,13 +59,13 @@ void InitializeVestGrenadeSlots()
     ALLOWED_PISTOLS = new array<string>();
 
     // Granadas padrão a tentar inserir (sem nomes de slots)
-    DEFAULT_GRENADE_TYPES.Insert("M67Grenade");
+    DEFAULT_GRENADE_TYPES.Insert("FlashGrenade","Grenade_ChemGas","M18SmokeGrenade_Green","M18SmokeGrenade_Purple","M18SmokeGrenade_Red","M18SmokeGrenade_White","M18SmokeGrenade_Yellow","M67Grenade","RDG2SmokeGrenade_Black","RDG2SmokeGrenade_White","RGD5Grenade");
 
     // TODO: Adicionar os name_type dos coldres permitidos aqui
-    ALLOWED_HOLSTERS.Insert("PlateCarrierHolster");
+    ALLOWED_HOLSTERS.Insert("PlateCarrierHolster","PlateCarrierVest_Black","PlateCarrierVest_Green","PlateCarrierVest_Camo","HighCapacityVest_Black","HighCapacityVest_Olive","SmershVest","UKAssVest_Black","UKAssVest_Camo","UKAssVest_Khaki","UKAssVest_Olive","UKAssVest_Winter","PressVest_Blue","PressVest_LightBlue","PoliceVest");
 
     // TODO: Adicionar os name_type das pistolas permitidas aqui
-    ALLOWED_PISTOLS.Insert("Glock19");
+    ALLOWED_PISTOLS.Insert("Glock19","MKII","Flaregun","Magnum","SawedoffMagnum","P1","Longhorn","Engraved1911","Colt1911","MakarovIJ70","FNX45","Derringer_Black","Derringer_Pink","Derringer_Grey","Deagle","Deagle_Gold","CZ75");
 
     WriteToLog("InitializeVestGrenadeSlots(): Granadas, coldres e pistolas inicializados", LogFile.INIT, false, LogType.INFO);
 }

@@ -144,9 +144,14 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
             if [[ "$Command" == "!"* ]]; then
                 Command="${Command:1}"
             fi        
-            echo $Command
             echo "$PlayerId $Command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
             continue
+        elif grep -q "$PlayerId" "$DayzServerFolder/$DayzAdminIdsFile"; then
+            Command="${Content##*: }"
+            if [[ "$Command" == "!"* ]]; then
+                Command="${Command:1}"
+            fi        
+            echo "$PlayerId $Command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
 		fi		
     # Evento de morte por player
     elif [[ "$Content" == *"killed by Player"* ]]; then
