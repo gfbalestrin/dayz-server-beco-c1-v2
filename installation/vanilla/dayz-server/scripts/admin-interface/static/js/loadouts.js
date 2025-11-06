@@ -2484,13 +2484,14 @@ function renderItemsGridLoadoutByType(data) {
     
     // Localizações possíveis (para segundo nível de separação)
     const locations = [
-        { key: 'head', label: 'Head', icon: 'fa-hard-hat' },
-        { key: 'face', label: 'Face', icon: 'fa-user-secret' },
+        { key: 'head', label: 'Cabeça', icon: 'fa-hard-hat' },
+        { key: 'face', label: 'Rosto', icon: 'fa-user-secret' },
         { key: 'torso', label: 'Torso', icon: 'fa-tshirt' },
-        { key: 'legs', label: 'Legs', icon: 'fa-running' },
-        { key: 'foot', label: 'Foot', icon: 'fa-shoe-prints' },
-        { key: 'hands', label: 'Hands', icon: 'fa-hand-paper' },
-        { key: 'back', label: 'Back', icon: 'fa-backpack' },
+        { key: 'legs', label: 'Pernas', icon: 'fa-running' },
+        { key: 'foot', label: 'Pés', icon: 'fa-shoe-prints' },
+        { key: 'hands', label: 'Mãos', icon: 'fa-hand-paper' },
+        { key: 'back', label: 'Costas', icon: 'fa-backpack' },
+        { key: 'waist', label: 'Cintura', icon: 'fa-waist' },
         { key: 'none', label: 'Sem Localização', icon: 'fa-box' }
     ];
     
