@@ -292,11 +292,23 @@ void HandleWeaponData(WeaponData weaponData, PlayerBase player, int quickBarSlot
         EntityAI holster = GetPlayerHolster(player);
         if (holster)
         {
-            bool movedToHolster = player.GetInventory().TakeEntityToTargetAttachment(holster, weaponEntity);
-            if (movedToHolster)
-                WriteToLog("HandleWeaponData(): Pistola " + weaponData.name_type + " movida para o coldre", LogFile.INIT, false, LogType.INFO);
-            else
-                WriteToLog("HandleWeaponData(): Falha ao mover pistola " + weaponData.name_type + " para o coldre", LogFile.INIT, false, LogType.INFO);
+            InventoryLocation srcLoc = new InventoryLocation();
+            InventoryLocation dstLoc = new InventoryLocation();
+            
+            if (weaponEntity.GetInventory().GetCurrentInventoryLocation(srcLoc))
+            {
+                if (holster.GetInventory().FindFirstFreeLocationFor(weaponEntity, FindInventoryLocationType.ATTACHMENT, dstLoc))
+                {
+                    if (GameInventory.LocationSyncMoveEntity(srcLoc, dstLoc))
+                    {
+                        WriteToLog("HandleWeaponData(): Pistola " + weaponData.name_type + " movida para o coldre", LogFile.INIT, false, LogType.INFO);
+                    }
+                    else
+                    {
+                        WriteToLog("HandleWeaponData(): Falha ao mover pistola " + weaponData.name_type + " para o coldre", LogFile.INIT, false, LogType.INFO);
+                    }
+                }
+            }
         }
     }
 
@@ -452,11 +464,19 @@ EntityAI CreateItemWithSubitems(EntityAI parent, LoadoutItem itemData, PlayerBas
                 if (pistol)
                 {
                     // Move a pistola existente para o coldre como attachment (sem criar nova)
-                    bool moved = pistol.GetInventory().TryMoveToEntity(item, FindInventoryLocationType.ATTACHMENT);
-                    if (moved)
+                    InventoryLocation srcLoc = new InventoryLocation();
+                    InventoryLocation dstLoc = new InventoryLocation();
+                    
+                    if (pistol.GetInventory().GetCurrentInventoryLocation(srcLoc))
                     {
-                        WriteToLog("CreateItemWithSubitems(): Pistola existente " + pistolType + " movida para o coldre " + itemData.name_type, LogFile.INIT, false, LogType.INFO);
-                        break;
+                        if (item.GetInventory().FindFirstFreeLocationFor(pistol, FindInventoryLocationType.ATTACHMENT, dstLoc))
+                        {
+                            if (GameInventory.LocationSyncMoveEntity(srcLoc, dstLoc))
+                            {
+                                WriteToLog("CreateItemWithSubitems(): Pistola existente " + pistolType + " movida para o coldre " + itemData.name_type, LogFile.INIT, false, LogType.INFO);
+                                break;
+                            }
+                        }
                     }
                 }
             }
@@ -703,7 +723,7 @@ ref array<ref LoadoutPlayer> GetAllLoudoutsFromPlayer(string playerId)
     }
     CloseFile(handle);
 
-    ref array<ref LoadoutPlayerId> loadoutPlayersIds;
+    array<ref LoadoutPlayerId> loadoutPlayersIds;
     JsonFileLoader<array<ref LoadoutPlayerId>>.JsonLoadFile(jsonPlayersIds, loadoutPlayersIds);
 
     if (!loadoutPlayersIds || loadoutPlayersIds.Count() == 0)
@@ -830,7 +850,7 @@ void ActiveLoadoutByName(string playerId, string loadoutName)
     }
     CloseFile(handle);
 
-    ref array<ref LoadoutPlayerId> loadoutPlayersIds;
+    array<ref LoadoutPlayerId> loadoutPlayersIds;
     JsonFileLoader<array<ref LoadoutPlayerId>>.JsonLoadFile(jsonPlayersIds, loadoutPlayersIds);
 
     if (!loadoutPlayersIds || loadoutPlayersIds.Count() == 0)
