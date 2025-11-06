@@ -113,15 +113,15 @@ bool ExecuteCommand(TStringArray tokens)
     switch (command)
     {
         case "help":
-            if (!isAdmin)
+            if (!CheckIfIsAdmin(playerID))
             {
-                //SendPrivateMessage(playerID, "!loadouts -> Lista loadouts configurados", MessageColor.FRIENDLY);
-                //SendPrivateMessage(playerID, "!loadout meuloadout1' -> Ativa meuloadout1", MessageColor.FRIENDLY);
-                //SendPrivateMessage(playerID, "!loadout reset -> Gera nova senha aleatória para acessar o sistema de loadout: " + UrlAppPython, MessageColor.FRIENDLY);
-                //SendPrivateMessage(playerID, "!maps -> Lista mapas disponíveis", MessageColor.FRIENDLY);
-                //SendPrivateMessage(playerID, "!votemap 1 -> Vota no mapa 1", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!loadouts -> Lista loadouts configurados", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!loadout meuloadout1' -> Ativa meuloadout1", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!loadout reset -> Gera nova senha aleatória para acessar o sistema de loadout: " + UrlAppPython, MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!maps -> Lista mapas disponíveis", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!votemap 1 -> Vota no mapa 1", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!players -> Lista jogadores online", MessageColor.FRIENDLY);
-                //SendPrivateMessage(playerID, "!votekick 12345679 -> Vota para kickar o jogador de ID 12345679", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!votekick 12345679 -> Vota para kickar o jogador de ID 12345679", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!kill -> Cometer suicídio", MessageColor.FRIENDLY);
             } else 
             {
@@ -427,9 +427,12 @@ bool ExecuteCommand(TStringArray tokens)
             g_VoteKickManager.ListarJogadoresOnline(playerID);
             break;
         case "loadouts":
-            ShowLoadoutsToPlayer(playerID);
+            SendPrivateMessage(playerID, "Esse recurso não está disponível no momento", MessageColor.FRIENDLY);
+            //ShowLoadoutsToPlayer(playerID);
             break;
         case "loadout":
+            SendPrivateMessage(playerID, "Esse recurso não está disponível no momento", MessageColor.FRIENDLY);
+            break;
             if (tokens.Count() < 3) {
                 ShowLoadoutsToPlayer(playerID);
                 return true;

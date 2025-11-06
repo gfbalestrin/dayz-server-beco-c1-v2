@@ -105,8 +105,40 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
 				continue
 			elif [[ "$Content" == *"godmode"* ]]; then
 				continue
+			elif [[ "$Content" == *"ungodmode"* ]]; then
+				continue
 			elif [[ "$Content" == *"heal"* ]]; then
-				continue			
+				continue
+			elif [[ "$Content" == *"giveitem"* ]]; then
+				continue
+			elif [[ "$Content" == *"spawnvehicle"* ]]; then
+				continue
+			elif [[ "$Content" == *"createcontainer"* ]]; then
+				continue
+			elif [[ "$Content" == *"createweapon"* ]]; then
+				continue
+			elif [[ "$Content" == *"createitem"* ]]; then
+				continue
+			elif [[ "$Content" == *"createvehicle"* ]]; then
+				continue
+			elif [[ "$Content" == *"ghostmode"* ]]; then
+				continue
+			elif [[ "$Content" == *"unghostmode"* ]]; then
+				continue
+			elif [[ "$Content" == *"kick"* ]]; then
+				continue
+			elif [[ "$Content" == *"getposition"* ]]; then
+				continue
+			elif [[ "$Content" == *"construct"* ]]; then
+				continue
+			elif [[ "$Content" == *"votekick"* ]]; then
+				continue
+			elif [[ "$Content" == *"settime"* ]]; then
+				continue
+			elif [[ "$Content" == *"setweather"* ]]; then
+				continue
+			elif [[ "$Content" == *"stamina"* ]]; then
+				continue
 			fi
 			Command="${Content##*: }"
             if [[ "$Command" == "!"* ]]; then

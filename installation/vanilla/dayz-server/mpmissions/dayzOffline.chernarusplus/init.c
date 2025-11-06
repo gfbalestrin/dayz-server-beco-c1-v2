@@ -1493,11 +1493,6 @@ class CustomMission: MissionServer
 		// ============================================================================
 		else if (eventTypeId == ClientNewEventTypeID)
 		{
-			if (IsDeathmatchEnabled)
-			{
-				return;
-			}
-
 			WriteToLog("EVENT: ClientNewEventTypeID - Novo jogador entrando pela primeira vez", LogFile.INIT, false, LogType.INFO);
 			ClientNewEventParams newParams = ClientNewEventParams.Cast(params);
 			if (!newParams) {
@@ -1529,10 +1524,6 @@ class CustomMission: MissionServer
 		// ============================================================================
 		else if (eventTypeId == ClientReadyEventTypeID)
 		{
-			if (IsDeathmatchEnabled)
-			{
-				return;
-			}
 			WriteToLog("EVENT: ClientReadyEventTypeID - Cliente pronto para jogar", LogFile.INIT, false, LogType.INFO);
 			
 			ClientReadyEventParams readyParams = ClientReadyEventParams.Cast(params);
@@ -2213,7 +2204,7 @@ class CustomMission: MissionServer
 		}
 
 		ref array<ref LoadoutPlayer> loadoutsPlayer = GetAllLoudoutsFromPlayer(playerId);
-		if (!loadoutsPlayer && IsDeathmatchEnabled) {
+		if (!loadoutsPlayer) {
 			WriteToLog("Nenhum loadout encontrado para o playerId: " + playerId, LogFile.INIT, false, LogType.INFO);
 			return;
 		}
