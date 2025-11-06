@@ -674,7 +674,7 @@ class CustomMission: MissionServer
 			playerParamStatus = "VÁLIDO";
 		
 		string resumoMsg = "AddOrUpdateActivePlayer(): Resumo - Duplicados: " + duplicateCount.ToString() + " | player param: " + playerParamStatus;
-		WriteToLog(resumoMsg, LogFile.INIT, false, LogType.DEBUG);
+		//WriteToLog(resumoMsg, LogFile.INIT, false, LogType.DEBUG);
 		
 		if (duplicateCount == 1 && !player)
 		{
@@ -692,7 +692,7 @@ class CustomMission: MissionServer
 		if (player)
 			playerStatus = "PRESENTE";
 		
-		WriteToLog("AddOrUpdateActivePlayer(): DEBUG - player=" + playerStatus + " | PlayerName: " + playerName, LogFile.INIT, false, LogType.DEBUG);
+		//WriteToLog("AddOrUpdateActivePlayer(): DEBUG - player=" + playerStatus + " | PlayerName: " + playerName, LogFile.INIT, false, LogType.DEBUG);
 		
 		// Se player é null, tenta buscar manualmente
 		if (!player)
@@ -717,7 +717,7 @@ class CustomMission: MissionServer
 			if (existingManInWorld)
 				foundResult = "ENCONTRADO";
 			
-			WriteToLog("AddOrUpdateActivePlayer(): DEBUG - FindPlayerManInWorld retornou: " + foundResult, LogFile.INIT, false, LogType.DEBUG);
+			//WriteToLog("AddOrUpdateActivePlayer(): DEBUG - FindPlayerManInWorld retornou: " + foundResult, LogFile.INIT, false, LogType.DEBUG);
 			
 			// Se já existe um personagem no mundo E é diferente do que está sendo adicionado = DUPLICAÇÃO!
 			if (existingManInWorld && existingManInWorld != player)
@@ -741,10 +741,10 @@ class CustomMission: MissionServer
 					WriteToLog("AddOrUpdateActivePlayer(): Ghost deletado fisicamente do mundo com sucesso", LogFile.INIT, false, LogType.INFO);
 				}
 			}
-			else if (existingManInWorld == player)
-			{
-				WriteToLog("AddOrUpdateActivePlayer(): DEBUG - Comparação: existingMan IS THE SAME as newPlayer (normal)", LogFile.INIT, false, LogType.DEBUG);
-			}
+			//else if (existingManInWorld == player)
+			//{
+			//	WriteToLog("AddOrUpdateActivePlayer(): DEBUG - Comparação: existingMan IS THE SAME as newPlayer (normal)", LogFile.INIT, false, LogType.DEBUG);
+			//}
 		}
 
 		// Verifica se existe algum player na lista com o mesmo steamId OU playerId
@@ -1345,10 +1345,11 @@ class CustomMission: MissionServer
 
 				vector newPos = pos;
 				newPos[1] = newPos[1] + 0.5;  // Move 0.5 metro para cima (eixo Y)		
-				if (!IsDeathmatchEnabled)
-					pb.SetPosition(newPos);
+				
+				pb.SetPosition(newPos);
 
 				WriteToLog("  -> Posição alterada para: " + newPos[0].ToString() + " " + newPos[1].ToString() + " " + newPos[2].ToString(), LogFile.INIT, false, LogType.INFO);
+						
 			}
 		}
 		else
@@ -1516,6 +1517,10 @@ class CustomMission: MissionServer
 		else if (eventTypeId == ClientReadyEventTypeID)
 		{
 			WriteToLog("EVENT: ClientReadyEventTypeID - Cliente pronto para jogar", LogFile.INIT, false, LogType.INFO);
+			if (IsDeathmatchEnabled)
+			{
+				return;
+			}
 			ClientReadyEventParams readyParams = ClientReadyEventParams.Cast(params);
 			if (readyParams)
 			{
