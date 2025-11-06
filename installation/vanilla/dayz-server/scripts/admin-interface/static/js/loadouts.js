@@ -692,102 +692,132 @@ function loadWeaponToVisual(type, weaponData) {
         attachments: []
     };
     
-    // Carregar magazine se existir (precisa carregar magazines compatíveis da arma)
-    if (weaponData.magazine) {
-        // Carregar magazines compatíveis
-        loadCompatibleItemsForWeapon(weapon.id, {});
-        setTimeout(function() {
-            const magazine = magazinesDataLoadout.find(m => m.name_type === weaponData.magazine.name_type);
-            if (magazine) {
-                selectedWeapons[type].magazine = {
-                    id: magazine.id,
-                    name: magazine.name,
-                    name_type: magazine.name_type,
-                    capacity: magazine.capacity,
-                    slots: magazine.slots,
-                    width: magazine.width,
-                    height: magazine.height,
-                    img: magazine.img || '',
-                    quantity: weaponData.magazine.quantity || 1,
-                    max_quantity: magazine.max_quantity || null
-                };
-            } else {
-                // Armazenar dados mesmo sem encontrar no banco
-                selectedWeapons[type].magazine = {
-                    name_type: weaponData.magazine.name_type,
-                    capacity: weaponData.magazine.capacity,
-                    slots: weaponData.magazine.slots,
-                    width: weaponData.magazine.width,
-                    height: weaponData.magazine.height,
-                    quantity: weaponData.magazine.quantity || 1
-                };
+    // Carregar relationships da arma para obter componentes compatíveis
+    $.ajax({
+        url: `/api/manage/weapons/${weapon.id}`,
+        method: 'GET',
+        success: function(response) {
+            try {
+                if (!response || !response.relationships) {
+                    // Se não houver relationships, tentar carregar componentes sem eles
+                    loadComponentsAfterLoad(weapon.id, type, weaponData, {});
+                    return;
+                }
+                
+                const relationships = response.relationships;
+                
+                // Carregar componentes compatíveis usando callback
+                loadCompatibleItemsForWeapon(weapon.id, relationships, function() {
+                    loadComponentsAfterLoad(weapon.id, type, weaponData, relationships);
+                });
+            } catch (error) {
+                console.error('Erro ao processar relationships da arma:', error);
+                // Tentar carregar componentes mesmo com erro
+                loadComponentsAfterLoad(weapon.id, type, weaponData, {});
             }
-        }, 300);
+        },
+        error: function(xhr) {
+            console.error('Erro ao carregar relationships da arma:', xhr);
+            // Tentar carregar componentes mesmo com erro
+            loadComponentsAfterLoad(weapon.id, type, weaponData, {});
+        }
+    });
+}
+
+function loadComponentsAfterLoad(weaponId, type, weaponData, relationships) {
+    // Carregar magazine se existir
+    if (weaponData.magazine) {
+        const magazine = magazinesDataLoadout.find(m => m.name_type === weaponData.magazine.name_type);
+        if (magazine) {
+            selectedWeapons[type].magazine = {
+                id: magazine.id,
+                name: magazine.name,
+                name_type: magazine.name_type,
+                capacity: magazine.capacity,
+                slots: magazine.slots,
+                width: magazine.width,
+                height: magazine.height,
+                img: magazine.img || '',
+                quantity: weaponData.magazine.quantity || 1,
+                max_quantity: magazine.max_quantity || null
+            };
+        } else {
+            // Armazenar dados mesmo sem encontrar no banco
+            selectedWeapons[type].magazine = {
+                name: weaponData.magazine.name_type || 'Magazine',
+                name_type: weaponData.magazine.name_type,
+                capacity: weaponData.magazine.capacity,
+                slots: weaponData.magazine.slots,
+                width: weaponData.magazine.width,
+                height: weaponData.magazine.height,
+                quantity: weaponData.magazine.quantity || 1
+            };
+        }
     }
     
     // Carregar ammunition se existir
     if (weaponData.ammunitions) {
-        setTimeout(function() {
-            const ammunition = ammunitionsDataLoadout.find(a => a.name_type === weaponData.ammunitions.name_type);
-            if (ammunition) {
-                selectedWeapons[type].ammunition = {
-                    id: ammunition.id,
-                    name: ammunition.name,
-                    name_type: ammunition.name_type,
-                    slots: ammunition.slots,
-                    width: ammunition.width,
-                    height: ammunition.height,
-                    img: ammunition.img || '',
-                    quantity: weaponData.ammunitions.quantity || 1,
-                    max_quantity: ammunition.max_quantity || null
-                };
-            } else {
-                selectedWeapons[type].ammunition = {
-                    name_type: weaponData.ammunitions.name_type,
-                    slots: weaponData.ammunitions.slots,
-                    width: weaponData.ammunitions.width,
-                    height: weaponData.ammunitions.height,
-                    quantity: weaponData.ammunitions.quantity || 1
-                };
-            }
-        }, 300);
+        const ammunition = ammunitionsDataLoadout.find(a => a.name_type === weaponData.ammunitions.name_type);
+        if (ammunition) {
+            selectedWeapons[type].ammunition = {
+                id: ammunition.id,
+                name: ammunition.name,
+                name_type: ammunition.name_type,
+                slots: ammunition.slots,
+                width: ammunition.width,
+                height: ammunition.height,
+                img: ammunition.img || '',
+                quantity: weaponData.ammunitions.quantity || 1,
+                max_quantity: ammunition.max_quantity || null
+            };
+        } else {
+            selectedWeapons[type].ammunition = {
+                name: weaponData.ammunitions.name_type || 'Ammunition',
+                name_type: weaponData.ammunitions.name_type,
+                slots: weaponData.ammunitions.slots,
+                width: weaponData.ammunitions.width,
+                height: weaponData.ammunitions.height,
+                quantity: weaponData.ammunitions.quantity || 1
+            };
+        }
     }
     
     // Carregar attachments se existirem
     if (weaponData.attachments && Array.isArray(weaponData.attachments)) {
-        setTimeout(function() {
-            weaponData.attachments.forEach(function(attData) {
-                const att = attachmentsDataLoadout.find(a => a.name_type === attData.name_type);
-                if (att) {
-                    selectedWeapons[type].attachments.push({
-                        id: att.id,
-                        name: att.name,
-                        name_type: att.name_type,
-                        type: att.type,
-                        slots: att.slots,
-                        width: att.width,
-                        height: att.height,
-                        battery: att.battery || false,
-                        img: att.img || null,
-                        quantity: attData.quantity || 1,
-                        max_quantity: att.max_quantity || null
-                    });
-                } else {
-                    selectedWeapons[type].attachments.push({
-                        name_type: attData.name_type,
-                        type: attData.type,
-                        slots: attData.slots,
-                        width: attData.width,
-                        height: attData.height,
-                        battery: attData.battery || false,
-                        img: null,
-                        quantity: attData.quantity || 1
-                    });
-                }
-            });
-            updateSelectedWeaponsDisplay();
-        }, 300);
+        weaponData.attachments.forEach(function(attData) {
+            const att = attachmentsDataLoadout.find(a => a.name_type === attData.name_type);
+            if (att) {
+                selectedWeapons[type].attachments.push({
+                    id: att.id,
+                    name: att.name,
+                    name_type: att.name_type,
+                    type: att.type,
+                    slots: att.slots,
+                    width: att.width,
+                    height: att.height,
+                    battery: att.battery || false,
+                    img: att.img || null,
+                    quantity: attData.quantity || 1,
+                    max_quantity: att.max_quantity || null
+                });
+            } else {
+                selectedWeapons[type].attachments.push({
+                    name: attData.name_type || 'Attachment',
+                    name_type: attData.name_type,
+                    type: attData.type,
+                    slots: attData.slots,
+                    width: attData.width,
+                    height: attData.height,
+                    battery: attData.battery || false,
+                    img: null,
+                    quantity: attData.quantity || 1
+                });
+            }
+        });
     }
+    
+    // Atualizar display após carregar todos os componentes
+    updateSelectedWeaponDisplay(type);
 }
 
 function loadExplosivesToVisual(explosivesData) {
@@ -1790,21 +1820,55 @@ function openWeaponConfigModalWithData(weaponType) {
     $('#weaponConfigType').val(weaponType);
     $('#weaponConfigName').text(weapon.name);
     
-    // Renderizar magazines em grid
-    renderMagazinesGridConfig();
-    updateSelectedMagazineDisplay();
+    // Carregar componentes compatíveis da arma correta antes de abrir o modal
+    $.ajax({
+        url: `/api/manage/weapons/${weapon.id}`,
+        method: 'GET',
+        success: function(response) {
+            try {
+                if (!response || !response.relationships) {
+                    // Se não houver relationships, usar arrays globais existentes
+                    renderModalContent();
+                    return;
+                }
+                
+                const relationships = response.relationships;
+                
+                // Carregar componentes compatíveis usando callback
+                loadCompatibleItemsForWeapon(weapon.id, relationships, function() {
+                    // Após carregar os dados corretos, renderizar o modal
+                    renderModalContent();
+                });
+            } catch (error) {
+                console.error('Erro ao processar relationships da arma no modal:', error);
+                // Renderizar modal mesmo com erro
+                renderModalContent();
+            }
+        },
+        error: function(xhr) {
+            console.error('Erro ao carregar relationships da arma no modal:', xhr);
+            // Renderizar modal mesmo com erro
+            renderModalContent();
+        }
+    });
     
-    // Renderizar ammunitions em grid
-    renderAmmunitionsGridConfig();
-    updateSelectedAmmunitionDisplay();
-    
-    // Renderizar attachments
-    renderAttachmentsGridConfig();
-    updateSelectedAttachmentsDisplay();
-    
-    const modalElement = document.getElementById('weaponConfigModal');
-    const modal = new bootstrap.Modal(modalElement);
-    modal.show();
+    function renderModalContent() {
+        // Renderizar magazines em grid
+        renderMagazinesGridConfig();
+        updateSelectedMagazineDisplay();
+        
+        // Renderizar ammunitions em grid
+        renderAmmunitionsGridConfig();
+        updateSelectedAmmunitionDisplay();
+        
+        // Renderizar attachments
+        renderAttachmentsGridConfig();
+        updateSelectedAttachmentsDisplay();
+        
+        const modalElement = document.getElementById('weaponConfigModal');
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    }
 }
 
 // Função mantida para compatibilidade (chamada quando arma já está selecionada)
@@ -1959,7 +2023,7 @@ function updateSelectedAttachmentsDisplay() {
     weaponConfig.attachments.forEach(function(att) {
         const badge = $(`
             <span class="badge bg-primary me-2 mb-2" style="font-size: 0.9em;">
-                ${att.name} (${att.type}) (Qtd: ${att.quantity || 1})
+                ${att.name || att.name_type || 'Attachment'} (${att.type || 'Attachment'}) (Qtd: ${att.quantity || 1})
                 <button class="btn-close btn-close-white ms-1" onclick="removeAttachmentFromWeapon('${weaponType}', ${att.id})" style="font-size: 0.7em;"></button>
             </span>
         `);
@@ -2291,6 +2355,164 @@ function editAttachmentQuantity(attachmentId) {
     return true;
 }
 
+function editMagazineQuantityForWeapon(weaponType) {
+    const weaponConfig = selectedWeapons[weaponType];
+    if (!weaponConfig || !weaponConfig.magazine) return false;
+    
+    const magazine = weaponConfig.magazine;
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    let promptMessage = `Quantidade de "${magazine.name || magazine.name_type || 'Magazine'}":`;
+    if (isPlayerLoadout) {
+        const maxQty = magazine.max_quantity;
+        
+        if (maxQty) {
+            promptMessage += `\n(Máximo: ${maxQty})`;
+        }
+    }
+    
+    const newQuantity = prompt(promptMessage, magazine.quantity || 1);
+    if (newQuantity === null) {
+        return false;
+    }
+    
+    const qty = parseInt(newQuantity) || 1;
+    
+    // Validações para loadouts de players
+    if (isPlayerLoadout) {
+        // Validar quantidade máxima individual
+        if (magazine.max_quantity && qty > magazine.max_quantity) {
+            showAlert('danger', `Quantidade máxima permitida para este magazine é ${magazine.max_quantity}`);
+            return false;
+        }
+    }
+    
+    magazine.quantity = qty;
+    updateSelectedWeaponDisplay(weaponType);
+    
+    // Atualizar também o display do modal se estiver aberto
+    const currentWeaponType = $('#weaponConfigType').val();
+    if (currentWeaponType === weaponType) {
+        updateSelectedMagazineDisplay();
+    }
+    
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
+function editAmmunitionQuantityForWeapon(weaponType) {
+    const weaponConfig = selectedWeapons[weaponType];
+    if (!weaponConfig || !weaponConfig.ammunition) return false;
+    
+    const ammunition = weaponConfig.ammunition;
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    let promptMessage = `Quantidade de "${ammunition.name || ammunition.name_type || 'Ammunition'}":`;
+    if (isPlayerLoadout) {
+        const maxQty = ammunition.max_quantity;
+        
+        if (maxQty) {
+            promptMessage += `\n(Máximo: ${maxQty})`;
+        }
+    }
+    
+    const newQuantity = prompt(promptMessage, ammunition.quantity || 1);
+    if (newQuantity === null) {
+        return false;
+    }
+    
+    const qty = parseInt(newQuantity) || 1;
+    
+    // Validações para loadouts de players
+    if (isPlayerLoadout) {
+        // Validar quantidade máxima individual
+        if (ammunition.max_quantity && qty > ammunition.max_quantity) {
+            showAlert('danger', `Quantidade máxima permitida para esta ammunition é ${ammunition.max_quantity}`);
+            return false;
+        }
+    }
+    
+    ammunition.quantity = qty;
+    updateSelectedWeaponDisplay(weaponType);
+    
+    // Atualizar também o display do modal se estiver aberto
+    const currentWeaponType = $('#weaponConfigType').val();
+    if (currentWeaponType === weaponType) {
+        updateSelectedAmmunitionDisplay();
+    }
+    
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
+function editAttachmentQuantityForWeapon(weaponType, attachmentId, attachmentNameType, attachmentType, attachmentIndex) {
+    const weaponConfig = selectedWeapons[weaponType];
+    if (!weaponConfig) return false;
+    
+    // Tentar encontrar pelo ID primeiro
+    let attachment = weaponConfig.attachments.find(a => a.id === attachmentId);
+    
+    // Se não encontrar pelo ID e temos informações adicionais, usar elas
+    if (!attachment && attachmentId === 0 && attachmentNameType) {
+        attachment = weaponConfig.attachments.find(a => 
+            a.name_type === attachmentNameType && 
+            a.type === attachmentType
+        );
+    }
+    
+    // Se ainda não encontrou, usar o index
+    if (!attachment && typeof attachmentIndex !== 'undefined' && attachmentIndex >= 0) {
+        attachment = weaponConfig.attachments[attachmentIndex];
+    }
+    
+    if (!attachment) return false;
+    
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    let promptMessage = `Quantidade de "${attachment.name || attachment.name_type || 'Attachment'}":`;
+    if (isPlayerLoadout) {
+        const maxQty = attachment.max_quantity;
+        
+        if (maxQty) {
+            promptMessage += `\n(Máximo: ${maxQty})`;
+        }
+    }
+    
+    const newQuantity = prompt(promptMessage, attachment.quantity || 1);
+    if (newQuantity === null) {
+        return false;
+    }
+    
+    const qty = parseInt(newQuantity) || 1;
+    
+    // Validações para loadouts de players
+    if (isPlayerLoadout) {
+        // Validar quantidade máxima individual
+        if (attachment.max_quantity && qty > attachment.max_quantity) {
+            showAlert('danger', `Quantidade máxima permitida para este attachment é ${attachment.max_quantity}`);
+            return false;
+        }
+    }
+    
+    attachment.quantity = qty;
+    updateSelectedWeaponDisplay(weaponType);
+    
+    // Atualizar também o display do modal se estiver aberto
+    const currentWeaponType = $('#weaponConfigType').val();
+    if (currentWeaponType === weaponType) {
+        updateSelectedAttachmentsDisplay();
+    }
+    
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
 function updateSelectedMagazineDisplay() {
     const weaponType = $('#weaponConfigType').val();
     const weaponConfig = selectedWeapons[weaponType];
@@ -2305,7 +2527,7 @@ function updateSelectedMagazineDisplay() {
     const mag = weaponConfig.magazine;
     const badge = $(`
         <span class="badge bg-primary me-2 mb-2" style="font-size: 0.9em;">
-            ${mag.name}${mag.capacity ? ` (${mag.capacity} cap.)` : ''} (Qtd: ${mag.quantity || 1})
+            ${mag.name || mag.name_type || 'Magazine'}${mag.capacity ? ` (${mag.capacity} cap.)` : ''} (Qtd: ${mag.quantity || 1})
             <button class="btn-close btn-close-white ms-1" onclick="selectMagazineForWeapon(${mag.id})" style="font-size: 0.7em;"></button>
         </span>
     `);
@@ -2326,7 +2548,7 @@ function updateSelectedAmmunitionDisplay() {
     const ammo = weaponConfig.ammunition;
     const badge = $(`
         <span class="badge bg-primary me-2 mb-2" style="font-size: 0.9em;">
-            ${ammo.name} (Qtd: ${ammo.quantity || 1})
+            ${ammo.name || ammo.name_type || 'Ammunition'} (Qtd: ${ammo.quantity || 1})
             <button class="btn-close btn-close-white ms-1" onclick="selectAmmunitionForWeapon(${ammo.id})" style="font-size: 0.7em;"></button>
         </span>
     `);
@@ -2378,10 +2600,10 @@ function updateSelectedWeaponDisplay(weaponType) {
             attachmentsHtml += `
                 <div class="d-inline-block me-2 mb-2 text-center">
                     <img src="${att.img || 'https://via.placeholder.com/60?text=No+Image'}" 
-                         alt="${att.name}" 
+                         alt="${att.name || att.name_type || 'Attachment'}" 
                          class="img-thumbnail selected-weapon-img-small" 
                          onerror="this.src='https://via.placeholder.com/60?text=No+Image'">
-                    <div class="small text-muted">${att.name}</div>
+                    <div class="small text-muted">${att.name || att.name_type || 'Attachment'}</div>
                 </div>
             `;
         });
@@ -2392,10 +2614,10 @@ function updateSelectedWeaponDisplay(weaponType) {
         magazineHtml = `
             <div class="d-inline-block me-3 mb-2 text-center">
                 <img src="${magazine.img || 'https://via.placeholder.com/60?text=No+Image'}" 
-                     alt="${magazine.name}" 
+                     alt="${magazine.name || magazine.name_type || 'Magazine'}" 
                      class="img-thumbnail selected-weapon-img-small" 
                      onerror="this.src='https://via.placeholder.com/60?text=No+Image'">
-                <div class="small text-muted">${magazine.name}</div>
+                <div class="small text-muted">${magazine.name || magazine.name_type || 'Magazine'}</div>
             </div>
         `;
     }
@@ -2405,10 +2627,10 @@ function updateSelectedWeaponDisplay(weaponType) {
         ammunitionHtml = `
             <div class="d-inline-block me-3 mb-2 text-center">
                 <img src="${ammunition.img || 'https://via.placeholder.com/60?text=No+Image'}" 
-                     alt="${ammunition.name}" 
+                     alt="${ammunition.name || ammunition.name_type || 'Ammunition'}" 
                      class="img-thumbnail selected-weapon-img-small" 
                      onerror="this.src='https://via.placeholder.com/60?text=No+Image'">
-                <div class="small text-muted">${ammunition.name}</div>
+                <div class="small text-muted">${ammunition.name || ammunition.name_type || 'Ammunition'}</div>
             </div>
         `;
     }
@@ -2466,13 +2688,19 @@ function renderSelectedWeaponCard(weaponConfig, weaponType) {
                                                 <div class="card h-100">
                                                     <div class="card-body p-2 text-center">
                                                         <img src="${magazine.img || 'https://via.placeholder.com/80?text=No+Image'}" 
-                                                             alt="${magazine.name}" 
+                                                             alt="${magazine.name || magazine.name_type || 'Magazine'}" 
                                                              class="img-thumbnail mb-2" 
                                                              style="width: 80px; height: 80px; object-fit: contain;"
                                                              onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
                                                         <div>
                                                             <small class="text-muted d-block"><i class="fas fa-clipboard-list"></i> Magazine</small>
-                                                            <strong class="d-block small">${magazine.name}</strong>
+                                                            <strong class="d-block small">${magazine.name || magazine.name_type || 'Magazine'}</strong>
+                                                            <small class="text-info d-block mt-1"><i class="fas fa-box"></i> Quantidade: <strong>${magazine.quantity || 1}</strong></small>
+                                                        </div>
+                                                        <div class="mt-2">
+                                                            <button class="btn btn-sm btn-primary" onclick="editMagazineQuantityForWeapon('${weaponType}'); event.preventDefault(); event.stopPropagation(); return false;" title="Editar Quantidade">
+                                                                <i class="fas fa-edit"></i> Qtd
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -2483,31 +2711,43 @@ function renderSelectedWeaponCard(weaponConfig, weaponType) {
                                                 <div class="card h-100">
                                                     <div class="card-body p-2 text-center">
                                                         <img src="${ammunition.img || 'https://via.placeholder.com/80?text=No+Image'}" 
-                                                             alt="${ammunition.name}" 
+                                                             alt="${ammunition.name || ammunition.name_type || 'Ammunition'}" 
                                                              class="img-thumbnail mb-2" 
                                                              style="width: 80px; height: 80px; object-fit: contain;"
                                                              onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
                                                         <div>
                                                             <small class="text-muted d-block"><i class="fas fa-bolt"></i> Ammunition</small>
-                                                            <strong class="d-block small">${ammunition.name}</strong>
+                                                            <strong class="d-block small">${ammunition.name || ammunition.name_type || 'Ammunition'}</strong>
+                                                            <small class="text-info d-block mt-1"><i class="fas fa-box"></i> Quantidade: <strong>${ammunition.quantity || 1}</strong></small>
+                                                        </div>
+                                                        <div class="mt-2">
+                                                            <button class="btn btn-sm btn-primary" onclick="editAmmunitionQuantityForWeapon('${weaponType}'); event.preventDefault(); event.stopPropagation(); return false;" title="Editar Quantidade">
+                                                                <i class="fas fa-edit"></i> Qtd
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
                                         ` : ''}
-                                        ${attachments.map(function(att) {
+                                        ${attachments.map(function(att, attIndex) {
                                             return `
                                                 <div class="selected-component-card">
                                                     <div class="card h-100">
                                                         <div class="card-body p-2 text-center">
                                                             <img src="${att.img || 'https://via.placeholder.com/80?text=No+Image'}" 
-                                                                 alt="${att.name}" 
+                                                                 alt="${att.name || att.name_type || 'Attachment'}" 
                                                                  class="img-thumbnail mb-2" 
                                                                  style="width: 80px; height: 80px; object-fit: contain;"
                                                                  onerror="this.src='https://via.placeholder.com/80?text=No+Image'">
                                                             <div>
                                                                 <small class="text-muted d-block"><i class="fas fa-puzzle-piece"></i> ${att.type || 'Attachment'}</small>
-                                                                <strong class="d-block small">${att.name}</strong>
+                                                                <strong class="d-block small">${att.name || att.name_type || 'Attachment'}</strong>
+                                                                <small class="text-info d-block mt-1"><i class="fas fa-box"></i> Quantidade: <strong>${att.quantity || 1}</strong></small>
+                                                            </div>
+                                                            <div class="mt-2">
+                                                                <button class="btn btn-sm btn-primary" onclick="editAttachmentQuantityForWeapon('${weaponType}', ${att.id || 0}, '${att.name_type || ''}', '${att.type || ''}', ${attIndex}); event.preventDefault(); event.stopPropagation(); return false;" title="Editar Quantidade">
+                                                                    <i class="fas fa-edit"></i> Qtd
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     </div>
