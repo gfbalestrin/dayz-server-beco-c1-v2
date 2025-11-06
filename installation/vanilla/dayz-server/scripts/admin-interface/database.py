@@ -3022,6 +3022,19 @@ def get_loadout_rules_item_types() -> List[Dict]:
         """)
         return [dict(row) for row in cursor.fetchall()]
 
+def get_allowed_item_types_for_loadout() -> List[Dict]:
+    """Retorna apenas tipos de itens permitidos (não banidos) para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT it.id, it.name
+            FROM item_types it
+            LEFT JOIN loadout_rules_item_types lrit ON it.id = lrit.item_type_id
+            WHERE lrit.id IS NULL
+            ORDER BY it.name
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
 def ban_item_type_for_loadout(item_type_id: int) -> bool:
     """Bane um tipo de item para loadouts de players"""
     with DatabaseConnection(config.DB_ITEMS) as conn:
@@ -3064,16 +3077,20 @@ def get_weapons_for_player_loadout(search: str = None) -> List[Dict]:
         return [dict(row) for row in cursor.fetchall()]
 
 def get_magazines_for_player_loadout(search: str = None, weapon_id: int = None, limit: int = 50) -> List[Dict]:
-    """Retorna apenas magazines permitidas para loadouts de players"""
+    """Retorna apenas magazines permitidas para loadouts de players (não banidas, com ou sem max_quantity)"""
     with DatabaseConnection(config.DB_ITEMS) as conn:
         cursor = conn.cursor()
         if weapon_id:
             query = """
-                SELECT DISTINCT m.id, m.name, m.name_type, m.capacity, m.slots, m.width, m.height, m.img
+                SELECT DISTINCT m.id, m.name, m.name_type, m.capacity, m.slots, m.width, m.height, m.img,
+                       CASE 
+                           WHEN lrm.id IS NULL THEN NULL
+                           ELSE lrm.max_quantity
+                       END as max_quantity
                 FROM magazines m
                 INNER JOIN weapon_magazines wm ON m.id = wm.magazine_id
                 LEFT JOIN loadout_rules_magazines lrm ON m.id = lrm.magazine_id
-                WHERE wm.weapon_id = ? AND lrm.id IS NULL
+                WHERE wm.weapon_id = ? AND (lrm.id IS NULL OR lrm.max_quantity IS NOT NULL)
             """
             params = [weapon_id]
             if search:
@@ -3083,10 +3100,14 @@ def get_magazines_for_player_loadout(search: str = None, weapon_id: int = None, 
             params.append(limit)
         else:
             query = """
-                SELECT m.id, m.name, m.name_type, m.capacity, m.slots, m.width, m.height, m.img
+                SELECT m.id, m.name, m.name_type, m.capacity, m.slots, m.width, m.height, m.img,
+                       CASE 
+                           WHEN lrm.id IS NULL THEN NULL
+                           ELSE lrm.max_quantity
+                       END as max_quantity
                 FROM magazines m
                 LEFT JOIN loadout_rules_magazines lrm ON m.id = lrm.magazine_id
-                WHERE lrm.id IS NULL
+                WHERE lrm.id IS NULL OR lrm.max_quantity IS NOT NULL
             """
             params = []
             if search:
@@ -3098,16 +3119,20 @@ def get_magazines_for_player_loadout(search: str = None, weapon_id: int = None, 
         return [dict(row) for row in cursor.fetchall()]
 
 def get_ammunitions_for_player_loadout(search: str = None, caliber_id: int = None, weapon_id: int = None, limit: int = 50) -> List[Dict]:
-    """Retorna apenas ammunitions permitidas para loadouts de players"""
+    """Retorna apenas ammunitions permitidas para loadouts de players (não banidas, com ou sem max_quantity)"""
     with DatabaseConnection(config.DB_ITEMS) as conn:
         cursor = conn.cursor()
         if weapon_id:
             query = """
-                SELECT DISTINCT a.id, a.name, a.name_type, a.caliber_id, a.slots, a.width, a.height, a.img
+                SELECT DISTINCT a.id, a.name, a.name_type, a.caliber_id, a.slots, a.width, a.height, a.img,
+                       CASE 
+                           WHEN lra.id IS NULL THEN NULL
+                           ELSE lra.max_quantity
+                       END as max_quantity
                 FROM ammunitions a
                 INNER JOIN weapon_ammunitions wa ON a.id = wa.ammo_id
                 LEFT JOIN loadout_rules_ammunitions lra ON a.id = lra.ammunition_id
-                WHERE wa.weapon_id = ? AND lra.id IS NULL
+                WHERE wa.weapon_id = ? AND (lra.id IS NULL OR lra.max_quantity IS NOT NULL)
             """
             params = [weapon_id]
             if search:
@@ -3117,10 +3142,14 @@ def get_ammunitions_for_player_loadout(search: str = None, caliber_id: int = Non
             params.append(limit)
         else:
             query = """
-                SELECT a.id, a.name, a.name_type, a.caliber_id, a.slots, a.width, a.height, a.img
+                SELECT a.id, a.name, a.name_type, a.caliber_id, a.slots, a.width, a.height, a.img,
+                       CASE 
+                           WHEN lra.id IS NULL THEN NULL
+                           ELSE lra.max_quantity
+                       END as max_quantity
                 FROM ammunitions a
                 LEFT JOIN loadout_rules_ammunitions lra ON a.id = lra.ammunition_id
-                WHERE lra.id IS NULL
+                WHERE lra.id IS NULL OR lra.max_quantity IS NOT NULL
             """
             params = []
             if caliber_id:
@@ -3135,16 +3164,20 @@ def get_ammunitions_for_player_loadout(search: str = None, caliber_id: int = Non
         return [dict(row) for row in cursor.fetchall()]
 
 def get_attachments_for_player_loadout(search: str = None, type_filter: str = None, weapon_id: int = None, limit: int = 50) -> List[Dict]:
-    """Retorna apenas attachments permitidos para loadouts de players"""
+    """Retorna apenas attachments permitidos para loadouts de players (não banidos, com ou sem max_quantity)"""
     with DatabaseConnection(config.DB_ITEMS) as conn:
         cursor = conn.cursor()
         if weapon_id:
             query = """
-                SELECT DISTINCT at.id, at.name, at.name_type, at.type, at.slots, at.width, at.height, at.img, at.battery
+                SELECT DISTINCT at.id, at.name, at.name_type, at.type, at.slots, at.width, at.height, at.img, at.battery,
+                       CASE 
+                           WHEN lrat.id IS NULL THEN NULL
+                           ELSE lrat.max_quantity
+                       END as max_quantity
                 FROM attachments at
                 INNER JOIN weapon_attachments wat ON at.id = wat.attachment_id
                 LEFT JOIN loadout_rules_attachments lrat ON at.id = lrat.attachment_id
-                WHERE wat.weapon_id = ? AND lrat.id IS NULL
+                WHERE wat.weapon_id = ? AND (lrat.id IS NULL OR lrat.max_quantity IS NOT NULL)
             """
             params = [weapon_id]
             if type_filter:
@@ -3157,10 +3190,14 @@ def get_attachments_for_player_loadout(search: str = None, type_filter: str = No
             params.append(limit)
         else:
             query = """
-                SELECT at.id, at.name, at.name_type, at.type, at.slots, at.width, at.height, at.img, at.battery
+                SELECT at.id, at.name, at.name_type, at.type, at.slots, at.width, at.height, at.img, at.battery,
+                       CASE 
+                           WHEN lrat.id IS NULL THEN NULL
+                           ELSE lrat.max_quantity
+                       END as max_quantity
                 FROM attachments at
                 LEFT JOIN loadout_rules_attachments lrat ON at.id = lrat.attachment_id
-                WHERE lrat.id IS NULL
+                WHERE lrat.id IS NULL OR lrat.max_quantity IS NOT NULL
             """
             params = []
             if type_filter:

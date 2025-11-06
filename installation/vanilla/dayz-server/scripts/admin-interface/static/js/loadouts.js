@@ -1385,15 +1385,21 @@ function loadExplosivesGlobalLimit() {
 }
 
 function loadItemTypesForLoadout() {
+    // Verificar se é loadout de player para usar endpoint filtrado (sem tipos banidos)
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const url = loadoutType === 'player' ? '/api/loadouts/players/item-types' : '/api/manage/item-types';
+    
     $.ajax({
-        url: '/api/manage/item-types',
+        url: url,
         method: 'GET',
         success: function(response) {
-            itemTypesDataLoadout = response.types;
+            // Para player loadouts, response tem 'types', para custom tem 'types' também
+            const types = response.types || [];
+            itemTypesDataLoadout = types;
             const select = $('#filterItemTypeLoadout');
             select.empty();
             select.append('<option value="">Todos os Tipos</option>');
-            response.types.forEach(function(type) {
+            types.forEach(function(type) {
                 select.append(`<option value="${type.id}">${type.name}</option>`);
             });
         },

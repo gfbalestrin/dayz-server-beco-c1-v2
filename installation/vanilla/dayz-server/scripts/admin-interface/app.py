@@ -63,7 +63,7 @@ from database import (
     get_loadout_rules_explosives, ban_explosive_for_loadout, unban_explosive_for_loadout, set_explosive_max_quantity,
     get_explosives_global_limit, set_explosives_global_limit,
     get_loadout_rules_items, ban_item_for_loadout, unban_item_for_loadout, set_item_max_quantity,
-    get_loadout_rules_item_types, ban_item_type_for_loadout, unban_item_type_for_loadout,
+    get_loadout_rules_item_types, get_allowed_item_types_for_loadout, ban_item_type_for_loadout, unban_item_type_for_loadout,
     # Loadout Rules Filtered Functions
     get_weapons_for_player_loadout, get_magazines_for_player_loadout, get_ammunitions_for_player_loadout,
     get_attachments_for_player_loadout, get_explosives_for_player_loadout, get_items_for_player_loadout
@@ -3835,6 +3835,16 @@ def api_loadouts_players_items():
         limit = int(request.args.get('limit', 1000))
         items = get_items_for_player_loadout(type_id, search, limit)
         return jsonify({'success': True, 'items': items})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/loadouts/players/item-types', methods=['GET'])
+@admin_required
+def api_loadouts_players_item_types():
+    """Lista apenas tipos de itens permitidos (não banidos) para loadouts de players"""
+    try:
+        item_types = get_allowed_item_types_for_loadout()
+        return jsonify({'success': True, 'types': item_types})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
