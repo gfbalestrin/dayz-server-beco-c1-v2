@@ -635,6 +635,13 @@ class CustomMission: MissionServer
 			return;
 		}
 
+		// Verifica e inicializa ActivePlayers se necessário
+		if (!ActivePlayers)
+		{
+			WriteToLog("AddOrUpdateActivePlayer(): AVISO - ActivePlayers está NULL! Inicializando...", LogFile.INIT, false, LogType.ERROR);
+			ActivePlayers = new array<ref ActivePlayer>();
+		}
+
 		string steamId = identity.GetPlainId();
 		string playerName = identity.GetName();
 		string playerId = identity.GetId();
@@ -876,6 +883,12 @@ class CustomMission: MissionServer
 	// Remove um jogador da lista pelo Steam ID
 	void RemoveActivePlayer(string steamId)
 	{
+		if (!ActivePlayers)
+		{
+			WriteToLog("RemoveActivePlayer(): AVISO - ActivePlayers está NULL!", LogFile.INIT, false, LogType.DEBUG);
+			return;
+		}
+		
 		for (int i = 0; i < ActivePlayers.Count(); i++)
 		{
 			ActivePlayer player = ActivePlayers.Get(i);
@@ -892,6 +905,12 @@ class CustomMission: MissionServer
 	// Remove um jogador da lista pelo Player ID
 	void RemoveActivePlayerById(string playerId)
 	{
+		if (!ActivePlayers)
+		{
+			WriteToLog("RemoveActivePlayerById(): AVISO - ActivePlayers está NULL!", LogFile.INIT, false, LogType.DEBUG);
+			return;
+		}
+		
 		for (int i = 0; i < ActivePlayers.Count(); i++)
 		{
 			ActivePlayer player = ActivePlayers.Get(i);
@@ -908,6 +927,11 @@ class CustomMission: MissionServer
 	// Busca um jogador ativo pelo Steam ID
 	ActivePlayer GetActivePlayerBySteamId(string steamId)
 	{
+		if (!ActivePlayers)
+		{
+			return null;
+		}
+		
 		for (int i = 0; i < ActivePlayers.Count(); i++)
 		{
 			ActivePlayer player = ActivePlayers.Get(i);
@@ -922,6 +946,11 @@ class CustomMission: MissionServer
 	// Busca um jogador ativo pelo Player ID
 	ActivePlayer GetActivePlayerById(string playerId)
 	{
+		if (!ActivePlayers)
+		{
+			return null;
+		}
+		
 		for (int i = 0; i < ActivePlayers.Count(); i++)
 		{
 			ActivePlayer player = ActivePlayers.Get(i);
@@ -936,6 +965,14 @@ class CustomMission: MissionServer
 	// Retorna a quantidade de jogadores ativos (apenas jogadores válidos)
 	int GetActivePlayersCount()
 	{
+		// Verifica se ActivePlayers está inicializado
+		if (!ActivePlayers)
+		{
+			WriteToLog("GetActivePlayersCount(): AVISO - ActivePlayers está NULL! Inicializando...", LogFile.INIT, false, LogType.ERROR);
+			ActivePlayers = new array<ref ActivePlayer>();
+			return 0;
+		}
+		
 		int validCount = 0;
 		for (int i = 0; i < ActivePlayers.Count(); i++)
 		{
@@ -951,6 +988,15 @@ class CustomMission: MissionServer
 	// Lista todos os jogadores ativos no log e limpa automaticamente jogadores inválidos
 	void ListActivePlayers()
 	{
+		// Verifica se ActivePlayers está inicializado
+		if (!ActivePlayers)
+		{
+			WriteToLog("ListActivePlayers(): AVISO - ActivePlayers está NULL! Inicializando...", LogFile.INIT, false, LogType.ERROR);
+			ActivePlayers = new array<ref ActivePlayer>();
+			WriteToLog("=== JOGADORES ATIVOS (0) ===", LogFile.INIT, false, LogType.INFO);
+			return;
+		}
+		
 		int validCount = GetActivePlayersCount();
 		WriteToLog("=== JOGADORES ATIVOS (" + validCount + ") ===", LogFile.INIT, false, LogType.INFO);
 		
@@ -1095,6 +1141,13 @@ class CustomMission: MissionServer
 	// Limpa jogadores inválidos do array ActivePlayers e força desconexão de ghosts
 	void CleanupInvalidActivePlayers()
 	{
+		// Verifica se ActivePlayers está inicializado
+		if (!ActivePlayers)
+		{
+			WriteToLog("CleanupInvalidActivePlayers(): AVISO - ActivePlayers está NULL!", LogFile.INIT, false, LogType.DEBUG);
+			return;
+		}
+		
 		// Pega lista de jogadores ativos no mundo
 		array<Man> activeWorldPlayers = new array<Man>();
 		GetGame().GetPlayers(activeWorldPlayers);
@@ -1150,6 +1203,13 @@ class CustomMission: MissionServer
 	// Se não conseguir mover = ghost real sem Man válido (será desconectado)
 	void DetectAndDisconnectGhosts()
 	{
+		// Verifica se ActivePlayers está inicializado
+		if (!ActivePlayers)
+		{
+			WriteToLog("DetectAndDisconnectGhosts(): AVISO - ActivePlayers está NULL!", LogFile.INIT, false, LogType.DEBUG);
+			return;
+		}
+		
 		// Pega todos os jogadores com objetos Man válidos
 		array<Man> players = new array<Man>();
 		GetGame().GetPlayers(players);
@@ -1358,9 +1418,32 @@ class CustomMission: MissionServer
 		}
 		
 		WriteToLog("  -> Jogador pronto: " + identity.GetName() + " | PlayerID: " + identity.GetId() + " | SteamID: " + identity.GetPlainId(), LogFile.INIT, false, LogType.INFO);
+		
+		// Verifica estado de ActivePlayers antes de adicionar
+		if (!ActivePlayers)
+		{
+			WriteToLog("  -> AVISO: ActivePlayers está NULL antes de AddOrUpdateActivePlayer! Inicializando...", LogFile.INIT, false, LogType.ERROR);
+			ActivePlayers = new array<ref ActivePlayer>();
+		}
+		else
+		{
+			WriteToLog("  -> ActivePlayers existe com " + ActivePlayers.Count() + " jogador(es) antes de adicionar", LogFile.INIT, false, LogType.DEBUG);
+		}
 									
 		// Adiciona o jogador à lista
+		WriteToLog("  -> Chamando AddOrUpdateActivePlayer para PlayerID: " + identity.GetId(), LogFile.INIT, false, LogType.DEBUG);
 		AddOrUpdateActivePlayer(identity, player);
+		
+		// Verifica estado de ActivePlayers após adicionar
+		if (!ActivePlayers)
+		{
+			WriteToLog("  -> ERRO CRÍTICO: ActivePlayers está NULL após AddOrUpdateActivePlayer!", LogFile.INIT, false, LogType.ERROR);
+			ActivePlayers = new array<ref ActivePlayer>();
+		}
+		else
+		{
+			WriteToLog("  -> ActivePlayers existe com " + ActivePlayers.Count() + " jogador(es) após adicionar", LogFile.INIT, false, LogType.DEBUG);
+		}
 		
 		// Limpa corpos órfãos/ghosts próximos após 2 segundos
 		if (player)
@@ -1373,10 +1456,18 @@ class CustomMission: MissionServer
 		}
 		
 		// Verifica se o jogador foi adicionado corretamente
+		WriteToLog("  -> Buscando jogador adicionado via GetActivePlayerById: " + identity.GetId(), LogFile.INIT, false, LogType.DEBUG);
 		ActivePlayer addedPlayer = GetActivePlayerById(identity.GetId());
 		if (addedPlayer)
 		{
-			if (addedPlayer.HasPlayer())
+			WriteToLog("  -> Jogador encontrado na lista após adicionar", LogFile.INIT, false, LogType.DEBUG);
+			
+			// Verifica estados do jogador adicionado
+			bool hasIdentity = addedPlayer.HasIdentity();
+			bool hasPlayer = addedPlayer.HasPlayer();
+			WriteToLog("  -> Estado do jogador - HasIdentity: " + hasIdentity + " | HasPlayer: " + hasPlayer, LogFile.INIT, false, LogType.DEBUG);
+			
+			if (hasPlayer)
 			{
 				string playerNameToUpdate = identity.GetName();
 
@@ -1394,6 +1485,7 @@ class CustomMission: MissionServer
 				if (playerNameToUpdate.Length() > 32)
 					playerNameToUpdate = playerNameToUpdate.Substring(0, 32);
 
+				WriteToLog("  -> Enviando ações externas: update_player e player_connected", LogFile.INIT, false, LogType.DEBUG);
 				AppendExternalAction("{\"action\":\"update_player\",\"player_id\":\"" + identity.GetId() + "\",\"player_name\":\"" + playerNameToUpdate + "\",\"steam_id\":\"" + identity.GetPlainId() + "\"}");
 				AppendExternalAction("{\"action\":\"player_connected\",\"player_id\":\"" + identity.GetId() + "\"}");
 			}
@@ -1402,8 +1494,32 @@ class CustomMission: MissionServer
 				WriteToLog("  -> DEPOIS AddOrUpdate: Man NÃO foi armazenado (é null)!", LogFile.INIT, false, LogType.ERROR);
 			}
 		}
+		else
+		{
+			WriteToLog("  -> ERRO: Jogador NÃO foi encontrado na lista após AddOrUpdateActivePlayer! PlayerID: " + identity.GetId(), LogFile.INIT, false, LogType.ERROR);
+			if (ActivePlayers)
+			{
+				WriteToLog("  -> ActivePlayers tem " + ActivePlayers.Count() + " elemento(s) mas jogador não foi encontrado", LogFile.INIT, false, LogType.ERROR);
+			}
+			else
+			{
+				WriteToLog("  -> ActivePlayers está NULL após buscar jogador!", LogFile.INIT, false, LogType.ERROR);
+			}
+		}
 		
-		WriteToLog("Total de jogadores conectados: " + GetActivePlayersCount(), LogFile.INIT, false, LogType.INFO);
+		// Verifica estado antes de chamar GetActivePlayersCount
+		if (!ActivePlayers)
+		{
+			WriteToLog("  -> AVISO: ActivePlayers está NULL antes de GetActivePlayersCount! Inicializando...", LogFile.INIT, false, LogType.ERROR);
+			ActivePlayers = new array<ref ActivePlayer>();
+		}
+		
+		int totalCount = GetActivePlayersCount();
+		WriteToLog("Total de jogadores conectados: " + totalCount, LogFile.INIT, false, LogType.INFO);
+		if (ActivePlayers)
+		{
+			WriteToLog("  -> ActivePlayers.Count() = " + ActivePlayers.Count() + " | GetActivePlayersCount() = " + totalCount, LogFile.INIT, false, LogType.DEBUG);
+		}
 	}
 
 	override void OnEvent(EventType eventTypeId, Param params)
