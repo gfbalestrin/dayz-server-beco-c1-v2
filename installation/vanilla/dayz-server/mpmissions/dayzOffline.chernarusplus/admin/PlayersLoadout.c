@@ -62,16 +62,29 @@ bool GiveCustomLoadout(PlayerBase player, string playerId)
     // Explosivos
     if (data.explosives) {
         WriteToLog("Criando explosivos...", LogFile.INIT, false, LogType.INFO);
+        EntityAI vest = GetPlayerVest(player);
         foreach (Explosive explosive : data.explosives) {
             for (int e = 0; e < explosive.quantity; e++) {
-                EntityAI ex = player.GetInventory().CreateInInventory(explosive.name_type);
-                if (ex) {
-                    WriteToLog("Criado explosivo: " + explosive.name_type, LogFile.INIT, false, LogType.INFO);
-                } else {
-                    if (TryCreateItemInInventoryOrOnGround(player, explosive.name_type)) {
-                        WriteToLog("Criado explosivo no chão por falta de espaço: " + explosive.name_type, LogFile.INIT, false, LogType.INFO);
+                EntityAI ex;
+                bool attachedToVest = false;
+                if (vest && CanAttachGrenadeToVest(explosive.name_type)) {
+                    ex = vest.GetInventory().CreateAttachment(explosive.name_type);
+                    if (ex) {
+                        attachedToVest = true;
+                        WriteToLog("Explosivo anexado ao colete: " + explosive.name_type, LogFile.INIT, false, LogType.INFO);
+                    }
+                }
+                if (!attachedToVest) {
+                    ex = player.GetInventory().CreateInInventory(explosive.name_type);
+                    if (!ex) {
+                        ex = TryCreateItemInInventoryOrOnGround(player, explosive.name_type);
+                        if (!ex) {
+                            WriteToLog("Erro ao criar explosivo: " + explosive.name_type, LogFile.INIT, false, LogType.ERROR);
+                            continue;
+                        }
+                        WriteToLog("Explosivo criado no chão por falta de espaço: " + explosive.name_type, LogFile.INIT, false, LogType.INFO);
                     } else {
-                        WriteToLog("Erro ao criar explosivo: " + explosive.name_type, LogFile.INIT, false, LogType.ERROR);
+                        WriteToLog("Explosivo criado no inventário: " + explosive.name_type, LogFile.INIT, false, LogType.INFO);
                     }
                 }
             }
@@ -289,41 +302,27 @@ void SeparateItemsByStorage(array<ref LoadoutItem> items, out array<ref LoadoutI
     }
 }
 
-bool IsPlateCarrier(string vestType)
+EntityAI GetPlayerVest(PlayerBase player)
 {
-    return vestType == "PlateCarrierVest";
+    if (!player) return null;
+    return player.FindAttachmentBySlotName("Vest");
 }
 
-void TryAutoInsertGrenadesIntoVest(EntityAI vest, string vestType, PlayerBase player)
+bool CanAttachGrenadeToVest(string grenadeType)
 {
-    if (!vest || !IsPlateCarrier(vestType))
-        return;
-
-    if (!DEFAULT_GRENADE_TYPES || DEFAULT_GRENADE_TYPES.Count() == 0)
-        return;
-
-    string grenadeType = DEFAULT_GRENADE_TYPES.Get(0);
-    int inserted = 0;
-
-    // Tentativa cega: tenta anexar até 4 granadas diretamente no colete
-    for (int iTry = 0; iTry < 4; iTry++)
+    if (!DEFAULT_GRENADE_TYPES || grenadeType == "")
+        return false;
+    
+    foreach (string allowedType : DEFAULT_GRENADE_TYPES)
     {
-        EntityAI g = vest.GetInventory().CreateAttachment(grenadeType);
-        if (g)
-        {
-            inserted++;
-            WriteToLog("TryAutoInsertGrenadesIntoVest(): Granada " + grenadeType + " anexada ao colete (sem slots): " + vestType, LogFile.INIT, false, LogType.INFO);
-        }
-        else
-        {
-            // Provavelmente não há mais slots compatíveis
-            break;
-        }
+        if (allowedType == grenadeType)
+            return true;
     }
-
-    if (inserted == 0)
-        WriteToLog("TryAutoInsertGrenadesIntoVest(): Nenhuma granada anexada ao colete (sem slots): " + vestType, LogFile.INIT, false, LogType.INFO);
+    
+    return false;
 }
+
+// Removido: inserção automática genérica no colete
 
 EntityAI CreateItemWithSubitems(EntityAI parent, LoadoutItem itemData, PlayerBase player)
 {
@@ -356,11 +355,7 @@ EntityAI CreateItemWithSubitems(EntityAI parent, LoadoutItem itemData, PlayerBas
         }
     }
 
-    // Inserir granadas automaticamente em PlateCarrier (sem depender de nomes de slots)
-    if (!parent && item && IsPlateCarrier(itemData.name_type))
-    {
-        TryAutoInsertGrenadesIntoVest(item, itemData.name_type, player);
-    }
+    // Inserção automática de granadas movida para o bloco de explosivos dos loadouts
 
     return item;
 }
@@ -435,15 +430,40 @@ bool GiveDefaultDeathmatchLoadout(PlayerBase player, string playerId)
     if (data.explosives)
     {
         WriteToLog("Criando explosivos...", LogFile.INIT, false, LogType.INFO);
+        EntityAI vestDM = GetPlayerVest(player);
         foreach (ref Explosive explosive : data.explosives)
         {
             for (int e = 0; e < explosive.quantity; e++)
             {
-                EntityAI ex = player.GetInventory().CreateInInventory(explosive.name_type);
-                if (ex)
-                    WriteToLog("Criado explosivo: " + explosive.name_type, LogFile.INIT, false, LogType.INFO);
-                else
-                    WriteToLog("Erro ao criar explosivo: " + explosive.name_type, LogFile.INIT, false, LogType.ERROR);
+                EntityAI exDM;
+                bool attachedToVestDM = false;
+                if (vestDM && CanAttachGrenadeToVest(explosive.name_type))
+                {
+                    exDM = vestDM.GetInventory().CreateAttachment(explosive.name_type);
+                    if (exDM)
+                    {
+                        attachedToVestDM = true;
+                        WriteToLog("Explosivo anexado ao colete: " + explosive.name_type, LogFile.INIT, false, LogType.INFO);
+                    }
+                }
+                if (!attachedToVestDM)
+                {
+                    exDM = player.GetInventory().CreateInInventory(explosive.name_type);
+                    if (!exDM)
+                    {
+                        exDM = TryCreateItemInInventoryOrOnGround(player, explosive.name_type);
+                        if (!exDM)
+                        {
+                            WriteToLog("Erro ao criar explosivo: " + explosive.name_type, LogFile.INIT, false, LogType.ERROR);
+                            continue;
+                        }
+                        WriteToLog("Explosivo criado no chão por falta de espaço: " + explosive.name_type, LogFile.INIT, false, LogType.INFO);
+                    }
+                    else
+                    {
+                        WriteToLog("Explosivo criado no inventário: " + explosive.name_type, LogFile.INIT, false, LogType.INFO);
+                    }
+                }
             }
         }
     }
@@ -531,13 +551,31 @@ bool GiveAdminLoadout(PlayerBase player, string playerId)
     // Explosivos
     if (data.explosives) {
         WriteToLog("Criando explosivos...", LogFile.INIT, false, LogType.INFO);
+        EntityAI vestAdmin = GetPlayerVest(player);
         foreach (Explosive explosive : data.explosives) {
             for (int e = 0; e < explosive.quantity; e++) {
-                EntityAI ex = player.GetInventory().CreateInInventory(explosive.name_type);
-                if (ex)
-                    WriteToLog("Criado explosivo: " + explosive.name_type, LogFile.INIT, false, LogType.INFO);
-                else
-                    WriteToLog("Erro ao criar explosivo: " + explosive.name_type, LogFile.INIT, false, LogType.ERROR);
+                EntityAI ex;
+                bool attachedToVestAdmin = false;
+                if (vestAdmin && CanAttachGrenadeToVest(explosive.name_type)) {
+                    ex = vestAdmin.GetInventory().CreateAttachment(explosive.name_type);
+                    if (ex) {
+                        attachedToVestAdmin = true;
+                        WriteToLog("Explosivo anexado ao colete: " + explosive.name_type, LogFile.INIT, false, LogType.INFO);
+                    }
+                }
+                if (!attachedToVestAdmin) {
+                    ex = player.GetInventory().CreateInInventory(explosive.name_type);
+                    if (!ex) {
+                        ex = TryCreateItemInInventoryOrOnGround(player, explosive.name_type);
+                        if (!ex) {
+                            WriteToLog("Erro ao criar explosivo: " + explosive.name_type, LogFile.INIT, false, LogType.ERROR);
+                            continue;
+                        }
+                        WriteToLog("Explosivo criado no chão por falta de espaço: " + explosive.name_type, LogFile.INIT, false, LogType.INFO);
+                    } else {
+                        WriteToLog("Explosivo criado no inventário: " + explosive.name_type, LogFile.INIT, false, LogType.INFO);
+                    }
+                }
             }
         }
     }
