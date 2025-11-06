@@ -107,14 +107,7 @@ void HandleWeaponLoadout(Weapons weapons, PlayerBase player, string playerId)
         HandleWeaponData(weapons.secondary_weapon, player, 1, "secondary", playerId);
 
     if (weapons.small_weapon)
-    {
-        EntityAI holsterDM = GetPlayerHolster(player);
-        if (!holsterDM)
-        {
-            WriteToLog("Coldre não encontrado para o player: " + playerId, LogFile.INIT, false, LogType.ERROR);
-        }
-        HandleWeaponData(weapons.small_weapon, player, 2, "small", playerId);
-    }
+        HandleWeaponData(weapons.small_weapon, player, 2, "small", playerId);    
         
 }
 
@@ -131,7 +124,21 @@ void HandleWeaponData(WeaponData weaponData, PlayerBase player, int quickBarSlot
     if (label == "primary")
         weaponEntity = player.GetHumanInventory().CreateInHands(weaponData.name_type);
     else
-        weaponEntity = player.GetInventory().CreateInInventory(weaponData.name_type);
+    {
+        if (label == "small")
+        {
+            EntityAI holster = GetPlayerHolster(player);
+            if (holster)
+            {
+                weaponEntity = holster.GetInventory().CreateAttachment(weaponData.name_type);                
+            } else {
+                weaponEntity = player.GetInventory().CreateInInventory(weaponData.name_type);
+            }
+        } else {
+            weaponEntity = player.GetInventory().CreateInInventory(weaponData.name_type);
+        }        
+    }
+        
 
     if (!weaponEntity) {
         weaponEntity = TryCreateItemInInventoryOrOnGround(player, weaponData.name_type);
@@ -293,6 +300,8 @@ void HandleWeaponData(WeaponData weaponData, PlayerBase player, int quickBarSlot
         }
         
     }
+
+    
 
 }
 
