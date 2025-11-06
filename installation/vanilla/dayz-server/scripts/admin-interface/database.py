@@ -2585,6 +2585,656 @@ def migrate_custom_loadouts_from_files() -> bool:
         return False
 
 # ============================================================================
+# FUNÇÕES DE REGRAS PARA LOADOUTS DE PLAYERS
+# ============================================================================
+
+# === WEAPONS ===
+def get_loadout_rules_weapons() -> List[Dict]:
+    """Retorna lista de armas com status de blacklist e max_quantity"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT w.id, w.name, w.name_type, w.feed_type, w.slots, w.width, w.height, w.img,
+                   lrw.id as rule_id, lrw.max_quantity,
+                   CASE 
+                       WHEN lrw.id IS NOT NULL AND lrw.max_quantity IS NULL THEN 1
+                       ELSE 0
+                   END as is_banned
+            FROM weapons w
+            LEFT JOIN loadout_rules_weapons lrw ON w.id = lrw.weapon_id
+            ORDER BY is_banned DESC, w.name
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+def ban_weapon_for_loadout(weapon_id: int, max_quantity: Optional[int] = None) -> bool:
+    """Bane uma arma para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO loadout_rules_weapons (weapon_id, max_quantity)
+            VALUES (?, ?)
+        """, (weapon_id, max_quantity))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def unban_weapon_for_loadout(weapon_id: int) -> bool:
+    """Remove ban de uma arma para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM loadout_rules_weapons WHERE weapon_id = ?", (weapon_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def set_weapon_max_quantity(weapon_id: int, max_quantity: Optional[int]) -> bool:
+    """Define quantidade máxima de uma arma (cria registro se não existir)"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        # Verificar se já existe
+        cursor.execute("SELECT id FROM loadout_rules_weapons WHERE weapon_id = ?", (weapon_id,))
+        exists = cursor.fetchone()
+        
+        if exists:
+            # Atualizar
+            cursor.execute("""
+                UPDATE loadout_rules_weapons 
+                SET max_quantity = ? 
+                WHERE weapon_id = ?
+            """, (max_quantity, weapon_id))
+        else:
+            # Criar novo registro
+            cursor.execute("""
+                INSERT INTO loadout_rules_weapons (weapon_id, max_quantity)
+                VALUES (?, ?)
+            """, (weapon_id, max_quantity))
+        conn.commit()
+        return cursor.rowcount > 0
+
+# === MAGAZINES ===
+def get_loadout_rules_magazines() -> List[Dict]:
+    """Retorna lista de magazines com status de blacklist e max_quantity"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT m.id, m.name, m.name_type, m.capacity, m.slots, m.width, m.height, m.img,
+                   lrm.id as rule_id, lrm.max_quantity,
+                   CASE 
+                       WHEN lrm.id IS NOT NULL AND lrm.max_quantity IS NULL THEN 1
+                       ELSE 0
+                   END as is_banned
+            FROM magazines m
+            LEFT JOIN loadout_rules_magazines lrm ON m.id = lrm.magazine_id
+            ORDER BY is_banned DESC, m.name
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+def ban_magazine_for_loadout(magazine_id: int, max_quantity: Optional[int] = None) -> bool:
+    """Bane um magazine para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO loadout_rules_magazines (magazine_id, max_quantity)
+            VALUES (?, ?)
+        """, (magazine_id, max_quantity))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def unban_magazine_for_loadout(magazine_id: int) -> bool:
+    """Remove ban de um magazine para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM loadout_rules_magazines WHERE magazine_id = ?", (magazine_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def set_magazine_max_quantity(magazine_id: int, max_quantity: Optional[int]) -> bool:
+    """Define quantidade máxima de um magazine (cria registro se não existir)"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        # Verificar se já existe
+        cursor.execute("SELECT id FROM loadout_rules_magazines WHERE magazine_id = ?", (magazine_id,))
+        exists = cursor.fetchone()
+        
+        if exists:
+            # Atualizar
+            cursor.execute("""
+                UPDATE loadout_rules_magazines 
+                SET max_quantity = ? 
+                WHERE magazine_id = ?
+            """, (max_quantity, magazine_id))
+        else:
+            # Criar novo registro
+            cursor.execute("""
+                INSERT INTO loadout_rules_magazines (magazine_id, max_quantity)
+                VALUES (?, ?)
+            """, (magazine_id, max_quantity))
+        conn.commit()
+        return cursor.rowcount > 0
+
+# === AMMUNITIONS ===
+def get_loadout_rules_ammunitions() -> List[Dict]:
+    """Retorna lista de ammunitions com status de blacklist e max_quantity"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT a.id, a.name, a.name_type, a.caliber_id, a.slots, a.width, a.height, a.img,
+                   lra.id as rule_id, lra.max_quantity,
+                   CASE 
+                       WHEN lra.id IS NOT NULL AND lra.max_quantity IS NULL THEN 1
+                       ELSE 0
+                   END as is_banned
+            FROM ammunitions a
+            LEFT JOIN loadout_rules_ammunitions lra ON a.id = lra.ammunition_id
+            ORDER BY is_banned DESC, a.name
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+def ban_ammunition_for_loadout(ammunition_id: int, max_quantity: Optional[int] = None) -> bool:
+    """Bane uma ammunition para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO loadout_rules_ammunitions (ammunition_id, max_quantity)
+            VALUES (?, ?)
+        """, (ammunition_id, max_quantity))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def unban_ammunition_for_loadout(ammunition_id: int) -> bool:
+    """Remove ban de uma ammunition para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM loadout_rules_ammunitions WHERE ammunition_id = ?", (ammunition_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def set_ammunition_max_quantity(ammunition_id: int, max_quantity: Optional[int]) -> bool:
+    """Define quantidade máxima de uma ammunition (cria registro se não existir)"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        # Verificar se já existe
+        cursor.execute("SELECT id FROM loadout_rules_ammunitions WHERE ammunition_id = ?", (ammunition_id,))
+        exists = cursor.fetchone()
+        
+        if exists:
+            # Atualizar
+            cursor.execute("""
+                UPDATE loadout_rules_ammunitions 
+                SET max_quantity = ? 
+                WHERE ammunition_id = ?
+            """, (max_quantity, ammunition_id))
+        else:
+            # Criar novo registro
+            cursor.execute("""
+                INSERT INTO loadout_rules_ammunitions (ammunition_id, max_quantity)
+                VALUES (?, ?)
+            """, (ammunition_id, max_quantity))
+        conn.commit()
+        return cursor.rowcount > 0
+
+# === ATTACHMENTS ===
+def get_loadout_rules_attachments() -> List[Dict]:
+    """Retorna lista de attachments com status de blacklist e max_quantity"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT a.id, a.name, a.name_type, a.type, a.slots, a.width, a.height, a.img, a.battery,
+                   lrat.id as rule_id, lrat.max_quantity,
+                   CASE 
+                       WHEN lrat.id IS NOT NULL AND lrat.max_quantity IS NULL THEN 1
+                       ELSE 0
+                   END as is_banned
+            FROM attachments a
+            LEFT JOIN loadout_rules_attachments lrat ON a.id = lrat.attachment_id
+            ORDER BY is_banned DESC, a.name
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+def ban_attachment_for_loadout(attachment_id: int, max_quantity: Optional[int] = None) -> bool:
+    """Bane um attachment para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO loadout_rules_attachments (attachment_id, max_quantity)
+            VALUES (?, ?)
+        """, (attachment_id, max_quantity))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def unban_attachment_for_loadout(attachment_id: int) -> bool:
+    """Remove ban de um attachment para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM loadout_rules_attachments WHERE attachment_id = ?", (attachment_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def set_attachment_max_quantity(attachment_id: int, max_quantity: Optional[int]) -> bool:
+    """Define quantidade máxima de um attachment (cria registro se não existir)"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        # Verificar se já existe
+        cursor.execute("SELECT id FROM loadout_rules_attachments WHERE attachment_id = ?", (attachment_id,))
+        exists = cursor.fetchone()
+        
+        if exists:
+            # Atualizar
+            cursor.execute("""
+                UPDATE loadout_rules_attachments 
+                SET max_quantity = ? 
+                WHERE attachment_id = ?
+            """, (max_quantity, attachment_id))
+        else:
+            # Criar novo registro
+            cursor.execute("""
+                INSERT INTO loadout_rules_attachments (attachment_id, max_quantity)
+                VALUES (?, ?)
+            """, (attachment_id, max_quantity))
+        conn.commit()
+        return cursor.rowcount > 0
+
+# === EXPLOSIVES ===
+def get_loadout_rules_explosives() -> List[Dict]:
+    """Retorna lista de explosives com status de blacklist e max_quantity"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT e.id, e.name, e.name_type, e.slots, e.width, e.height, e.img,
+                   lre.id as rule_id, lre.max_quantity,
+                   CASE 
+                       WHEN lre.id IS NOT NULL AND lre.max_quantity IS NULL THEN 1
+                       ELSE 0
+                   END as is_banned
+            FROM explosives e
+            LEFT JOIN loadout_rules_explosives lre ON e.id = lre.explosive_id
+            ORDER BY is_banned DESC, e.name
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+def ban_explosive_for_loadout(explosive_id: int, max_quantity: Optional[int] = None) -> bool:
+    """Bane um explosive para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO loadout_rules_explosives (explosive_id, max_quantity)
+            VALUES (?, ?)
+        """, (explosive_id, max_quantity))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def unban_explosive_for_loadout(explosive_id: int) -> bool:
+    """Remove ban de um explosive para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM loadout_rules_explosives WHERE explosive_id = ?", (explosive_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def set_explosive_max_quantity(explosive_id: int, max_quantity: Optional[int]) -> bool:
+    """Define quantidade máxima de um explosive (cria registro se não existir)"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        # Verificar se já existe
+        cursor.execute("SELECT id FROM loadout_rules_explosives WHERE explosive_id = ?", (explosive_id,))
+        exists = cursor.fetchone()
+        
+        if exists:
+            # Atualizar
+            cursor.execute("""
+                UPDATE loadout_rules_explosives 
+                SET max_quantity = ? 
+                WHERE explosive_id = ?
+            """, (max_quantity, explosive_id))
+        else:
+            # Criar novo registro
+            cursor.execute("""
+                INSERT INTO loadout_rules_explosives (explosive_id, max_quantity)
+                VALUES (?, ?)
+            """, (explosive_id, max_quantity))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def get_explosives_global_limit() -> Optional[Dict]:
+    """Retorna o limite global de quantidade total de explosivos"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, max_total_quantity, created_at, updated_at
+            FROM loadout_rules_explosives_global
+            ORDER BY id DESC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+def set_explosives_global_limit(max_total_quantity: int) -> bool:
+    """Define o limite global de quantidade total de explosivos"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        # Verificar se já existe registro
+        existing = get_explosives_global_limit()
+        if existing:
+            cursor.execute("""
+                UPDATE loadout_rules_explosives_global 
+                SET max_total_quantity = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (max_total_quantity, existing['id']))
+        else:
+            cursor.execute("""
+                INSERT INTO loadout_rules_explosives_global (max_total_quantity)
+                VALUES (?)
+            """, (max_total_quantity,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+# === ITEMS ===
+def get_loadout_rules_items() -> List[Dict]:
+    """Retorna lista de items com status de blacklist e max_quantity"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        # Lógica: Se está na tabela E max_quantity é NULL = banido
+        # Se está na tabela E max_quantity tem valor = permitido com limite
+        # Se não está na tabela = permitido, quantidade padrão 1
+        cursor.execute("""
+            SELECT i.id, i.name, i.name_type, i.type_id, i.slots, i.width, i.height, 
+                   i.img, i.storage_slots, i.storage_width, i.storage_height, i.localization,
+                   it.name as type_name,
+                   lri.id as rule_id, lri.max_quantity,
+                   CASE 
+                       WHEN lri.id IS NOT NULL AND lri.max_quantity IS NULL THEN 1
+                       ELSE 0
+                   END as is_banned
+            FROM item i
+            LEFT JOIN item_types it ON i.type_id = it.id
+            LEFT JOIN loadout_rules_items lri ON i.id = lri.item_id
+            ORDER BY is_banned DESC, i.name
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+def ban_item_for_loadout(item_id: int, max_quantity: Optional[int] = None) -> bool:
+    """Bane um item para loadouts de players (se max_quantity for NULL) ou define quantidade máxima (se max_quantity for definido)"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        # Garantir que None seja tratado como NULL explicitamente
+        # Verificar se já existe registro
+        cursor.execute("SELECT id, max_quantity FROM loadout_rules_items WHERE item_id = ?", (item_id,))
+        existing = cursor.fetchone()
+        
+        if existing:
+            # Atualizar registro existente
+            cursor.execute("""
+                UPDATE loadout_rules_items 
+                SET max_quantity = ? 
+                WHERE item_id = ?
+            """, (max_quantity, item_id))
+        else:
+            # Inserir novo registro
+            cursor.execute("""
+                INSERT INTO loadout_rules_items (item_id, max_quantity)
+                VALUES (?, ?)
+            """, (item_id, max_quantity))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def unban_item_for_loadout(item_id: int) -> bool:
+    """Remove ban de um item para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM loadout_rules_items WHERE item_id = ?", (item_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def set_item_max_quantity(item_id: int, max_quantity: int) -> bool:
+    """Define quantidade máxima de um item (cria registro se não existir)"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        # Verificar se já existe
+        cursor.execute("SELECT id FROM loadout_rules_items WHERE item_id = ?", (item_id,))
+        exists = cursor.fetchone()
+        
+        if exists:
+            # Atualizar
+            cursor.execute("""
+                UPDATE loadout_rules_items 
+                SET max_quantity = ? 
+                WHERE item_id = ?
+            """, (max_quantity, item_id))
+        else:
+            # Criar novo registro
+            cursor.execute("""
+                INSERT INTO loadout_rules_items (item_id, max_quantity)
+                VALUES (?, ?)
+            """, (item_id, max_quantity))
+        conn.commit()
+        return cursor.rowcount > 0
+
+# === ITEM TYPES ===
+def get_loadout_rules_item_types() -> List[Dict]:
+    """Retorna lista de tipos de itens com status de blacklist"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT it.id, it.name,
+                   lrit.id as rule_id,
+                   CASE WHEN lrit.id IS NOT NULL THEN 1 ELSE 0 END as is_banned
+            FROM item_types it
+            LEFT JOIN loadout_rules_item_types lrit ON it.id = lrit.item_type_id
+            ORDER BY is_banned DESC, it.name
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+def ban_item_type_for_loadout(item_type_id: int) -> bool:
+    """Bane um tipo de item para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO loadout_rules_item_types (item_type_id)
+            VALUES (?)
+        """, (item_type_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def unban_item_type_for_loadout(item_type_id: int) -> bool:
+    """Remove ban de um tipo de item para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM loadout_rules_item_types WHERE item_type_id = ?", (item_type_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+# ============================================================================
+# FUNÇÕES FILTRADAS PARA LOADOUTS DE PLAYERS
+# ============================================================================
+
+def get_weapons_for_player_loadout(search: str = None) -> List[Dict]:
+    """Retorna apenas armas permitidas para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        query = """
+            SELECT w.id, w.name, w.name_type, w.feed_type, w.slots, w.width, w.height, w.img
+            FROM weapons w
+            LEFT JOIN loadout_rules_weapons lrw ON w.id = lrw.weapon_id
+            WHERE lrw.id IS NULL
+        """
+        params = []
+        if search:
+            query += " AND (w.name LIKE ? OR w.name_type LIKE ?)"
+            params.extend([f'%{search}%', f'%{search}%'])
+        query += " ORDER BY w.name"
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_magazines_for_player_loadout(search: str = None, weapon_id: int = None, limit: int = 50) -> List[Dict]:
+    """Retorna apenas magazines permitidas para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        if weapon_id:
+            query = """
+                SELECT DISTINCT m.id, m.name, m.name_type, m.capacity, m.slots, m.width, m.height, m.img
+                FROM magazines m
+                INNER JOIN weapon_magazines wm ON m.id = wm.magazine_id
+                LEFT JOIN loadout_rules_magazines lrm ON m.id = lrm.magazine_id
+                WHERE wm.weapon_id = ? AND lrm.id IS NULL
+            """
+            params = [weapon_id]
+            if search:
+                query += " AND (m.name LIKE ? OR m.name_type LIKE ?)"
+                params.extend([f'%{search}%', f'%{search}%'])
+            query += " LIMIT ?"
+            params.append(limit)
+        else:
+            query = """
+                SELECT m.id, m.name, m.name_type, m.capacity, m.slots, m.width, m.height, m.img
+                FROM magazines m
+                LEFT JOIN loadout_rules_magazines lrm ON m.id = lrm.magazine_id
+                WHERE lrm.id IS NULL
+            """
+            params = []
+            if search:
+                query += " AND (m.name LIKE ? OR m.name_type LIKE ?)"
+                params.extend([f'%{search}%', f'%{search}%'])
+            query += " LIMIT ?"
+            params.append(limit)
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_ammunitions_for_player_loadout(search: str = None, caliber_id: int = None, weapon_id: int = None, limit: int = 50) -> List[Dict]:
+    """Retorna apenas ammunitions permitidas para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        if weapon_id:
+            query = """
+                SELECT DISTINCT a.id, a.name, a.name_type, a.caliber_id, a.slots, a.width, a.height, a.img
+                FROM ammunitions a
+                INNER JOIN weapon_ammunitions wa ON a.id = wa.ammo_id
+                LEFT JOIN loadout_rules_ammunitions lra ON a.id = lra.ammunition_id
+                WHERE wa.weapon_id = ? AND lra.id IS NULL
+            """
+            params = [weapon_id]
+            if search:
+                query += " AND (a.name LIKE ? OR a.name_type LIKE ?)"
+                params.extend([f'%{search}%', f'%{search}%'])
+            query += " LIMIT ?"
+            params.append(limit)
+        else:
+            query = """
+                SELECT a.id, a.name, a.name_type, a.caliber_id, a.slots, a.width, a.height, a.img
+                FROM ammunitions a
+                LEFT JOIN loadout_rules_ammunitions lra ON a.id = lra.ammunition_id
+                WHERE lra.id IS NULL
+            """
+            params = []
+            if caliber_id:
+                query += " AND a.caliber_id = ?"
+                params.append(caliber_id)
+            if search:
+                query += " AND (a.name LIKE ? OR a.name_type LIKE ?)"
+                params.extend([f'%{search}%', f'%{search}%'])
+            query += " LIMIT ?"
+            params.append(limit)
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_attachments_for_player_loadout(search: str = None, type_filter: str = None, weapon_id: int = None, limit: int = 50) -> List[Dict]:
+    """Retorna apenas attachments permitidos para loadouts de players"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        if weapon_id:
+            query = """
+                SELECT DISTINCT at.id, at.name, at.name_type, at.type, at.slots, at.width, at.height, at.img, at.battery
+                FROM attachments at
+                INNER JOIN weapon_attachments wat ON at.id = wat.attachment_id
+                LEFT JOIN loadout_rules_attachments lrat ON at.id = lrat.attachment_id
+                WHERE wat.weapon_id = ? AND lrat.id IS NULL
+            """
+            params = [weapon_id]
+            if type_filter:
+                query += " AND at.type = ?"
+                params.append(type_filter)
+            if search:
+                query += " AND (at.name LIKE ? OR at.name_type LIKE ?)"
+                params.extend([f'%{search}%', f'%{search}%'])
+            query += " LIMIT ?"
+            params.append(limit)
+        else:
+            query = """
+                SELECT at.id, at.name, at.name_type, at.type, at.slots, at.width, at.height, at.img, at.battery
+                FROM attachments at
+                LEFT JOIN loadout_rules_attachments lrat ON at.id = lrat.attachment_id
+                WHERE lrat.id IS NULL
+            """
+            params = []
+            if type_filter:
+                query += " AND at.type = ?"
+                params.append(type_filter)
+            if search:
+                query += " AND (at.name LIKE ? OR at.name_type LIKE ?)"
+                params.extend([f'%{search}%', f'%{search}%'])
+            query += " LIMIT ?"
+            params.append(limit)
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_explosives_for_player_loadout(search: str = None, limit: int = 50) -> List[Dict]:
+    """Retorna apenas explosives permitidos para loadouts de players com max_quantity"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        # Lógica: Se está na tabela E max_quantity é NULL = banido (não retorna)
+        # Se está na tabela E max_quantity tem valor = permitido com limite (retorna com max_quantity)
+        # Se não está na tabela = permitido sem limite (retorna com max_quantity NULL)
+        query = """
+            SELECT e.id, e.name, e.name_type, e.slots, e.width, e.height, e.img,
+                   CASE 
+                       WHEN lre.id IS NULL THEN NULL
+                       ELSE lre.max_quantity
+                   END as max_quantity
+            FROM explosives e
+            LEFT JOIN loadout_rules_explosives lre ON e.id = lre.explosive_id
+            WHERE lre.id IS NULL OR (lre.id IS NOT NULL AND lre.max_quantity IS NOT NULL)
+        """
+        params = []
+        if search:
+            query += " AND (e.name LIKE ? OR e.name_type LIKE ?)"
+            params.extend([f'%{search}%', f'%{search}%'])
+        query += " ORDER BY e.name LIMIT ?"
+        params.append(limit)
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_items_for_player_loadout(type_id: int = None, search: str = None, limit: int = 1000) -> List[Dict]:
+    """Retorna apenas items permitidos para loadouts de players (não banidos individualmente nem por tipo) com max_quantity"""
+    with DatabaseConnection(config.DB_ITEMS) as conn:
+        cursor = conn.cursor()
+        # Lógica: Se não está na tabela = permitido, quantidade padrão 1
+        # Se está na tabela com max_quantity = permitido, quantidade máxima = max_quantity
+        # Se está na tabela sem max_quantity (NULL) = banido (não retorna)
+        # Se tipo está banido = banido (não retorna)
+        query = """
+            SELECT i.id, i.name, i.name_type, i.type_id, i.slots, i.width, i.height, 
+                   i.img, i.storage_slots, i.storage_width, i.storage_height, i.localization,
+                   it.name as type_name,
+                   CASE 
+                       WHEN lri.id IS NULL THEN 1
+                       ELSE lri.max_quantity
+                   END as max_quantity
+            FROM item i
+            INNER JOIN item_types it ON i.type_id = it.id
+            LEFT JOIN loadout_rules_items lri ON i.id = lri.item_id
+            LEFT JOIN loadout_rules_item_types lrit ON i.type_id = lrit.item_type_id
+            WHERE (lri.id IS NULL OR lri.max_quantity IS NOT NULL) AND lrit.id IS NULL
+        """
+        params = []
+        if type_id:
+            query += " AND i.type_id = ?"
+            params.append(type_id)
+        if search:
+            query += " AND (i.name LIKE ? OR i.name_type LIKE ?)"
+            params.extend([f'%{search}%', f'%{search}%'])
+        query += " ORDER BY i.name LIMIT ?"
+        params.append(limit)
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+# ============================================================================
 # FUNÇÕES DE ADMINISTRADORES
 # ============================================================================
 

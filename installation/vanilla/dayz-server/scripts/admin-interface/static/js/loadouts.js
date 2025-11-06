@@ -1281,8 +1281,12 @@ function showAlert(type, message) {
 // ============================================================================
 
 function loadWeaponsForLoadout() {
+    // Verificar se é loadout de player para usar endpoints filtrados
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const url = loadoutType === 'player' ? '/api/loadouts/players/weapons' : '/api/manage/weapons';
+    
     $.ajax({
-        url: '/api/manage/weapons',
+        url: url,
         method: 'GET',
         success: function(response) {
             weaponsDataLoadout = response.weapons;
@@ -1322,11 +1326,19 @@ function loadCalibersForLoadout() {
 }
 
 function loadExplosivesForLoadout() {
+    // Verificar se é loadout de player para usar endpoints filtrados
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const url = loadoutType === 'player' ? '/api/loadouts/players/explosives' : '/api/manage/explosives';
+    
     $.ajax({
-        url: '/api/manage/explosives',
+        url: url,
         method: 'GET',
         success: function(response) {
             explosivesDataLoadout = response.explosives;
+            // Carregar limite global se for loadout de player
+            if (loadoutType === 'player') {
+                loadExplosivesGlobalLimit();
+            }
             applyExplosiveFiltersLoadout();
         },
         error: function(xhr) {
@@ -1336,8 +1348,12 @@ function loadExplosivesForLoadout() {
 }
 
 function loadItemsForLoadout() {
+    // Verificar se é loadout de player para usar endpoints filtrados
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const url = loadoutType === 'player' ? '/api/loadouts/players/items' : '/api/manage/items';
+    
     $.ajax({
-        url: '/api/manage/items',
+        url: url,
         method: 'GET',
         success: function(response) {
             itemsDataLoadout = response.items || [];
@@ -1346,6 +1362,24 @@ function loadItemsForLoadout() {
         },
         error: function(xhr) {
             console.error('Erro ao carregar items:', xhr);
+        }
+    });
+}
+
+function loadExplosivesGlobalLimit() {
+    $.ajax({
+        url: '/api/loadouts/players/explosives-global',
+        method: 'GET',
+        success: function(response) {
+            if (response.success && response.limit) {
+                window.explosivesGlobalLimit = response.limit.max_total_quantity || 0;
+            } else {
+                window.explosivesGlobalLimit = 0;
+            }
+        },
+        error: function(xhr) {
+            console.error('Erro ao carregar limite global de explosivos:', xhr);
+            window.explosivesGlobalLimit = 0;
         }
     });
 }
@@ -1561,7 +1595,10 @@ function selectWeaponByType(weaponId, weaponType) {
 }
 
 function loadCompatibleItemsForWeapon(weaponId, relationships, callback) {
-    // Usar relacionamentos retornados pela API /api/manage/weapons/<id>
+    // Verificar se é loadout de player para usar endpoints filtrados
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
     let magazinesLoaded = false;
     let ammunitionsLoaded = false;
     let attachmentsLoaded = false;
@@ -1572,16 +1609,11 @@ function loadCompatibleItemsForWeapon(weaponId, relationships, callback) {
         }
     }
     
-    // Carregar magazines compatíveis usando relationships
-    // Aceitar arrays vazios como válidos - se a chave existe, usar mesmo que vazio
-    if (relationships && relationships.magazines !== undefined) {
-        magazinesDataLoadout = relationships.magazines || [];
-        magazinesLoaded = true;
-        checkAllLoaded();
-    } else {
-        // Apenas fazer AJAX se a chave não existir no relationships
+    // Para loadouts de players, usar endpoints filtrados que já aplicam as regras
+    if (isPlayerLoadout) {
+        // Carregar magazines filtrados
         $.ajax({
-            url: `/api/manage/magazines`,
+            url: `/api/loadouts/players/magazines?weapon_id=${weaponId}&limit=500`,
             method: 'GET',
             success: function(response) {
                 magazinesDataLoadout = response.magazines || [];
@@ -1595,18 +1627,10 @@ function loadCompatibleItemsForWeapon(weaponId, relationships, callback) {
                 checkAllLoaded();
             }
         });
-    }
-    
-    // Carregar ammunitions compatíveis usando relationships
-    // Aceitar arrays vazios como válidos - se a chave existe, usar mesmo que vazio
-    if (relationships && relationships.ammunitions !== undefined) {
-        ammunitionsDataLoadout = relationships.ammunitions || [];
-        ammunitionsLoaded = true;
-        checkAllLoaded();
-    } else {
-        // Apenas fazer AJAX se a chave não existir no relationships
+        
+        // Carregar ammunitions filtrados
         $.ajax({
-            url: `/api/manage/ammunitions`,
+            url: `/api/loadouts/players/ammunitions?weapon_id=${weaponId}&limit=500`,
             method: 'GET',
             success: function(response) {
                 ammunitionsDataLoadout = response.ammunitions || [];
@@ -1620,18 +1644,10 @@ function loadCompatibleItemsForWeapon(weaponId, relationships, callback) {
                 checkAllLoaded();
             }
         });
-    }
-    
-    // Carregar attachments compatíveis usando relationships
-    // Aceitar arrays vazios como válidos - se a chave existe, usar mesmo que vazio
-    if (relationships && relationships.attachments !== undefined) {
-        attachmentsDataLoadout = relationships.attachments || [];
-        attachmentsLoaded = true;
-        checkAllLoaded();
-    } else {
-        // Apenas fazer AJAX se a chave não existir no relationships
+        
+        // Carregar attachments filtrados
         $.ajax({
-            url: `/api/manage/attachments`,
+            url: `/api/loadouts/players/attachments?weapon_id=${weaponId}&limit=500`,
             method: 'GET',
             success: function(response) {
                 attachmentsDataLoadout = response.attachments || [];
@@ -1645,6 +1661,76 @@ function loadCompatibleItemsForWeapon(weaponId, relationships, callback) {
                 checkAllLoaded();
             }
         });
+    } else {
+        // Para loadouts custom, usar relacionamentos retornados pela API
+        // Carregar magazines compatíveis usando relationships
+        if (relationships && relationships.magazines !== undefined) {
+            magazinesDataLoadout = relationships.magazines || [];
+            magazinesLoaded = true;
+            checkAllLoaded();
+        } else {
+            $.ajax({
+                url: `/api/manage/magazines`,
+                method: 'GET',
+                success: function(response) {
+                    magazinesDataLoadout = response.magazines || [];
+                    magazinesLoaded = true;
+                    checkAllLoaded();
+                },
+                error: function(xhr) {
+                    console.error('Erro ao carregar magazines:', xhr);
+                    magazinesDataLoadout = [];
+                    magazinesLoaded = true;
+                    checkAllLoaded();
+                }
+            });
+        }
+        
+        // Carregar ammunitions compatíveis usando relationships
+        if (relationships && relationships.ammunitions !== undefined) {
+            ammunitionsDataLoadout = relationships.ammunitions || [];
+            ammunitionsLoaded = true;
+            checkAllLoaded();
+        } else {
+            $.ajax({
+                url: `/api/manage/ammunitions`,
+                method: 'GET',
+                success: function(response) {
+                    ammunitionsDataLoadout = response.ammunitions || [];
+                    ammunitionsLoaded = true;
+                    checkAllLoaded();
+                },
+                error: function(xhr) {
+                    console.error('Erro ao carregar ammunitions:', xhr);
+                    ammunitionsDataLoadout = [];
+                    ammunitionsLoaded = true;
+                    checkAllLoaded();
+                }
+            });
+        }
+        
+        // Carregar attachments compatíveis usando relationships
+        if (relationships && relationships.attachments !== undefined) {
+            attachmentsDataLoadout = relationships.attachments || [];
+            attachmentsLoaded = true;
+            checkAllLoaded();
+        } else {
+            $.ajax({
+                url: `/api/manage/attachments`,
+                method: 'GET',
+                success: function(response) {
+                    attachmentsDataLoadout = response.attachments || [];
+                    attachmentsLoaded = true;
+                    checkAllLoaded();
+                },
+                error: function(xhr) {
+                    console.error('Erro ao carregar attachments:', xhr);
+                    attachmentsDataLoadout = [];
+                    attachmentsLoaded = true;
+                    checkAllLoaded();
+                }
+            });
+        }
     }
 }
 
@@ -2242,6 +2328,9 @@ function selectExplosiveForLoadout(explosiveId) {
     const explosive = explosivesDataLoadout.find(e => e.id === explosiveId);
     if (!explosive) return;
     
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
     const existing = selectedExplosives.find(e => e.id === explosiveId);
     let quantity = 1;
     
@@ -2249,10 +2338,47 @@ function selectExplosiveForLoadout(explosiveId) {
         quantity = existing.quantity || 1;
     }
     
-    const newQuantity = prompt(`Quantidade de "${explosive.name}":`, quantity);
+    // Calcular quantidade total atual de explosivos (para validação de limite global)
+    const currentTotal = selectedExplosives.reduce((sum, exp) => sum + (exp.quantity || 1), 0);
+    const currentForThisExplosive = existing ? existing.quantity : 0;
+    
+    let promptMessage = `Quantidade de "${explosive.name}":`;
+    if (isPlayerLoadout) {
+        const maxQty = explosive.max_quantity;
+        const globalLimit = window.explosivesGlobalLimit || 0;
+        
+        if (maxQty) {
+            promptMessage += `\n(Máximo: ${maxQty})`;
+        }
+        if (globalLimit > 0) {
+            promptMessage += `\n(Limite global total: ${globalLimit})`;
+            promptMessage += `\n(Total atual: ${currentTotal - currentForThisExplosive})`;
+        }
+    }
+    
+    const newQuantity = prompt(promptMessage, quantity);
     if (newQuantity === null) return;
     
     const qty = parseInt(newQuantity) || 1;
+    
+    // Validações para loadouts de players
+    if (isPlayerLoadout) {
+        // Validar quantidade máxima individual
+        if (explosive.max_quantity && qty > explosive.max_quantity) {
+            showAlert('danger', `Quantidade máxima permitida para este explosive é ${explosive.max_quantity}`);
+            return;
+        }
+        
+        // Validar limite global
+        const globalLimit = window.explosivesGlobalLimit || 0;
+        if (globalLimit > 0) {
+            const newTotal = currentTotal - currentForThisExplosive + qty;
+            if (newTotal > globalLimit) {
+                showAlert('danger', `Limite global de explosivos é ${globalLimit}. Total atual seria ${newTotal}`);
+                return;
+            }
+        }
+    }
     
     if (existing) {
         existing.quantity = qty;
@@ -2264,7 +2390,8 @@ function selectExplosiveForLoadout(explosiveId) {
             slots: explosive.slots,
             width: explosive.width,
             height: explosive.height,
-            quantity: qty
+            quantity: qty,
+            max_quantity: explosive.max_quantity || null
         });
     }
     
@@ -2331,13 +2458,55 @@ function editExplosiveQuantity(explosiveId) {
     const explosive = selectedExplosives.find(e => e.id === explosiveId);
     if (!explosive) return false;
     
-    const newQuantity = prompt(`Quantidade de "${explosive.name}":`, explosive.quantity);
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    // Calcular quantidade total atual de explosivos (para validação de limite global)
+    const currentTotal = selectedExplosives.reduce((sum, exp) => sum + (exp.quantity || 1), 0);
+    const currentForThisExplosive = explosive.quantity || 1;
+    
+    let promptMessage = `Quantidade de "${explosive.name}":`;
+    if (isPlayerLoadout) {
+        const maxQty = explosive.max_quantity;
+        const globalLimit = window.explosivesGlobalLimit || 0;
+        
+        if (maxQty) {
+            promptMessage += `\n(Máximo: ${maxQty})`;
+        }
+        if (globalLimit > 0) {
+            promptMessage += `\n(Limite global total: ${globalLimit})`;
+            promptMessage += `\n(Total atual: ${currentTotal - currentForThisExplosive})`;
+        }
+    }
+    
+    const newQuantity = prompt(promptMessage, explosive.quantity);
     if (newQuantity === null) {
         // Cancelado pelo usuário - não fazer nada
         return false;
     }
     
-    explosive.quantity = parseInt(newQuantity) || 1;
+    const qty = parseInt(newQuantity) || 1;
+    
+    // Validações para loadouts de players
+    if (isPlayerLoadout) {
+        // Validar quantidade máxima individual
+        if (explosive.max_quantity && qty > explosive.max_quantity) {
+            showAlert('danger', `Quantidade máxima permitida para este explosive é ${explosive.max_quantity}`);
+            return false;
+        }
+        
+        // Validar limite global
+        const globalLimit = window.explosivesGlobalLimit || 0;
+        if (globalLimit > 0) {
+            const newTotal = currentTotal - currentForThisExplosive + qty;
+            if (newTotal > globalLimit) {
+                showAlert('danger', `Limite global de explosivos é ${globalLimit}. Total atual seria ${newTotal}`);
+                return false;
+            }
+        }
+    }
+    
+    explosive.quantity = qty;
     updateSelectedExplosivesDisplay();
     updateJSONPreview();
     markLoadoutChanged();
@@ -2652,7 +2821,21 @@ function selectItemForLoadout(itemId) {
             return;
         }
         
+        const loadoutType = $('#loadoutType').val() || 'custom';
+        const isPlayerLoadout = loadoutType === 'player';
+        
         const existing = selectedItems.find(i => i.id === itemId);
+        
+        // Validação de quantidade máxima para loadouts de players
+        if (isPlayerLoadout) {
+            const maxQuantity = item.max_quantity || 1;
+            const currentCount = selectedItems.filter(i => i.id === itemId).length;
+            
+            if (currentCount >= maxQuantity) {
+                showAlert('danger', `Quantidade máxima permitida para este item é ${maxQuantity}`);
+                return;
+            }
+        }
         
         if (!existing) {
             // Carregar compatibilidade do item para subitems
