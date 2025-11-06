@@ -316,12 +316,6 @@ EntityAI GetPlayerVest(PlayerBase player)
     return player.FindAttachmentBySlotName("Vest");
 }
 
-EntityAI GetPlayerHolster(PlayerBase player)
-{
-    if (!player) return null;
-    return player.FindAttachmentBySlotName("Holster");
-}
-
 bool CanAttachGrenadeToVest(string grenadeType)
 {
     if (!DEFAULT_GRENADE_TYPES || grenadeType == "")
@@ -364,7 +358,7 @@ bool IsAllowedPistol(string pistolType)
     return false;
 }
 
-EntityAI GetPlayerHolster2(PlayerBase player)
+EntityAI GetPlayerHolster(PlayerBase player)
 {
     if (!player) return null;
     
