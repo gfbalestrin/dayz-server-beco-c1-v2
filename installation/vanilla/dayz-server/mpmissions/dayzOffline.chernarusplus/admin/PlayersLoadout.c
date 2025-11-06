@@ -286,32 +286,6 @@ void HandleWeaponData(WeaponData weaponData, PlayerBase player, int quickBarSlot
         
     }
 
-    // Tentar mover a pistola criada (small_weapon) para o coldre permitido, sem criar nova
-    if (label == "small" && IsAllowedPistol(weaponData.name_type) && weaponEntity)
-    {
-        EntityAI holster = GetPlayerHolster(player);
-        if (holster)
-        {
-            InventoryLocation srcLoc = new InventoryLocation();
-            InventoryLocation dstLoc = new InventoryLocation();
-            
-            if (weaponEntity.GetInventory().GetCurrentInventoryLocation(srcLoc))
-            {
-                if (holster.GetInventory().FindFirstFreeLocationFor(weaponEntity, FindInventoryLocationType.ATTACHMENT, dstLoc))
-                {
-                    if (GameInventory.LocationSyncMoveEntity(srcLoc, dstLoc))
-                    {
-                        WriteToLog("HandleWeaponData(): Pistola " + weaponData.name_type + " movida para o coldre", LogFile.INIT, false, LogType.INFO);
-                    }
-                    else
-                    {
-                        WriteToLog("HandleWeaponData(): Falha ao mover pistola " + weaponData.name_type + " para o coldre", LogFile.INIT, false, LogType.INFO);
-                    }
-                }
-            }
-        }
-    }
-
 }
 
 void SeparateItemsByStorage(array<ref LoadoutItem> items, out array<ref LoadoutItem> itemsWithStorage, out array<ref LoadoutItem> itemsWithoutStorage)
@@ -449,36 +423,6 @@ EntityAI CreateItemWithSubitems(EntityAI parent, LoadoutItem itemData, PlayerBas
                 CreateItemWithSubitems(item, sub, player);
             } else {
                 WriteToLog("Subitem nulo detectado para: " + itemData.name_type, LogFile.INIT, false, LogType.ERROR);
-            }
-        }
-    }
-
-    // Tentar anexar pistola já existente ao criar um coldre permitido
-    if (!parent && item && IsAllowedHolster(itemData.name_type))
-    {
-        if (ALLOWED_PISTOLS && ALLOWED_PISTOLS.Count() > 0)
-        {
-            foreach (string pistolType : ALLOWED_PISTOLS)
-            {
-                EntityAI pistol = FindPistolInInventory(player, pistolType);
-                if (pistol)
-                {
-                    // Move a pistola existente para o coldre como attachment (sem criar nova)
-                    InventoryLocation srcLoc = new InventoryLocation();
-                    InventoryLocation dstLoc = new InventoryLocation();
-                    
-                    if (pistol.GetInventory().GetCurrentInventoryLocation(srcLoc))
-                    {
-                        if (item.GetInventory().FindFirstFreeLocationFor(pistol, FindInventoryLocationType.ATTACHMENT, dstLoc))
-                        {
-                            if (GameInventory.LocationSyncMoveEntity(srcLoc, dstLoc))
-                            {
-                                WriteToLog("CreateItemWithSubitems(): Pistola existente " + pistolType + " movida para o coldre " + itemData.name_type, LogFile.INIT, false, LogType.INFO);
-                                break;
-                            }
-                        }
-                    }
-                }
             }
         }
     }
