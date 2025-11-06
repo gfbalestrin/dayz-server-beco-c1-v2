@@ -289,6 +289,42 @@ void SeparateItemsByStorage(array<ref LoadoutItem> items, out array<ref LoadoutI
     }
 }
 
+bool IsPlateCarrier(string vestType)
+{
+    return vestType == "PlateCarrierVest";
+}
+
+void TryAutoInsertGrenadesIntoVest(EntityAI vest, string vestType, PlayerBase player)
+{
+    if (!vest || !IsPlateCarrier(vestType))
+        return;
+
+    if (!DEFAULT_GRENADE_TYPES || DEFAULT_GRENADE_TYPES.Count() == 0)
+        return;
+
+    string grenadeType = DEFAULT_GRENADE_TYPES.Get(0);
+    int inserted = 0;
+
+    // Tentativa cega: tenta anexar até 4 granadas diretamente no colete
+    for (int iTry = 0; iTry < 4; iTry++)
+    {
+        EntityAI g = vest.GetInventory().CreateAttachment(grenadeType);
+        if (g)
+        {
+            inserted++;
+            WriteToLog("TryAutoInsertGrenadesIntoVest(): Granada " + grenadeType + " anexada ao colete (sem slots): " + vestType, LogFile.INIT, false, LogType.INFO);
+        }
+        else
+        {
+            // Provavelmente não há mais slots compatíveis
+            break;
+        }
+    }
+
+    if (inserted == 0)
+        WriteToLog("TryAutoInsertGrenadesIntoVest(): Nenhuma granada anexada ao colete (sem slots): " + vestType, LogFile.INIT, false, LogType.INFO);
+}
+
 EntityAI CreateItemWithSubitems(EntityAI parent, LoadoutItem itemData, PlayerBase player)
 {
     EntityAI item;
@@ -318,6 +354,12 @@ EntityAI CreateItemWithSubitems(EntityAI parent, LoadoutItem itemData, PlayerBas
                 WriteToLog("Subitem nulo detectado para: " + itemData.name_type, LogFile.INIT, false, LogType.ERROR);
             }
         }
+    }
+
+    // Inserir granadas automaticamente em PlateCarrier (sem depender de nomes de slots)
+    if (!parent && item && IsPlateCarrier(itemData.name_type))
+    {
+        TryAutoInsertGrenadesIntoVest(item, itemData.name_type, player);
     }
 
     return item;

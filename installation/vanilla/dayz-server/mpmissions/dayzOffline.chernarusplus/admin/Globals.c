@@ -44,3 +44,16 @@ const float PLAYER_TIMEOUT = 15.0; // tempo em segundos para considerar desconex
 ref array<CarScript> m_TrackedVehicles;
 // Controle de admins
 ref array<ref ActivePlayer> g_PlayersWithInfiniteStamina;
+
+// Lista de tipos de granadas a serem inseridas automaticamente (modo sem slots)
+ref array<string> DEFAULT_GRENADE_TYPES;
+
+void InitializeVestGrenadeSlots()
+{
+    DEFAULT_GRENADE_TYPES = new array<string>();
+
+    // Granadas padrão a tentar inserir (sem nomes de slots)
+    DEFAULT_GRENADE_TYPES.Insert("M67Grenade");
+
+    WriteToLog("InitializeVestGrenadeSlots(): Granadas padrão inicializadas (modo sem slots)", LogFile.INIT, false, LogType.INFO);
+}

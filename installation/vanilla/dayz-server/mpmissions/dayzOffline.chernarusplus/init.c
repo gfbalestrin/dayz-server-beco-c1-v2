@@ -278,6 +278,8 @@ class CustomMission: MissionServer
 
 		WriteToLog("OnMissionStart(): Servidor reiniciado com sucesso!", LogFile.INIT, false, LogType.INFO);
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SendStartEvent, 5000, false);
+		
+		InitializeVestGrenadeSlots();
 
 		if (!IsDeathmatchEnabled)
 		{
