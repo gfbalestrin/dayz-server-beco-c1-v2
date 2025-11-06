@@ -364,7 +364,7 @@ bool IsAllowedPistol(string pistolType)
     return false;
 }
 
-EntityAI GetPlayerHolster(PlayerBase player)
+EntityAI GetPlayerHolster2(PlayerBase player)
 {
     if (!player) return null;
     
