@@ -699,7 +699,18 @@ function loadWeaponToVisual(type, weaponData) {
         setTimeout(function() {
             const magazine = magazinesDataLoadout.find(m => m.name_type === weaponData.magazine.name_type);
             if (magazine) {
-                selectedWeapons[type].magazine = magazine;
+                selectedWeapons[type].magazine = {
+                    id: magazine.id,
+                    name: magazine.name,
+                    name_type: magazine.name_type,
+                    capacity: magazine.capacity,
+                    slots: magazine.slots,
+                    width: magazine.width,
+                    height: magazine.height,
+                    img: magazine.img || '',
+                    quantity: weaponData.magazine.quantity || 1,
+                    max_quantity: magazine.max_quantity || null
+                };
             } else {
                 // Armazenar dados mesmo sem encontrar no banco
                 selectedWeapons[type].magazine = {
@@ -707,7 +718,8 @@ function loadWeaponToVisual(type, weaponData) {
                     capacity: weaponData.magazine.capacity,
                     slots: weaponData.magazine.slots,
                     width: weaponData.magazine.width,
-                    height: weaponData.magazine.height
+                    height: weaponData.magazine.height,
+                    quantity: weaponData.magazine.quantity || 1
                 };
             }
         }, 300);
@@ -718,13 +730,24 @@ function loadWeaponToVisual(type, weaponData) {
         setTimeout(function() {
             const ammunition = ammunitionsDataLoadout.find(a => a.name_type === weaponData.ammunitions.name_type);
             if (ammunition) {
-                selectedWeapons[type].ammunition = ammunition;
+                selectedWeapons[type].ammunition = {
+                    id: ammunition.id,
+                    name: ammunition.name,
+                    name_type: ammunition.name_type,
+                    slots: ammunition.slots,
+                    width: ammunition.width,
+                    height: ammunition.height,
+                    img: ammunition.img || '',
+                    quantity: weaponData.ammunitions.quantity || 1,
+                    max_quantity: ammunition.max_quantity || null
+                };
             } else {
                 selectedWeapons[type].ammunition = {
                     name_type: weaponData.ammunitions.name_type,
                     slots: weaponData.ammunitions.slots,
                     width: weaponData.ammunitions.width,
-                    height: weaponData.ammunitions.height
+                    height: weaponData.ammunitions.height,
+                    quantity: weaponData.ammunitions.quantity || 1
                 };
             }
         }, 300);
@@ -745,7 +768,9 @@ function loadWeaponToVisual(type, weaponData) {
                         width: att.width,
                         height: att.height,
                         battery: att.battery || false,
-                        img: att.img || null
+                        img: att.img || null,
+                        quantity: attData.quantity || 1,
+                        max_quantity: att.max_quantity || null
                     });
                 } else {
                     selectedWeapons[type].attachments.push({
@@ -755,7 +780,8 @@ function loadWeaponToVisual(type, weaponData) {
                         width: attData.width,
                         height: attData.height,
                         battery: attData.battery || false,
-                        img: null
+                        img: null,
+                        quantity: attData.quantity || 1
                     });
                 }
             });
@@ -925,7 +951,8 @@ function loadItemsToVisual(itemsData) {
                 subitems: loadedSubitems,
                 canHaveSubitems: false,
                 compatibleChildren: [],
-                img: null
+                img: null,
+                quantity: itemData.quantity || 1
             });
             processedCount++;
             if (processedCount === totalItems) {
@@ -935,6 +962,18 @@ function loadItemsToVisual(itemsData) {
     });
     
     function finishLoadingItem(item, itemData, compatibility, loadedSubitems) {
+        // Buscar max_quantity do item se for loadout de player
+        const loadoutType = $('#loadoutType').val() || 'custom';
+        const isPlayerLoadout = loadoutType === 'player';
+        let maxQuantity = null;
+        
+        if (isPlayerLoadout) {
+            const itemInData = itemsDataLoadout.find(i => i.id === item.id);
+            if (itemInData) {
+                maxQuantity = itemInData.max_quantity || null;
+            }
+        }
+        
         selectedItems.push({
             id: item.id,
             name: item.name,
@@ -950,7 +989,9 @@ function loadItemsToVisual(itemsData) {
             subitems: loadedSubitems,
             canHaveSubitems: compatibility.children && compatibility.children.length > 0,
             compatibleChildren: compatibility.children || [],
-            img: item.img || null
+            img: item.img || null,
+            quantity: itemData.quantity || 1,
+            max_quantity: maxQuantity
         });
         
         processedCount++;
@@ -1840,17 +1881,44 @@ function toggleAttachmentForWeapon(attachmentId) {
     const attachment = attachmentsDataLoadout.find(a => a.id === attachmentId);
     if (!attachment) return;
     
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
     const index = weaponConfig.attachments.findIndex(a => a.id === attachmentId);
     
     if (index >= 0) {
-        // Remover attachment
-        weaponConfig.attachments.splice(index, 1);
+        // Se já está selecionado, permitir editar quantidade
+        editAttachmentQuantity(attachmentId);
     } else {
         // Validar que não há outro attachment do mesmo tipo
         const existingSameType = weaponConfig.attachments.find(a => a.type === attachment.type);
         if (existingSameType) {
             showAlert('warning', `Já existe um attachment do tipo "${attachment.type}" selecionado. Remova o existente antes de adicionar outro.`);
             return;
+        }
+        
+        let quantity = 1;
+        let promptMessage = `Quantidade de "${attachment.name}":`;
+        if (isPlayerLoadout) {
+            const maxQty = attachment.max_quantity;
+            
+            if (maxQty) {
+                promptMessage += `\n(Máximo: ${maxQty})`;
+            }
+        }
+        
+        const newQuantity = prompt(promptMessage, quantity);
+        if (newQuantity === null) return;
+        
+        const qty = parseInt(newQuantity) || 1;
+        
+        // Validações para loadouts de players
+        if (isPlayerLoadout) {
+            // Validar quantidade máxima individual
+            if (attachment.max_quantity && qty > attachment.max_quantity) {
+                showAlert('danger', `Quantidade máxima permitida para este attachment é ${attachment.max_quantity}`);
+                return;
+            }
         }
         
         // Adicionar attachment
@@ -1863,13 +1931,16 @@ function toggleAttachmentForWeapon(attachmentId) {
             width: attachment.width,
             height: attachment.height,
             battery: attachment.battery || false,
-            img: attachment.img || ''
+            img: attachment.img || '',
+            quantity: qty,
+            max_quantity: attachment.max_quantity || null
         });
     }
     
     renderAttachmentsGridConfig();
     updateSelectedAttachmentsDisplay();
     updateJSONPreview();
+    markLoadoutChanged();
 }
 
 function updateSelectedAttachmentsDisplay() {
@@ -1888,7 +1959,7 @@ function updateSelectedAttachmentsDisplay() {
     weaponConfig.attachments.forEach(function(att) {
         const badge = $(`
             <span class="badge bg-primary me-2 mb-2" style="font-size: 0.9em;">
-                ${att.name} (${att.type})
+                ${att.name} (${att.type}) (Qtd: ${att.quantity || 1})
                 <button class="btn-close btn-close-white ms-1" onclick="removeAttachmentFromWeapon('${weaponType}', ${att.id})" style="font-size: 0.7em;"></button>
             </span>
         `);
@@ -1982,26 +2053,57 @@ function selectMagazineForWeapon(magazineId) {
     const magazine = magazinesDataLoadout.find(m => m.id === magazineId);
     if (!magazine) return;
     
-    // Se já está selecionado, desselecionar
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    // Se já está selecionado, permitir editar quantidade
     if (weaponConfig.magazine?.id === magazineId) {
-        weaponConfig.magazine = null;
-    } else {
-        // Selecionar (substitui o anterior se houver)
-        weaponConfig.magazine = {
-            id: magazine.id,
-            name: magazine.name,
-            name_type: magazine.name_type,
-            capacity: magazine.capacity,
-            slots: magazine.slots,
-            width: magazine.width,
-            height: magazine.height,
-            img: magazine.img || ''
-        };
+        editMagazineQuantity();
+        return;
     }
+    
+    let quantity = 1;
+    let promptMessage = `Quantidade de "${magazine.name}":`;
+    if (isPlayerLoadout) {
+        const maxQty = magazine.max_quantity;
+        
+        if (maxQty) {
+            promptMessage += `\n(Máximo: ${maxQty})`;
+        }
+    }
+    
+    const newQuantity = prompt(promptMessage, quantity);
+    if (newQuantity === null) return;
+    
+    const qty = parseInt(newQuantity) || 1;
+    
+    // Validações para loadouts de players
+    if (isPlayerLoadout) {
+        // Validar quantidade máxima individual
+        if (magazine.max_quantity && qty > magazine.max_quantity) {
+            showAlert('danger', `Quantidade máxima permitida para este magazine é ${magazine.max_quantity}`);
+            return;
+        }
+    }
+    
+    // Selecionar (substitui o anterior se houver)
+    weaponConfig.magazine = {
+        id: magazine.id,
+        name: magazine.name,
+        name_type: magazine.name_type,
+        capacity: magazine.capacity,
+        slots: magazine.slots,
+        width: magazine.width,
+        height: magazine.height,
+        img: magazine.img || '',
+        quantity: qty,
+        max_quantity: magazine.max_quantity || null
+    };
     
     renderMagazinesGridConfig();
     updateSelectedMagazineDisplay();
     updateJSONPreview();
+    markLoadoutChanged();
 }
 
 function selectAmmunitionForWeapon(ammunitionId) {
@@ -2012,25 +2114,181 @@ function selectAmmunitionForWeapon(ammunitionId) {
     const ammunition = ammunitionsDataLoadout.find(a => a.id === ammunitionId);
     if (!ammunition) return;
     
-    // Se já está selecionado, desselecionar
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    // Se já está selecionado, permitir editar quantidade
     if (weaponConfig.ammunition?.id === ammunitionId) {
-        weaponConfig.ammunition = null;
-    } else {
-        // Selecionar (substitui o anterior se houver)
-        weaponConfig.ammunition = {
-            id: ammunition.id,
-            name: ammunition.name,
-            name_type: ammunition.name_type,
-            slots: ammunition.slots,
-            width: ammunition.width,
-            height: ammunition.height,
-            img: ammunition.img || ''
-        };
+        editAmmunitionQuantity();
+        return;
     }
+    
+    let quantity = 1;
+    let promptMessage = `Quantidade de "${ammunition.name}":`;
+    if (isPlayerLoadout) {
+        const maxQty = ammunition.max_quantity;
+        
+        if (maxQty) {
+            promptMessage += `\n(Máximo: ${maxQty})`;
+        }
+    }
+    
+    const newQuantity = prompt(promptMessage, quantity);
+    if (newQuantity === null) return;
+    
+    const qty = parseInt(newQuantity) || 1;
+    
+    // Validações para loadouts de players
+    if (isPlayerLoadout) {
+        // Validar quantidade máxima individual
+        if (ammunition.max_quantity && qty > ammunition.max_quantity) {
+            showAlert('danger', `Quantidade máxima permitida para esta ammunition é ${ammunition.max_quantity}`);
+            return;
+        }
+    }
+    
+    // Selecionar (substitui o anterior se houver)
+    weaponConfig.ammunition = {
+        id: ammunition.id,
+        name: ammunition.name,
+        name_type: ammunition.name_type,
+        slots: ammunition.slots,
+        width: ammunition.width,
+        height: ammunition.height,
+        img: ammunition.img || '',
+        quantity: qty,
+        max_quantity: ammunition.max_quantity || null
+    };
     
     renderAmmunitionsGridConfig();
     updateSelectedAmmunitionDisplay();
     updateJSONPreview();
+    markLoadoutChanged();
+}
+
+function editMagazineQuantity() {
+    const weaponType = $('#weaponConfigType').val();
+    const weaponConfig = selectedWeapons[weaponType];
+    if (!weaponConfig || !weaponConfig.magazine) return false;
+    
+    const magazine = weaponConfig.magazine;
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    let promptMessage = `Quantidade de "${magazine.name}":`;
+    if (isPlayerLoadout) {
+        const maxQty = magazine.max_quantity;
+        
+        if (maxQty) {
+            promptMessage += `\n(Máximo: ${maxQty})`;
+        }
+    }
+    
+    const newQuantity = prompt(promptMessage, magazine.quantity || 1);
+    if (newQuantity === null) {
+        return false;
+    }
+    
+    const qty = parseInt(newQuantity) || 1;
+    
+    // Validações para loadouts de players
+    if (isPlayerLoadout) {
+        // Validar quantidade máxima individual
+        if (magazine.max_quantity && qty > magazine.max_quantity) {
+            showAlert('danger', `Quantidade máxima permitida para este magazine é ${magazine.max_quantity}`);
+            return false;
+        }
+    }
+    
+    magazine.quantity = qty;
+    updateSelectedMagazineDisplay();
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
+function editAmmunitionQuantity() {
+    const weaponType = $('#weaponConfigType').val();
+    const weaponConfig = selectedWeapons[weaponType];
+    if (!weaponConfig || !weaponConfig.ammunition) return false;
+    
+    const ammunition = weaponConfig.ammunition;
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    let promptMessage = `Quantidade de "${ammunition.name}":`;
+    if (isPlayerLoadout) {
+        const maxQty = ammunition.max_quantity;
+        
+        if (maxQty) {
+            promptMessage += `\n(Máximo: ${maxQty})`;
+        }
+    }
+    
+    const newQuantity = prompt(promptMessage, ammunition.quantity || 1);
+    if (newQuantity === null) {
+        return false;
+    }
+    
+    const qty = parseInt(newQuantity) || 1;
+    
+    // Validações para loadouts de players
+    if (isPlayerLoadout) {
+        // Validar quantidade máxima individual
+        if (ammunition.max_quantity && qty > ammunition.max_quantity) {
+            showAlert('danger', `Quantidade máxima permitida para esta ammunition é ${ammunition.max_quantity}`);
+            return false;
+        }
+    }
+    
+    ammunition.quantity = qty;
+    updateSelectedAmmunitionDisplay();
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
+function editAttachmentQuantity(attachmentId) {
+    const weaponType = $('#weaponConfigType').val();
+    const weaponConfig = selectedWeapons[weaponType];
+    if (!weaponConfig) return false;
+    
+    const attachment = weaponConfig.attachments.find(a => a.id === attachmentId);
+    if (!attachment) return false;
+    
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    let promptMessage = `Quantidade de "${attachment.name}":`;
+    if (isPlayerLoadout) {
+        const maxQty = attachment.max_quantity;
+        
+        if (maxQty) {
+            promptMessage += `\n(Máximo: ${maxQty})`;
+        }
+    }
+    
+    const newQuantity = prompt(promptMessage, attachment.quantity || 1);
+    if (newQuantity === null) {
+        return false;
+    }
+    
+    const qty = parseInt(newQuantity) || 1;
+    
+    // Validações para loadouts de players
+    if (isPlayerLoadout) {
+        // Validar quantidade máxima individual
+        if (attachment.max_quantity && qty > attachment.max_quantity) {
+            showAlert('danger', `Quantidade máxima permitida para este attachment é ${attachment.max_quantity}`);
+            return false;
+        }
+    }
+    
+    attachment.quantity = qty;
+    updateSelectedAttachmentsDisplay();
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
 }
 
 function updateSelectedMagazineDisplay() {
@@ -2047,7 +2305,7 @@ function updateSelectedMagazineDisplay() {
     const mag = weaponConfig.magazine;
     const badge = $(`
         <span class="badge bg-primary me-2 mb-2" style="font-size: 0.9em;">
-            ${mag.name}${mag.capacity ? ` (${mag.capacity} cap.)` : ''}
+            ${mag.name}${mag.capacity ? ` (${mag.capacity} cap.)` : ''} (Qtd: ${mag.quantity || 1})
             <button class="btn-close btn-close-white ms-1" onclick="selectMagazineForWeapon(${mag.id})" style="font-size: 0.7em;"></button>
         </span>
     `);
@@ -2068,7 +2326,7 @@ function updateSelectedAmmunitionDisplay() {
     const ammo = weaponConfig.ammunition;
     const badge = $(`
         <span class="badge bg-primary me-2 mb-2" style="font-size: 0.9em;">
-            ${ammo.name}
+            ${ammo.name} (Qtd: ${ammo.quantity || 1})
             <button class="btn-close btn-close-white ms-1" onclick="selectAmmunitionForWeapon(${ammo.id})" style="font-size: 0.7em;"></button>
         </span>
     `);
@@ -2831,14 +3089,31 @@ function selectItemForLoadout(itemId) {
         const isPlayerLoadout = loadoutType === 'player';
         
         const existing = selectedItems.find(i => i.id === itemId);
+        let quantity = 1;
         
-        // Validação de quantidade máxima para loadouts de players
+        if (existing) {
+            quantity = existing.quantity || 1;
+        }
+        
+        let promptMessage = `Quantidade de "${item.name}":`;
         if (isPlayerLoadout) {
-            const maxQuantity = item.max_quantity || 1;
-            const currentCount = selectedItems.filter(i => i.id === itemId).length;
+            const maxQty = item.max_quantity;
             
-            if (currentCount >= maxQuantity) {
-                showAlert('danger', `Quantidade máxima permitida para este item é ${maxQuantity}`);
+            if (maxQty) {
+                promptMessage += `\n(Máximo: ${maxQty})`;
+            }
+        }
+        
+        const newQuantity = prompt(promptMessage, quantity);
+        if (newQuantity === null) return;
+        
+        const qty = parseInt(newQuantity) || 1;
+        
+        // Validações para loadouts de players
+        if (isPlayerLoadout) {
+            // Validar quantidade máxima individual
+            if (item.max_quantity && qty > item.max_quantity) {
+                showAlert('danger', `Quantidade máxima permitida para este item é ${item.max_quantity}`);
                 return;
             }
         }
@@ -2867,7 +3142,9 @@ function selectItemForLoadout(itemId) {
                             subitems: [],
                             canHaveSubitems: compatibility.children && compatibility.children.length > 0,
                             compatibleChildren: compatibility.children || [],
-                            img: item.img || null
+                            img: item.img || null,
+                            quantity: qty,
+                            max_quantity: item.max_quantity || null
                         });
                         
                         updateSelectedItemsDisplay();
@@ -2893,7 +3170,9 @@ function selectItemForLoadout(itemId) {
                             subitems: [],
                             canHaveSubitems: false,
                             compatibleChildren: [],
-                            img: item.img || null
+                            img: item.img || null,
+                            quantity: qty,
+                            max_quantity: item.max_quantity || null
                         });
                         updateSelectedItemsDisplay();
                         updateJSONPreview();
@@ -2919,7 +3198,9 @@ function selectItemForLoadout(itemId) {
                         subitems: [],
                         canHaveSubitems: false,
                         compatibleChildren: [],
-                        img: item.img || null
+                        img: item.img || null,
+                        quantity: qty,
+                        max_quantity: item.max_quantity || null
                     });
                     
                     updateSelectedItemsDisplay();
@@ -2929,25 +3210,57 @@ function selectItemForLoadout(itemId) {
                 }
             });
         } else {
-            // Item já existe - toggle: remover se clicado novamente
-            const itemIndex = selectedItems.findIndex(i => i.id === itemId);
-            if (itemIndex >= 0) {
-                const item = selectedItems[itemIndex];
-                // Se o item pode ter subitems, abrir modal ao invés de remover
-                if (item.canHaveSubitems) {
-                    openSubitemsModal(itemIndex);
-                } else {
-                    // Remover item se clicado novamente (toggle)
-                    removeItemFromLoadout(itemIndex);
-                    // Atualizar grids para refletir remoção
-                    applyItemFiltersLoadout();
-                }
-            }
+            // Item já existe - atualizar quantidade
+            existing.quantity = qty;
+            updateSelectedItemsDisplay();
+            updateJSONPreview();
+            applyItemFiltersLoadout();
+            markLoadoutChanged();
         }
     } catch (error) {
         showAlert('danger', 'Erro inesperado ao selecionar item: ' + error.message);
         console.error('Erro inesperado:', error);
     }
+}
+
+function editItemQuantity(itemId) {
+    const item = selectedItems.find(i => i.id === itemId);
+    if (!item) return false;
+    
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    let promptMessage = `Quantidade de "${item.name}":`;
+    if (isPlayerLoadout) {
+        const maxQty = item.max_quantity;
+        
+        if (maxQty) {
+            promptMessage += `\n(Máximo: ${maxQty})`;
+        }
+    }
+    
+    const newQuantity = prompt(promptMessage, item.quantity || 1);
+    if (newQuantity === null) {
+        // Cancelado pelo usuário - não fazer nada
+        return false;
+    }
+    
+    const qty = parseInt(newQuantity) || 1;
+    
+    // Validações para loadouts de players
+    if (isPlayerLoadout) {
+        // Validar quantidade máxima individual
+        if (item.max_quantity && qty > item.max_quantity) {
+            showAlert('danger', `Quantidade máxima permitida para este item é ${item.max_quantity}`);
+            return false;
+        }
+    }
+    
+    item.quantity = qty;
+    updateSelectedItemsDisplay();
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
 }
 
 function validateItemCompatibility(parentItemId, childItemId) {
@@ -2996,6 +3309,7 @@ function renderSelectedItemCard(item, itemIndex) {
                         <div class="text-center mb-2">
                             <strong class="d-block">${item.name}</strong>
                             <small class="text-muted d-block">${item.name_type}</small>
+                            <small class="text-info d-block mt-1"><i class="fas fa-box"></i> Quantidade: <strong>${item.quantity || 1}</strong></small>
                             ${item.subitems && item.subitems.length > 0 ? `<small class="text-info d-block mt-1"><i class="fas fa-layer-group"></i> ${item.subitems.length} subitem(s)</small>` : ''}
                         </div>
                         <div class="btn-group btn-group-sm w-100" role="group">
@@ -3005,6 +3319,9 @@ function renderSelectedItemCard(item, itemIndex) {
                                     ${item.subitems && item.subitems.length > 0 ? ` <span class="badge bg-light text-dark">${item.subitems.length}</span>` : ''}
                                 </button>
                             ` : ''}
+                            <button class="btn btn-primary" onclick="editItemQuantity(${item.id}); event.preventDefault(); event.stopPropagation(); return false;" title="Editar Quantidade">
+                                <i class="fas fa-edit"></i> Qtd
+                            </button>
                             <button class="btn btn-danger" onclick="removeItemFromLoadout(${itemIndex}); return false;" title="Remover">
                                 <i class="fas fa-trash"></i>
                             </button>
@@ -4358,6 +4675,10 @@ function buildLoadoutFromVisual() {
                 width: weaponConfig.magazine.width,
                 height: weaponConfig.magazine.height
             };
+            // Adicionar quantity se existir
+            if (weaponConfig.magazine.quantity !== undefined && weaponConfig.magazine.quantity !== null) {
+                weaponData.magazine.quantity = weaponConfig.magazine.quantity;
+            }
         }
         
         // Adicionar ammunition (note: no JSON é "ammunitions", não "ammunition")
@@ -4368,12 +4689,16 @@ function buildLoadoutFromVisual() {
                 width: weaponConfig.ammunition.width || 1,
                 height: weaponConfig.ammunition.height || 1
             };
+            // Adicionar quantity se existir
+            if (weaponConfig.ammunition.quantity !== undefined && weaponConfig.ammunition.quantity !== null) {
+                weaponData.ammunitions.quantity = weaponConfig.ammunition.quantity;
+            }
         }
         
         // Adicionar attachments
         if (weaponConfig.attachments.length > 0) {
             weaponData.attachments = weaponConfig.attachments.map(function(att) {
-                return {
+                const attData = {
                     name_type: att.name_type,
                     type: att.type,
                     slots: att.slots,
@@ -4381,6 +4706,11 @@ function buildLoadoutFromVisual() {
                     height: att.height,
                     battery: att.battery || false
                 };
+                // Adicionar quantity se existir
+                if (att.quantity !== undefined && att.quantity !== null) {
+                    attData.quantity = att.quantity;
+                }
+                return attData;
             });
         }
         
@@ -4427,6 +4757,11 @@ function buildItemsWithSubitems(items) {
             storage_height: item.storage_height || 0,
             localization: item.localization || ''
         };
+        
+        // Adicionar quantity se existir
+        if (item.quantity !== undefined && item.quantity !== null) {
+            itemData.quantity = item.quantity;
+        }
         
         // Processar subitems recursivamente se existirem
         if (item.subitems && Array.isArray(item.subitems) && item.subitems.length > 0) {
