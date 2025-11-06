@@ -766,7 +766,8 @@ function loadComponentsAfterLoad(weaponId, type, weaponData, relationships) {
                 slots: ammunition.slots,
                 width: ammunition.width,
                 height: ammunition.height,
-                img: ammunition.img || '',
+                // Usar img do banco, mas se não tiver, tentar usar do weaponData como fallback
+                img: ammunition.img || weaponData.ammunitions.img || '',
                 quantity: weaponData.ammunitions.quantity || 1,
                 max_quantity: ammunition.max_quantity || null
             };
@@ -777,6 +778,7 @@ function loadComponentsAfterLoad(weaponId, type, weaponData, relationships) {
                 slots: weaponData.ammunitions.slots,
                 width: weaponData.ammunitions.width,
                 height: weaponData.ammunitions.height,
+                img: weaponData.ammunitions.img || null,
                 quantity: weaponData.ammunitions.quantity || 1
             };
         }
@@ -2843,11 +2845,13 @@ function selectExplosiveForLoadout(explosiveId) {
     }
     
     // Calcular quantidade total atual de explosivos (para validação de limite global)
-    const currentTotal = selectedExplosives.reduce((sum, exp) => sum + (exp.quantity || 1), 0);
-    const currentForThisExplosive = existing ? existing.quantity : 0;
+    // Usar quantity || 0 para contar apenas explosivos com quantidade definida
+    const currentTotal = selectedExplosives.reduce((sum, exp) => sum + (exp.quantity || 0), 0);
+    const currentForThisExplosive = existing ? (existing.quantity || 0) : 0;
     
     let promptMessage = `Quantidade de "${explosive.name}":`;
     if (isPlayerLoadout) {
+        // Usar max_quantity do objeto original do banco
         const maxQty = explosive.max_quantity;
         const globalLimit = window.explosivesGlobalLimit || 0;
         
@@ -2855,8 +2859,9 @@ function selectExplosiveForLoadout(explosiveId) {
             promptMessage += `\n(Máximo: ${maxQty})`;
         }
         if (globalLimit > 0) {
+            const totalWithoutThis = currentTotal - currentForThisExplosive;
             promptMessage += `\n(Limite global total: ${globalLimit})`;
-            promptMessage += `\n(Total atual: ${currentTotal - currentForThisExplosive})`;
+            promptMessage += `\n(Total atual: ${totalWithoutThis})`;
         }
     }
     
@@ -2867,7 +2872,7 @@ function selectExplosiveForLoadout(explosiveId) {
     
     // Validações para loadouts de players
     if (isPlayerLoadout) {
-        // Validar quantidade máxima individual
+        // Validar quantidade máxima individual usando o objeto original do banco
         if (explosive.max_quantity && qty > explosive.max_quantity) {
             showAlert('danger', `Quantidade máxima permitida para este explosive é ${explosive.max_quantity}`);
             return;
@@ -2895,6 +2900,7 @@ function selectExplosiveForLoadout(explosiveId) {
             width: explosive.width,
             height: explosive.height,
             quantity: qty,
+            img: explosive.img || null,
             max_quantity: explosive.max_quantity || null
         });
     }
@@ -2962,28 +2968,35 @@ function editExplosiveQuantity(explosiveId) {
     const explosive = selectedExplosives.find(e => e.id === explosiveId);
     if (!explosive) return false;
     
+    // Buscar o objeto original do banco para obter max_quantity correto
+    const explosiveOriginal = explosivesDataLoadout.find(e => e.id === explosiveId);
+    if (!explosiveOriginal) return false;
+    
     const loadoutType = $('#loadoutType').val() || 'custom';
     const isPlayerLoadout = loadoutType === 'player';
     
     // Calcular quantidade total atual de explosivos (para validação de limite global)
-    const currentTotal = selectedExplosives.reduce((sum, exp) => sum + (exp.quantity || 1), 0);
-    const currentForThisExplosive = explosive.quantity || 1;
+    // Usar quantity || 0 para contar apenas explosivos com quantidade definida
+    const currentTotal = selectedExplosives.reduce((sum, exp) => sum + (exp.quantity || 0), 0);
+    const currentForThisExplosive = explosive.quantity || 0;
     
     let promptMessage = `Quantidade de "${explosive.name}":`;
     if (isPlayerLoadout) {
-        const maxQty = explosive.max_quantity;
+        // Usar max_quantity do objeto original do banco
+        const maxQty = explosiveOriginal.max_quantity;
         const globalLimit = window.explosivesGlobalLimit || 0;
         
         if (maxQty) {
             promptMessage += `\n(Máximo: ${maxQty})`;
         }
         if (globalLimit > 0) {
+            const totalWithoutThis = currentTotal - currentForThisExplosive;
             promptMessage += `\n(Limite global total: ${globalLimit})`;
-            promptMessage += `\n(Total atual: ${currentTotal - currentForThisExplosive})`;
+            promptMessage += `\n(Total atual: ${totalWithoutThis})`;
         }
     }
     
-    const newQuantity = prompt(promptMessage, explosive.quantity);
+    const newQuantity = prompt(promptMessage, explosive.quantity || 1);
     if (newQuantity === null) {
         // Cancelado pelo usuário - não fazer nada
         return false;
@@ -2993,9 +3006,9 @@ function editExplosiveQuantity(explosiveId) {
     
     // Validações para loadouts de players
     if (isPlayerLoadout) {
-        // Validar quantidade máxima individual
-        if (explosive.max_quantity && qty > explosive.max_quantity) {
-            showAlert('danger', `Quantidade máxima permitida para este explosive é ${explosive.max_quantity}`);
+        // Validar quantidade máxima individual usando o objeto original do banco
+        if (explosiveOriginal.max_quantity && qty > explosiveOriginal.max_quantity) {
+            showAlert('danger', `Quantidade máxima permitida para este explosive é ${explosiveOriginal.max_quantity}`);
             return false;
         }
         
@@ -3011,6 +3024,9 @@ function editExplosiveQuantity(explosiveId) {
     }
     
     explosive.quantity = qty;
+    // Atualizar max_quantity do objeto selecionado com o valor do banco (caso tenha mudado)
+    explosive.max_quantity = explosiveOriginal.max_quantity || null;
+    
     updateSelectedExplosivesDisplay();
     updateJSONPreview();
     markLoadoutChanged();
