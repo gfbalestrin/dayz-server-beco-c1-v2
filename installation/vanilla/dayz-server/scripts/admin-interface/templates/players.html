@@ -58,12 +58,13 @@
                     <th>Steam Name</th>
                     <th>Data/Tempo</th>
                     <th>Mapa</th>
+                    <th>Spawnar Itens</th>
                     <th>Ações</th>
                 </tr>
             </thead>
             <tbody id="playersTableBody">
                 <tr>
-                    <td colspan="7" class="text-center">
+                    <td colspan="8" class="text-center">
                         <i class="fas fa-spinner fa-spin"></i> Carregando...
                     </td>
                 </tr>
@@ -130,6 +131,35 @@
                     <i class="fas fa-copy me-2"></i>Copiar
                 </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmação de ação -->
+<div class="modal fade" id="actionConfirmationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="actionModalTitle">Confirmar Ação</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <span id="actionModalMessage"></span>
+                </div>
+                <div class="mt-3">
+                    <p class="mb-2"><strong>Jogador:</strong></p>
+                    <p class="h5 text-primary mb-2" id="actionModalPlayerName"></p>
+                    <p class="text-muted mb-0"><small>Player ID: <code id="actionModalPlayerId"></code></small></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="actionModalConfirmBtn">
+                    <i class="fas fa-check me-2"></i>Confirmar
+                </button>
             </div>
         </div>
     </div>

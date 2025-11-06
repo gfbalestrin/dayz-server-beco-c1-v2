@@ -77,17 +77,8 @@ function copyPlayerId(playerId) {
     });
 }
 
-// Função para executar ação administrativa
-function executeAction(playerId, action) {
-    const confirmMsg = {
-        'heal': 'Curar este jogador?',
-        'kill': 'MATAR este jogador?',
-        'kick': 'EXPULSAR este jogador?',
-        'desbug': 'Corrigir posição deste jogador?'
-    }[action] || 'Executar esta ação?';
-    
-    if (!confirm(confirmMsg)) return;
-    
+// Função para executar ação administrativa (versão interna)
+function executeActionInternal(playerId, action) {
     $.ajax({
         url: `/api/players/${encodeURIComponent(playerId)}/action`,
         method: 'POST',
@@ -103,10 +94,38 @@ function executeAction(playerId, action) {
     });
 }
 
-// Função para ativar God Mode
-function activateGodMode(playerId) {
-    if (!confirm('Ativar God Mode para este jogador?')) return;
+// Função para executar ação administrativa com confirmação
+function confirmExecuteAction(playerId, action, playerName) {
+    const player = playersData.find(p => p.PlayerID === playerId);
+    const displayName = player ? (player.PlayerName || 'Jogador desconhecido') : playerName;
     
+    const actionMessages = {
+        'heal': 'Deseja curar este jogador?',
+        'kill': 'ATENÇÃO: Deseja MATAR este jogador? Esta ação é irreversível!',
+        'kick': 'Deseja EXPULSAR este jogador do servidor?',
+        'desbug': 'Deseja corrigir a posição deste jogador?'
+    };
+    
+    const actionNames = {
+        'heal': 'Curar',
+        'kill': 'Matar',
+        'kick': 'Expulsar',
+        'desbug': 'Corrigir Posição'
+    };
+    
+    showActionConfirmationModal(
+        actionNames[action] || 'Executar Ação',
+        actionMessages[action] || 'Deseja executar esta ação?',
+        playerId,
+        displayName,
+        function() {
+            executeActionInternal(playerId, action);
+        }
+    );
+}
+
+// Função para ativar God Mode (versão interna)
+function activateGodModeInternal(playerId) {
     $.ajax({
         url: `/api/players/${encodeURIComponent(playerId)}/action`,
         method: 'POST',
@@ -122,10 +141,24 @@ function activateGodMode(playerId) {
     });
 }
 
-// Função para remover God Mode
-function deactivateGodMode(playerId) {
-    if (!confirm('Remover God Mode deste jogador?')) return;
+// Função para ativar God Mode com confirmação
+function confirmActivateGodMode(playerId, playerName) {
+    const player = playersData.find(p => p.PlayerID === playerId);
+    const displayName = player ? (player.PlayerName || 'Jogador desconhecido') : playerName;
     
+    showActionConfirmationModal(
+        'Ativar God Mode',
+        'Deseja ativar God Mode para este jogador?',
+        playerId,
+        displayName,
+        function() {
+            activateGodModeInternal(playerId);
+        }
+    );
+}
+
+// Função para remover God Mode (versão interna)
+function deactivateGodModeInternal(playerId) {
     $.ajax({
         url: `/api/players/${encodeURIComponent(playerId)}/action`,
         method: 'POST',
@@ -141,8 +174,24 @@ function deactivateGodMode(playerId) {
     });
 }
 
-// Função para toggle Stamina Infinita
-function toggleStamina(playerId) {
+// Função para remover God Mode com confirmação
+function confirmDeactivateGodMode(playerId, playerName) {
+    const player = playersData.find(p => p.PlayerID === playerId);
+    const displayName = player ? (player.PlayerName || 'Jogador desconhecido') : playerName;
+    
+    showActionConfirmationModal(
+        'Remover God Mode',
+        'Deseja remover God Mode deste jogador?',
+        playerId,
+        displayName,
+        function() {
+            deactivateGodModeInternal(playerId);
+        }
+    );
+}
+
+// Função para toggle Stamina Infinita (versão interna)
+function toggleStaminaInternal(playerId) {
     const isActive = staminaStatus[playerId] || false;
     const action = isActive ? 'stamina off' : 'stamina on';
     
@@ -162,6 +211,24 @@ function toggleStamina(playerId) {
     });
 }
 
+// Função para toggle Stamina Infinita com confirmação
+function confirmToggleStamina(playerId, playerName) {
+    const player = playersData.find(p => p.PlayerID === playerId);
+    const displayName = player ? (player.PlayerName || 'Jogador desconhecido') : playerName;
+    const isActive = staminaStatus[playerId] || false;
+    const actionText = isActive ? 'desativar' : 'ativar';
+    
+    showActionConfirmationModal(
+        'Stamina Infinita',
+        `Deseja ${actionText} Stamina Infinita para este jogador?`,
+        playerId,
+        displayName,
+        function() {
+            toggleStaminaInternal(playerId);
+        }
+    );
+}
+
 // Função para criar link de mapa
 function createMapLink(coordX, coordY) {
     if (!coordX || !coordY) return '<span class="text-muted">-</span>';
@@ -176,9 +243,69 @@ function createSteamLink(steamId, steamName) {
     return `<a href="${url}" target="_blank">${escapeHtml(steamName)}</a>`;
 }
 
-// Função para redirecionar para spawning
-function redirectToSpawning(playerId) {
-    window.location.href = `/spawning?player_id=${playerId}`;
+// Função para mostrar modal de confirmação de ação
+function showActionConfirmationModal(actionName, message, playerId, playerName, onConfirm) {
+    // Buscar dados completos do jogador para obter Steam Name
+    const player = playersData.find(p => p.PlayerID === playerId);
+    const displayPlayerName = player ? (player.PlayerName || 'Jogador desconhecido') : (playerName || 'Jogador desconhecido');
+    const steamName = player ? (player.SteamName || null) : null;
+    
+    // Formatar nome com Steam Name entre parênteses
+    let displayName = escapeHtml(displayPlayerName);
+    if (steamName) {
+        displayName += ` (${escapeHtml(steamName)})`;
+    }
+    
+    $('#actionModalTitle').text(`Confirmar ${actionName}`);
+    $('#actionModalMessage').text(message);
+    $('#actionModalPlayerName').html(displayName);
+    $('#actionModalPlayerId').text(playerId);
+    
+    // Remover handlers anteriores e adicionar novo
+    $('#actionModalConfirmBtn').off('click').on('click', function() {
+        $('#actionConfirmationModal').modal('hide');
+        if (onConfirm) {
+            onConfirm();
+        }
+    });
+    
+    $('#actionConfirmationModal').modal('show');
+}
+
+// Função para escapar aspas simples para uso em atributos JavaScript
+function escapeJsString(str) {
+    if (!str) return '';
+    return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+// Função para renderizar botão de spawnar
+function renderSpawnButton(player) {
+    if (!player.IsOnline || player.IsOnline === 0) {
+        return '<span class="text-muted">-</span>';
+    }
+    
+    const playerName = escapeJsString(player.PlayerName || 'Jogador');
+    return `
+        <button class="btn btn-primary btn-sm" onclick="confirmRedirectToSpawning('${player.PlayerID}', '${playerName}')" title="Spawnar Itens">
+            <i class="fas fa-magic"></i>
+        </button>
+    `;
+}
+
+// Função para redirecionar para spawning com confirmação
+function confirmRedirectToSpawning(playerId, playerName) {
+    const player = playersData.find(p => p.PlayerID === playerId);
+    const displayName = player ? (player.PlayerName || 'Jogador desconhecido') : playerName;
+    
+    showActionConfirmationModal(
+        'Spawnar Itens',
+        'Deseja abrir a página de spawning de itens para este jogador?',
+        playerId,
+        displayName,
+        function() {
+            window.location.href = `/spawning?player_id=${playerId}`;
+        }
+    );
 }
 
 // Função para renderizar ações
@@ -187,38 +314,37 @@ function renderActions(player) {
         return '<span class="text-muted">-</span>';
     }
     
+    const playerName = escapeJsString(player.PlayerName || 'Jogador');
+    
     // Verificar se o jogador já é administrador
     const isAdmin = adminIds.has(player.PlayerID);
     const addAdminButton = isAdmin ? '' : `
-        <button class="btn btn-outline-primary" onclick="addAdminFromPlayer('${player.PlayerID}')" title="Adicionar como Administrador">
+        <button class="btn btn-outline-primary" onclick="confirmAddAdminFromPlayer('${player.PlayerID}', '${playerName}')" title="Adicionar como Administrador">
             <i class="fas fa-user-shield"></i>
         </button>
     `;
     
     return `
         <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-primary" onclick="redirectToSpawning('${player.PlayerID}')" title="Spawnar Itens">
-                <i class="fas fa-magic"></i>
-            </button>
-            <button class="btn btn-success" onclick="executeAction('${player.PlayerID}', 'heal')" title="Curar">
+            <button class="btn btn-success" onclick="confirmExecuteAction('${player.PlayerID}', 'heal', '${playerName}')" title="Curar">
                 <i class="fas fa-heart"></i>
             </button>
-            <button class="btn btn-warning" onclick="activateGodMode('${player.PlayerID}')" title="Ativar God Mode">
+            <button class="btn btn-warning" onclick="confirmActivateGodMode('${player.PlayerID}', '${playerName}')" title="Ativar God Mode">
                 <i class="fas fa-shield-alt"></i>
             </button>
-            <button class="btn btn-secondary" onclick="deactivateGodMode('${player.PlayerID}')" title="Remover God Mode">
+            <button class="btn btn-secondary" onclick="confirmDeactivateGodMode('${player.PlayerID}', '${playerName}')" title="Remover God Mode">
                 <i class="fas fa-shield"></i>
             </button>
-            <button class="btn btn-info" onclick="toggleStamina('${player.PlayerID}')" title="Stamina Infinita">
+            <button class="btn btn-info" onclick="confirmToggleStamina('${player.PlayerID}', '${playerName}')" title="Stamina Infinita">
                 <i class="fas fa-bolt"></i>
             </button>
-            <button class="btn btn-danger" onclick="executeAction('${player.PlayerID}', 'kill')" title="Matar">
+            <button class="btn btn-danger" onclick="confirmExecuteAction('${player.PlayerID}', 'kill', '${playerName}')" title="Matar">
                 <i class="fas fa-skull"></i>
             </button>
-            <button class="btn btn-secondary" onclick="executeAction('${player.PlayerID}', 'kick')" title="Kickar">
+            <button class="btn btn-secondary" onclick="confirmExecuteAction('${player.PlayerID}', 'kick', '${playerName}')" title="Kickar">
                 <i class="fas fa-sign-out-alt"></i>
             </button>
-            <button class="btn btn-info" onclick="executeAction('${player.PlayerID}', 'desbug')" title="Desbug">
+            <button class="btn btn-info" onclick="confirmExecuteAction('${player.PlayerID}', 'desbug', '${playerName}')" title="Desbug">
                 <i class="fas fa-wrench"></i>
             </button>
             ${addAdminButton}
@@ -401,7 +527,7 @@ function renderPlayersTable() {
     tbody.empty();
     
     if (filteredData.length === 0) {
-        tbody.append('<tr><td colspan="7" class="text-center">Nenhum jogador encontrado</td></tr>');
+        tbody.append('<tr><td colspan="8" class="text-center">Nenhum jogador encontrado</td></tr>');
     } else {
         // Renderizar cada jogador
         filteredData.forEach(player => {
@@ -413,6 +539,7 @@ function renderPlayersTable() {
                     <td>${createSteamLink(player.SteamID, player.SteamName)}</td>
                     <td>${renderDateTime(player)}</td>
                     <td>${createMapViewLink(player.PlayerID)}</td>
+                    <td>${renderSpawnButton(player)}</td>
                     <td>${renderActions(player)}</td>
                 </tr>
             `;
@@ -430,7 +557,7 @@ function renderPlayersTable() {
         pageLength: 25,
         responsive: true,
         columnDefs: [
-            { orderable: false, targets: [1, 5, 6] } // Player ID, Mapa e Ações não são ordenáveis
+            { orderable: false, targets: [1, 5, 6, 7] } // Player ID, Mapa, Spawnar Itens e Ações não são ordenáveis
         ]
     });
     console.log('[renderPlayersTable] DataTable recriada com sucesso');
@@ -494,13 +621,13 @@ $(document).ready(function() {
     
     // Tornar funções globais para uso nos botões inline
     window.copyPlayerId = copyPlayerId;
-    window.executeAction = executeAction;
-    window.activateGodMode = activateGodMode;
-    window.deactivateGodMode = deactivateGodMode;
-    window.toggleStamina = toggleStamina;
-    window.redirectToSpawning = redirectToSpawning;
+    window.confirmExecuteAction = confirmExecuteAction;
+    window.confirmActivateGodMode = confirmActivateGodMode;
+    window.confirmDeactivateGodMode = confirmDeactivateGodMode;
+    window.confirmToggleStamina = confirmToggleStamina;
+    window.confirmRedirectToSpawning = confirmRedirectToSpawning;
     window.removeAdmin = removeAdmin;
-    window.addAdminFromPlayer = addAdminFromPlayer;
+    window.confirmAddAdminFromPlayer = confirmAddAdminFromPlayer;
     
     // Limpar intervalos ao sair da página
     $(window).on('beforeunload', function() {
@@ -568,7 +695,11 @@ function updatePlayersTableActions() {
                     const player = filteredData.find(p => p.PlayerID === playerId);
                     
                     if (player) {
-                        const actionCell = $(rowNode).find('td').eq(6);
+                        const spawnCell = $(rowNode).find('td').eq(6);
+                        const actionCell = $(rowNode).find('td').eq(7);
+                        if (spawnCell.length > 0) {
+                            spawnCell.html(renderSpawnButton(player));
+                        }
                         if (actionCell.length > 0) {
                             actionCell.html(renderActions(player));
                         }
@@ -671,14 +802,10 @@ function renderAdminsTable() {
     });
 }
 
-// Função para adicionar administrador a partir da lista de jogadores
-function addAdminFromPlayer(playerId) {
+// Função para adicionar administrador a partir da lista de jogadores (versão interna)
+function addAdminFromPlayerInternal(playerId) {
     if (!playerId || !playerId.trim()) {
         showToast('Erro', 'Player ID é obrigatório', 'error');
-        return;
-    }
-    
-    if (!confirm('Tem certeza que deseja adicionar este jogador como administrador?')) {
         return;
     }
     
@@ -703,6 +830,22 @@ function addAdminFromPlayer(playerId) {
             showToast('Erro', error.message || 'Erro ao adicionar administrador', 'error');
         }
     });
+}
+
+// Função para adicionar administrador com confirmação
+function confirmAddAdminFromPlayer(playerId, playerName) {
+    const player = playersData.find(p => p.PlayerID === playerId);
+    const displayName = player ? (player.PlayerName || 'Jogador desconhecido') : playerName;
+    
+    showActionConfirmationModal(
+        'Adicionar Administrador',
+        'Deseja adicionar este jogador como administrador?',
+        playerId,
+        displayName,
+        function() {
+            addAdminFromPlayerInternal(playerId);
+        }
+    );
 }
 
 // Função para remover administrador
