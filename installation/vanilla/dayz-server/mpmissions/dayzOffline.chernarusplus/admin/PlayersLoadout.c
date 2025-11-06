@@ -33,10 +33,26 @@ bool GiveCustomLoadout(PlayerBase player, string playerId)
 
     WriteToLog("Iniciando custom loadout para player " + playerId, LogFile.INIT, false, LogType.INFO);
 
-    // Itens extras
+    // Itens extras - priorizar itens com storage
     if (data.items) {
-        foreach (LoadoutItem li : data.items) {
-            CreateItemWithSubitems(null, li, player);
+        array<ref LoadoutItem> itemsWithStorage;
+        array<ref LoadoutItem> itemsWithoutStorage;
+        SeparateItemsByStorage(data.items, itemsWithStorage, itemsWithoutStorage);
+        
+        // Criar primeiro itens com storage (mochilas, etc)
+        if (itemsWithStorage) {
+            WriteToLog("Criando itens com storage primeiro...", LogFile.INIT, false, LogType.INFO);
+            foreach (LoadoutItem li : itemsWithStorage) {
+                CreateItemWithSubitems(null, li, player);
+            }
+        }
+        
+        // Depois criar itens sem storage
+        if (itemsWithoutStorage) {
+            WriteToLog("Criando itens sem storage...", LogFile.INIT, false, LogType.INFO);
+            foreach (LoadoutItem li : itemsWithoutStorage) {
+                CreateItemWithSubitems(null, li, player);
+            }
         }
     }
 
@@ -259,6 +275,20 @@ void HandleWeaponData(WeaponData weaponData, PlayerBase player, int quickBarSlot
 
 }
 
+void SeparateItemsByStorage(array<ref LoadoutItem> items, out array<ref LoadoutItem> itemsWithStorage, out array<ref LoadoutItem> itemsWithoutStorage)
+{
+    itemsWithStorage = new array<ref LoadoutItem>();
+    itemsWithoutStorage = new array<ref LoadoutItem>();
+    
+    foreach (LoadoutItem item : items) {
+        if (item && item.storage_slots > 0) {
+            itemsWithStorage.Insert(item);
+        } else if (item) {
+            itemsWithoutStorage.Insert(item);
+        }
+    }
+}
+
 EntityAI CreateItemWithSubitems(EntityAI parent, LoadoutItem itemData, PlayerBase player)
 {
     EntityAI item;
@@ -339,8 +369,23 @@ bool GiveDefaultDeathmatchLoadout(PlayerBase player, string playerId)
 
     if (data.items)
     {
-        foreach (ref LoadoutItem li : data.items)
-            CreateItemWithSubitems(null, li, player);
+        array<ref LoadoutItem> itemsWithStorage;
+        array<ref LoadoutItem> itemsWithoutStorage;
+        SeparateItemsByStorage(data.items, itemsWithStorage, itemsWithoutStorage);
+        
+        // Criar primeiro itens com storage (mochilas, etc)
+        if (itemsWithStorage) {
+            WriteToLog("Criando itens com storage primeiro...", LogFile.INIT, false, LogType.INFO);
+            foreach (ref LoadoutItem li : itemsWithStorage)
+                CreateItemWithSubitems(null, li, player);
+        }
+        
+        // Depois criar itens sem storage
+        if (itemsWithoutStorage) {
+            WriteToLog("Criando itens sem storage...", LogFile.INIT, false, LogType.INFO);
+            foreach (ref LoadoutItem li : itemsWithoutStorage)
+                CreateItemWithSubitems(null, li, player);
+        }
     }
 
     HandleWeaponLoadout(data.weapons, player, playerId);
@@ -415,10 +460,26 @@ bool GiveAdminLoadout(PlayerBase player, string playerId)
 
     WriteToLog("Iniciando loadout admin para player " + playerId, LogFile.INIT, false, LogType.INFO);
 
-    // Itens extras
+    // Itens extras - priorizar itens com storage
     if (data.items) {
-        foreach (LoadoutItem li : data.items) {
-            CreateItemWithSubitems(null, li, player);
+        array<ref LoadoutItem> itemsWithStorage;
+        array<ref LoadoutItem> itemsWithoutStorage;
+        SeparateItemsByStorage(data.items, itemsWithStorage, itemsWithoutStorage);
+        
+        // Criar primeiro itens com storage (mochilas, etc)
+        if (itemsWithStorage) {
+            WriteToLog("Criando itens com storage primeiro...", LogFile.INIT, false, LogType.INFO);
+            foreach (LoadoutItem li : itemsWithStorage) {
+                CreateItemWithSubitems(null, li, player);
+            }
+        }
+        
+        // Depois criar itens sem storage
+        if (itemsWithoutStorage) {
+            WriteToLog("Criando itens sem storage...", LogFile.INIT, false, LogType.INFO);
+            foreach (LoadoutItem li : itemsWithoutStorage) {
+                CreateItemWithSubitems(null, li, player);
+            }
         }
     }
 
