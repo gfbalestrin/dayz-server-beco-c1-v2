@@ -1485,6 +1485,11 @@ class CustomMission: MissionServer
 		// ============================================================================
 		else if (eventTypeId == ClientNewEventTypeID)
 		{
+			if (IsDeathmatchEnabled)
+			{
+				return;
+			}
+			
 			WriteToLog("EVENT: ClientNewEventTypeID - Novo jogador entrando pela primeira vez", LogFile.INIT, false, LogType.INFO);
 			ClientNewEventParams newParams = ClientNewEventParams.Cast(params);
 			if (!newParams) {
