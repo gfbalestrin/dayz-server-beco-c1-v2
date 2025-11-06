@@ -60,7 +60,6 @@ void InitializeVestGrenadeSlots()
 
     // Granadas padrão a tentar inserir (sem nomes de slots)
     DEFAULT_GRENADE_TYPES.Insert("FlashGrenade");
-    DEFAULT_GRENADE_TYPES.Insert("Grenade_ChemGas");
     DEFAULT_GRENADE_TYPES.Insert("M18SmokeGrenade_Green");
     DEFAULT_GRENADE_TYPES.Insert("M18SmokeGrenade_Purple");
     DEFAULT_GRENADE_TYPES.Insert("M18SmokeGrenade_Red");
