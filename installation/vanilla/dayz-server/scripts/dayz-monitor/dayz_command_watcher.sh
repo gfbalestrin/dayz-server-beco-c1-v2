@@ -206,11 +206,12 @@ tail -F "$COMMAND_FILE" | while read -r line; do
         player_disconnected)     
             PlayerId=$(echo "$line" | jq -r '.player_id')
             echo "Evento de player desconectado detectado!" 
-            INSERT_CUSTOM_LOG "Evento de player desconectado detectado!" "INFO" "$ScriptName"
-            if [[ "$DayzDeathmatch" -eq "1" ]]; then
-                sqlite3 "$DayzServerFolder/$DayzPlayerDbFile" "UPDATE Players set Alive = 0 where UID = '$PlayerId';"
-            fi            
+            INSERT_CUSTOM_LOG "Evento de player desconectado detectado!" "INFO" "$ScriptName"                     
             "$AppFolder/$AppScriptUpdatePlayersOnlineFile" "$PlayerId" "DISCONNECT"
+            if [[ "$DayzDeathmatch" -eq "1" ]]; then
+                sleep 3
+                sqlite3 "$DayzServerFolder/$DayzPlayerDbFile" "UPDATE Players set Alive = 0 where UID = '$PlayerId';"
+            fi   
             ;;
         event_restarting)     
             NextMap=$(echo "$line" | jq -r '.next_map')
