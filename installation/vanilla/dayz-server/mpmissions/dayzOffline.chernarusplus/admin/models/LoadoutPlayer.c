@@ -13,6 +13,7 @@ class WeaponAttachment {
     int width;
     int height;
     bool battery;
+    int quantity;
 }
 
 class WeaponMagazine {
@@ -21,6 +22,7 @@ class WeaponMagazine {
     int slots;
     int width;
     int height;
+    int quantity;
 }
 
 class WeaponAmmunition {
@@ -28,6 +30,7 @@ class WeaponAmmunition {
     int slots;
     int width;
     int height;
+    int quantity;
 }
 
 class WeaponData {
@@ -58,6 +61,7 @@ class LoadoutItem {
     int storage_height;
     string localization;
     ref array<ref LoadoutItem> subitems;
+    int quantity;
 }
 
 class LoadoutData {
