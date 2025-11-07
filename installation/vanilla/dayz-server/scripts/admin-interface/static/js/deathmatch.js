@@ -188,8 +188,6 @@ function dmDrawConfig(cfg) {
   } else {
     $('#dmToggleDeletedBtn').removeClass('btn-outline-success').addClass('btn-outline-secondary').html('<i class="fas fa-ban me-1"></i>Marcar como Excluído');
   }
-  // Desabilitar "Tornar Ativo" se excluído ou inválido
-  $('#dmSetActiveBtn').prop('disabled', cfg.isDeleted || isInvalid).attr('title', (cfg.isDeleted ? 'Mapa excluído' : (isInvalid ? 'Mapa inválido: adicione pelo menos 1 Spawn e 3 WallZones' : '')));
   $('#dmSetNextBtn').prop('disabled', cfg.isDeleted || isInvalid).attr('title', (cfg.isDeleted ? 'Mapa excluído' : (isInvalid ? 'Mapa inválido: adicione pelo menos 1 Spawn e 3 WallZones' : '')));
 }
 
@@ -320,7 +318,6 @@ $(document).ready(function() {
   $('#dmOpenSpawnEditorBtn').on('click', function(){ dmOpenEditor('spawn'); });
   $('#dmOpenWallEditorBtn').on('click', function(){ dmOpenEditor('wall'); });
   $('#dmMetaSaveBtn').on('click', dmSaveMeta);
-  $('#dmSetActiveBtn').on('click', dmSetActive);
   $('#dmSetNextBtn').on('click', dmSetNext);
   $('#dmToggleDeletedBtn').on('click', dmToggleDeleted);
   // Abertura do modal é via data-bs-* no botão
@@ -501,14 +498,6 @@ function dmSaveMeta(){
   const region = $('#dmMetaRegion').val();
   const customMessage = $('#dmMetaCustomMessage').val();
   $.ajax({ url: '/api/deathmatch/map/update-meta', method: 'PATCH', contentType: 'application/json', data: JSON.stringify({ regionId: dmCurrentRegionId(), region, customMessage }) })
-    .done(()=>{ dmLoadMaps(); dmLoad(); })
-    .fail(dmApiError);
-}
-
-function dmSetActive(){
-  const regionId = dmCurrentRegionId();
-  if (!regionId) { alert('Selecione um mapa'); return; }
-  $.ajax({ url: '/api/deathmatch/map/set-active', method: 'POST', contentType: 'application/json', data: JSON.stringify({ regionId }) })
     .done(()=>{ dmLoadMaps(); dmLoad(); })
     .fail(dmApiError);
 }

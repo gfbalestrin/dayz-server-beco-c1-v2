@@ -1,4 +1,4 @@
-int GetNextAvailableMapIndex(ref array<ref SafeZoneData> zones, int startIndex)
+int GetNextAvailableMapIndex(array<ref SafeZoneData> zones, int startIndex)
 {
 	if (!zones)
 		return -1;

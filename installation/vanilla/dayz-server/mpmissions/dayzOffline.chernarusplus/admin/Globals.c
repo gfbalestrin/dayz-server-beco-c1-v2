@@ -20,6 +20,7 @@ enum MessageColor
 enum LogType
 {
     DEBUG,
+    WARNING,
     ERROR,
     INFO
 }
