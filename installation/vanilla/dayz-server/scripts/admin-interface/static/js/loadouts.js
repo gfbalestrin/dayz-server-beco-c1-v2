@@ -39,6 +39,40 @@ let cacheLoadPromises = {
 };
 
 // ============================================================================
+// FUNÇÕES DE VALIDAÇÃO E SANITIZAÇÃO
+// ============================================================================
+
+/**
+ * Sanitiza o nome do loadout para permitir apenas letras minúsculas, números e hífen
+ * Substitui espaços por hífen e remove caracteres inválidos
+ * @param {string} value - Valor a ser sanitizado
+ * @param {boolean} removeLeadingTrailing - Se true, remove hífens no início e no fim (padrão: false para digitação em tempo real)
+ * @returns {string} - Valor sanitizado
+ */
+function sanitizeLoadoutName(value, removeLeadingTrailing = false) {
+    if (!value) return '';
+    
+    // Converter para minúsculas
+    let sanitized = value.toLowerCase();
+    
+    // Substituir espaços (um ou mais) por um único hífen
+    sanitized = sanitized.replace(/\s+/g, '-');
+    
+    // Remover caracteres inválidos (manter apenas letras minúsculas, números e hífen)
+    sanitized = sanitized.replace(/[^a-z0-9-]/g, '');
+    
+    // Remover hífens múltiplos consecutivos
+    sanitized = sanitized.replace(/-+/g, '-');
+    
+    // Remover hífens no início e no fim apenas se solicitado (normalmente apenas ao salvar)
+    if (removeLeadingTrailing) {
+        sanitized = sanitized.replace(/^-+|-+$/g, '');
+    }
+    
+    return sanitized;
+}
+
+// ============================================================================
 // INICIALIZAÇÃO
 // ============================================================================
 
@@ -90,7 +124,34 @@ $(document).ready(function() {
         // Detectar alterações nos campos básicos conforme tipo
         if (loadoutType === 'player') {
             $('#playerLoadoutId').on('input change', markLoadoutChanged);
-            $('#playerLoadoutName').on('input change', markLoadoutChanged);
+            // Aplicar sanitização em tempo real no nome do loadout
+            $('#playerLoadoutName').on('input', function() {
+                const $this = $(this);
+                const input = this;
+                const cursorPosition = input.selectionStart;
+                const originalValue = $this.val();
+                const sanitized = sanitizeLoadoutName(originalValue);
+                
+                if (originalValue !== sanitized) {
+                    // Calcular nova posição do cursor
+                    // Se o caractere digitado foi removido/substituído, ajustar posição
+                    let newCursorPosition = cursorPosition;
+                    const beforeCursor = originalValue.substring(0, cursorPosition);
+                    const afterCursor = originalValue.substring(cursorPosition);
+                    const sanitizedBefore = sanitizeLoadoutName(beforeCursor);
+                    const sanitizedAfter = sanitizeLoadoutName(afterCursor);
+                    newCursorPosition = sanitizedBefore.length;
+                    
+                    $this.val(sanitized);
+                    
+                    // Usar setTimeout para garantir que o DOM seja atualizado antes de reposicionar o cursor
+                    setTimeout(function() {
+                        input.setSelectionRange(newCursorPosition, newCursorPosition);
+                    }, 0);
+                }
+                markLoadoutChanged();
+            });
+            $('#playerLoadoutName').on('change', markLoadoutChanged);
             $('#playerLoadoutActive').on('change', markLoadoutChanged);
             $('#playerLoadoutData').on('input', function() {
                 if (loadoutMode === 'json') {
@@ -101,7 +162,34 @@ $(document).ready(function() {
             $('#btnValidatePlayerJSON').on('click', () => validateJSON('player'));
             $('#btnFormatPlayerJSON').on('click', () => formatJSON('player'));
         } else {
-            $('#customLoadoutName').on('input change', markLoadoutChanged);
+            // Aplicar sanitização em tempo real no nome do loadout
+            $('#customLoadoutName').on('input', function() {
+                const $this = $(this);
+                const input = this;
+                const cursorPosition = input.selectionStart;
+                const originalValue = $this.val();
+                const sanitized = sanitizeLoadoutName(originalValue);
+                
+                if (originalValue !== sanitized) {
+                    // Calcular nova posição do cursor
+                    // Se o caractere digitado foi removido/substituído, ajustar posição
+                    let newCursorPosition = cursorPosition;
+                    const beforeCursor = originalValue.substring(0, cursorPosition);
+                    const afterCursor = originalValue.substring(cursorPosition);
+                    const sanitizedBefore = sanitizeLoadoutName(beforeCursor);
+                    const sanitizedAfter = sanitizeLoadoutName(afterCursor);
+                    newCursorPosition = sanitizedBefore.length;
+                    
+                    $this.val(sanitized);
+                    
+                    // Usar setTimeout para garantir que o DOM seja atualizado antes de reposicionar o cursor
+                    setTimeout(function() {
+                        input.setSelectionRange(newCursorPosition, newCursorPosition);
+                    }, 0);
+                }
+                markLoadoutChanged();
+            });
+            $('#customLoadoutName').on('change', markLoadoutChanged);
             $('#customLoadoutActive').on('change', markLoadoutChanged);
             $('#customLoadoutData').on('input', function() {
                 if (loadoutMode === 'json') {
@@ -257,7 +345,7 @@ $(document).ready(function() {
 // ============================================================================
 
 function activateTabFromHash() {
-    // Ler hash da URL (ex: #players-tab ou #custom-tab)
+    // Ler hash da URL (ex: #players-tab ou #players-tab?player_id=...)
     const hash = window.location.hash;
     
     // Se não houver hash, manter comportamento padrão (custom-tab ativa)
@@ -266,7 +354,30 @@ function activateTabFromHash() {
     }
     
     // Remover o # do hash
-    const tabId = hash.substring(1); // Remove o primeiro caractere (#)
+    let hashContent = hash.substring(1); // Remove o primeiro caractere (#)
+    
+    // Separar o tabId do player_id se houver query string no hash
+    let tabId = hashContent;
+    let playerId = null;
+    
+    // Verificar se há query string no hash (ex: #players-tab?player_id=...)
+    if (hashContent.includes('?')) {
+        const parts = hashContent.split('?');
+        tabId = parts[0];
+        
+        // Processar query string do hash
+        const hashQueryString = parts[1];
+        if (hashQueryString) {
+            const hashParams = new URLSearchParams(hashQueryString);
+            playerId = hashParams.get('player_id');
+        }
+    }
+    
+    // Também verificar query string da URL (para compatibilidade)
+    if (!playerId) {
+        const urlParams = new URLSearchParams(window.location.search);
+        playerId = urlParams.get('player_id');
+    }
     
     // Validar que o hash corresponde a uma aba válida
     const validTabs = ['custom-tab', 'players-tab'];
@@ -284,11 +395,7 @@ function activateTabFromHash() {
     const tab = bootstrap.Tab.getOrCreateInstance(tabLink[0]);
     tab.show();
     
-    // Processar query strings da URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const playerId = urlParams.get('player_id');
-    
-    // Se houver player_id na query string e estiver na aba players-tab
+    // Se houver player_id e estiver na aba players-tab
     if (playerId && tabId === 'players-tab') {
         // Função para selecionar o jogador após os jogadores serem carregados
         const selectPlayer = function() {
@@ -1231,9 +1338,29 @@ function loadPlayers() {
                 });
                 
                 // Após carregar os jogadores, verificar se há player_id na URL para selecionar automaticamente
-                const urlParams = new URLSearchParams(window.location.search);
-                const playerId = urlParams.get('player_id');
-                if (playerId && window.location.hash === '#players-tab') {
+                let playerId = null;
+                
+                // Verificar query string do hash primeiro (ex: #players-tab?player_id=...)
+                const hash = window.location.hash;
+                if (hash && hash.includes('?')) {
+                    const hashContent = hash.substring(1);
+                    const parts = hashContent.split('?');
+                    if (parts.length > 1) {
+                        const hashParams = new URLSearchParams(parts[1]);
+                        playerId = hashParams.get('player_id');
+                    }
+                }
+                
+                // Se não encontrou no hash, verificar query string da URL
+                if (!playerId) {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    playerId = urlParams.get('player_id');
+                }
+                
+                // Verificar se está na aba players-tab
+                const isPlayersTab = hash && (hash.startsWith('#players-tab') || hash === '#players-tab');
+                
+                if (playerId && isPlayersTab) {
                     // Verificar se o player_id existe nas opções
                     if (select.find(`option[value="${playerId}"]`).length > 0) {
                         select.val(playerId);
@@ -1353,9 +1480,12 @@ function savePlayerLoadout() {
     const dbId = $('#playerLoadoutDbId').val();
     const playerId = $('#playerLoadoutPlayerId').val();
     const loadoutId = parseInt($('#playerLoadoutId').val());
-    const name = $('#playerLoadoutName').val();
+    let name = sanitizeLoadoutName($('#playerLoadoutName').val(), true); // true = remover hífens no início/fim ao salvar
     const isActive = $('#playerLoadoutActive').val() === 'true';
     let loadoutData;
+    
+    // Atualizar o campo com o valor sanitizado
+    $('#playerLoadoutName').val(name);
     
     try {
         loadoutData = JSON.parse($('#playerLoadoutData').val());
@@ -5945,8 +6075,11 @@ function saveCustomLoadout() {
         const playerId = $('#playerLoadoutPlayerId').val();
         const loadoutId = parseInt($('#playerLoadoutId').val());
         const dbLoadoutId = $('#playerLoadoutLoadoutId').val();
-        name = $('#playerLoadoutName').val();
+        name = sanitizeLoadoutName($('#playerLoadoutName').val(), true); // true = remover hífens no início/fim ao salvar
         isActive = $('#playerLoadoutActive').val() === 'true';
+        
+        // Atualizar o campo com o valor sanitizado
+        $('#playerLoadoutName').val(name);
         
         if (!playerId || !name) {
             showAlert('danger', 'Player ID e nome são obrigatórios');
@@ -5967,8 +6100,11 @@ function saveCustomLoadout() {
     } else {
         // Custom loadout
         id = $('#customLoadoutId').val();
-        name = $('#customLoadoutName').val();
+        name = sanitizeLoadoutName($('#customLoadoutName').val(), true); // true = remover hífens no início/fim ao salvar
         isActive = $('#customLoadoutActive').val() === 'true';
+        
+        // Atualizar o campo com o valor sanitizado
+        $('#customLoadoutName').val(name);
         
         if (!name) {
             showAlert('danger', 'Nome é obrigatório');

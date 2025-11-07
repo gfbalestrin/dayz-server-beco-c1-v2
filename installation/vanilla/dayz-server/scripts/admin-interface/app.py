@@ -6,6 +6,7 @@ from functools import wraps
 import config
 import json
 import os
+import re
 from packing_algorithm import can_fit_items_in_container, pack_items_ffdh
 from database import (
     get_all_players, get_player_coords, get_player_coords_backup,
@@ -3103,6 +3104,49 @@ def loadout_player_edit(player_id, loadout_id):
     return render_template('loadout_edit.html', loadout_id=loadout_id, is_edit=True, loadout_type='player', player_id=player_id)
 
 # ============================================================================
+# FUNÇÕES AUXILIARES - LOADOUTS
+# ============================================================================
+
+def sanitize_loadout_name(name):
+    """
+    Sanitiza o nome do loadout para permitir apenas letras minúsculas, números e hífen.
+    Substitui espaços por hífen e remove caracteres inválidos.
+    
+    Args:
+        name: Nome do loadout a ser sanitizado
+        
+    Returns:
+        str: Nome sanitizado ou None se estiver vazio após sanitização
+    """
+    if not name:
+        return None
+    
+    # Converter para minúsculas
+    sanitized = name.lower()
+    
+    # Substituir espaços (um ou mais) por um único hífen
+    sanitized = re.sub(r'\s+', '-', sanitized)
+    
+    # Remover caracteres inválidos (manter apenas letras minúsculas, números e hífen)
+    sanitized = re.sub(r'[^a-z0-9-]', '', sanitized)
+    
+    # Remover hífens múltiplos consecutivos
+    sanitized = re.sub(r'-+', '-', sanitized)
+    
+    # Remover hífens no início e no fim
+    sanitized = sanitized.strip('-')
+    
+    # Validar se está vazio após sanitização
+    if not sanitized:
+        return None
+    
+    # Validar formato final (apenas letras minúsculas, números e hífen)
+    if not re.match(r'^[a-z0-9-]+$', sanitized):
+        return None
+    
+    return sanitized
+
+# ============================================================================
 # API - LOADOUTS CUSTOM
 # ============================================================================
 
@@ -3142,6 +3186,11 @@ def api_loadouts_custom_create():
         if not name or not loadout_data:
             return jsonify({'success': False, 'message': 'Nome e dados do loadout são obrigatórios'}), 400
         
+        # Sanitizar e validar nome do loadout
+        name = sanitize_loadout_name(name)
+        if not name:
+            return jsonify({'success': False, 'message': 'Nome do loadout inválido. Use apenas letras minúsculas, números e hífen.'}), 400
+        
         loadout_id = create_loadout_custom(name, is_active, loadout_data)
         if not loadout_id:
             return jsonify({'success': False, 'message': 'Erro ao criar loadout'}), 500
@@ -3175,6 +3224,11 @@ def api_loadouts_custom_update(loadout_id):
         
         if not name or not loadout_data:
             return jsonify({'success': False, 'message': 'Nome e dados do loadout são obrigatórios'}), 400
+        
+        # Sanitizar e validar nome do loadout
+        name = sanitize_loadout_name(name)
+        if not name:
+            return jsonify({'success': False, 'message': 'Nome do loadout inválido. Use apenas letras minúsculas, números e hífen.'}), 400
         
         # Verificar se é loadout protegido tentando alterar nome ou status
         loadout = get_loadout_custom_by_id(loadout_id)
@@ -3292,6 +3346,11 @@ def api_loadouts_players_create(player_id):
         if not name or not loadout_data:
             return jsonify({'success': False, 'message': 'Nome e dados são obrigatórios'}), 400
         
+        # Sanitizar e validar nome do loadout
+        name = sanitize_loadout_name(name)
+        if not name:
+            return jsonify({'success': False, 'message': 'Nome do loadout inválido. Use apenas letras minúsculas, números e hífen.'}), 400
+        
         # Criar loadout (loadout_id será gerado automaticamente se None)
         db_id = create_loadout_player(player_id, loadout_id, name, is_active, loadout_data)
         if not db_id:
@@ -3333,6 +3392,11 @@ def api_loadouts_players_update(player_id, loadout_id):
         
         if not db_id or not name or not loadout_data:
             return jsonify({'success': False, 'message': 'ID do banco, nome e dados são obrigatórios'}), 400
+        
+        # Sanitizar e validar nome do loadout
+        name = sanitize_loadout_name(name)
+        if not name:
+            return jsonify({'success': False, 'message': 'Nome do loadout inválido. Use apenas letras minúsculas, números e hífen.'}), 400
         
         success = update_loadout_player(db_id, new_loadout_id, name, is_active, loadout_data)
         if not success:
