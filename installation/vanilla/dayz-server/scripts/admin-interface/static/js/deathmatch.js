@@ -268,7 +268,8 @@ function dmInitMap() {
 
 function dmLoadMaps() {
   const select = $('#dmRegionSelect');
-  $.get('/api/deathmatch/maps')
+  const request = $.get('/api/deathmatch/maps');
+  request
     .done(function(data) {
       const maps = data.maps || [];
       const currentValue = select.val();
@@ -288,19 +289,30 @@ function dmLoadMaps() {
         }
         select.append(opt);
       });
-      // Caso não haja ativo, mantém o primeiro selecionado
       if (currentValue && select.find(`option[value="${currentValue}"]`).length > 0) {
         select.val(String(currentValue));
       } else {
         const activeMap = maps.find(m => m.active);
         if (activeMap) {
           select.val(String(activeMap.regionId));
+        } else if (maps.length > 0 && !select.val()) {
+          select.val(String(maps[0].regionId));
         }
       }
     })
     .fail(function() {
       select.html('<option value="">Erro ao carregar mapas</option>');
     });
+  return request;
+}
+
+function dmReloadConfig(afterMapsLoaded) {
+  return dmLoadMaps().then(function(){
+    if (typeof afterMapsLoaded === 'function') {
+      afterMapsLoaded();
+    }
+    dmLoad();
+  });
 }
 
 $(document).ready(function() {
@@ -311,8 +323,7 @@ $(document).ready(function() {
   }
 
   dmInitMap();
-  dmLoadMaps();
-  dmLoad();
+  dmReloadConfig();
   $('#dmRefreshBtn').on('click', dmLoad);
   $('#dmRegionSelect').on('change', dmLoad);
   $('#dmOpenSpawnEditorBtn').on('click', function(){ dmOpenEditor('spawn'); });
@@ -498,7 +509,7 @@ function dmSaveMeta(){
   const region = $('#dmMetaRegion').val();
   const customMessage = $('#dmMetaCustomMessage').val();
   $.ajax({ url: '/api/deathmatch/map/update-meta', method: 'PATCH', contentType: 'application/json', data: JSON.stringify({ regionId: dmCurrentRegionId(), region, customMessage }) })
-    .done(()=>{ dmLoadMaps(); dmLoad(); })
+    .done(()=>{ dmReloadConfig(); })
     .fail(dmApiError);
 }
 
@@ -506,7 +517,7 @@ function dmSetNext(){
   const regionId = dmCurrentRegionId();
   if (!regionId) { alert('Selecione um mapa'); return; }
   $.ajax({ url: '/api/deathmatch/map/set-next', method: 'POST', contentType: 'application/json', data: JSON.stringify({ regionId }) })
-    .done(()=>{ dmLoadMaps(); dmLoad(); })
+    .done(()=>{ dmReloadConfig(); })
     .fail(dmApiError);
 }
 
@@ -515,7 +526,7 @@ function dmToggleDeleted(){
   const isRestore = $('#dmToggleDeletedBtn').text().toLowerCase().includes('reverter');
   const isDeleted = !isRestore;
   $.ajax({ url: '/api/deathmatch/map/set-deleted', method: 'POST', contentType: 'application/json', data: JSON.stringify({ regionId: dmCurrentRegionId(), isDeleted }) })
-    .done(()=>{ dmLoadMaps(); dmLoad(); })
+    .done(()=>{ dmReloadConfig(); })
     .fail(dmApiError);
 }
 
@@ -532,13 +543,11 @@ function dmCreateMap(){
       $('#dmCreateRegion').val('');
       $('#dmCreateCustomMessage').val('');
       // Recarregar lista e selecionar novo mapa
-      dmLoadMaps();
-      setTimeout(function(){
+      dmReloadConfig(function(){
         if (newId) {
           $('#dmRegionSelect').val(String(newId));
-          dmLoad();
         }
-      }, 200);
+      });
     })
     .fail(dmApiError)
     .always(function(){ $('#dmCreateMapBtn').prop('disabled', false).html('<i class="fas fa-save me-1"></i>Criar'); });
