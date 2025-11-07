@@ -40,12 +40,17 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
     if [[ "$Content" == *"hit by Player"* ]]; then
         DamageParsed=$("$AppFolder/$AppScriptGetPlayerDamageFile" "$Content")
         parser_rc=$?
-        echo "$DamageParsed"
-        INSERT_CUSTOM_LOG "$DamageParsed" "INFO" "$ScriptName"
         if [ $parser_rc -eq 0 ] && [[ -n "$DamageParsed" ]]; then
-            INSERT_CUSTOM_LOG "Inserindo informações de dano no banco de dados..." "INFO" "$ScriptName"
+            
 			PlayerIdVictim=$(echo "$DamageParsed" | cut -d"|" -f2)
             PlayerIdAttacker=$(echo "$DamageParsed" | cut -d"|" -f1)
+
+            if [[ "$PlayerIdVictim" == "$PlayerIdAttacker" ]]; then
+                INSERT_CUSTOM_LOG "Evento ignorado: PlayerIdVictim e PlayerIdAttacker são iguais ($PlayerIdAttacker)" "DEBUG" "$ScriptName"            
+                continue
+            fi
+
+            INSERT_CUSTOM_LOG "Inserindo informações de dano no banco de dados..." "INFO" "$ScriptName"
             
             PosAttacker=$(echo "$DamageParsed" | cut -d"|" -f3 | sed 's/, */,/g')
             PosVictim=$(echo "$DamageParsed" | cut -d"|" -f4 | sed 's/, */,/g')
@@ -171,12 +176,14 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
 		fi		
     # Evento de morte por player
     elif [[ "$Content" == *"killed by Player"* ]]; then
-        INSERT_CUSTOM_LOG "Evento de PVP detectado!" "INFO" "$ScriptName"
 
         # Extrai IDs dos jogadores (killer e killed) com regex aprimorada
         PlayerIdKilled=$(echo "$Content" | grep -oP 'id=\K[^ ]+' | sed -n '1p')
 		PlayerIdKiller=$(echo "$Content" | grep -oP 'id=\K[^ ]+' | sed -n '2p')
-
+		
+        if [[ "$PlayerIdKilled" != "$PlayerIdKiller" ]]; then
+            INSERT_CUSTOM_LOG "Evento de PVP detectado!" "INFO" "$ScriptName"
+        fi
         INSERT_CUSTOM_LOG "PlayerIdKiller: '$PlayerIdKiller', PlayerIdKilled: '$PlayerIdKilled'" "DEBUG" "$ScriptName"
 
         Weapon=$(echo "$Content" | grep -oP 'with \K\w+')
@@ -186,7 +193,9 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
         PostKilled=$(echo "$Content" | sed -n 's/.*pos=<\([^>]*\)>.*pos=<[^>]*>.*/\1/p' | sed 's/, */,/g')
         PosKiller=$(echo "$Content" | sed -n 's/.*pos=<[^>]*>.*pos=<\([^>]*\)>.*/\1/p' | sed 's/, */,/g')
         Data=$(date "+%Y-%m-%d %H:%M:%S")
-        INSERT_KILLFEED "$PlayerIdKiller" "$PlayerIdKilled" "$Weapon" "$metros" "$Data" "$PosKiller" "$PostKilled"
+        if [[ "$PlayerIdKilled" != "$PlayerIdKiller" ]]; then
+            INSERT_KILLFEED "$PlayerIdKiller" "$PlayerIdKilled" "$Weapon" "$metros" "$Data" "$PosKiller" "$PostKilled"
+        fi
 
         PlayerKiller=$(sqlite3 -separator "|" "$AppFolder/$AppPlayerBecoC1DbFile" "SELECT PlayerName, SteamID, SteamName FROM players_database WHERE PlayerID = '$PlayerIdKiller';")
         PlayerVictim=$(sqlite3 -separator "|" "$AppFolder/$AppPlayerBecoC1DbFile" "SELECT PlayerName, SteamID, SteamName FROM players_database WHERE PlayerID = '$PlayerIdKilled';")
@@ -202,7 +211,11 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
             PlayerKillerInfo="**$(sanitize_discord_markdown "$PlayerKillerName")** ([$(sanitize_discord_markdown "$KillerSteamName")](<https://steamcommunity.com/profiles/$KillerSteamID>))"
             PlayerVictimInfo="**$(sanitize_discord_markdown "$PlayerVictimName")** ([$(sanitize_discord_markdown "$VictimSteamName")](<https://steamcommunity.com/profiles/$VictimSteamID>))"
 
-            Content="💀 Jogador ${PlayerVictimInfo} foi executado por ${PlayerKillerInfo}. Arma: ${Weapon}, distância: ${metros} metros"
+            if [[ "$PlayerIdKilled" != "$PlayerIdKiller" ]]; then
+                Content="💀 Jogador ${PlayerVictimInfo} foi executado por ${PlayerKillerInfo}. Arma: ${Weapon}, distância: ${metros} metros"
+            else
+                Content="💀 Jogador ${PlayerVictimInfo} cometeu suicídio"
+            fi
 
             # Mensagem ingame
             echo "Jogador $PlayerKillerName eliminou $PlayerVictimName" >> "$DayzServerFolder/$DayzMessagesToSendoFile"
