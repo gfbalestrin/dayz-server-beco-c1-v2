@@ -394,6 +394,8 @@ bool ExecuteCommand(TStringArray tokens)
             break;
         case "maps":          
             foreach (ref SafeZoneData mapL : maps) {
+                if (mapL.IsDeleted)
+                    continue;
                 string linha = mapL.RegionId.ToString() + " - " + mapL.Region;                
                 SendPrivateMessage(playerID, linha, MessageColor.FRIENDLY);
             }
