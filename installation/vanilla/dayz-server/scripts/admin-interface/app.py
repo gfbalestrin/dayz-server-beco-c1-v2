@@ -213,6 +213,9 @@ def login():
                 session['must_change_password'] = True
                 return redirect(url_for('change_password_required'))
             
+            # Redirecionar conforme tipo de usuário
+            if session.get('user_type') == 'player':
+                return redirect(url_for('my_loadout'))
             return redirect(url_for('index'))
         
         # Credenciais inválidas
@@ -285,6 +288,8 @@ def change_password_required():
         
         # Remover flag da sessão e redirecionar
         session.pop('must_change_password', None)
+        if session.get('user_type') == 'player':
+            return redirect(url_for('my_loadout'))
         return redirect(url_for('index'))
     
     return render_template('change_password_required.html')

@@ -74,8 +74,8 @@ tail -F "$COMMAND_FILE" | while read -r line; do
                 UserID=$(echo "$UserExists" | cut -d'|' -f1)
                 login=$(echo "$UserExists" | cut -d'|' -f2 | xargs)
                 
-                # Gerar nova senha aleatória
-                senha=$(head -c 100 /dev/urandom | tr -dc 'a-z0-9' | head -c 6)
+                # Gerar nova senha aleatória (numérica de 4 dígitos)
+                senha=$(shuf -i 1000-9999 -n 1)
                 
                 # Gerar hash bcrypt da senha usando Python
                 hash=$(python3 -c "import bcrypt; print(bcrypt.hashpw('$senha'.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8'))" 2>/dev/null)
@@ -99,8 +99,8 @@ tail -F "$COMMAND_FILE" | while read -r line; do
                 fi
             else
                 # Usuário não existe: criar novo usuário
-                # Gerar login baseado no SteamName
-                base_login=$(echo "$SteamName" | tr '[:upper:]' '[:lower:]' | tr -dc 'a-z0-9' | cut -c1-16)
+                # Gerar login baseado no SteamName (máximo 10 caracteres)
+                base_login=$(echo "$SteamName" | tr '[:upper:]' '[:lower:]' | tr -dc 'a-z0-9' | cut -c1-10)
                 if [[ -z "$base_login" ]]; then 
                     base_login="survivor"
                 fi
@@ -113,8 +113,8 @@ tail -F "$COMMAND_FILE" | while read -r line; do
                     suffix=$((suffix + 1))
                 done
 
-                # Gerar senha aleatória
-                senha=$(head -c 100 /dev/urandom | tr -dc 'a-z0-9' | head -c 8)
+                # Gerar senha aleatória (numérica de 4 dígitos)
+                senha=$(shuf -i 1000-9999 -n 1)
                 
                 # Gerar hash bcrypt da senha usando Python
                 hash=$(python3 -c "import bcrypt; print(bcrypt.hashpw('$senha'.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8'))" 2>/dev/null)
