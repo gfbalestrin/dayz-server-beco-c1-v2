@@ -72,6 +72,10 @@ function initializeTable() {
                 width: '20%',
                 render: function(data, type, row) {
                     if (data) {
+                        const steamValue = row.SteamName || row.SteamID || null;
+                        if (steamValue) {
+                            return `<span title="PlayerID: ${row.PlayerID}">${data} (${steamValue})</span>`;
+                        }
                         return `<span title="PlayerID: ${row.PlayerID}">${data}</span>`;
                     }
                     return '<span class="text-muted">-</span>';
