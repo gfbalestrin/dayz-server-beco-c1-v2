@@ -27,6 +27,17 @@ let ammunitionsDataLoadout = [];
 let calibersDataLoadout = [];
 let itemTypesDataLoadout = [];
 
+// Cache global completo de todos os componentes (fonte de verdade)
+// Carregado uma vez no início e nunca sobrescrito
+let globalMagazinesCache = [];
+let globalAmmunitionsCache = [];
+let globalAttachmentsCache = [];
+let cacheLoadPromises = {
+    magazines: null,
+    ammunitions: null,
+    attachments: null
+};
+
 // ============================================================================
 // INICIALIZAÇÃO
 // ============================================================================
@@ -52,6 +63,13 @@ $(document).ready(function() {
     
     // Event listeners para página de edição/criação
     if ($('#customLoadoutForm').length > 0) {
+        // Carregar cache global de componentes no início
+        loadGlobalComponentsCache().then(function() {
+            console.log('Cache global de componentes carregado com sucesso');
+        }).catch(function(error) {
+            console.error('Erro ao carregar cache global:', error);
+        });
+        
         // Botões de salvar (topo e final)
         $('#btnSaveCustomLoadout').on('click', saveCustomLoadout);
         $('#btnSaveCustomLoadoutTop').on('click', saveCustomLoadout);
@@ -706,10 +724,10 @@ function loadWeaponToVisual(type, weaponData) {
                 
                 const relationships = response.relationships;
                 
-                // Carregar componentes compatíveis usando callback
+                // Carregar componentes compatíveis usando callback (passar weaponType para isolar dados)
                 loadCompatibleItemsForWeapon(weapon.id, relationships, function() {
                     loadComponentsAfterLoad(weapon.id, type, weaponData, relationships);
-                });
+                }, type);
             } catch (error) {
                 console.error('Erro ao processar relationships da arma:', error);
                 // Tentar carregar componentes mesmo com erro
@@ -725,9 +743,51 @@ function loadWeaponToVisual(type, weaponData) {
 }
 
 function loadComponentsAfterLoad(weaponId, type, weaponData, relationships) {
+    // Tentar usar dados isolados da arma primeiro, depois arrays globais, depois cache global
+    const weaponConfig = selectedWeapons[type];
+    let magazinesSource = [];
+    let ammunitionsSource = [];
+    let attachmentsSource = [];
+    
+    // Prioridade 1: Dados isolados da arma (se existirem)
+    if (weaponConfig && weaponConfig.compatibleItems) {
+        magazinesSource = weaponConfig.compatibleItems.magazines || [];
+        ammunitionsSource = weaponConfig.compatibleItems.ammunitions || [];
+        attachmentsSource = weaponConfig.compatibleItems.attachments || [];
+    }
+    
+    // Prioridade 2: Arrays globais (para compatibilidade)
+    if (magazinesSource.length === 0) {
+        magazinesSource = magazinesDataLoadout;
+    }
+    if (ammunitionsSource.length === 0) {
+        ammunitionsSource = ammunitionsDataLoadout;
+    }
+    if (attachmentsSource.length === 0) {
+        attachmentsSource = attachmentsDataLoadout;
+    }
+    
+    // Prioridade 3: Cache global (garantia de sempre ter dados)
+    if (magazinesSource.length === 0) {
+        magazinesSource = globalMagazinesCache;
+    }
+    if (ammunitionsSource.length === 0) {
+        ammunitionsSource = globalAmmunitionsCache;
+    }
+    if (attachmentsSource.length === 0) {
+        attachmentsSource = globalAttachmentsCache;
+    }
+    
     // Carregar magazine se existir
     if (weaponData.magazine) {
-        const magazine = magazinesDataLoadout.find(m => m.name_type === weaponData.magazine.name_type);
+        // Tentar encontrar nos dados isolados/globais/cache
+        let magazine = magazinesSource.find(m => m.name_type === weaponData.magazine.name_type);
+        
+        // Se não encontrou, tentar no cache global diretamente
+        if (!magazine) {
+            magazine = findMagazineInCache(weaponData.magazine.name_type);
+        }
+        
         if (magazine) {
             selectedWeapons[type].magazine = {
                 id: magazine.id,
@@ -737,7 +797,7 @@ function loadComponentsAfterLoad(weaponId, type, weaponData, relationships) {
                 slots: magazine.slots,
                 width: magazine.width,
                 height: magazine.height,
-                img: magazine.img || '',
+                img: magazine.img || weaponData.magazine.img || '',
                 quantity: weaponData.magazine.quantity || 1,
                 max_quantity: magazine.max_quantity || null
             };
@@ -750,6 +810,7 @@ function loadComponentsAfterLoad(weaponId, type, weaponData, relationships) {
                 slots: weaponData.magazine.slots,
                 width: weaponData.magazine.width,
                 height: weaponData.magazine.height,
+                img: weaponData.magazine.img || null,
                 quantity: weaponData.magazine.quantity || 1
             };
         }
@@ -757,7 +818,14 @@ function loadComponentsAfterLoad(weaponId, type, weaponData, relationships) {
     
     // Carregar ammunition se existir
     if (weaponData.ammunitions) {
-        const ammunition = ammunitionsDataLoadout.find(a => a.name_type === weaponData.ammunitions.name_type);
+        // Tentar encontrar nos dados isolados/globais/cache
+        let ammunition = ammunitionsSource.find(a => a.name_type === weaponData.ammunitions.name_type);
+        
+        // Se não encontrou, tentar no cache global diretamente
+        if (!ammunition) {
+            ammunition = findAmmunitionInCache(weaponData.ammunitions.name_type);
+        }
+        
         if (ammunition) {
             selectedWeapons[type].ammunition = {
                 id: ammunition.id,
@@ -787,7 +855,14 @@ function loadComponentsAfterLoad(weaponId, type, weaponData, relationships) {
     // Carregar attachments se existirem
     if (weaponData.attachments && Array.isArray(weaponData.attachments)) {
         weaponData.attachments.forEach(function(attData) {
-            const att = attachmentsDataLoadout.find(a => a.name_type === attData.name_type);
+            // Tentar encontrar nos dados isolados/globais/cache
+            let att = attachmentsSource.find(a => a.name_type === attData.name_type);
+            
+            // Se não encontrou, tentar no cache global diretamente
+            if (!att) {
+                att = findAttachmentInCache(attData.name_type);
+            }
+            
             if (att) {
                 selectedWeapons[type].attachments.push({
                     id: att.id,
@@ -798,7 +873,7 @@ function loadComponentsAfterLoad(weaponId, type, weaponData, relationships) {
                     width: att.width,
                     height: att.height,
                     battery: att.battery || false,
-                    img: att.img || null,
+                    img: att.img || attData.img || null,
                     quantity: attData.quantity || 1,
                     max_quantity: att.max_quantity || null
                 });
@@ -811,7 +886,7 @@ function loadComponentsAfterLoad(weaponId, type, weaponData, relationships) {
                     width: attData.width,
                     height: attData.height,
                     battery: attData.battery || false,
-                    img: null,
+                    img: attData.img || null,
                     quantity: attData.quantity || 1
                 });
             }
@@ -1353,6 +1428,101 @@ function showAlert(type, message) {
 // MODO VISUAL - CARREGAMENTO DE DADOS
 // ============================================================================
 
+// ============================================================================
+// CACHE GLOBAL - Funções para carregar e buscar do cache
+// ============================================================================
+
+function loadGlobalComponentsCache() {
+    // Carregar cache global de TODOS os componentes (uma vez, nunca sobrescrito)
+    // Retorna Promise que resolve quando todos os caches estão carregados
+    
+    return new Promise(function(resolve, reject) {
+        let loadedCount = 0;
+        const totalLoads = 3;
+        let hasError = false;
+        
+        function checkComplete() {
+            loadedCount++;
+            if (loadedCount === totalLoads) {
+                if (hasError) {
+                    reject(new Error('Erro ao carregar cache global'));
+                } else {
+                    resolve();
+                }
+            }
+        }
+        
+        // Carregar magazines
+        if (!cacheLoadPromises.magazines) {
+            cacheLoadPromises.magazines = $.ajax({
+                url: '/api/manage/magazines',
+                method: 'GET'
+            });
+        }
+        cacheLoadPromises.magazines
+            .done(function(response) {
+                globalMagazinesCache = response.magazines || [];
+                checkComplete();
+            })
+            .fail(function(xhr) {
+                console.error('Erro ao carregar cache global de magazines:', xhr);
+                globalMagazinesCache = [];
+                hasError = true;
+                checkComplete();
+            });
+        
+        // Carregar ammunitions
+        if (!cacheLoadPromises.ammunitions) {
+            cacheLoadPromises.ammunitions = $.ajax({
+                url: '/api/manage/ammunitions',
+                method: 'GET'
+            });
+        }
+        cacheLoadPromises.ammunitions
+            .done(function(response) {
+                globalAmmunitionsCache = response.ammunitions || [];
+                checkComplete();
+            })
+            .fail(function(xhr) {
+                console.error('Erro ao carregar cache global de ammunitions:', xhr);
+                globalAmmunitionsCache = [];
+                hasError = true;
+                checkComplete();
+            });
+        
+        // Carregar attachments
+        if (!cacheLoadPromises.attachments) {
+            cacheLoadPromises.attachments = $.ajax({
+                url: '/api/manage/attachments',
+                method: 'GET'
+            });
+        }
+        cacheLoadPromises.attachments
+            .done(function(response) {
+                globalAttachmentsCache = response.attachments || [];
+                checkComplete();
+            })
+            .fail(function(xhr) {
+                console.error('Erro ao carregar cache global de attachments:', xhr);
+                globalAttachmentsCache = [];
+                hasError = true;
+                checkComplete();
+            });
+    });
+}
+
+function findMagazineInCache(nameType) {
+    return globalMagazinesCache.find(m => m.name_type === nameType);
+}
+
+function findAmmunitionInCache(nameType) {
+    return globalAmmunitionsCache.find(a => a.name_type === nameType);
+}
+
+function findAttachmentInCache(nameType) {
+    return globalAttachmentsCache.find(att => att.name_type === nameType);
+}
+
 function loadWeaponsForLoadout() {
     // Verificar se é loadout de player para usar endpoints filtrados
     const loadoutType = $('#loadoutType').val() || 'custom';
@@ -1648,7 +1818,7 @@ function selectWeaponByType(weaponId, weaponType) {
                         updateJSONPreview();
                         markLoadoutChanged();
                         openWeaponConfigModalWithData(weaponType);
-                    });
+                    }, weaponType);
                 } catch (error) {
                     showAlert('danger', 'Erro ao processar dados da arma: ' + error.message);
                     console.error('Erro ao processar resposta:', error);
@@ -1673,18 +1843,44 @@ function selectWeaponByType(weaponId, weaponType) {
     }
 }
 
-function loadCompatibleItemsForWeapon(weaponId, relationships, callback) {
+function loadCompatibleItemsForWeapon(weaponId, relationships, callback, weaponType) {
     // Verificar se é loadout de player para usar endpoints filtrados
     const loadoutType = $('#loadoutType').val() || 'custom';
     const isPlayerLoadout = loadoutType === 'player';
+    
+    // Objeto para armazenar componentes isolados por arma
+    const compatibleItems = {
+        magazines: [],
+        ammunitions: [],
+        attachments: []
+    };
     
     let magazinesLoaded = false;
     let ammunitionsLoaded = false;
     let attachmentsLoaded = false;
     
     function checkAllLoaded() {
-        if (magazinesLoaded && ammunitionsLoaded && attachmentsLoaded && callback) {
-            callback();
+        if (magazinesLoaded && ammunitionsLoaded && attachmentsLoaded) {
+            // Armazenar componentes isolados na arma se weaponType foi fornecido
+            if (weaponType && selectedWeapons[weaponType]) {
+                selectedWeapons[weaponType].compatibleItems = compatibleItems;
+            }
+            
+            // Atualizar arrays globais para compatibilidade (mas não sobrescrever se já tiver dados)
+            // Isso mantém compatibilidade com código que ainda usa os arrays globais
+            if (magazinesDataLoadout.length === 0) {
+                magazinesDataLoadout = compatibleItems.magazines;
+            }
+            if (ammunitionsDataLoadout.length === 0) {
+                ammunitionsDataLoadout = compatibleItems.ammunitions;
+            }
+            if (attachmentsDataLoadout.length === 0) {
+                attachmentsDataLoadout = compatibleItems.attachments;
+            }
+            
+            if (callback) {
+                callback();
+            }
         }
     }
     
@@ -1695,13 +1891,15 @@ function loadCompatibleItemsForWeapon(weaponId, relationships, callback) {
             url: `/api/loadouts/players/magazines?weapon_id=${weaponId}&limit=500`,
             method: 'GET',
             success: function(response) {
-                magazinesDataLoadout = response.magazines || [];
+                compatibleItems.magazines = response.magazines || [];
+                // Para loadouts de players, podemos sobrescrever os arrays globais pois são dados filtrados por arma
+                magazinesDataLoadout = compatibleItems.magazines;
                 magazinesLoaded = true;
                 checkAllLoaded();
             },
             error: function(xhr) {
                 console.error('Erro ao carregar magazines:', xhr);
-                magazinesDataLoadout = [];
+                compatibleItems.magazines = [];
                 magazinesLoaded = true;
                 checkAllLoaded();
             }
@@ -1712,13 +1910,14 @@ function loadCompatibleItemsForWeapon(weaponId, relationships, callback) {
             url: `/api/loadouts/players/ammunitions?weapon_id=${weaponId}&limit=500`,
             method: 'GET',
             success: function(response) {
-                ammunitionsDataLoadout = response.ammunitions || [];
+                compatibleItems.ammunitions = response.ammunitions || [];
+                ammunitionsDataLoadout = compatibleItems.ammunitions;
                 ammunitionsLoaded = true;
                 checkAllLoaded();
             },
             error: function(xhr) {
                 console.error('Erro ao carregar ammunitions:', xhr);
-                ammunitionsDataLoadout = [];
+                compatibleItems.ammunitions = [];
                 ammunitionsLoaded = true;
                 checkAllLoaded();
             }
@@ -1729,13 +1928,14 @@ function loadCompatibleItemsForWeapon(weaponId, relationships, callback) {
             url: `/api/loadouts/players/attachments?weapon_id=${weaponId}&limit=500`,
             method: 'GET',
             success: function(response) {
-                attachmentsDataLoadout = response.attachments || [];
+                compatibleItems.attachments = response.attachments || [];
+                attachmentsDataLoadout = compatibleItems.attachments;
                 attachmentsLoaded = true;
                 checkAllLoaded();
             },
             error: function(xhr) {
                 console.error('Erro ao carregar attachments:', xhr);
-                attachmentsDataLoadout = [];
+                compatibleItems.attachments = [];
                 attachmentsLoaded = true;
                 checkAllLoaded();
             }
@@ -1744,71 +1944,107 @@ function loadCompatibleItemsForWeapon(weaponId, relationships, callback) {
         // Para loadouts custom, usar relacionamentos retornados pela API
         // Carregar magazines compatíveis usando relationships
         if (relationships && relationships.magazines !== undefined) {
-            magazinesDataLoadout = relationships.magazines || [];
+            compatibleItems.magazines = relationships.magazines || [];
+            magazinesDataLoadout = compatibleItems.magazines;
             magazinesLoaded = true;
             checkAllLoaded();
         } else {
-            $.ajax({
-                url: `/api/manage/magazines`,
-                method: 'GET',
-                success: function(response) {
-                    magazinesDataLoadout = response.magazines || [];
-                    magazinesLoaded = true;
-                    checkAllLoaded();
-                },
-                error: function(xhr) {
-                    console.error('Erro ao carregar magazines:', xhr);
-                    magazinesDataLoadout = [];
-                    magazinesLoaded = true;
-                    checkAllLoaded();
-                }
-            });
+            // Se não tem relationships, usar cache global ou carregar
+            if (globalMagazinesCache.length > 0) {
+                compatibleItems.magazines = globalMagazinesCache;
+                magazinesDataLoadout = compatibleItems.magazines;
+                magazinesLoaded = true;
+                checkAllLoaded();
+            } else {
+                $.ajax({
+                    url: `/api/manage/magazines`,
+                    method: 'GET',
+                    success: function(response) {
+                        compatibleItems.magazines = response.magazines || [];
+                        magazinesDataLoadout = compatibleItems.magazines;
+                        // Atualizar cache global também
+                        globalMagazinesCache = compatibleItems.magazines;
+                        magazinesLoaded = true;
+                        checkAllLoaded();
+                    },
+                    error: function(xhr) {
+                        console.error('Erro ao carregar magazines:', xhr);
+                        compatibleItems.magazines = [];
+                        magazinesLoaded = true;
+                        checkAllLoaded();
+                    }
+                });
+            }
         }
         
         // Carregar ammunitions compatíveis usando relationships
         if (relationships && relationships.ammunitions !== undefined) {
-            ammunitionsDataLoadout = relationships.ammunitions || [];
+            compatibleItems.ammunitions = relationships.ammunitions || [];
+            ammunitionsDataLoadout = compatibleItems.ammunitions;
             ammunitionsLoaded = true;
             checkAllLoaded();
         } else {
-            $.ajax({
-                url: `/api/manage/ammunitions`,
-                method: 'GET',
-                success: function(response) {
-                    ammunitionsDataLoadout = response.ammunitions || [];
-                    ammunitionsLoaded = true;
-                    checkAllLoaded();
-                },
-                error: function(xhr) {
-                    console.error('Erro ao carregar ammunitions:', xhr);
-                    ammunitionsDataLoadout = [];
-                    ammunitionsLoaded = true;
-                    checkAllLoaded();
-                }
-            });
+            // Se não tem relationships, usar cache global ou carregar
+            if (globalAmmunitionsCache.length > 0) {
+                compatibleItems.ammunitions = globalAmmunitionsCache;
+                ammunitionsDataLoadout = compatibleItems.ammunitions;
+                ammunitionsLoaded = true;
+                checkAllLoaded();
+            } else {
+                $.ajax({
+                    url: `/api/manage/ammunitions`,
+                    method: 'GET',
+                    success: function(response) {
+                        compatibleItems.ammunitions = response.ammunitions || [];
+                        ammunitionsDataLoadout = compatibleItems.ammunitions;
+                        // Atualizar cache global também
+                        globalAmmunitionsCache = compatibleItems.ammunitions;
+                        ammunitionsLoaded = true;
+                        checkAllLoaded();
+                    },
+                    error: function(xhr) {
+                        console.error('Erro ao carregar ammunitions:', xhr);
+                        compatibleItems.ammunitions = [];
+                        ammunitionsLoaded = true;
+                        checkAllLoaded();
+                    }
+                });
+            }
         }
         
         // Carregar attachments compatíveis usando relationships
         if (relationships && relationships.attachments !== undefined) {
-            attachmentsDataLoadout = relationships.attachments || [];
+            compatibleItems.attachments = relationships.attachments || [];
+            attachmentsDataLoadout = compatibleItems.attachments;
             attachmentsLoaded = true;
             checkAllLoaded();
         } else {
-            $.ajax({
-                url: `/api/manage/attachments`,
-                method: 'GET',
-                success: function(response) {
-                    attachmentsDataLoadout = response.attachments || [];
-                    attachmentsLoaded = true;
-                    checkAllLoaded();
-                },
-                error: function(xhr) {
-                    console.error('Erro ao carregar attachments:', xhr);
-                    attachmentsDataLoadout = [];
-                    attachmentsLoaded = true;
-                    checkAllLoaded();
-                }
-            });
+            // Se não tem relationships, usar cache global ou carregar
+            if (globalAttachmentsCache.length > 0) {
+                compatibleItems.attachments = globalAttachmentsCache;
+                attachmentsDataLoadout = compatibleItems.attachments;
+                attachmentsLoaded = true;
+                checkAllLoaded();
+            } else {
+                $.ajax({
+                    url: `/api/manage/attachments`,
+                    method: 'GET',
+                    success: function(response) {
+                        compatibleItems.attachments = response.attachments || [];
+                        attachmentsDataLoadout = compatibleItems.attachments;
+                        // Atualizar cache global também
+                        globalAttachmentsCache = compatibleItems.attachments;
+                        attachmentsLoaded = true;
+                        checkAllLoaded();
+                    },
+                    error: function(xhr) {
+                        console.error('Erro ao carregar attachments:', xhr);
+                        compatibleItems.attachments = [];
+                        attachmentsLoaded = true;
+                        checkAllLoaded();
+                    }
+                });
+            }
         }
     }
 }
@@ -1836,11 +2072,11 @@ function openWeaponConfigModalWithData(weaponType) {
                 
                 const relationships = response.relationships;
                 
-                // Carregar componentes compatíveis usando callback
+                // Carregar componentes compatíveis usando callback (passar weaponType para isolar dados)
                 loadCompatibleItemsForWeapon(weapon.id, relationships, function() {
                     // Após carregar os dados corretos, renderizar o modal
                     renderModalContent();
-                });
+                }, weaponType);
             } catch (error) {
                 console.error('Erro ao processar relationships da arma no modal:', error);
                 // Renderizar modal mesmo com erro
@@ -1882,7 +2118,10 @@ function applyAttachmentFiltersConfig() {
     const search = $('#attachmentSearchConfig').val().toLowerCase();
     const typeFilter = $('#filterAttachmentTypeConfig').val();
     
-    let filtered = attachmentsDataLoadout.filter(function(att) {
+    const weaponType = $('#weaponConfigType').val();
+    const attachmentsSource = getDataSource(weaponType, 'attachments');
+    
+    let filtered = attachmentsSource.filter(function(att) {
         let match = true;
         
         if (search) {
@@ -1901,7 +2140,9 @@ function applyAttachmentFiltersConfig() {
 }
 
 function renderAttachmentsGridConfig(data = null) {
-    const dataToRender = data || attachmentsDataLoadout;
+    const weaponType = $('#weaponConfigType').val();
+    const attachmentsSource = getDataSource(weaponType, 'attachments');
+    const dataToRender = data || attachmentsSource;
     const grid = $('#attachmentsGridConfig');
     grid.empty();
     
@@ -1909,8 +2150,6 @@ function renderAttachmentsGridConfig(data = null) {
         grid.html('<div class="text-center p-3">Nenhum attachment encontrado</div>');
         return;
     }
-    
-    const weaponType = $('#weaponConfigType').val();
     const selectedAttachments = selectedWeapons[weaponType]?.attachments || [];
     const selectedTypes = selectedAttachments.map(a => a.type); // Tipos já selecionados
     
@@ -1944,7 +2183,14 @@ function toggleAttachmentForWeapon(attachmentId) {
     const weaponConfig = selectedWeapons[weaponType];
     if (!weaponConfig) return;
     
-    const attachment = attachmentsDataLoadout.find(a => a.id === attachmentId);
+    const attachmentsSource = getDataSource(weaponType, 'attachments');
+    let attachment = attachmentsSource.find(a => a.id === attachmentId);
+    
+    // Se não encontrou, tentar no cache global diretamente
+    if (!attachment) {
+        attachment = globalAttachmentsCache.find(a => a.id === attachmentId);
+    }
+    
     if (!attachment) return;
     
     const loadoutType = $('#loadoutType').val() || 'custom';
@@ -2046,20 +2292,58 @@ function removeAttachmentFromWeapon(weaponType, attachmentId) {
     }
 }
 
+// Função auxiliar para obter fonte de dados correta (dados isolados > arrays globais > cache global)
+function getDataSource(weaponType, dataType) {
+    // Prioridade 1: Dados isolados da arma
+    const weaponConfig = selectedWeapons[weaponType];
+    if (weaponConfig && weaponConfig.compatibleItems) {
+        const isolated = weaponConfig.compatibleItems[dataType];
+        if (isolated && isolated.length > 0) {
+            return isolated;
+        }
+    }
+    
+    // Prioridade 2: Arrays globais
+    if (dataType === 'magazines' && magazinesDataLoadout.length > 0) {
+        return magazinesDataLoadout;
+    }
+    if (dataType === 'ammunitions' && ammunitionsDataLoadout.length > 0) {
+        return ammunitionsDataLoadout;
+    }
+    if (dataType === 'attachments' && attachmentsDataLoadout.length > 0) {
+        return attachmentsDataLoadout;
+    }
+    
+    // Prioridade 3: Cache global
+    if (dataType === 'magazines') {
+        return globalMagazinesCache;
+    }
+    if (dataType === 'ammunitions') {
+        return globalAmmunitionsCache;
+    }
+    if (dataType === 'attachments') {
+        return globalAttachmentsCache;
+    }
+    
+    return [];
+}
+
 function renderMagazinesGridConfig() {
     const grid = $('#magazinesGridConfig');
     grid.empty();
     
-    if (magazinesDataLoadout.length === 0) {
+    const weaponType = $('#weaponConfigType').val();
+    const magazinesSource = getDataSource(weaponType, 'magazines');
+    
+    if (magazinesSource.length === 0) {
         grid.html('<div class="text-center p-3">Nenhum magazine encontrado</div>');
         return;
     }
     
-    const weaponType = $('#weaponConfigType').val();
     const weaponConfig = selectedWeapons[weaponType];
     const selectedMagazine = weaponConfig?.magazine;
     
-    magazinesDataLoadout.forEach(function(mag) {
+    magazinesSource.forEach(function(mag) {
         const isSelected = selectedMagazine?.id === mag.id;
         
         const card = $(`
@@ -2083,16 +2367,18 @@ function renderAmmunitionsGridConfig() {
     const grid = $('#ammunitionsGridConfig');
     grid.empty();
     
-    if (ammunitionsDataLoadout.length === 0) {
+    const weaponType = $('#weaponConfigType').val();
+    const ammunitionsSource = getDataSource(weaponType, 'ammunitions');
+    
+    if (ammunitionsSource.length === 0) {
         grid.html('<div class="text-center p-3">Nenhuma munição encontrada</div>');
         return;
     }
     
-    const weaponType = $('#weaponConfigType').val();
     const weaponConfig = selectedWeapons[weaponType];
     const selectedAmmunition = weaponConfig?.ammunition;
     
-    ammunitionsDataLoadout.forEach(function(ammo) {
+    ammunitionsSource.forEach(function(ammo) {
         const isSelected = selectedAmmunition?.id === ammo.id;
         
         const card = $(`
@@ -2116,7 +2402,14 @@ function selectMagazineForWeapon(magazineId) {
     const weaponConfig = selectedWeapons[weaponType];
     if (!weaponConfig) return;
     
-    const magazine = magazinesDataLoadout.find(m => m.id === magazineId);
+    const magazinesSource = getDataSource(weaponType, 'magazines');
+    let magazine = magazinesSource.find(m => m.id === magazineId);
+    
+    // Se não encontrou, tentar no cache global diretamente
+    if (!magazine) {
+        magazine = globalMagazinesCache.find(m => m.id === magazineId);
+    }
+    
     if (!magazine) return;
     
     const loadoutType = $('#loadoutType').val() || 'custom';
@@ -2177,7 +2470,14 @@ function selectAmmunitionForWeapon(ammunitionId) {
     const weaponConfig = selectedWeapons[weaponType];
     if (!weaponConfig) return;
     
-    const ammunition = ammunitionsDataLoadout.find(a => a.id === ammunitionId);
+    const ammunitionsSource = getDataSource(weaponType, 'ammunitions');
+    let ammunition = ammunitionsSource.find(a => a.id === ammunitionId);
+    
+    // Se não encontrou, tentar no cache global diretamente
+    if (!ammunition) {
+        ammunition = globalAmmunitionsCache.find(a => a.id === ammunitionId);
+    }
+    
     if (!ammunition) return;
     
     const loadoutType = $('#loadoutType').val() || 'custom';
