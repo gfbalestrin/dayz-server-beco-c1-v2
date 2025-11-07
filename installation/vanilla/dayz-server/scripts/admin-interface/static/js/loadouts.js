@@ -47,6 +47,14 @@ $(document).ready(function() {
     initializeCustomTable();
     initializePlayerTable();
     
+    // Ativar aba baseada no hash da URL (se houver)
+    activateTabFromHash();
+    
+    // Escutar mudanças no hash para atualizar aba quando hash mudar
+    window.addEventListener('hashchange', function() {
+        activateTabFromHash();
+    });
+    
     // Carregar dados iniciais (apenas se estiver na página de loadouts)
     if ($('#customLoadoutsTable').length > 0) {
         loadCustomLoadouts();
@@ -243,6 +251,69 @@ $(document).ready(function() {
         "items": []
     };
 });
+
+// ============================================================================
+// FUNÇÕES AUXILIARES - NAVEGAÇÃO DE ABAS POR HASH
+// ============================================================================
+
+function activateTabFromHash() {
+    // Ler hash da URL (ex: #players-tab ou #custom-tab)
+    const hash = window.location.hash;
+    
+    // Se não houver hash, manter comportamento padrão (custom-tab ativa)
+    if (!hash || hash === '') {
+        return;
+    }
+    
+    // Remover o # do hash
+    const tabId = hash.substring(1); // Remove o primeiro caractere (#)
+    
+    // Validar que o hash corresponde a uma aba válida
+    const validTabs = ['custom-tab', 'players-tab'];
+    if (!validTabs.includes(tabId)) {
+        return;
+    }
+    
+    // Encontrar o link da aba correspondente
+    const tabLink = $(`a[data-bs-toggle="tab"][href="#${tabId}"]`);
+    if (tabLink.length === 0) {
+        return;
+    }
+    
+    // Ativar a aba usando Bootstrap Tab API
+    const tab = bootstrap.Tab.getOrCreateInstance(tabLink[0]);
+    tab.show();
+    
+    // Processar query strings da URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const playerId = urlParams.get('player_id');
+    
+    // Se houver player_id na query string e estiver na aba players-tab
+    if (playerId && tabId === 'players-tab') {
+        // Função para selecionar o jogador após os jogadores serem carregados
+        const selectPlayer = function() {
+            const select = $('#playerSelect');
+            // Verificar se o select já tem opções carregadas
+            if (select.find('option').length > 1) {
+                // Verificar se o player_id existe nas opções
+                if (select.find(`option[value="${playerId}"]`).length > 0) {
+                    select.val(playerId);
+                    // Disparar evento change para carregar os loadouts automaticamente
+                    select.trigger('change');
+                } else {
+                    // Se o jogador não foi encontrado, tentar novamente após um pequeno delay
+                    setTimeout(selectPlayer, 100);
+                }
+            } else {
+                // Se os jogadores ainda não foram carregados, tentar novamente após um pequeno delay
+                setTimeout(selectPlayer, 100);
+            }
+        };
+        
+        // Tentar selecionar o jogador (aguardará se necessário)
+        selectPlayer();
+    }
+}
 
 // ============================================================================
 // FUNÇÕES AUXILIARES - DETECÇÃO DE ALTERAÇÕES
@@ -1158,6 +1229,18 @@ function loadPlayers() {
                     const displayName = player.PlayerName || player.PlayerID || 'Jogador sem nome';
                     select.append(`<option value="${player.PlayerID}">${displayName} (${player.SteamName})</option>`);
                 });
+                
+                // Após carregar os jogadores, verificar se há player_id na URL para selecionar automaticamente
+                const urlParams = new URLSearchParams(window.location.search);
+                const playerId = urlParams.get('player_id');
+                if (playerId && window.location.hash === '#players-tab') {
+                    // Verificar se o player_id existe nas opções
+                    if (select.find(`option[value="${playerId}"]`).length > 0) {
+                        select.val(playerId);
+                        // Disparar evento change para carregar os loadouts automaticamente
+                        select.trigger('change');
+                    }
+                }
             } else {
                 showAlert('danger', 'Erro ao carregar jogadores: ' + response.message);
             }
@@ -3151,13 +3234,15 @@ function selectExplosiveForLoadout(explosiveId) {
     
     let promptMessage = `Quantidade de "${explosive.name}":`;
     if (isPlayerLoadout) {
-        // Usar max_quantity do objeto original do banco
-        const maxQty = explosive.max_quantity;
+        // Para loadouts de players, tratar max_quantity null/undefined como 1 (padrão)
+        const maxQty = explosive.max_quantity !== null && explosive.max_quantity !== undefined 
+            ? explosive.max_quantity 
+            : 1;
         const globalLimit = window.explosivesGlobalLimit || 0;
         
-        if (maxQty) {
-            promptMessage += `\n(Máximo: ${maxQty})`;
-        }
+        // Sempre mostrar o máximo (padrão é 1)
+        promptMessage += `\n(Máximo: ${maxQty})`;
+        
         if (globalLimit > 0) {
             const totalWithoutThis = currentTotal - currentForThisExplosive;
             promptMessage += `\n(Limite global total: ${globalLimit})`;
@@ -3172,9 +3257,14 @@ function selectExplosiveForLoadout(explosiveId) {
     
     // Validações para loadouts de players
     if (isPlayerLoadout) {
-        // Validar quantidade máxima individual usando o objeto original do banco
-        if (explosive.max_quantity && qty > explosive.max_quantity) {
-            showAlert('danger', `Quantidade máxima permitida para este explosive é ${explosive.max_quantity}`);
+        // Para loadouts de players, tratar max_quantity null/undefined como 1 (padrão)
+        const maxQty = explosive.max_quantity !== null && explosive.max_quantity !== undefined 
+            ? explosive.max_quantity 
+            : 1;
+        
+        // Validar quantidade máxima individual (sempre validar quando for loadout de player)
+        if (qty > maxQty) {
+            showAlert('danger', `Quantidade máxima permitida para este explosive é ${maxQty}`);
             return;
         }
         
@@ -3282,13 +3372,15 @@ function editExplosiveQuantity(explosiveId) {
     
     let promptMessage = `Quantidade de "${explosive.name}":`;
     if (isPlayerLoadout) {
-        // Usar max_quantity do objeto original do banco
-        const maxQty = explosiveOriginal.max_quantity;
+        // Para loadouts de players, tratar max_quantity null/undefined como 1 (padrão)
+        const maxQty = explosiveOriginal.max_quantity !== null && explosiveOriginal.max_quantity !== undefined 
+            ? explosiveOriginal.max_quantity 
+            : 1;
         const globalLimit = window.explosivesGlobalLimit || 0;
         
-        if (maxQty) {
-            promptMessage += `\n(Máximo: ${maxQty})`;
-        }
+        // Sempre mostrar o máximo (padrão é 1)
+        promptMessage += `\n(Máximo: ${maxQty})`;
+        
         if (globalLimit > 0) {
             const totalWithoutThis = currentTotal - currentForThisExplosive;
             promptMessage += `\n(Limite global total: ${globalLimit})`;
@@ -3306,9 +3398,14 @@ function editExplosiveQuantity(explosiveId) {
     
     // Validações para loadouts de players
     if (isPlayerLoadout) {
-        // Validar quantidade máxima individual usando o objeto original do banco
-        if (explosiveOriginal.max_quantity && qty > explosiveOriginal.max_quantity) {
-            showAlert('danger', `Quantidade máxima permitida para este explosive é ${explosiveOriginal.max_quantity}`);
+        // Para loadouts de players, tratar max_quantity null/undefined como 1 (padrão)
+        const maxQty = explosiveOriginal.max_quantity !== null && explosiveOriginal.max_quantity !== undefined 
+            ? explosiveOriginal.max_quantity 
+            : 1;
+        
+        // Validar quantidade máxima individual (sempre validar quando for loadout de player)
+        if (qty > maxQty) {
+            showAlert('danger', `Quantidade máxima permitida para este explosive é ${maxQty}`);
             return false;
         }
         
@@ -5379,7 +5476,7 @@ function saveCustomLoadout() {
             url = `/api/loadouts/players/${playerId}`;
             method = 'POST';
         }
-        redirectUrl = '/loadouts#players-tab';
+        redirectUrl = `/loadouts#players-tab?player_id=${playerId}`;
     } else {
         // Custom loadout
         id = $('#customLoadoutId').val();
