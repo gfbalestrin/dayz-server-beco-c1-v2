@@ -96,12 +96,11 @@ function createLoadoutCard(loadout) {
     let actions = '';
     
     // Botão Ativar (se não estiver ativo)
+    // Quando está ativo, não exibir badge aqui (já existe no header do card)
     if (!loadout.is_active) {
         actions += `<button class="btn btn-sm btn-success" onclick="setActiveMyLoadout(${loadout.id}); return false;" title="Ativar este loadout">
             <i class="fas fa-check me-1"></i>Ativar
         </button>`;
-    } else {
-        actions += `<span class="badge bg-success me-2">Ativo</span>`;
     }
     
     // Botão Editar
