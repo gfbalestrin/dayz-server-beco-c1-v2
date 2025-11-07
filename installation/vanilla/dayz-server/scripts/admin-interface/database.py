@@ -448,7 +448,13 @@ def get_all_players_with_status() -> List[Dict]:
                 FROM loadouts_players
                 GROUP BY player_id
             ) lp ON lp.player_id = pd.PlayerID
-            ORDER BY IsOnline DESC, pd.PlayerName ASC
+            ORDER BY 
+                IsOnline DESC,
+                CASE 
+                    WHEN po.PlayerID IS NOT NULL THEN po.DataConnect
+                    ELSE pc.Data
+                END DESC,
+                pd.PlayerName ASC
         """)
         return [dict(row) for row in cursor.fetchall()]
 
