@@ -402,8 +402,8 @@ main() {
     
     LOG_INFO "Atualização de economia concluída com sucesso para evento: $selected_event"
     CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
-    SEND_DISCORD_WEBHOOK "Evento de '$selected_event' aplicado! Aguardando inicialização..." "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
-    echo "Evento de '$selected_event' aplicado! Aguardando inicialização..."
+    SEND_DISCORD_WEBHOOK "Evento '$selected_event' aplicado! Aguardando inicialização..." "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+    echo "Evento '$selected_event' aplicado! Aguardando inicialização..."
 }
 
 # Executar função principal

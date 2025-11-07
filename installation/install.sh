@@ -490,8 +490,8 @@ fi
 cd "$DayzFolder/scripts" && source "$DayzFolder/scripts/config.sh"
 CurrentDate=\$(date "+%d/%m/%Y %H:%M:%S")
 ScriptName=\$(basename "\$0")
-SEND_DISCORD_WEBHOOK "Servidor reiniciando e atualizando... Todos os jogadores foram desconectados!" "\$DiscordWebhookLogs" "\$CurrentDate" "\$ScriptName"
-INSERT_CUSTOM_LOG "Servidor reiniciando e atualizando... Todos os jogadores foram desconectados!" "INFO" "\$ScriptName"
+SEND_DISCORD_WEBHOOK "⚠️ Servidor reiniciando e atualizando... Todos os jogadores foram desconectados!" "\$DiscordWebhookLogs" "\$CurrentDate" "\$ScriptName"
+INSERT_CUSTOM_LOG "⚠️ Servidor reiniciando e atualizando... Todos os jogadores foram desconectados!" "INFO" "\$ScriptName"
 
 
 "$AppFolder/$AppScriptUpdatePlayersOnlineFile" "RESET" 
