@@ -4,18 +4,28 @@ class ActivePlayer
     PlayerIdentity Identity;  // PlayerIdentity do jogador (contém todas as informações)
     Man Player;              // Objeto Man/PlayerBase do jogador
     float ConnectedTime;     // Timestamp de quando conectou
+    string SteamId;          // SteamID persistente
+    string PlayerId;         // PlayerID persistente
     
     void ActivePlayer(PlayerIdentity identity, Man player = null)
     {
         Identity = identity;
         Player = player;
         ConnectedTime = GetGame().GetTime();
+        SyncIdentifiers();
     }
     
     // Retorna a PlayerIdentity
     PlayerIdentity GetIdentity()
     {
         return Identity;
+    }
+    
+    // Atualiza a referência de identidade manualmente
+    void SetIdentity(PlayerIdentity identity)
+    {
+        Identity = identity;
+        SyncIdentifiers();
     }
     
     // Retorna o objeto Man/PlayerBase
@@ -28,6 +38,11 @@ class ActivePlayer
     void SetPlayer(Man player)
     {
         Player = player;
+        PlayerBase playerBase = PlayerBase.Cast(player);
+        if (playerBase && playerBase.GetIdentity())
+        {
+            SetIdentity(playerBase.GetIdentity());
+        }
     }
     
     // Retorna o nome do jogador
@@ -43,7 +58,7 @@ class ActivePlayer
     {
         if (Identity)
             return Identity.GetPlainId();
-        return "";
+        return SteamId;
     }
     
     // Retorna o Player ID (UID)
@@ -51,7 +66,7 @@ class ActivePlayer
     {
         if (Identity)
             return Identity.GetId();
-        return "";
+        return PlayerId;
     }
     
     // Retorna o tempo que está conectado em segundos
@@ -65,7 +80,7 @@ class ActivePlayer
     {
         if (Identity)
             return Identity.GetPlainId() == steamId;
-        return false;
+        return SteamId == steamId;
     }
     
     // Verifica se este jogador é o mesmo baseado no Player ID
@@ -73,7 +88,7 @@ class ActivePlayer
     {
         if (Identity)
             return Identity.GetId() == playerId;
-        return false;
+        return PlayerId == playerId;
     }
     
     // Verifica se tem PlayerIdentity válida
@@ -86,6 +101,15 @@ class ActivePlayer
     bool HasPlayer()
     {
         return Player != null;
+    }
+
+    void SyncIdentifiers()
+    {
+        if (Identity)
+        {
+            SteamId = Identity.GetPlainId();
+            PlayerId = Identity.GetId();
+        }
     }
 }
 

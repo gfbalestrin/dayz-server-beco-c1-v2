@@ -801,6 +801,11 @@ class CustomMission: MissionServer
 				existingPlayerIndex = foundByPlayerIdIndex;
 			}
 
+			if (existingPlayer && identity)
+			{
+				existingPlayer.SetIdentity(identity);
+			}
+
 			// Garante que playerId e steamId não são inconsistentes
 			if (foundBySteamId && foundByPlayerId && foundBySteamId != foundByPlayerId)
 			{
@@ -900,17 +905,25 @@ class CustomMission: MissionServer
 			return;
 		}
 		
-		for (int i = 0; i < ActivePlayers.Count(); i++)
+		bool removed = false;
+		for (int i = ActivePlayers.Count() - 1; i >= 0; i--)
 		{
 			ActivePlayer player = ActivePlayers.Get(i);
-			if (player && player.IsSamePlayer(steamId))
-			{
-				WriteToLog("RemoveActivePlayer(): Jogador removido: " + player.GetPlayerName() + " (SteamID: " + steamId + ")", LogFile.INIT, false, LogType.INFO);
-				ActivePlayers.Remove(i);
-				return;
-			}
+			if (!player)
+				continue;
+			if (!player.IsSamePlayer(steamId))
+				continue;
+			string nameLog = player.GetPlayerName();
+			if (nameLog == "")
+				nameLog = player.GetPlayerId();
+			WriteToLog("RemoveActivePlayer(): Jogador removido: " + nameLog + " (SteamID: " + player.GetSteamId() + ")", LogFile.INIT, false, LogType.INFO);
+			ActivePlayers.Remove(i);
+			removed = true;
 		}
-		WriteToLog("RemoveActivePlayer(): Jogador não encontrado na lista: " + steamId, LogFile.INIT, false, LogType.DEBUG);
+		if (!removed)
+		{
+			WriteToLog("RemoveActivePlayer(): Jogador não encontrado na lista: " + steamId, LogFile.INIT, false, LogType.DEBUG);
+		}
 	}
 	
 	// Remove um jogador da lista pelo Player ID
@@ -922,17 +935,25 @@ class CustomMission: MissionServer
 			return;
 		}
 		
-		for (int i = 0; i < ActivePlayers.Count(); i++)
+		bool removedById = false;
+		for (int j = ActivePlayers.Count() - 1; j >= 0; j--)
 		{
-			ActivePlayer player = ActivePlayers.Get(i);
-			if (player && player.IsSamePlayerById(playerId))
-			{
-				WriteToLog("RemoveActivePlayerById(): Jogador removido: " + player.GetPlayerName() + " (PlayerID: " + playerId + ")", LogFile.INIT, false, LogType.INFO);
-				ActivePlayers.Remove(i);
-				return;
-			}
+			ActivePlayer player = ActivePlayers.Get(j);
+			if (!player)
+				continue;
+			if (!player.IsSamePlayerById(playerId))
+				continue;
+			string nameLogId = player.GetPlayerName();
+			if (nameLogId == "")
+				nameLogId = player.GetPlayerId();
+			WriteToLog("RemoveActivePlayerById(): Jogador removido: " + nameLogId + " (PlayerID: " + player.GetPlayerId() + ")", LogFile.INIT, false, LogType.INFO);
+			ActivePlayers.Remove(j);
+			removedById = true;
 		}
-		WriteToLog("RemoveActivePlayerById(): Jogador não encontrado na lista: " + playerId, LogFile.INIT, false, LogType.DEBUG);
+		if (!removedById)
+		{
+			WriteToLog("RemoveActivePlayerById(): Jogador não encontrado na lista: " + playerId, LogFile.INIT, false, LogType.DEBUG);
+		}
 	}
 	
 	// Busca um jogador ativo pelo Steam ID
@@ -1179,27 +1200,35 @@ class CustomMission: MissionServer
 		for (int i = ActivePlayers.Count() - 1; i >= 0; i--)
 		{
 			ActivePlayer activePlayerItem = ActivePlayers.Get(i);
-			
-			if (!activePlayerItem || !activePlayerItem.HasIdentity())
+			if (!activePlayerItem)
 			{
-				// Jogador sem Identity - remove
 				ActivePlayers.Remove(i);
 				removedCount++;
+				continue;
 			}
-			else
+			string storedPlayerId = activePlayerItem.GetPlayerId();
+			string storedSteamId = activePlayerItem.GetSteamId();
+			string storedName = activePlayerItem.GetPlayerName();
+			if (storedName == "")
+				storedName = storedPlayerId;
+			
+			if (!activePlayerItem.HasIdentity())
 			{
-				string playerId = activePlayerItem.GetPlayerId();
-				
-				// Verifica se jogador está em ActivePlayers mas NÃO está no mundo (GHOST!)
-				if (validPlayerIds.Find(playerId) == -1)
-				{
-					// É um ghost! Força desconexão
-					ForceDisconnectGhost(activePlayerItem);
-					ActivePlayers.Remove(i);
-					disconnectedCount++;
-					removedCount++;
-					WriteToLog("CleanupInvalidActivePlayers(): Ghost desconectado e removido - " + activePlayerItem.GetPlayerName() + " (ID: " + playerId + ")", LogFile.INIT, false, LogType.INFO);
-				}
+				WriteToLog("CleanupInvalidActivePlayers(): Removendo jogador sem Identity - Nome: " + storedName + " | PlayerID: " + storedPlayerId + " | SteamID: " + storedSteamId, LogFile.INIT, false, LogType.DEBUG);
+				ActivePlayers.Remove(i);
+				removedCount++;
+				continue;
+			}
+			
+			// Verifica se jogador está em ActivePlayers mas NÃO está no mundo (GHOST!)
+			if (validPlayerIds.Find(storedPlayerId) == -1)
+			{
+				// É um ghost! Força desconexão
+				ForceDisconnectGhost(activePlayerItem);
+				ActivePlayers.Remove(i);
+				disconnectedCount++;
+				removedCount++;
+				WriteToLog("CleanupInvalidActivePlayers(): Ghost desconectado e removido - " + storedName + " (ID: " + storedPlayerId + ")", LogFile.INIT, false, LogType.INFO);
 			}
 		}
 		
