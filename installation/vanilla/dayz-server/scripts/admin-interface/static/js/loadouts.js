@@ -2448,14 +2448,11 @@ function toggleAttachmentForWeapon(attachmentId) {
     
     if (!attachment) return;
     
-    const loadoutType = $('#loadoutType').val() || 'custom';
-    const isPlayerLoadout = loadoutType === 'player';
-    
     const index = weaponConfig.attachments.findIndex(a => a.id === attachmentId);
     
     if (index >= 0) {
-        // Se já está selecionado, permitir editar quantidade
-        editAttachmentQuantity(attachmentId);
+        // Se já está selecionado, remover (comportamento de toggle)
+        weaponConfig.attachments.splice(index, 1);
     } else {
         // Validar que não há outro attachment do mesmo tipo
         const existingSameType = weaponConfig.attachments.find(a => a.type === attachment.type);
@@ -2464,31 +2461,7 @@ function toggleAttachmentForWeapon(attachmentId) {
             return;
         }
         
-        let quantity = 1;
-        let promptMessage = `Quantidade de "${attachment.name}":`;
-        if (isPlayerLoadout) {
-            const maxQty = attachment.max_quantity;
-            
-            if (maxQty) {
-                promptMessage += `\n(Máximo: ${maxQty})`;
-            }
-        }
-        
-        const newQuantity = prompt(promptMessage, quantity);
-        if (newQuantity === null) return;
-        
-        const qty = parseInt(newQuantity) || 1;
-        
-        // Validações para loadouts de players
-        if (isPlayerLoadout) {
-            // Validar quantidade máxima individual
-            if (attachment.max_quantity && qty > attachment.max_quantity) {
-                showAlert('danger', `Quantidade máxima permitida para este attachment é ${attachment.max_quantity}`);
-                return;
-            }
-        }
-        
-        // Adicionar attachment
+        // Adicionar attachment com quantidade 1
         weaponConfig.attachments.push({
             id: attachment.id,
             name: attachment.name,
@@ -2499,7 +2472,7 @@ function toggleAttachmentForWeapon(attachmentId) {
             height: attachment.height,
             battery: attachment.battery || false,
             img: attachment.img || '',
-            quantity: qty,
+            quantity: 1,
             max_quantity: attachment.max_quantity || null
         });
     }
@@ -2695,40 +2668,12 @@ function selectMagazineForWeapon(magazineId) {
     
     if (!magazine) return;
     
-    const loadoutType = $('#loadoutType').val() || 'custom';
-    const isPlayerLoadout = loadoutType === 'player';
-    
-    // Se já está selecionado, permitir editar quantidade
+    // Se já está selecionado, não fazer nada
     if (weaponConfig.magazine?.id === magazineId) {
-        editMagazineQuantity();
         return;
     }
     
-    let quantity = 1;
-    let promptMessage = `Quantidade de "${magazine.name}":`;
-    if (isPlayerLoadout) {
-        const maxQty = magazine.max_quantity;
-        
-        if (maxQty) {
-            promptMessage += `\n(Máximo: ${maxQty})`;
-        }
-    }
-    
-    const newQuantity = prompt(promptMessage, quantity);
-    if (newQuantity === null) return;
-    
-    const qty = parseInt(newQuantity) || 1;
-    
-    // Validações para loadouts de players
-    if (isPlayerLoadout) {
-        // Validar quantidade máxima individual
-        if (magazine.max_quantity && qty > magazine.max_quantity) {
-            showAlert('danger', `Quantidade máxima permitida para este magazine é ${magazine.max_quantity}`);
-            return;
-        }
-    }
-    
-    // Selecionar (substitui o anterior se houver)
+    // Selecionar (substitui o anterior se houver) com quantidade 1
     weaponConfig.magazine = {
         id: magazine.id,
         name: magazine.name,
@@ -2738,7 +2683,7 @@ function selectMagazineForWeapon(magazineId) {
         width: magazine.width,
         height: magazine.height,
         img: magazine.img || '',
-        quantity: qty,
+        quantity: 1,
         max_quantity: magazine.max_quantity || null
     };
     
@@ -2763,40 +2708,12 @@ function selectAmmunitionForWeapon(ammunitionId) {
     
     if (!ammunition) return;
     
-    const loadoutType = $('#loadoutType').val() || 'custom';
-    const isPlayerLoadout = loadoutType === 'player';
-    
-    // Se já está selecionado, permitir editar quantidade
+    // Se já está selecionado, não fazer nada
     if (weaponConfig.ammunition?.id === ammunitionId) {
-        editAmmunitionQuantity();
         return;
     }
     
-    let quantity = 1;
-    let promptMessage = `Quantidade de "${ammunition.name}":`;
-    if (isPlayerLoadout) {
-        const maxQty = ammunition.max_quantity;
-        
-        if (maxQty) {
-            promptMessage += `\n(Máximo: ${maxQty})`;
-        }
-    }
-    
-    const newQuantity = prompt(promptMessage, quantity);
-    if (newQuantity === null) return;
-    
-    const qty = parseInt(newQuantity) || 1;
-    
-    // Validações para loadouts de players
-    if (isPlayerLoadout) {
-        // Validar quantidade máxima individual
-        if (ammunition.max_quantity && qty > ammunition.max_quantity) {
-            showAlert('danger', `Quantidade máxima permitida para esta ammunition é ${ammunition.max_quantity}`);
-            return;
-        }
-    }
-    
-    // Selecionar (substitui o anterior se houver)
+    // Selecionar (substitui o anterior se houver) com quantidade 1
     weaponConfig.ammunition = {
         id: ammunition.id,
         name: ammunition.name,
@@ -2805,7 +2722,7 @@ function selectAmmunitionForWeapon(ammunitionId) {
         width: ammunition.width,
         height: ammunition.height,
         img: ammunition.img || '',
-        quantity: qty,
+        quantity: 1,
         max_quantity: ammunition.max_quantity || null
     };
     
@@ -2816,286 +2733,33 @@ function selectAmmunitionForWeapon(ammunitionId) {
 }
 
 function editMagazineQuantity() {
-    const weaponType = $('#weaponConfigType').val();
-    const weaponConfig = selectedWeapons[weaponType];
-    if (!weaponConfig || !weaponConfig.magazine) return false;
-    
-    const magazine = weaponConfig.magazine;
-    const loadoutType = $('#loadoutType').val() || 'custom';
-    const isPlayerLoadout = loadoutType === 'player';
-    
-    let promptMessage = `Quantidade de "${magazine.name}":`;
-    if (isPlayerLoadout) {
-        const maxQty = magazine.max_quantity;
-        
-        if (maxQty) {
-            promptMessage += `\n(Máximo: ${maxQty})`;
-        }
-    }
-    
-    const newQuantity = prompt(promptMessage, magazine.quantity || 1);
-    if (newQuantity === null) {
-        return false;
-    }
-    
-    const qty = parseInt(newQuantity) || 1;
-    
-    // Validações para loadouts de players
-    if (isPlayerLoadout) {
-        // Validar quantidade máxima individual
-        if (magazine.max_quantity && qty > magazine.max_quantity) {
-            showAlert('danger', `Quantidade máxima permitida para este magazine é ${magazine.max_quantity}`);
-            return false;
-        }
-    }
-    
-    magazine.quantity = qty;
-    updateSelectedMagazineDisplay();
-    updateJSONPreview();
-    markLoadoutChanged();
-    return true;
+    // Função não mais usada - quantidade é manipulada via botões + e -
+    return false;
 }
 
 function editAmmunitionQuantity() {
-    const weaponType = $('#weaponConfigType').val();
-    const weaponConfig = selectedWeapons[weaponType];
-    if (!weaponConfig || !weaponConfig.ammunition) return false;
-    
-    const ammunition = weaponConfig.ammunition;
-    const loadoutType = $('#loadoutType').val() || 'custom';
-    const isPlayerLoadout = loadoutType === 'player';
-    
-    let promptMessage = `Quantidade de "${ammunition.name}":`;
-    if (isPlayerLoadout) {
-        const maxQty = ammunition.max_quantity;
-        
-        if (maxQty) {
-            promptMessage += `\n(Máximo: ${maxQty})`;
-        }
-    }
-    
-    const newQuantity = prompt(promptMessage, ammunition.quantity || 1);
-    if (newQuantity === null) {
-        return false;
-    }
-    
-    const qty = parseInt(newQuantity) || 1;
-    
-    // Validações para loadouts de players
-    if (isPlayerLoadout) {
-        // Validar quantidade máxima individual
-        if (ammunition.max_quantity && qty > ammunition.max_quantity) {
-            showAlert('danger', `Quantidade máxima permitida para esta ammunition é ${ammunition.max_quantity}`);
-            return false;
-        }
-    }
-    
-    ammunition.quantity = qty;
-    updateSelectedAmmunitionDisplay();
-    updateJSONPreview();
-    markLoadoutChanged();
-    return true;
+    // Função não mais usada - quantidade é manipulada via botões + e -
+    return false;
 }
 
 function editAttachmentQuantity(attachmentId) {
-    const weaponType = $('#weaponConfigType').val();
-    const weaponConfig = selectedWeapons[weaponType];
-    if (!weaponConfig) return false;
-    
-    const attachment = weaponConfig.attachments.find(a => a.id === attachmentId);
-    if (!attachment) return false;
-    
-    const loadoutType = $('#loadoutType').val() || 'custom';
-    const isPlayerLoadout = loadoutType === 'player';
-    
-    let promptMessage = `Quantidade de "${attachment.name}":`;
-    if (isPlayerLoadout) {
-        const maxQty = attachment.max_quantity;
-        
-        if (maxQty) {
-            promptMessage += `\n(Máximo: ${maxQty})`;
-        }
-    }
-    
-    const newQuantity = prompt(promptMessage, attachment.quantity || 1);
-    if (newQuantity === null) {
-        return false;
-    }
-    
-    const qty = parseInt(newQuantity) || 1;
-    
-    // Validações para loadouts de players
-    if (isPlayerLoadout) {
-        // Validar quantidade máxima individual
-        if (attachment.max_quantity && qty > attachment.max_quantity) {
-            showAlert('danger', `Quantidade máxima permitida para este attachment é ${attachment.max_quantity}`);
-            return false;
-        }
-    }
-    
-    attachment.quantity = qty;
-    updateSelectedAttachmentsDisplay();
-    updateJSONPreview();
-    markLoadoutChanged();
-    return true;
+    // Função não mais usada - quantidade é manipulada via botões + e -
+    return false;
 }
 
 function editMagazineQuantityForWeapon(weaponType) {
-    const weaponConfig = selectedWeapons[weaponType];
-    if (!weaponConfig || !weaponConfig.magazine) return false;
-    
-    const magazine = weaponConfig.magazine;
-    const loadoutType = $('#loadoutType').val() || 'custom';
-    const isPlayerLoadout = loadoutType === 'player';
-    
-    let promptMessage = `Quantidade de "${magazine.name || magazine.name_type || 'Magazine'}":`;
-    if (isPlayerLoadout) {
-        const maxQty = magazine.max_quantity;
-        
-        if (maxQty) {
-            promptMessage += `\n(Máximo: ${maxQty})`;
-        }
-    }
-    
-    const newQuantity = prompt(promptMessage, magazine.quantity || 1);
-    if (newQuantity === null) {
-        return false;
-    }
-    
-    const qty = parseInt(newQuantity) || 1;
-    
-    // Validações para loadouts de players
-    if (isPlayerLoadout) {
-        // Validar quantidade máxima individual
-        if (magazine.max_quantity && qty > magazine.max_quantity) {
-            showAlert('danger', `Quantidade máxima permitida para este magazine é ${magazine.max_quantity}`);
-            return false;
-        }
-    }
-    
-    magazine.quantity = qty;
-    updateSelectedWeaponDisplay(weaponType);
-    
-    // Atualizar também o display do modal se estiver aberto
-    const currentWeaponType = $('#weaponConfigType').val();
-    if (currentWeaponType === weaponType) {
-        updateSelectedMagazineDisplay();
-    }
-    
-    updateJSONPreview();
-    markLoadoutChanged();
-    return true;
+    // Função não mais usada - quantidade é manipulada via botões + e -
+    return false;
 }
 
 function editAmmunitionQuantityForWeapon(weaponType) {
-    const weaponConfig = selectedWeapons[weaponType];
-    if (!weaponConfig || !weaponConfig.ammunition) return false;
-    
-    const ammunition = weaponConfig.ammunition;
-    const loadoutType = $('#loadoutType').val() || 'custom';
-    const isPlayerLoadout = loadoutType === 'player';
-    
-    let promptMessage = `Quantidade de "${ammunition.name || ammunition.name_type || 'Ammunition'}":`;
-    if (isPlayerLoadout) {
-        const maxQty = ammunition.max_quantity;
-        
-        if (maxQty) {
-            promptMessage += `\n(Máximo: ${maxQty})`;
-        }
-    }
-    
-    const newQuantity = prompt(promptMessage, ammunition.quantity || 1);
-    if (newQuantity === null) {
-        return false;
-    }
-    
-    const qty = parseInt(newQuantity) || 1;
-    
-    // Validações para loadouts de players
-    if (isPlayerLoadout) {
-        // Validar quantidade máxima individual
-        if (ammunition.max_quantity && qty > ammunition.max_quantity) {
-            showAlert('danger', `Quantidade máxima permitida para esta ammunition é ${ammunition.max_quantity}`);
-            return false;
-        }
-    }
-    
-    ammunition.quantity = qty;
-    updateSelectedWeaponDisplay(weaponType);
-    
-    // Atualizar também o display do modal se estiver aberto
-    const currentWeaponType = $('#weaponConfigType').val();
-    if (currentWeaponType === weaponType) {
-        updateSelectedAmmunitionDisplay();
-    }
-    
-    updateJSONPreview();
-    markLoadoutChanged();
-    return true;
+    // Função não mais usada - quantidade é manipulada via botões + e -
+    return false;
 }
 
 function editAttachmentQuantityForWeapon(weaponType, attachmentId, attachmentNameType, attachmentType, attachmentIndex) {
-    const weaponConfig = selectedWeapons[weaponType];
-    if (!weaponConfig) return false;
-    
-    // Tentar encontrar pelo ID primeiro
-    let attachment = weaponConfig.attachments.find(a => a.id === attachmentId);
-    
-    // Se não encontrar pelo ID e temos informações adicionais, usar elas
-    if (!attachment && attachmentId === 0 && attachmentNameType) {
-        attachment = weaponConfig.attachments.find(a => 
-            a.name_type === attachmentNameType && 
-            a.type === attachmentType
-        );
-    }
-    
-    // Se ainda não encontrou, usar o index
-    if (!attachment && typeof attachmentIndex !== 'undefined' && attachmentIndex >= 0) {
-        attachment = weaponConfig.attachments[attachmentIndex];
-    }
-    
-    if (!attachment) return false;
-    
-    const loadoutType = $('#loadoutType').val() || 'custom';
-    const isPlayerLoadout = loadoutType === 'player';
-    
-    let promptMessage = `Quantidade de "${attachment.name || attachment.name_type || 'Attachment'}":`;
-    if (isPlayerLoadout) {
-        const maxQty = attachment.max_quantity;
-        
-        if (maxQty) {
-            promptMessage += `\n(Máximo: ${maxQty})`;
-        }
-    }
-    
-    const newQuantity = prompt(promptMessage, attachment.quantity || 1);
-    if (newQuantity === null) {
-        return false;
-    }
-    
-    const qty = parseInt(newQuantity) || 1;
-    
-    // Validações para loadouts de players
-    if (isPlayerLoadout) {
-        // Validar quantidade máxima individual
-        if (attachment.max_quantity && qty > attachment.max_quantity) {
-            showAlert('danger', `Quantidade máxima permitida para este attachment é ${attachment.max_quantity}`);
-            return false;
-        }
-    }
-    
-    attachment.quantity = qty;
-    updateSelectedWeaponDisplay(weaponType);
-    
-    // Atualizar também o display do modal se estiver aberto
-    const currentWeaponType = $('#weaponConfigType').val();
-    if (currentWeaponType === weaponType) {
-        updateSelectedAttachmentsDisplay();
-    }
-    
-    updateJSONPreview();
-    markLoadoutChanged();
-    return true;
+    // Função não mais usada - quantidade é manipulada via botões + e -
+    return false;
 }
 
 // Funções increment/decrement para componentes de armas
@@ -3811,83 +3475,25 @@ function selectExplosiveForLoadout(explosiveId) {
     const explosive = explosivesDataLoadout.find(e => e.id === explosiveId);
     if (!explosive) return;
     
-    const loadoutType = $('#loadoutType').val() || 'custom';
-    const isPlayerLoadout = loadoutType === 'player';
-    
     const existing = selectedExplosives.find(e => e.id === explosiveId);
-    let quantity = 1;
     
+    // Se já existe, não fazer nada
     if (existing) {
-        quantity = existing.quantity || 1;
+        return;
     }
     
-    // Calcular quantidade total atual de explosivos (para validação de limite global)
-    // Usar quantity || 0 para contar apenas explosivos com quantidade definida
-    const currentTotal = selectedExplosives.reduce((sum, exp) => sum + (exp.quantity || 0), 0);
-    const currentForThisExplosive = existing ? (existing.quantity || 0) : 0;
-    
-    let promptMessage = `Quantidade de "${explosive.name}":`;
-    if (isPlayerLoadout) {
-        // Para loadouts de players, tratar max_quantity null/undefined como 1 (padrão)
-        const maxQty = explosive.max_quantity !== null && explosive.max_quantity !== undefined 
-            ? explosive.max_quantity 
-            : 1;
-        const globalLimit = window.explosivesGlobalLimit || 0;
-        
-        // Sempre mostrar o máximo (padrão é 1)
-        promptMessage += `\n(Máximo: ${maxQty})`;
-        
-        if (globalLimit > 0) {
-            const totalWithoutThis = currentTotal - currentForThisExplosive;
-            promptMessage += `\n(Limite global total: ${globalLimit})`;
-            promptMessage += `\n(Total atual: ${totalWithoutThis})`;
-        }
-    }
-    
-    const newQuantity = prompt(promptMessage, quantity);
-    if (newQuantity === null) return;
-    
-    const qty = parseInt(newQuantity) || 1;
-    
-    // Validações para loadouts de players
-    if (isPlayerLoadout) {
-        // Para loadouts de players, tratar max_quantity null/undefined como 1 (padrão)
-        const maxQty = explosive.max_quantity !== null && explosive.max_quantity !== undefined 
-            ? explosive.max_quantity 
-            : 1;
-        
-        // Validar quantidade máxima individual (sempre validar quando for loadout de player)
-        if (qty > maxQty) {
-            showAlert('danger', `Quantidade máxima permitida para este explosive é ${maxQty}`);
-            return;
-        }
-        
-        // Validar limite global
-        const globalLimit = window.explosivesGlobalLimit || 0;
-        if (globalLimit > 0) {
-            const newTotal = currentTotal - currentForThisExplosive + qty;
-            if (newTotal > globalLimit) {
-                showAlert('danger', `Limite global de explosivos é ${globalLimit}. Total atual seria ${newTotal}`);
-                return;
-            }
-        }
-    }
-    
-    if (existing) {
-        existing.quantity = qty;
-    } else {
-        selectedExplosives.push({
-            id: explosive.id,
-            name: explosive.name,
-            name_type: explosive.name_type,
-            slots: explosive.slots,
-            width: explosive.width,
-            height: explosive.height,
-            quantity: qty,
-            img: explosive.img || null,
-            max_quantity: explosive.max_quantity || null
-        });
-    }
+    // Adicionar explosive com quantidade 1
+    selectedExplosives.push({
+        id: explosive.id,
+        name: explosive.name,
+        name_type: explosive.name_type,
+        slots: explosive.slots,
+        width: explosive.width,
+        height: explosive.height,
+        quantity: 1,
+        img: explosive.img || null,
+        max_quantity: explosive.max_quantity || null
+    });
     
     updateSelectedExplosivesDisplay();
     updateJSONPreview();
@@ -4049,79 +3655,8 @@ function renderSelectedExplosiveCard(explosive, index) {
 }
 
 function editExplosiveQuantity(explosiveId) {
-    const explosive = selectedExplosives.find(e => e.id === explosiveId);
-    if (!explosive) return false;
-    
-    // Buscar o objeto original do banco para obter max_quantity correto
-    const explosiveOriginal = explosivesDataLoadout.find(e => e.id === explosiveId);
-    if (!explosiveOriginal) return false;
-    
-    const loadoutType = $('#loadoutType').val() || 'custom';
-    const isPlayerLoadout = loadoutType === 'player';
-    
-    // Calcular quantidade total atual de explosivos (para validação de limite global)
-    // Usar quantity || 0 para contar apenas explosivos com quantidade definida
-    const currentTotal = selectedExplosives.reduce((sum, exp) => sum + (exp.quantity || 0), 0);
-    const currentForThisExplosive = explosive.quantity || 0;
-    
-    let promptMessage = `Quantidade de "${explosive.name}":`;
-    if (isPlayerLoadout) {
-        // Para loadouts de players, tratar max_quantity null/undefined como 1 (padrão)
-        const maxQty = explosiveOriginal.max_quantity !== null && explosiveOriginal.max_quantity !== undefined 
-            ? explosiveOriginal.max_quantity 
-            : 1;
-        const globalLimit = window.explosivesGlobalLimit || 0;
-        
-        // Sempre mostrar o máximo (padrão é 1)
-        promptMessage += `\n(Máximo: ${maxQty})`;
-        
-        if (globalLimit > 0) {
-            const totalWithoutThis = currentTotal - currentForThisExplosive;
-            promptMessage += `\n(Limite global total: ${globalLimit})`;
-            promptMessage += `\n(Total atual: ${totalWithoutThis})`;
-        }
-    }
-    
-    const newQuantity = prompt(promptMessage, explosive.quantity || 1);
-    if (newQuantity === null) {
-        // Cancelado pelo usuário - não fazer nada
-        return false;
-    }
-    
-    const qty = parseInt(newQuantity) || 1;
-    
-    // Validações para loadouts de players
-    if (isPlayerLoadout) {
-        // Para loadouts de players, tratar max_quantity null/undefined como 1 (padrão)
-        const maxQty = explosiveOriginal.max_quantity !== null && explosiveOriginal.max_quantity !== undefined 
-            ? explosiveOriginal.max_quantity 
-            : 1;
-        
-        // Validar quantidade máxima individual (sempre validar quando for loadout de player)
-        if (qty > maxQty) {
-            showAlert('danger', `Quantidade máxima permitida para este explosive é ${maxQty}`);
-            return false;
-        }
-        
-        // Validar limite global
-        const globalLimit = window.explosivesGlobalLimit || 0;
-        if (globalLimit > 0) {
-            const newTotal = currentTotal - currentForThisExplosive + qty;
-            if (newTotal > globalLimit) {
-                showAlert('danger', `Limite global de explosivos é ${globalLimit}. Total atual seria ${newTotal}`);
-                return false;
-            }
-        }
-    }
-    
-    explosive.quantity = qty;
-    // Atualizar max_quantity do objeto selecionado com o valor do banco (caso tenha mudado)
-    explosive.max_quantity = explosiveOriginal.max_quantity || null;
-    
-    updateSelectedExplosivesDisplay();
-    updateJSONPreview();
-    markLoadoutChanged();
-    return true;
+    // Função não mais usada - quantidade é manipulada via botões + e -
+    return false;
 }
 
 function removeExplosiveFromLoadout(explosiveId) {
@@ -4432,39 +3967,14 @@ function selectItemForLoadout(itemId) {
             return;
         }
         
-        const loadoutType = $('#loadoutType').val() || 'custom';
-        const isPlayerLoadout = loadoutType === 'player';
-        
         const existing = selectedItems.find(i => i.id === itemId);
-        let quantity = 1;
         
+        // Se já existe, não fazer nada
         if (existing) {
-            quantity = existing.quantity || 1;
+            return;
         }
         
-        let promptMessage = `Quantidade de "${item.name}":`;
-        if (isPlayerLoadout) {
-            const maxQty = item.max_quantity;
-            
-            if (maxQty) {
-                promptMessage += `\n(Máximo: ${maxQty})`;
-            }
-        }
-        
-        const newQuantity = prompt(promptMessage, quantity);
-        if (newQuantity === null) return;
-        
-        const qty = parseInt(newQuantity) || 1;
-        
-        // Validações para loadouts de players
-        if (isPlayerLoadout) {
-            // Validar quantidade máxima individual
-            if (item.max_quantity && qty > item.max_quantity) {
-                showAlert('danger', `Quantidade máxima permitida para este item é ${item.max_quantity}`);
-                return;
-            }
-        }
-        
+        // Adicionar item com quantidade 1
         if (!existing) {
             // Carregar compatibilidade do item para subitems
             $.ajax({
@@ -4490,7 +4000,7 @@ function selectItemForLoadout(itemId) {
                             canHaveSubitems: compatibility.children && compatibility.children.length > 0,
                             compatibleChildren: compatibility.children || [],
                             img: item.img || null,
-                            quantity: qty,
+                            quantity: 1,
                             max_quantity: item.max_quantity || null
                         });
                         
@@ -4518,7 +4028,7 @@ function selectItemForLoadout(itemId) {
                             canHaveSubitems: false,
                             compatibleChildren: [],
                             img: item.img || null,
-                            quantity: qty,
+                            quantity: 1,
                             max_quantity: item.max_quantity || null
                         });
                         updateSelectedItemsDisplay();
@@ -4546,7 +4056,7 @@ function selectItemForLoadout(itemId) {
                         canHaveSubitems: false,
                         compatibleChildren: [],
                         img: item.img || null,
-                        quantity: qty,
+                        quantity: 1,
                         max_quantity: item.max_quantity || null
                     });
                     
@@ -4556,13 +4066,6 @@ function selectItemForLoadout(itemId) {
                     markLoadoutChanged();
                 }
             });
-        } else {
-            // Item já existe - atualizar quantidade
-            existing.quantity = qty;
-            updateSelectedItemsDisplay();
-            updateJSONPreview();
-            applyItemFiltersLoadout();
-            markLoadoutChanged();
         }
     } catch (error) {
         showAlert('danger', 'Erro inesperado ao selecionar item: ' + error.message);
@@ -4571,43 +4074,8 @@ function selectItemForLoadout(itemId) {
 }
 
 function editItemQuantity(itemId) {
-    const item = selectedItems.find(i => i.id === itemId);
-    if (!item) return false;
-    
-    const loadoutType = $('#loadoutType').val() || 'custom';
-    const isPlayerLoadout = loadoutType === 'player';
-    
-    let promptMessage = `Quantidade de "${item.name}":`;
-    if (isPlayerLoadout) {
-        const maxQty = item.max_quantity;
-        
-        if (maxQty) {
-            promptMessage += `\n(Máximo: ${maxQty})`;
-        }
-    }
-    
-    const newQuantity = prompt(promptMessage, item.quantity || 1);
-    if (newQuantity === null) {
-        // Cancelado pelo usuário - não fazer nada
-        return false;
-    }
-    
-    const qty = parseInt(newQuantity) || 1;
-    
-    // Validações para loadouts de players
-    if (isPlayerLoadout) {
-        // Validar quantidade máxima individual
-        if (item.max_quantity && qty > item.max_quantity) {
-            showAlert('danger', `Quantidade máxima permitida para este item é ${item.max_quantity}`);
-            return false;
-        }
-    }
-    
-    item.quantity = qty;
-    updateSelectedItemsDisplay();
-    updateJSONPreview();
-    markLoadoutChanged();
-    return true;
+    // Função não mais usada - quantidade é manipulada via botões + e -
+    return false;
 }
 
 // Funções increment/decrement para itens
