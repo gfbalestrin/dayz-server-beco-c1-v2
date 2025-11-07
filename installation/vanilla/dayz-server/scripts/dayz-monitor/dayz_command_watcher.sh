@@ -139,20 +139,6 @@ tail -F "$COMMAND_FILE" | while read -r line; do
                 fi
             fi
 
-            # Verifica se jogador já tem algum loadout
-            loadout_count=$(sqlite3 "$PLAYERS_BECO_C1_DB" "SELECT COUNT(*) FROM loadouts_players WHERE player_id = '$player_id_escaped';")
-
-            if [[ "$loadout_count" -eq 0 ]]; then
-                # Gerar loadout_id único (máximo + 1 ou 1 se não existir)
-                max_loadout_id=$(sqlite3 "$PLAYERS_BECO_C1_DB" "SELECT COALESCE(MAX(loadout_id), 0) FROM loadouts_players WHERE player_id = '$player_id_escaped';")
-                new_loadout_id=$((max_loadout_id + 1))
-                
-                # Criar loadout padrão com JSON vazio
-                loadout_data='{"primary_weapon":null,"secondary_weapon":null,"small_weapon":null,"explosives":[],"items":[]}'
-                loadout_data_escaped=$(echo "$loadout_data" | sed "s/'/''/g")
-                sqlite3 "$PLAYERS_BECO_C1_DB" "INSERT INTO loadouts_players (player_id, loadout_id, name, is_active, loadout_data) VALUES ('$player_id_escaped', $new_loadout_id, 'Loadout Padrão', 1, '$loadout_data_escaped');"
-            fi
-
             echo ">> Senha redefinida com sucesso para o jogador $player_id"
             echo "Login: $login"
             echo "Senha: $senha"

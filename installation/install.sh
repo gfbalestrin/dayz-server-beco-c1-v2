@@ -550,7 +550,11 @@ if [[ "\$DayzDeathmatch" == "1" ]]; then
     if grep -q "bool IsDeathmatchEnabled = false;" "\$GLOBALS_FILE"; then
         sed -i 's/bool IsDeathmatchEnabled = false;/bool IsDeathmatchEnabled = true;/g' "\$GLOBALS_FILE"        
     fi
-    echo > "$DayzFolder/mpmissions/$DayzMpmission/db/events.xml"
+    EVENTS_FILE="$DayzFolder/mpmissions/$DayzMpmission/db/events.xml"
+    sed -i '/<event name="StaticContaminatedArea">/,/<\/event>/d' "$EVENTS_FILE"
+    sed -i '/<event name="DynamicContaminatedArea">/,/<\/event>/d' "$EVENTS_FILE"
+    sed -i '/<event name="StaticGasZone">/,/<\/event>/d' "$EVENTS_FILE"
+    sed -i '/<event name="DynamicGasZone">/,/<\/event>/d' "$EVENTS_FILE"
 else
     if grep -q "bool IsDeathmatchEnabled = true;" "\$GLOBALS_FILE"; then
         sed -i 's/bool IsDeathmatchEnabled = true;/bool IsDeathmatchEnabled = false;/g' "\$GLOBALS_FILE"

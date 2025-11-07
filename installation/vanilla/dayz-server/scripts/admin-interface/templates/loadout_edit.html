@@ -30,15 +30,6 @@
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="fas fa-layer-group me-2"></i>{% if is_edit %}Editar{% else %}Criar Novo{% endif %} Loadout {% if loadout_type == 'player' %}Player{% else %}Custom{% endif %}</h2>
-        {% if request.path.startswith('/my-loadout') %}
-        <a href="{{ url_for('my_loadout') }}" class="btn btn-secondary">
-            <i class="fas fa-arrow-left me-2"></i>Voltar
-        </a>
-        {% else %}
-        <a href="{{ url_for('loadouts') }}#{% if loadout_type == 'player' %}players-tab{% else %}custom-tab{% endif %}" class="btn btn-secondary">
-            <i class="fas fa-arrow-left me-2"></i>Voltar
-        </a>
-        {% endif %}
     </div>
 
     <!-- Barra de Ações Fixa no Topo -->
@@ -108,22 +99,6 @@
                         </select>
                     </div>
                     {% endif %}
-                </div>
-            </div>
-        </div>
-        
-        <!-- Toggle para modo visual/JSON -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <div class="btn-group" role="group">
-                    <input type="radio" class="btn-check" name="loadoutMode" id="modeVisual" checked>
-                    <label class="btn btn-outline-primary" for="modeVisual">
-                        <i class="fas fa-th me-1"></i>Modo Visual
-                    </label>
-                    <input type="radio" class="btn-check" name="loadoutMode" id="modeJSON">
-                    <label class="btn btn-outline-primary" for="modeJSON">
-                        <i class="fas fa-code me-1"></i>Modo JSON
-                    </label>
                 </div>
             </div>
         </div>
@@ -298,6 +273,12 @@
                 <div id="loadout-items-tab" class="tab-pane fade">
                     <div class="card">
                         <div class="card-body">
+                            <!-- Items Selecionados - Movido para cima -->
+                            <div id="selectedItemsContainer" class="mb-4 selected-items-highlight">
+                                <h6 class="mb-3"><i class="fas fa-check-circle text-success me-2"></i>Items Selecionados:</h6>
+                                <div id="selectedItemsList" class="items-tree"></div>
+                            </div>
+                            
                             <div class="row mb-3">
                                 <div class="col-md-4">
                                     <input type="text" id="itemSearchLoadout" class="form-control" placeholder="Buscar item...">
@@ -331,12 +312,6 @@
                                 </div>
                             </div>
                             
-                            <!-- Items Selecionados - Movido para cima -->
-                            <div id="selectedItemsContainer" class="mb-4 selected-items-highlight">
-                                <h6 class="mb-3"><i class="fas fa-check-circle text-success me-2"></i>Items Selecionados:</h6>
-                                <div id="selectedItemsList" class="items-tree"></div>
-                            </div>
-                            
                             <!-- Grids de Itens Separados por Tipo (Gerados dinamicamente) -->
                             <div id="itemsGridsByType">
                                 <!-- Grids serão gerados dinamicamente via JavaScript -->
@@ -356,46 +331,6 @@
                 <div class="collapse mt-2" id="jsonPreviewCollapse">
                     <div class="card-body">
                         <textarea class="form-control font-monospace" id="jsonPreview" rows="15" readonly></textarea>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Modo JSON (Original) -->
-        <div id="jsonModeContent" style="display: none;">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Editor JSON</h5>
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        {% if loadout_type == 'player' %}
-                        <label for="playerLoadoutData" class="form-label">Dados do Loadout (JSON):</label>
-                        <textarea class="form-control font-monospace" id="playerLoadoutData" rows="20"></textarea>
-                        <small class="form-text text-muted">
-                            Formato esperado: Objeto Loadout completo com weapons, explosives e items.
-                            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="btnValidatePlayerJSON">
-                                <i class="fas fa-check me-1"></i>Validar JSON
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary ms-1" id="btnFormatPlayerJSON">
-                                <i class="fas fa-code me-1"></i>Formatar JSON
-                            </button>
-                        </small>
-                        <div id="playerJSONValidation" class="mt-2"></div>
-                        {% else %}
-                        <label for="customLoadoutData" class="form-label">Dados do Loadout (JSON):</label>
-                        <textarea class="form-control font-monospace" id="customLoadoutData" rows="20"></textarea>
-                        <small class="form-text text-muted">
-                            Formato esperado: Objeto Loadout completo com weapons, explosives e items.
-                            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="btnValidateCustomJSON">
-                                <i class="fas fa-check me-1"></i>Validar JSON
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary ms-1" id="btnFormatCustomJSON">
-                                <i class="fas fa-code me-1"></i>Formatar JSON
-                            </button>
-                        </small>
-                        <div id="customJSONValidation" class="mt-2"></div>
-                        {% endif %}
                     </div>
                 </div>
             </div>

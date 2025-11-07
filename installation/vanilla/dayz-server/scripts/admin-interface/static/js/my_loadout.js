@@ -2,7 +2,6 @@
 // MEU LOADOUT - JavaScript
 // ============================================================================
 
-let myLoadoutsTable;
 let myLoadouts = [];
 const MAX_LOADOUTS = 3;
 
@@ -11,9 +10,6 @@ const MAX_LOADOUTS = 3;
 // ============================================================================
 
 $(document).ready(function() {
-    // Inicializar tabela
-    initializeMyLoadoutTable();
-    
     // Carregar loadouts
     loadMyLoadouts();
     
@@ -27,91 +23,9 @@ $(document).ready(function() {
         window.location.href = '/my-loadout/new';
     });
     
-    $('#myLoadoutSearchInput').on('keyup', function() {
-        myLoadoutsTable.search(this.value).draw();
-    });
-    
     // Atualizar indicador de limite
     updateLoadoutLimitIndicator();
 });
-
-// ============================================================================
-// INICIALIZAÇÃO DA TABELA
-// ============================================================================
-
-function initializeMyLoadoutTable() {
-    myLoadoutsTable = $('#myLoadoutsTable').DataTable({
-        language: {
-            url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/pt-BR.json'
-        },
-        pageLength: 10,
-        lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
-        order: [[3, 'desc']], // Ordenar por atualizado em (mais recente primeiro)
-        columns: [
-            { data: 'name', name: 'name' },
-            { 
-                data: 'is_active',
-                name: 'is_active',
-                render: function(data, type, row) {
-                    if (data) {
-                        return '<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Ativo</span>';
-                    } else {
-                        return '<span class="badge bg-secondary"><i class="fas fa-times-circle me-1"></i>Inativo</span>';
-                    }
-                }
-            },
-            {
-                data: 'created_at',
-                name: 'created_at',
-                render: function(data) {
-                    if (!data) return '-';
-                    const date = new Date(data);
-                    return date.toLocaleString('pt-BR');
-                }
-            },
-            {
-                data: 'updated_at',
-                name: 'updated_at',
-                render: function(data) {
-                    if (!data) return '-';
-                    const date = new Date(data);
-                    return date.toLocaleString('pt-BR');
-                }
-            },
-            {
-                data: null,
-                name: 'actions',
-                orderable: false,
-                searchable: false,
-                render: function(data, type, row) {
-                    let actions = '';
-                    
-                    // Botão Ativar (se não estiver ativo)
-                    if (!row.is_active) {
-                        actions += `<button class="btn btn-sm btn-success me-1 mb-1" onclick="setActiveMyLoadout(${row.id}); return false;" title="Ativar este loadout">
-                            <i class="fas fa-check me-1"></i>Ativar
-                        </button>`;
-                    } else {
-                        actions += `<span class="badge bg-success me-1 mb-1">Ativo</span>`;
-                    }
-                    
-                    // Botão Editar
-                    actions += `<button class="btn btn-sm btn-primary me-1 mb-1" onclick="editMyLoadout(${row.id}); return false;" title="Editar loadout">
-                        <i class="fas fa-edit me-1"></i>Editar
-                    </button>`;
-                    
-                    // Botão Deletar
-                    actions += `<button class="btn btn-sm btn-danger me-1 mb-1" onclick="deleteMyLoadout(${row.id}); return false;" title="Deletar loadout">
-                        <i class="fas fa-trash me-1"></i>Deletar
-                    </button>`;
-                    
-                    return `<div class="loadout-actions">${actions}</div>`;
-                }
-            }
-        ],
-        responsive: true
-    });
-}
 
 // ============================================================================
 // CARREGAR LOADOUTS
@@ -124,7 +38,7 @@ function loadMyLoadouts() {
         success: function(response) {
             if (response.success) {
                 myLoadouts = response.loadouts || [];
-                updateMyLoadoutsTable();
+                renderLoadoutCards();
                 updateLoadoutLimitIndicator();
             } else {
                 showAlert('danger', response.message || 'Erro ao carregar loadouts');
@@ -137,10 +51,94 @@ function loadMyLoadouts() {
     });
 }
 
-function updateMyLoadoutsTable() {
-    myLoadoutsTable.clear();
-    myLoadoutsTable.rows.add(myLoadouts);
-    myLoadoutsTable.draw();
+// ============================================================================
+// RENDERIZAÇÃO DE CARDS
+// ============================================================================
+
+function renderLoadoutCards() {
+    const container = $('#loadoutCardsContainer');
+    const noLoadoutsMessage = $('#noLoadoutsMessage');
+    
+    // Limpar container
+    container.empty();
+    
+    // Verificar se há loadouts
+    if (myLoadouts.length === 0) {
+        container.hide();
+        noLoadoutsMessage.show();
+        return;
+    }
+    
+    // Mostrar container e ocultar mensagem
+    container.show();
+    noLoadoutsMessage.hide();
+    
+    // Renderizar cada card
+    myLoadouts.forEach(function(loadout) {
+        const card = createLoadoutCard(loadout);
+        container.append(card);
+    });
+}
+
+function createLoadoutCard(loadout) {
+    // Status badge
+    let statusBadge = '';
+    if (loadout.is_active) {
+        statusBadge = '<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Ativo</span>';
+    } else {
+        statusBadge = '<span class="badge bg-secondary"><i class="fas fa-times-circle me-1"></i>Inativo</span>';
+    }
+    
+    // Imagem placeholder (SVG)
+    const placeholderImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIyNSIgdmlld0JveD0iMCAwIDQwMCAyMjUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjQwMCIgaGVpZ2h0PSIyMjUiIGZpbGw9IiNmOGY5ZmEiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0IiBmaWxsPSIjNmM3NTdkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+TG9hZG91dCBJbWFnZTwvdGV4dD48L3N2Zz4=';
+    
+    // Botões de ação
+    let actions = '';
+    
+    // Botão Ativar (se não estiver ativo)
+    if (!loadout.is_active) {
+        actions += `<button class="btn btn-sm btn-success" onclick="setActiveMyLoadout(${loadout.id}); return false;" title="Ativar este loadout">
+            <i class="fas fa-check me-1"></i>Ativar
+        </button>`;
+    } else {
+        actions += `<span class="badge bg-success me-2">Ativo</span>`;
+    }
+    
+    // Botão Editar
+    actions += `<button class="btn btn-sm btn-primary" onclick="editMyLoadout(${loadout.id}); return false;" title="Editar loadout">
+        <i class="fas fa-edit me-1"></i>Editar
+    </button>`;
+    
+    // Botão Deletar
+    actions += `<button class="btn btn-sm btn-danger" onclick="deleteMyLoadout(${loadout.id}); return false;" title="Deletar loadout">
+        <i class="fas fa-trash me-1"></i>Deletar
+    </button>`;
+    
+    // Criar HTML do card
+    const cardHtml = `
+        <div class="loadout-card">
+            <div class="loadout-card-header">
+                <h5 class="loadout-card-title">${escapeHtml(loadout.name)}</h5>
+                ${statusBadge}
+            </div>
+            <div class="loadout-card-body">
+                <img src="https://img.freepik.com/free-psd/close-up-soldier-isolated_23-2151441992.jpg" alt="Loadout ${escapeHtml(loadout.name)}" class="loadout-card-image">
+            </div>
+            <div class="loadout-card-footer">
+                <div class="loadout-actions">
+                    ${actions}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return $(cardHtml);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // ============================================================================

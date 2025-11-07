@@ -110,13 +110,6 @@ if [[ "$RESET_PASSWORD" == "1" ]]; then
     sqlite3 "$DAYZ_ITEMS_DB" "UPDATE player_logins SET password = '$hash' WHERE player_id = '$PLAYER_ID';"
   fi
 
-  # Verifica se o jogador já tem algum loadout
-  loadout_count=$(sqlite3 "$DAYZ_ITEMS_DB" "SELECT COUNT(*) FROM player_loadouts WHERE player_id = '$PLAYER_ID';")
-
-  if [[ "$loadout_count" -eq 0 ]]; then
-    sqlite3 "$DAYZ_ITEMS_DB" "INSERT INTO player_loadouts (player_id, name, is_active) VALUES ('$PLAYER_ID', 'Loadout Padrão', 1);"
-  fi
-
   # Resposta final
   echo "{\"login\": \"$login\", \"senha\": \"$senha\", \"url\": \"$URL_LOADOUT\"}"
   exit 0

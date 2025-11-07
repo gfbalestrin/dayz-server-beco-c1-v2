@@ -1729,13 +1729,13 @@ def items_manage():
 
 # === WEAPONS ===
 @app.route('/api/manage/weapons', methods=['GET'])
-@admin_required
+@login_required
 def api_manage_weapons_list():
     weapons = get_weapons_with_calibers(limit=1000)
     return jsonify({'weapons': weapons})
 
 @app.route('/api/manage/weapons/<int:weapon_id>', methods=['GET'])
-@admin_required
+@login_required
 def api_manage_weapon_detail(weapon_id):
     weapon = get_weapon_by_id(weapon_id)
     if not weapon:
@@ -1799,7 +1799,7 @@ def api_manage_calibers_list():
     return jsonify({'calibers': calibers})
 
 @app.route('/api/manage/calibers-list', methods=['GET'])
-@admin_required
+@login_required
 def api_manage_calibers_list_simple():
     """Retorna apenas id e name dos calibres para filtros"""
     calibers = get_all_calibers()
@@ -1847,7 +1847,7 @@ def api_manage_caliber_delete(caliber_id):
 
 # === AMMUNITIONS ===
 @app.route('/api/manage/ammunitions', methods=['GET'])
-@admin_required
+@login_required
 def api_manage_ammunitions_list():
     ammunitions = get_ammunitions(limit=1000)
     return jsonify({'ammunitions': ammunitions})
@@ -1894,7 +1894,7 @@ def api_manage_ammunition_delete(ammo_id):
 
 # === MAGAZINES ===
 @app.route('/api/manage/magazines', methods=['GET'])
-@admin_required
+@login_required
 def api_manage_magazines_list():
     magazines = get_magazines(limit=1000)
     return jsonify({'magazines': magazines})
@@ -1941,7 +1941,7 @@ def api_manage_magazine_delete(mag_id):
 
 # === ATTACHMENTS ===
 @app.route('/api/manage/attachments', methods=['GET'])
-@admin_required
+@login_required
 def api_manage_attachments_list():
     attachments = get_attachments(limit=1000)
     return jsonify({'attachments': attachments})
@@ -1988,7 +1988,7 @@ def api_manage_attachment_delete(att_id):
 
 # === EXPLOSIVES ===
 @app.route('/api/manage/explosives', methods=['GET'])
-@admin_required
+@login_required
 def api_manage_explosives_list():
     explosives = get_explosives(limit=1000)
     return jsonify({'explosives': explosives})
@@ -2082,7 +2082,7 @@ def api_manage_item_type_delete(type_id):
 
 # === ITEMS ===
 @app.route('/api/manage/items', methods=['GET'])
-@admin_required
+@login_required
 def api_manage_items_list():
     items = get_items(limit=1000)
     return jsonify({'items': items})
@@ -2129,7 +2129,7 @@ def api_manage_item_delete(item_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/manage/items/<int:item_id>/compatibility', methods=['GET'])
-@admin_required
+@login_required
 def api_manage_item_compatibility_get(item_id):
     """Retorna compatibilidade de um item"""
     compatibility = get_item_compatibility(item_id)
@@ -4075,7 +4075,7 @@ def api_loadout_rules_item_types_unban(item_type_id):
 # ============================================================================
 
 @app.route('/api/loadouts/players/weapons', methods=['GET'])
-@admin_required
+@login_required
 def api_loadouts_players_weapons():
     """Lista apenas armas permitidas para loadouts de players"""
     try:
@@ -4086,7 +4086,7 @@ def api_loadouts_players_weapons():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/loadouts/players/magazines', methods=['GET'])
-@admin_required
+@login_required
 def api_loadouts_players_magazines():
     """Lista apenas magazines permitidas para loadouts de players"""
     try:
@@ -4099,7 +4099,7 @@ def api_loadouts_players_magazines():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/loadouts/players/ammunitions', methods=['GET'])
-@admin_required
+@login_required
 def api_loadouts_players_ammunitions():
     """Lista apenas ammunitions permitidas para loadouts de players"""
     try:
@@ -4113,7 +4113,7 @@ def api_loadouts_players_ammunitions():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/loadouts/players/attachments', methods=['GET'])
-@admin_required
+@login_required
 def api_loadouts_players_attachments():
     """Lista apenas attachments permitidos para loadouts de players"""
     try:
@@ -4127,7 +4127,7 @@ def api_loadouts_players_attachments():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/loadouts/players/explosives', methods=['GET'])
-@admin_required
+@login_required
 def api_loadouts_players_explosives():
     """Lista apenas explosives permitidos para loadouts de players com max_quantity"""
     try:
@@ -4139,7 +4139,7 @@ def api_loadouts_players_explosives():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/loadouts/players/items', methods=['GET'])
-@admin_required
+@login_required
 def api_loadouts_players_items():
     """Lista apenas items permitidos para loadouts de players com max_quantity"""
     try:
@@ -4152,7 +4152,7 @@ def api_loadouts_players_items():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/loadouts/players/item-types', methods=['GET'])
-@admin_required
+@login_required
 def api_loadouts_players_item_types():
     """Lista apenas tipos de itens permitidos (não banidos) para loadouts de players"""
     try:
@@ -4162,7 +4162,7 @@ def api_loadouts_players_item_types():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/loadouts/players/explosives-global', methods=['GET'])
-@admin_required
+@login_required
 def api_loadouts_players_explosives_global():
     """Retorna limite global de quantidade total de explosivos"""
     try:
