@@ -269,7 +269,8 @@ class CustomMission: MissionServer
 		{
 			// Aguarda o mundo carregar, detecta veículos e inicia rastreamento
 			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(this.InitVehicleTracking, 10000, false);
-		}        
+		}  
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SendStartEvent, 5000, false);      
     }
 
 	override void OnMissionStart()
