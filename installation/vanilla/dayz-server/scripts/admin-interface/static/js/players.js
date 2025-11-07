@@ -292,6 +292,24 @@ function renderSpawnButton(player) {
     `;
 }
 
+// Função para renderizar usuário vinculado
+function renderLinkedUser(player) {
+    if (player.LinkedUsername) {
+        return `<span class="badge bg-primary">${escapeHtml(player.LinkedUsername)}</span>`;
+    }
+    return '<span class="text-muted">-</span>';
+}
+
+// Função para renderizar link de loadouts
+function renderLoadoutsLink(player) {
+    const loadoutCount = player.PlayerLoadoutCount || 0;
+    if (!player.PlayerID || loadoutCount === 0) {
+        return '<span class="text-muted">Sem loadouts</span>';
+    }
+    const label = loadoutCount === 1 ? 'Ver 1 loadout' : `Ver ${loadoutCount} loadouts`;
+    return `<a href="/loadouts#players-tab?player_id=${player.PlayerID}" class="btn btn-link p-0">${label}</a>`;
+}
+
 // Função para redirecionar para spawning com confirmação
 function confirmRedirectToSpawning(playerId, playerName) {
     const player = playersData.find(p => p.PlayerID === playerId);
@@ -493,10 +511,12 @@ function filterPlayersData(data, searchTerm) {
         const playerName = (player.PlayerName || '').toLowerCase();
         const steamName = (player.SteamName || '').toLowerCase();
         const playerId = (player.PlayerID || '').toLowerCase();
+        const linkedUsername = (player.LinkedUsername || '').toLowerCase();
         
         return playerName.includes(term) || 
                steamName.includes(term) || 
-               playerId.includes(term);
+               playerId.includes(term) ||
+               linkedUsername.includes(term);
     });
 }
 
@@ -527,7 +547,7 @@ function renderPlayersTable() {
     tbody.empty();
     
     if (filteredData.length === 0) {
-        tbody.append('<tr><td colspan="8" class="text-center">Nenhum jogador encontrado</td></tr>');
+        tbody.append('<tr><td colspan="10" class="text-center">Nenhum jogador encontrado</td></tr>');
     } else {
         // Renderizar cada jogador
         filteredData.forEach(player => {
@@ -536,7 +556,9 @@ function renderPlayersTable() {
                     <td>${renderStatus(player)}</td>
                     <td>${renderPlayerId(player.PlayerID)}</td>
                     <td>${escapeHtml(player.PlayerName || '-')}</td>
+                    <td>${renderLinkedUser(player)}</td>
                     <td>${createSteamLink(player.SteamID, player.SteamName)}</td>
+                    <td>${renderLoadoutsLink(player)}</td>
                     <td>${renderDateTime(player)}</td>
                     <td>${createMapViewLink(player.PlayerID)}</td>
                     <td>${renderSpawnButton(player)}</td>
@@ -557,7 +579,7 @@ function renderPlayersTable() {
         pageLength: 25,
         responsive: true,
         columnDefs: [
-            { orderable: false, targets: [1, 5, 6, 7] } // Player ID, Mapa, Spawnar Itens e Ações não são ordenáveis
+            { orderable: false, targets: [1, 5, 7, 8, 9] } // Player ID, Loadouts, Mapa, Spawnar Itens e Ações não são ordenáveis
         ]
     });
     console.log('[renderPlayersTable] DataTable recriada com sucesso');
@@ -695,8 +717,8 @@ function updatePlayersTableActions() {
                     const player = filteredData.find(p => p.PlayerID === playerId);
                     
                     if (player) {
-                        const spawnCell = $(rowNode).find('td').eq(6);
-                        const actionCell = $(rowNode).find('td').eq(7);
+                        const spawnCell = $(rowNode).find('td').eq(8);
+                        const actionCell = $(rowNode).find('td').eq(9);
                         if (spawnCell.length > 0) {
                             spawnCell.html(renderSpawnButton(player));
                         }

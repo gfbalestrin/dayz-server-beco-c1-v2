@@ -85,6 +85,19 @@ function initializeTable() {
                 }
             },
             { 
+                data: null,
+                width: '12%',
+                orderable: false,
+                render: function(data, type, row) {
+                    const loadoutCount = row.PlayerLoadoutCount || 0;
+                    if (!row.PlayerID || loadoutCount === 0) {
+                        return '<span class="text-muted">Sem loadouts</span>';
+                    }
+                    const label = loadoutCount === 1 ? 'Ver 1 loadout' : `Ver ${loadoutCount} loadouts`;
+                    return `<a href="/loadouts#players-tab?player_id=${row.PlayerID}" class="btn btn-link p-0">${label}</a>`;
+                }
+            },
+            { 
                 data: 'CreatedAt', 
                 width: '10%',
                 render: function(data, type, row) {

@@ -427,7 +427,9 @@ def get_all_players_with_status() -> List[Dict]:
                 CASE WHEN po.PlayerID IS NOT NULL THEN 1 ELSE 0 END as IsOnline,
                 pc.CoordX, 
                 pc.CoordY, 
-                pc.Data as LastCoordDate
+                pc.Data as LastCoordDate,
+                usr.LinkedUsername,
+                COALESCE(lp.LoadoutCount, 0) AS PlayerLoadoutCount
             FROM players_database pd
             LEFT JOIN players_online po ON pd.PlayerID = po.PlayerID
             LEFT JOIN (
@@ -435,6 +437,17 @@ def get_all_players_with_status() -> List[Dict]:
                        ROW_NUMBER() OVER (PARTITION BY PlayerID ORDER BY Data DESC) as rn
                 FROM players_coord
             ) pc ON pd.PlayerID = pc.PlayerID AND pc.rn = 1
+            LEFT JOIN (
+                SELECT PlayerID, MAX(Username) AS LinkedUsername
+                FROM users
+                WHERE IsActive = 1 AND PlayerID IS NOT NULL
+                GROUP BY PlayerID
+            ) usr ON usr.PlayerID = pd.PlayerID
+            LEFT JOIN (
+                SELECT player_id, COUNT(*) AS LoadoutCount
+                FROM loadouts_players
+                GROUP BY player_id
+            ) lp ON lp.player_id = pd.PlayerID
             ORDER BY IsOnline DESC, pd.PlayerName ASC
         """)
         return [dict(row) for row in cursor.fetchall()]
@@ -2064,15 +2077,23 @@ def get_all_users() -> List[Dict]:
                 u.MustChangePassword,
                 pd.PlayerName,
                 pd.SteamID,
-                pd.SteamName
+                pd.SteamName,
+                COALESCE(lp.LoadoutCount, 0) AS PlayerLoadoutCount
             FROM users u
             LEFT JOIN players_database pd ON u.PlayerID = pd.PlayerID
+            LEFT JOIN (
+                SELECT player_id, COUNT(*) AS LoadoutCount
+                FROM loadouts_players
+                GROUP BY player_id
+            ) lp ON u.PlayerID = lp.player_id
             ORDER BY u.CreatedAt DESC
         """)
         
         results = []
         for row in cursor.fetchall():
             user_data = dict(row)
+            if 'PlayerLoadoutCount' in user_data and user_data['PlayerLoadoutCount'] is None:
+                user_data['PlayerLoadoutCount'] = 0
             results.append(user_data)
         
         return results
