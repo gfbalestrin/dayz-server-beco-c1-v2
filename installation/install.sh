@@ -474,6 +474,13 @@ set -euo pipefail
 
 echo "[INFO] Iniciando update do servidor DayZ..."
 
+echo > "$DayzFolder/mpmissions/$DayzMpmission/admin/files/commands_to_execute.txt"
+echo > "$DayzFolder/mpmissions/$DayzMpmission/admin/files/external_actions.txt"
+echo > "$DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_to_send.txt"
+echo > "$DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_private_to_send.txt"
+echo > "$DayzFolder/profiles/dayz-server.log"
+echo > "$DayzFolder/profiles/dayz-server.err"
+
 # Limpa logs de banco antigos (se o script existir)
 if [ -f "$DayzFolder/scripts/clear_databases.sh" ]; then
     echo "[INFO] Limpar logs de banco antigos..."
@@ -563,12 +570,6 @@ fi
 # Define permissões corretas apenas nos arquivos copiados
 chown "$LinuxUserName:$LinuxUserName" init.c 2>/dev/null || echo "Aviso: Não foi possível alterar permissões do init.c"
 chown -R "$LinuxUserName:$LinuxUserName" admin 2>/dev/null || echo "Aviso: Não foi possível alterar permissões da pasta admin"
-
-echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/commands_to_execute.txt
-echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_to_send.txt
-echo > $DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_private_to_send.txt
-echo > $DayzFolder/profiles/dayz-server.log
-echo > $DayzFolder/profiles/dayz-server.err
 
 awk -v dl="$DayzRestartMinutes" '
 BEGIN { in_old = 0; added = 0 }
