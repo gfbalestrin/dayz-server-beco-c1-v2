@@ -651,8 +651,8 @@ class CustomMission: MissionServer
 		if (IsDeathmatchEnabled)
 		{			
 			// Cria e adiciona o novo jogador
-			ActivePlayer newActivePlayer = new ActivePlayer(identity, player);
-			ActivePlayers.Insert(newActivePlayer);
+			ActivePlayer newActivePlayerDM = new ActivePlayer(identity, player);
+			ActivePlayers.Insert(newActivePlayerDM);
 			WriteToLog("AddOrUpdateActivePlayer(): Jogador adicionado: " + playerName + " (PlayerID: " + playerId + ", SteamID: " + steamId + ")", LogFile.INIT, false, LogType.INFO);
 			return;
 		}
