@@ -1929,8 +1929,8 @@ function applyWeaponFiltersLoadout(weaponType) {
                     } else if (Array.isArray(weapon.calibers)) {
                         calibers = weapon.calibers.map(c => String(c).trim());
                     }
-                    // Verificar se a string de calibres contém o nome do calibre selecionado
-                    match = match && weapon.calibers.includes(selectedCaliber.name);
+                    // Verificar se o array de calibres contém o nome do calibre selecionado
+                    match = match && calibers.some(c => c.toLowerCase() === selectedCaliber.name.toLowerCase());
                 }
             }
         }
@@ -3272,6 +3272,91 @@ function decrementAttachmentQuantityForWeapon(weaponType, attachmentId, attachme
     return true;
 }
 
+// Funções para remover componentes de armas
+function removeMagazineFromWeapon(weaponType) {
+    const weaponConfig = selectedWeapons[weaponType];
+    if (!weaponConfig || !weaponConfig.magazine) return false;
+    
+    // Remover magazine
+    delete weaponConfig.magazine;
+    
+    // Atualizar displays
+    updateSelectedWeaponDisplay(weaponType);
+    
+    // Atualizar também o display do modal se estiver aberto
+    const currentWeaponType = $('#weaponConfigType').val();
+    if (currentWeaponType === weaponType) {
+        updateSelectedMagazineDisplay();
+    }
+    
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
+function removeAmmunitionFromWeapon(weaponType) {
+    const weaponConfig = selectedWeapons[weaponType];
+    if (!weaponConfig || !weaponConfig.ammunition) return false;
+    
+    // Remover ammunition
+    delete weaponConfig.ammunition;
+    
+    // Atualizar displays
+    updateSelectedWeaponDisplay(weaponType);
+    
+    // Atualizar também o display do modal se estiver aberto
+    const currentWeaponType = $('#weaponConfigType').val();
+    if (currentWeaponType === weaponType) {
+        updateSelectedAmmunitionDisplay();
+    }
+    
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
+function removeAttachmentFromWeaponCard(weaponType, attachmentId, attachmentNameType, attachmentType, attachmentIndex) {
+    const weaponConfig = selectedWeapons[weaponType];
+    if (!weaponConfig) return false;
+    
+    // Tentar encontrar pelo ID primeiro
+    let attachmentIndexToRemove = weaponConfig.attachments.findIndex(a => a.id === attachmentId);
+    
+    // Se não encontrar pelo ID e temos informações adicionais, usar elas
+    if (attachmentIndexToRemove === -1 && attachmentId === 0 && attachmentNameType) {
+        attachmentIndexToRemove = weaponConfig.attachments.findIndex(a => 
+            a.name_type === attachmentNameType && 
+            a.type === attachmentType
+        );
+    }
+    
+    // Se ainda não encontrou, usar o index fornecido
+    if (attachmentIndexToRemove === -1 && typeof attachmentIndex !== 'undefined' && attachmentIndex >= 0) {
+        attachmentIndexToRemove = attachmentIndex;
+    }
+    
+    if (attachmentIndexToRemove === -1 || attachmentIndexToRemove < 0) {
+        return false;
+    }
+    
+    // Remover attachment
+    weaponConfig.attachments.splice(attachmentIndexToRemove, 1);
+    
+    // Atualizar displays
+    updateSelectedWeaponDisplay(weaponType);
+    
+    // Atualizar também o display do modal se estiver aberto
+    const currentWeaponType = $('#weaponConfigType').val();
+    if (currentWeaponType === weaponType) {
+        updateSelectedAttachmentsDisplay();
+        renderAttachmentsGridConfig();
+    }
+    
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
 function updateSelectedMagazineDisplay() {
     const weaponType = $('#weaponConfigType').val();
     const weaponConfig = selectedWeapons[weaponType];
@@ -3500,6 +3585,11 @@ function renderSelectedWeaponCard(weaponConfig, weaponType) {
                                                                     ${!magazineCanIncrement ? 'disabled' : ''}>
                                                                 <i class="fas fa-plus"></i>
                                                             </button>
+                                                            <button class="btn btn-sm btn-danger" 
+                                                                    onclick="removeMagazineFromWeapon('${weaponType}'); event.preventDefault(); event.stopPropagation(); return false;" 
+                                                                    title="Remover">
+                                                                <i class="fas fa-trash"></i>
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -3531,6 +3621,11 @@ function renderSelectedWeaponCard(weaponConfig, weaponType) {
                                                                     title="Aumentar Quantidade"
                                                                     ${!ammunitionCanIncrement ? 'disabled' : ''}>
                                                                 <i class="fas fa-plus"></i>
+                                                            </button>
+                                                            <button class="btn btn-sm btn-danger" 
+                                                                    onclick="removeAmmunitionFromWeapon('${weaponType}'); event.preventDefault(); event.stopPropagation(); return false;" 
+                                                                    title="Remover">
+                                                                <i class="fas fa-trash"></i>
                                                             </button>
                                                         </div>
                                                     </div>
@@ -3573,6 +3668,11 @@ function renderSelectedWeaponCard(weaponConfig, weaponType) {
                                                                         title="Aumentar Quantidade"
                                                                         ${!attCanIncrement ? 'disabled' : ''}>
                                                                     <i class="fas fa-plus"></i>
+                                                                </button>
+                                                                <button class="btn btn-sm btn-danger" 
+                                                                        onclick="removeAttachmentFromWeaponCard('${weaponType}', ${att.id || 0}, '${att.name_type || ''}', '${att.type || ''}', ${attIndex}); event.preventDefault(); event.stopPropagation(); return false;" 
+                                                                        title="Remover">
+                                                                    <i class="fas fa-trash"></i>
                                                                 </button>
                                                             </div>
                                                         </div>

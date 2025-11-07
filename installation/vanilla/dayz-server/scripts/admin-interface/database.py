@@ -3063,16 +3063,21 @@ def get_weapons_for_player_loadout(search: str = None) -> List[Dict]:
     with DatabaseConnection(config.DB_ITEMS) as conn:
         cursor = conn.cursor()
         query = """
-            SELECT w.id, w.name, w.name_type, w.feed_type, w.slots, w.width, w.height, w.img
+            SELECT DISTINCT
+                w.id, w.name, w.name_type, w.feed_type, w.slots, w.width, w.height, w.img,
+                GROUP_CONCAT(DISTINCT c.name) as calibers
             FROM weapons w
             LEFT JOIN loadout_rules_weapons lrw ON w.id = lrw.weapon_id
+            LEFT JOIN weapon_ammunitions wa ON w.id = wa.weapon_id
+            LEFT JOIN ammunitions a ON wa.ammo_id = a.id
+            LEFT JOIN calibers c ON a.caliber_id = c.id
             WHERE lrw.id IS NULL
         """
         params = []
         if search:
             query += " AND (w.name LIKE ? OR w.name_type LIKE ?)"
             params.extend([f'%{search}%', f'%{search}%'])
-        query += " ORDER BY w.name"
+        query += " GROUP BY w.id ORDER BY w.name"
         cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
 
