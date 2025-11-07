@@ -2381,15 +2381,19 @@ function removeAttachmentFromWeapon(weaponType, attachmentId) {
 // Função auxiliar para obter fonte de dados correta (dados isolados > arrays globais > cache global)
 function getDataSource(weaponType, dataType) {
     // Prioridade 1: Dados isolados da arma
+    // Sempre retornar dados isolados quando existirem, mesmo se vazios
+    // Isso garante que armas sem componentes compatíveis não mostrem dados de outras armas
     const weaponConfig = selectedWeapons[weaponType];
     if (weaponConfig && weaponConfig.compatibleItems) {
         const isolated = weaponConfig.compatibleItems[dataType];
-        if (isolated && isolated.length > 0) {
+        // Retornar o array isolado mesmo se estiver vazio
+        // Arrays vazios indicam que a arma não tem componentes compatíveis
+        if (isolated !== undefined && isolated !== null) {
             return isolated;
         }
     }
     
-    // Prioridade 2: Arrays globais
+    // Prioridade 2: Arrays globais (fallback apenas quando compatibleItems não existir)
     if (dataType === 'magazines' && magazinesDataLoadout.length > 0) {
         return magazinesDataLoadout;
     }
@@ -2400,7 +2404,7 @@ function getDataSource(weaponType, dataType) {
         return attachmentsDataLoadout;
     }
     
-    // Prioridade 3: Cache global
+    // Prioridade 3: Cache global (fallback apenas quando compatibleItems não existir)
     if (dataType === 'magazines') {
         return globalMagazinesCache;
     }
