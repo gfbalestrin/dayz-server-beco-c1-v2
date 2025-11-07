@@ -19,6 +19,7 @@ class SafeZoneData {
 	ref array<string> SpawnZones;
 	ref array<string> WallZones;
 	bool Active;
+	bool NextActiveMap;
     bool IsDeleted;
     SafeZoneDataSpawns Spawns;
 

@@ -491,6 +491,15 @@ def api_deathmatch_config():
         except:
             return None
 
+    next_entry = None
+    for item in data:
+        if item.get('NextActiveMap'):
+            if not bool(item.get('IsDeleted')):
+                next_entry = item
+                break
+            if not next_entry:
+                next_entry = item
+
     spawn_zones = []
     for s in selected.get('SpawnZones', []) or []:
         pt = parse_coord_spawn(s)
@@ -516,14 +525,24 @@ def api_deathmatch_config():
         'region': selected.get('Region'),
         'customMessage': selected.get('CustomMessage'),
         'active': bool(selected.get('Active')),
+        'nextActive': bool(selected.get('NextActiveMap')),
         'isDeleted': bool(selected.get('IsDeleted')),
         'valid': (len(selected.get('SpawnZones') or []) >= 1 and len(selected.get('WallZones') or []) >= 3),
         'spawnZones': spawn_zones,
         'wallZones': wall_zones,
         'spawns': {
             'vehicles': vehicles
-        }
+        },
+        'nextMap': None
     }
+
+    if next_entry:
+        result['nextMap'] = {
+            'regionId': next_entry.get('RegionId'),
+            'region': next_entry.get('Region'),
+            'isDeleted': bool(next_entry.get('IsDeleted')),
+            'active': bool(next_entry.get('Active'))
+        }
 
     return jsonify(result)
 
@@ -553,6 +572,7 @@ def api_deathmatch_maps():
             'regionId': item.get('RegionId'),
             'region': item.get('Region'),
             'active': bool(item.get('Active')),
+            'nextActive': bool(item.get('NextActiveMap')),
             'isDeleted': bool(item.get('IsDeleted')),
             'valid': (len(item.get('SpawnZones') or []) >= 1 and len(item.get('WallZones') or []) >= 3)
         })
@@ -606,13 +626,43 @@ def api_deathmatch_set_active():
                 if not (len(item.get('SpawnZones') or []) >= 1 and len(item.get('WallZones') or []) >= 3):
                     return jsonify({ 'error': 'Mapa inválido: precisa de ao menos 1 Spawn e 3 WallZones' }), 400
                 item['Active'] = True
+                item['NextActiveMap'] = True
                 found = True
             else:
                 item['Active'] = False
+                item['NextActiveMap'] = False
         if not found:
             return jsonify({ 'error': f'Região {region_id} não encontrada' }), 404
         _dm_write_all(data)
         return jsonify({ 'message': 'Mapa definido como ativo com sucesso' })
+    except Exception as e:
+        return jsonify({ 'error': str(e) }), 500
+
+
+@app.route('/api/deathmatch/map/set-next', methods=['POST'])
+@admin_required
+def api_deathmatch_set_next():
+    payload = request.get_json(silent=True) or {}
+    region_id = payload.get('regionId')
+    if region_id is None:
+        return jsonify({ 'error': 'regionId é obrigatório' }), 400
+    try:
+        data = _dm_read_all()
+        found = False
+        for item in data:
+            if int(item.get('RegionId', -1)) == int(region_id):
+                if bool(item.get('IsDeleted')):
+                    return jsonify({ 'error': 'Mapa está marcado como excluído' }), 400
+                if not (len(item.get('SpawnZones') or []) >= 1 and len(item.get('WallZones') or []) >= 3):
+                    return jsonify({ 'error': 'Mapa inválido: precisa de ao menos 1 Spawn e 3 WallZones' }), 400
+                item['NextActiveMap'] = True
+                found = True
+            else:
+                item['NextActiveMap'] = False
+        if not found:
+            return jsonify({ 'error': f'Região {region_id} não encontrada' }), 404
+        _dm_write_all(data)
+        return jsonify({ 'message': 'Mapa definido como próximo com sucesso' })
     except Exception as e:
         return jsonify({ 'error': str(e) }), 500
 
@@ -664,6 +714,7 @@ def api_deathmatch_create():
         new_item = {
             'RegionId': new_id,
             'Active': False,
+            'NextActiveMap': False,
             'IsDeleted': True,
             'Region': region_name or f'Região {new_id}',
             'CustomMessage': custom_message or '',

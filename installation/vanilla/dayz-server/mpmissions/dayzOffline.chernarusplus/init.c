@@ -2668,6 +2668,12 @@ class CustomMission: MissionServer
 		
 		WriteToLog("SendVehiclesPositions(): Posições de " + m_TrackedVehicles.Count().ToString() + " veículos enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
 	}
+
+	override void OnMissionFinish()
+    {
+		WriteToLog("OnMissionFinish - Método executado", LogFile.INIT, false, LogType.INFO);
+        super.OnMissionFinish();
+    }
 };
 
 Mission CreateCustomMission(string path)

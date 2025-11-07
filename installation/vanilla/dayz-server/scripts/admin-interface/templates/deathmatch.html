@@ -19,6 +19,12 @@
         <select id="dmRegionSelect" class="form-select form-select-sm" style="width: 260px;">
             <option value="">Carregando mapas...</option>
         </select>
+        <div class="badge bg-success d-none" id="dmActiveBadge">
+            <i class="fas fa-check me-1"></i>Ativo
+        </div>
+        <div class="badge bg-secondary d-none" id="dmNextBadge">
+            <i class="fas fa-step-forward me-1"></i>Próximo
+        </div>
     </div>
   </div>
 
@@ -48,6 +54,10 @@
           <div class="badge bg-success me-1" title="SpawnZones"><i class="fas fa-circle"></i> <span id="dmSpawnCount">0</span> Spawns</div>
           <div class="badge bg-warning" title="WallZones"><i class="fas fa-draw-polygon"></i> <span id="dmWallCount">0</span> Pts Parede</div>
         </div>
+        <div class="mt-3">
+          <div class="small text-muted">Próximo mapa configurado:</div>
+          <div class="fw-semibold" id="dmGlobalNextMap">--</div>
+        </div>
       </div>
     </div>
 
@@ -70,6 +80,9 @@
           </button>
           <button type="button" class="btn btn-sm btn-outline-danger" id="dmSetActiveBtn">
             <i class="fas fa-check me-1"></i>Tornar Ativo
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-primary" id="dmSetNextBtn">
+            <i class="fas fa-step-forward me-1"></i>Marcar como Próximo
           </button>
           <button type="button" class="btn btn-sm btn-outline-secondary" id="dmToggleDeletedBtn">
             <i class="fas fa-ban me-1"></i>Marcar como Excluído

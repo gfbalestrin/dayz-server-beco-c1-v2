@@ -1,66 +1,294 @@
+int GetNextAvailableMapIndex(ref array<ref SafeZoneData> zones, int startIndex)
+{
+	if (!zones)
+		return -1;
+
+	int totalCount = zones.Count();
+	if (totalCount == 0)
+		return -1;
+
+	int baseIndex = startIndex;
+	if (baseIndex < 0 || baseIndex >= totalCount)
+		baseIndex = 0;
+
+	int attempts = 0;
+	int candidateIndex = baseIndex;
+
+	while (attempts < totalCount)
+	{
+		candidateIndex++;
+		if (candidateIndex >= totalCount)
+			candidateIndex = 0;
+
+		ref SafeZoneData candidateZone = zones[candidateIndex];
+		if (candidateZone && !candidateZone.IsDeleted)
+			return candidateIndex;
+
+		attempts++;
+	}
+
+	return baseIndex;
+}
+
 ref SafeZoneData LoadActiveRegionData(string path)
 {
 	WriteToLog("Carregando arquivo JSON: " + path, LogFile.INIT, false, LogType.DEBUG);
 
 	JsonFileLoader<array<ref SafeZoneData>>.JsonLoadFile(path, maps);
 
-	foreach (ref SafeZoneData data : maps) {
-		if (data && data.Active && !data.IsDeleted) {
-			WriteToLog("Região ativa encontrada:", LogFile.INIT, false, LogType.DEBUG);
-			WriteToLog("Region: " + data.Region, LogFile.INIT, false, LogType.DEBUG);
-			WriteToLog("Mensagem personalizada: " + data.CustomMessage, LogFile.INIT, false, LogType.DEBUG);
-			WriteToLog("SpawnZones: " + data.SpawnZones.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
-			WriteToLog("WallZones: " + data.WallZones.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);            
-            if (!data.Spawns)
-                return data;
+	if (!maps || maps.Count() == 0)
+	{
+		WriteToLog("LoadActiveRegionData(): Lista de mapas vazia ou nula.", LogFile.INIT, false, LogType.ERROR);
+		return null;
+	}
 
-            if (data.Spawns.Vehicles)
-                WriteToLog("Spawns.Vehicles: " + data.Spawns.Vehicles.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
-            
-            return data;
+	bool needsSave = false;
+	int activeIndex = -1;
+	int nextIndex = -1;
+
+	for (int mapIdx = 0; mapIdx < maps.Count(); mapIdx++)
+	{
+		ref SafeZoneData mapEntry = maps[mapIdx];
+		if (!mapEntry)
+			continue;
+
+		if (mapEntry.IsDeleted)
+		{
+			if (mapEntry.Active)
+			{
+				mapEntry.Active = false;
+				needsSave = true;
+				WriteToLog("LoadActiveRegionData(): Região deletada estava ativa. RegionId " + mapEntry.RegionId.ToString() + " desmarcada.", LogFile.INIT, false, LogType.WARNING);
+			}
+
+			if (mapEntry.NextActiveMap)
+			{
+				mapEntry.NextActiveMap = false;
+				needsSave = true;
+				WriteToLog("LoadActiveRegionData(): Região deletada estava marcada como próxima. RegionId " + mapEntry.RegionId.ToString() + " desmarcada.", LogFile.INIT, false, LogType.WARNING);
+			}
+
+			continue;
+		}
+
+		if (mapEntry.Active)
+		{
+			if (activeIndex == -1)
+			{
+				activeIndex = mapIdx;
+			}
+			else
+			{
+				mapEntry.Active = false;
+				needsSave = true;
+				WriteToLog("LoadActiveRegionData(): Múltiplas regiões ativas detectadas. RegionId " + mapEntry.RegionId.ToString() + " desmarcada.", LogFile.INIT, false, LogType.WARNING);
+			}
+		}
+
+		if (mapEntry.NextActiveMap)
+		{
+			if (nextIndex == -1)
+			{
+				nextIndex = mapIdx;
+			}
+			else
+			{
+				mapEntry.NextActiveMap = false;
+				needsSave = true;
+				WriteToLog("LoadActiveRegionData(): Múltiplas regiões marcadas como próximas. RegionId " + mapEntry.RegionId.ToString() + " desmarcada.", LogFile.INIT, false, LogType.WARNING);
+			}
 		}
 	}
 
-	WriteToLog("Nenhuma região ativa encontrada.", LogFile.INIT, false, LogType.ERROR);
-	return null;
+	if (activeIndex == -1)
+	{
+		for (int fallbackIdx = 0; fallbackIdx < maps.Count(); fallbackIdx++)
+		{
+			ref SafeZoneData fallbackEntry = maps[fallbackIdx];
+			if (fallbackEntry && !fallbackEntry.IsDeleted)
+			{
+				fallbackEntry.Active = true;
+				activeIndex = fallbackIdx;
+				needsSave = true;
+				WriteToLog("LoadActiveRegionData(): Nenhuma região ativa encontrada. RegionId " + fallbackEntry.RegionId.ToString() + " tornou-se ativa.", LogFile.INIT, false, LogType.ERROR);
+				break;
+			}
+		}
+	}
+
+	if (activeIndex == -1)
+	{
+		WriteToLog("LoadActiveRegionData(): Não há regiões válidas para carregar.", LogFile.INIT, false, LogType.ERROR);
+		return null;
+	}
+
+	ref SafeZoneData activeRegion = maps[activeIndex];
+
+	bool keepSameNext = false;
+	if (nextIndex != -1)
+	{
+		ref SafeZoneData candidateNext = maps[nextIndex];
+		if (!candidateNext || candidateNext.IsDeleted)
+		{
+			if (candidateNext && candidateNext.NextActiveMap)
+			{
+				candidateNext.NextActiveMap = false;
+				needsSave = true;
+				WriteToLog("LoadActiveRegionData(): Região próxima inválida detectada. RegionId " + candidateNext.RegionId.ToString() + " desmarcada.", LogFile.INIT, false, LogType.WARNING);
+			}
+
+			nextIndex = -1;
+		}
+		else if (nextIndex == activeIndex)
+		{
+			keepSameNext = true;
+		}
+	}
+
+	bool promotedToActive = false;
+	if (nextIndex != -1 && !keepSameNext)
+	{
+		if (activeRegion)
+		{
+			activeRegion.Active = false;
+		}
+
+		ref SafeZoneData promotedRegion = maps[nextIndex];
+		promotedRegion.Active = true;
+		activeIndex = nextIndex;
+		activeRegion = promotedRegion;
+		promotedToActive = true;
+		needsSave = true;
+
+		WriteToLog("LoadActiveRegionData(): Promovendo RegionId " + promotedRegion.RegionId.ToString() + " para mapa ativo.", LogFile.INIT, false, LogType.INFO);
+
+		nextIndex = -1;
+	}
+
+	int nextTargetIndex = -1;
+	if (keepSameNext && !promotedToActive)
+	{
+		nextTargetIndex = activeIndex;
+	}
+	else
+	{
+		nextTargetIndex = GetNextAvailableMapIndex(maps, activeIndex);
+		if (nextTargetIndex == -1)
+			nextTargetIndex = activeIndex;
+	}
+
+	for (int nextIdx = 0; nextIdx < maps.Count(); nextIdx++)
+	{
+		ref SafeZoneData zoneToAdjust = maps[nextIdx];
+		if (!zoneToAdjust)
+			continue;
+
+		bool shouldBeNext = (nextIdx == nextTargetIndex);
+		if (zoneToAdjust.NextActiveMap != shouldBeNext)
+		{
+			zoneToAdjust.NextActiveMap = shouldBeNext;
+			needsSave = true;
+		}
+	}
+
+	if (nextTargetIndex >= 0 && nextTargetIndex < maps.Count())
+	{
+		nextMap = maps[nextTargetIndex];
+	}
+	else
+	{
+		nextMap = activeRegion;
+	}
+
+	WriteToLog("LoadActiveRegionData(): Mapa atual -> " + activeRegion.Region + " | Próximo mapa -> " + nextMap.Region, LogFile.INIT, false, LogType.INFO);
+
+	if (needsSave)
+	{
+		JsonFileLoader<array<ref SafeZoneData>>.JsonSaveFile(path, maps);
+		WriteToLog("LoadActiveRegionData(): Arquivo normalizado com sucesso.", LogFile.INIT, false, LogType.INFO);
+	}
+
+	if (activeRegion.SpawnZones)
+	{
+		WriteToLog("SpawnZones: " + activeRegion.SpawnZones.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
+	}
+
+	if (activeRegion.WallZones)
+	{
+		WriteToLog("WallZones: " + activeRegion.WallZones.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
+	}
+
+	if (activeRegion.Spawns && activeRegion.Spawns.Vehicles)
+	{
+		WriteToLog("Spawns.Vehicles: " + activeRegion.Spawns.Vehicles.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
+	}
+
+	return activeRegion;
 }
 
 void ToggleActiveRegion(string path)
 {
-    WriteToLog("Carregando JSON de regiões: " + path, LogFile.INIT, false, LogType.DEBUG);
+	WriteToLog("ToggleActiveRegion(): Atualizando indicador de próximo mapa.", LogFile.INIT, false, LogType.DEBUG);
 
-    ref array<ref SafeZoneData> zones;
-    JsonFileLoader<array<ref SafeZoneData>>.JsonLoadFile(path, zones);
+	ref array<ref SafeZoneData> zones = maps;
+	if (!zones || zones.Count() == 0)
+	{
+		JsonFileLoader<array<ref SafeZoneData>>.JsonLoadFile(path, zones);
+		maps = zones;
+	}
 
-    int activeIndex = -1;
-    for (int i = 0; i < zones.Count(); i++) {
-        if (zones[i].Active && !zones[i].IsDeleted) {
-            zones[i].Active = false;
-            activeIndex = i;
-            break;
-        }
-    }
+	if (!zones || zones.Count() == 0)
+	{
+		WriteToLog("ToggleActiveRegion(): Lista de regiões vazia.", LogFile.INIT, false, LogType.ERROR);
+		return;
+	}
 
-    int nextIndex = activeIndex + 1;
-    if (nextIndex >= zones.Count()) {
-        nextIndex = 0;
-    }
+	int activeIndex = -1;
+	for (int indexSearch = 0; indexSearch < zones.Count(); indexSearch++)
+	{
+		ref SafeZoneData zoneSearch = zones[indexSearch];
+		if (!zoneSearch || zoneSearch.IsDeleted)
+			continue;
 
-    // Procurar o próximo mapa que não está deletado
-    int tries = 0;
-    while (zones[nextIndex].IsDeleted && tries < zones.Count()) {
-        nextIndex++;
-        if (nextIndex >= zones.Count()) {
-            nextIndex = 0;
-        }
-        tries++;
-    }
-    zones[nextIndex].Active = true;
+		if (zoneSearch.Active)
+		{
+			activeIndex = indexSearch;
+			break;
+		}
+	}
 
-    JsonFileLoader<array<ref SafeZoneData>>.JsonSaveFile(path, zones);
-    nextMap = zones[nextIndex];
+	if (activeIndex == -1)
+	{
+		WriteToLog("ToggleActiveRegion(): Nenhum mapa ativo disponível para atualizar.", LogFile.INIT, false, LogType.ERROR);
+		return;
+	}
 
-    WriteToLog("Região ativa alterada para: " + zones[nextIndex].Region, LogFile.INIT, false, LogType.INFO);
+	int pendingNextIndex = GetNextAvailableMapIndex(zones, activeIndex);
+	if (pendingNextIndex == -1)
+		pendingNextIndex = activeIndex;
+
+	bool dirty = false;
+	for (int updateIdx = 0; updateIdx < zones.Count(); updateIdx++)
+	{
+		ref SafeZoneData zoneUpdate = zones[updateIdx];
+		if (!zoneUpdate)
+			continue;
+
+		bool stateNext = (updateIdx == pendingNextIndex);
+		if (zoneUpdate.NextActiveMap != stateNext)
+		{
+			zoneUpdate.NextActiveMap = stateNext;
+			dirty = true;
+		}
+	}
+
+	if (dirty)
+	{
+		JsonFileLoader<array<ref SafeZoneData>>.JsonSaveFile(path, zones);
+		WriteToLog("ToggleActiveRegion(): Próximo mapa atualizado para RegionId " + zones[pendingNextIndex].RegionId.ToString(), LogFile.INIT, false, LogType.INFO);
+	}
+
+	nextMap = zones[pendingNextIndex];
 }
 
 void ExtractVectorArray(string json, string key, out array<vector> output)

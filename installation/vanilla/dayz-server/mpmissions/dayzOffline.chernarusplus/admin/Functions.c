@@ -114,27 +114,162 @@ void BroadcastMessage(string message, MessageColor color = MessageColor.STATUS, 
 
 void SetActiveRegionById(int regionId)
 {
-    WriteToLog("Carregando JSON de regiões: " + DeathMatchConfigJsonFile, LogFile.INIT, false, LogType.DEBUG);
+    WriteToLog("SetActiveRegionById(): carregando regiões de " + DeathMatchConfigJsonFile, LogFile.INIT, false, LogType.DEBUG);
 
     ref array<ref SafeZoneData> zones;
     JsonFileLoader<array<ref SafeZoneData>>.JsonLoadFile(DeathMatchConfigJsonFile, zones);
 
-    bool found = false;
+    if (!zones || zones.Count() == 0)
+    {
+        WriteToLog("SetActiveRegionById(): lista de regiões vazia.", LogFile.INIT, false, LogType.ERROR);
+        return;
+    }
 
-    for (int i = 0; i < zones.Count(); i++) {
-        if (zones[i].RegionId == regionId) {
-            zones[i].Active = true;
+    bool found = false;
+    int newActiveIndex = -1;
+
+    for (int idx = 0; idx < zones.Count(); idx++)
+    {
+        ref SafeZoneData zone = zones[idx];
+        if (!zone)
+            continue;
+
+        bool shouldBeActive = (zone.RegionId == regionId && !zone.IsDeleted);
+        if (shouldBeActive)
+        {
+            zone.Active = true;
             found = true;
-        } else {
-            zones[i].Active = false;
+            newActiveIndex = idx;
+        }
+        else if (zone.Active)
+        {
+            zone.Active = false;
         }
     }
 
-    if (found) {
+    if (!found)
+    {
+        WriteToLog("SetActiveRegionById(): RegionId " + regionId.ToString() + " não encontrado ou marcado como deletado.", LogFile.INIT, false, LogType.ERROR);
+        return;
+    }
+
+    JsonFileLoader<array<ref SafeZoneData>>.JsonSaveFile(DeathMatchConfigJsonFile, zones);
+    maps = zones;
+
+    if (newActiveIndex != -1)
+        currentMap = zones[newActiveIndex];
+
+    WriteToLog("SetActiveRegionById(): Região ativa definida para " + regionId.ToString() + ".", LogFile.INIT, false, LogType.INFO);
+
+    ToggleActiveRegion(DeathMatchConfigJsonFile);
+}
+
+void SetNextActiveRegionById(int regionId)
+{
+    WriteToLog("SetNextActiveRegionById(): atualizando RegionId " + regionId.ToString(), LogFile.INIT, false, LogType.DEBUG);
+
+    ref array<ref SafeZoneData> zones;
+    JsonFileLoader<array<ref SafeZoneData>>.JsonLoadFile(DeathMatchConfigJsonFile, zones);
+
+    if (!zones || zones.Count() == 0)
+    {
+        WriteToLog("SetNextActiveRegionById(): lista de regiões vazia.", LogFile.INIT, false, LogType.ERROR);
+        return;
+    }
+
+    bool found = false;
+    bool changed = false;
+    int nextIndex = -1;
+    int activeIndex = -1;
+
+    for (int idx = 0; idx < zones.Count(); idx++)
+    {
+        ref SafeZoneData zone = zones[idx];
+        if (!zone)
+            continue;
+
+        if (zone.Active && !zone.IsDeleted && activeIndex == -1)
+            activeIndex = idx;
+
+        bool markAsNext = false;
+        if (zone.RegionId == regionId)
+        {
+            if (zone.IsDeleted)
+            {
+                WriteToLog("SetNextActiveRegionById(): Região " + zone.Region + " está marcada como deletada e não pode ser próxima.", LogFile.INIT, false, LogType.ERROR);
+            }
+            else
+            {
+                markAsNext = true;
+                found = true;
+                nextIndex = idx;
+            }
+        }
+
+        if (zone.NextActiveMap != markAsNext)
+        {
+            zone.NextActiveMap = markAsNext;
+            changed = true;
+        }
+    }
+
+    if (!found)
+    {
+        int fallbackIndex = activeIndex;
+
+        if (fallbackIndex == -1)
+        {
+            for (int searchIdx = 0; searchIdx < zones.Count(); searchIdx++)
+            {
+                ref SafeZoneData fallbackZone = zones[searchIdx];
+                if (fallbackZone && !fallbackZone.IsDeleted)
+                {
+                    fallbackIndex = searchIdx;
+                    break;
+                }
+            }
+        }
+
+        if (fallbackIndex != -1)
+        {
+            for (int resetIdx = 0; resetIdx < zones.Count(); resetIdx++)
+            {
+                ref SafeZoneData resetZone = zones[resetIdx];
+                if (!resetZone)
+                    continue;
+
+                bool fallbackFlag = (resetIdx == fallbackIndex);
+                if (resetZone.NextActiveMap != fallbackFlag)
+                {
+                    resetZone.NextActiveMap = fallbackFlag;
+                    changed = true;
+                }
+            }
+
+            nextIndex = fallbackIndex;
+            WriteToLog("SetNextActiveRegionById(): RegionId " + regionId.ToString() + " inválido. Mantendo mapa " + zones[fallbackIndex].Region + " como próximo.", LogFile.INIT, false, LogType.WARNING);
+        }
+        else
+        {
+            WriteToLog("SetNextActiveRegionById(): Nenhuma região válida disponível para definir como próxima.", LogFile.INIT, false, LogType.ERROR);
+        }
+    }
+
+    if (changed)
+    {
         JsonFileLoader<array<ref SafeZoneData>>.JsonSaveFile(DeathMatchConfigJsonFile, zones);
-        WriteToLog("Região com RegionId " + regionId.ToString() + " foi marcada como ativa.", LogFile.INIT, false, LogType.INFO);
-    } else {
-        WriteToLog("RegionId " + regionId.ToString() + " não encontrado no arquivo.", LogFile.INIT, false, LogType.ERROR);
+        WriteToLog("SetNextActiveRegionById(): Próximo mapa atualizado com sucesso.", LogFile.INIT, false, LogType.INFO);
+    }
+
+    maps = zones;
+
+    if (nextIndex != -1)
+    {
+        nextMap = zones[nextIndex];
+    }
+    else if (activeIndex != -1)
+    {
+        nextMap = zones[activeIndex];
     }
 }
 string Pluralize(int valor, string singular, string plural)

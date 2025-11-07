@@ -167,13 +167,13 @@ class VoteMapManager
 				WriteToLog("Total online: " + totalOnline.ToString(), LogFile.INIT, false, LogType.DEBUG);
 				WriteToLog("Votos no vencedor: " + votosNoVencedor.ToString(), LogFile.INIT, false, LogType.DEBUG);
 
-				if (votosNoVencedor == totalOnline && totalOnline > 0)
-				{
-					BroadcastMessage("Votação unânime! Reiniciando com o mapa: " + mapName, MessageColor.IMPORTANT);
-					AppendExternalAction("{\"action\":\"send_log_discord\",\"message\":\"Votação de mapa finalizada! O próximo mapa será: " + mapName + "\"}");
-					SetActiveRegionById(winner);
-					AppendExternalAction("{\"action\": \"restart_server\", \"minutes\": 1, \"message\": \"Servidor será reiniciado em 1 minuto\"}");
-				}
+                if (votosNoVencedor == totalOnline && totalOnline > 0)
+                {
+                    BroadcastMessage("Votação unânime! Reiniciando com o mapa: " + mapName, MessageColor.IMPORTANT);
+                    AppendExternalAction("{\"action\":\"send_log_discord\",\"message\":\"Votação de mapa finalizada! O próximo mapa será: " + mapName + "\"}");
+                    SetNextActiveRegionById(winner);
+                    AppendExternalAction("{\"action\": \"restart_server\", \"minutes\": 1, \"message\": \"Servidor será reiniciado em 1 minuto\"}");
+                }
 				else
 				{
 					AppendExternalAction("{\"action\":\"send_log_discord\",\"message\":\"Votação de mapa finalizada! A votação não foi unânime e nenhuma troca será feita.\"}");
@@ -187,7 +187,7 @@ class VoteMapManager
 
 				BroadcastMessage("Mapa vencedor: " + winner + " - " + mapName + " com " + highest.ToString() + " votos.", MessageColor.FRIENDLY);
 				AppendExternalAction("{\"action\":\"send_log_discord\",\"message\":\"Mapa vencedor: " + winner + " - " + mapName + " com " + highest.ToString() + " votos.\"}");
-				SetActiveRegionById(winner);
+                SetNextActiveRegionById(winner);
 			}
 		}
 		else

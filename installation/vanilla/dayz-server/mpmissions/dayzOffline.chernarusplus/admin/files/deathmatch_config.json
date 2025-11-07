@@ -2,6 +2,7 @@
     {
         "RegionId": 1,
         "Active": false,
+        "NextActiveMap": true,
         "IsDeleted": false,
         "Region": "Ilha da prisão",
         "CustomMessage": "NÃO SAIA DA ILHA DA PRISÃO OU VOCÊ LEVARÁ PENALIDADES!",
@@ -47,6 +48,7 @@
     {
         "RegionId": 2,
         "Active": false,
+        "NextActiveMap": false,
         "IsDeleted": false,
         "Region": "Ilha Urbana de Cherno",
         "CustomMessage": "NÃO SAIA DA ILHA DOS PRÉDIOS OU VOCÊ LEVARÁ PENALIDADES!",
@@ -88,6 +90,7 @@
     {
         "RegionId": 3,
         "Active": false,
+        "NextActiveMap": false,
         "IsDeleted": false,
         "Region": "Elektro",
         "CustomMessage": "NÃO ULTRAPASSE A ÁREA DEMARCADA OU VOCÊ LEVARÁ PENALIDADES!",
@@ -147,6 +150,7 @@
     {
         "RegionId": 4,
         "Active": false,
+        "NextActiveMap": false,
         "IsDeleted": false,
         "Region": "Khelm",
         "CustomMessage": "NÃO ULTRAPASSE A ÁREA DEMARCADA OU VOCÊ LEVARÁ PENALIDADES!",
@@ -185,6 +189,7 @@
     {
         "RegionId": 5,
         "Active": false,
+        "NextActiveMap": false,
         "IsDeleted": false,
         "Region": "Berezino",
         "CustomMessage": "NÃO ULTRAPASSE A ÁREA DEMARCADA OU VOCÊ LEVARÁ PENALIDADES!",
@@ -240,6 +245,7 @@
     {
         "RegionId": 7,
         "Active": false,
+        "NextActiveMap": false,
         "IsDeleted": false,
         "Region": "Pavlovo",
         "CustomMessage": "NÃO ULTRAPASSE A ÁREA DEMARCADA OU VOCÊ LEVARÁ PENALIDADES!",
@@ -292,6 +298,7 @@
     {
         "RegionId": 8,
         "Active": false,
+        "NextActiveMap": false,
         "IsDeleted": false,
         "Region": "Svetloyarsk",
         "CustomMessage": "NÃO ULTRAPASSE A ÁREA DEMARCADA OU VOCÊ LEVARÁ PENALIDADES!",
@@ -526,6 +533,7 @@
     {
         "RegionId": 12,
         "Active": true,
+        "NextActiveMap": false,
         "Region": "Airfield",
         "CustomMessage": "NÃO ULTRAPASSE A ÁREA DEMARCADA OU VOCÊ LEVARÁ PENALIDADES!",
         "SpawnZones": [
