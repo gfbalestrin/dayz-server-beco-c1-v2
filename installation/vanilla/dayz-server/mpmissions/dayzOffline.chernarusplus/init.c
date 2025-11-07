@@ -627,6 +627,105 @@ class CustomMission: MissionServer
 	// FUNÇÕES HELPER PARA GERENCIAR JOGADORES ATIVOS
 	// ============================================================================
 	
+	int FindActivePlayerIndexByIdentifiers(string targetPlayerId, string targetSteamId)
+	{
+		if (!ActivePlayers)
+			return -1;
+
+		for (int searchIdx = 0; searchIdx < ActivePlayers.Count(); searchIdx++)
+		{
+			ActivePlayer storedPlayer = ActivePlayers.Get(searchIdx);
+			if (!storedPlayer)
+				continue;
+
+			if ((targetPlayerId != "") && (storedPlayer.GetPlayerId() == targetPlayerId))
+				return searchIdx;
+
+			if ((targetSteamId != "") && (storedPlayer.GetSteamId() == targetSteamId))
+				return searchIdx;
+
+			if ((targetPlayerId != "") && storedPlayer.IsSamePlayerById(targetPlayerId))
+				return searchIdx;
+
+			if ((targetSteamId != "") && storedPlayer.IsSamePlayer(targetSteamId))
+				return searchIdx;
+		}
+
+		return -1;
+	}
+
+	void PurgeDuplicateActivePlayers(int keepIndex, string targetPlayerId, string targetSteamId)
+	{
+		if (!ActivePlayers)
+			return;
+
+		for (int purgeIdx = ActivePlayers.Count() - 1; purgeIdx >= 0; purgeIdx--)
+		{
+			if (purgeIdx == keepIndex)
+				continue;
+
+			ActivePlayer candidatePlayer = ActivePlayers.Get(purgeIdx);
+			if (!candidatePlayer)
+			{
+				ActivePlayers.Remove(purgeIdx);
+				continue;
+			}
+
+			bool isSamePlayer = false;
+			if ((targetPlayerId != "") && (candidatePlayer.GetPlayerId() == targetPlayerId))
+				isSamePlayer = true;
+			else if ((targetSteamId != "") && (candidatePlayer.GetSteamId() == targetSteamId))
+				isSamePlayer = true;
+			else if ((targetPlayerId != "") && candidatePlayer.IsSamePlayerById(targetPlayerId))
+				isSamePlayer = true;
+			else if ((targetSteamId != "") && candidatePlayer.IsSamePlayer(targetSteamId))
+				isSamePlayer = true;
+
+			if (isSamePlayer)
+			{
+				string duplicateName = candidatePlayer.GetPlayerName();
+				if (duplicateName == "")
+					duplicateName = candidatePlayer.GetPlayerId();
+
+				WriteToLog("PurgeDuplicateActivePlayers(): Removendo duplicata de jogador: " + duplicateName, LogFile.INIT, false, LogType.DEBUG);
+				ActivePlayers.Remove(purgeIdx);
+			}
+		}
+	}
+
+	void EnsureActivePlayerHasManRef(string targetPlayerId, Man preferredMan = null)
+	{
+		if (!ActivePlayers)
+			return;
+
+		if (targetPlayerId == "")
+			return;
+
+		int ensureIdx = FindActivePlayerIndexByIdentifiers(targetPlayerId, "");
+		if (ensureIdx == -1)
+			return;
+
+		ActivePlayer ensurePlayer = ActivePlayers.Get(ensureIdx);
+		if (!ensurePlayer)
+			return;
+
+		if (preferredMan)
+		{
+			ensurePlayer.SetPlayer(preferredMan);
+			return;
+		}
+
+		if (ensurePlayer.HasPlayer())
+			return;
+
+		Man recoveredMan = FindPlayerManInWorld(targetPlayerId);
+		if (recoveredMan)
+		{
+			ensurePlayer.SetPlayer(recoveredMan);
+			WriteToLog("EnsureActivePlayerHasManRef(): Referência ao Man restaurada para PlayerID " + targetPlayerId, LogFile.INIT, false, LogType.DEBUG);
+		}
+	}
+	
 	// Adiciona ou atualiza um jogador à lista de jogadores ativos
 	void AddOrUpdateActivePlayer(PlayerIdentity identity, Man player = null)
 	{
@@ -646,6 +745,42 @@ class CustomMission: MissionServer
 		string steamId = identity.GetPlainId();
 		string playerName = identity.GetName();
 		string playerId = identity.GetId();
+
+		int existingIndex = FindActivePlayerIndexByIdentifiers(playerId, steamId);
+		if (existingIndex != -1)
+		{
+			ActivePlayer existingPlayerRecord = ActivePlayers.Get(existingIndex);
+			if (existingPlayerRecord)
+			{
+				Man storedMan = existingPlayerRecord.GetPlayer();
+
+				if (identity)
+					existingPlayerRecord.SetIdentity(identity);
+
+				if (player)
+				{
+					if (storedMan && (storedMan != player))
+					{
+						PlayerBase storedPlayerBase = PlayerBase.Cast(storedMan);
+						if (storedPlayerBase && !storedPlayerBase.IsAlive())
+						{
+							WriteToLog("AddOrUpdateActivePlayer(): Deletando corpo antigo ao atualizar jogador: " + playerName, LogFile.INIT, false, LogType.DEBUG);
+							GetGame().ObjectDelete(storedPlayerBase);
+						}
+					}
+
+					existingPlayerRecord.SetPlayer(player);
+				}
+				else
+				{
+					EnsureActivePlayerHasManRef(playerId);
+				}
+
+				PurgeDuplicateActivePlayers(existingIndex, playerId, steamId);
+				WriteToLog("AddOrUpdateActivePlayer(): Jogador já registrado, referências atualizadas: " + playerName + " (PlayerID: " + playerId + ", SteamID: " + steamId + ")", LogFile.INIT, false, LogType.DEBUG);
+			}
+			return;
+		}
 
 		if (IsDeathmatchEnabled)
 		{			
@@ -893,6 +1028,7 @@ class CustomMission: MissionServer
 		ActivePlayer newActivePlayer = new ActivePlayer(identity, player);
 		ActivePlayers.Insert(newActivePlayer);
 		WriteToLog("AddOrUpdateActivePlayer(): Jogador adicionado: " + playerName + " (PlayerID: " + playerId + ", SteamID: " + steamId + ")", LogFile.INIT, false, LogType.INFO);
+		EnsureActivePlayerHasManRef(playerId, player);
 	}
 	
 	// Remove um jogador da lista pelo Steam ID
@@ -1033,6 +1169,8 @@ class CustomMission: MissionServer
 		
 		int displayIndex = 1;
 		bool hasInvalidPlayers = false;
+		ref set<string> observedPlayerIds = new set<string>();
+		ref set<string> observedSteamIds = new set<string>();
 		for (int i = 0; i < ActivePlayers.Count(); i++)
 		{
 			ActivePlayer player = ActivePlayers.Get(i);
@@ -1040,6 +1178,24 @@ class CustomMission: MissionServer
 			{
 				float duration = player.GetConnectedDuration();
 				WriteToLog("  [" + displayIndex + "] " + player.GetPlayerName() + " | PlayerID: " + player.GetPlayerId() + " | SteamID: " + player.GetSteamId() + " | Conectado há: " + duration.ToString() + "s", LogFile.INIT, false, LogType.INFO);
+
+				string listedPlayerId = player.GetPlayerId();
+				string listedSteamId = player.GetSteamId();
+				if ((listedPlayerId != "") && observedPlayerIds.Contains(listedPlayerId))
+				{
+					WriteToLog("ListActivePlayers(): Duplicata detectada para PlayerID " + listedPlayerId + ", removendo entradas excedentes.", LogFile.INIT, false, LogType.DEBUG);
+					PurgeDuplicateActivePlayers(i, listedPlayerId, listedSteamId);
+				}
+				else if (listedPlayerId != "")
+				{
+					observedPlayerIds.Insert(listedPlayerId);
+				}
+
+				if ((listedSteamId != "") && !observedSteamIds.Contains(listedSteamId))
+				{
+					observedSteamIds.Insert(listedSteamId);
+				}
+
 				displayIndex++;
 			} else {
 				// Jogador inválido encontrado - será removido automaticamente
@@ -1475,6 +1631,7 @@ class CustomMission: MissionServer
 		// Adiciona o jogador à lista
 		WriteToLog("  -> Chamando AddOrUpdateActivePlayer para PlayerID: " + identity.GetId(), LogFile.INIT, false, LogType.DEBUG);
 		AddOrUpdateActivePlayer(identity, player);
+		EnsureActivePlayerHasManRef(identity.GetId(), player);
 		
 		// Verifica estado de ActivePlayers após adicionar
 		if (!ActivePlayers)
@@ -2346,7 +2503,11 @@ class CustomMission: MissionServer
 		{
 			BlockSprintWindow(player);
 			ScheduleSpawnStaminaBurst(player);
-		}		
+		}
+		if (identity)
+		{
+			EnsureActivePlayerHasManRef(identity.GetId(), player);
+		}
 	}
 
 	override void StartingEquipSetup(PlayerBase player, bool clothesChosen)
