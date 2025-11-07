@@ -11,6 +11,7 @@ let itemsTable;
 let itemTypesTable;
 
 let itemTypesData = [];
+let bannedItemTypes = []; // Armazena os nomes dos tipos de itens banidos
 
 // ============================================================================
 // INICIALIZAÇÃO
@@ -23,6 +24,8 @@ $(document).ready(function() {
     // Carregar dados iniciais
     loadWeapons();
     loadItemTypes();
+    // Carregar tipos banidos para filtrar itens
+    loadBannedItemTypes();
     
     // Event listeners - Busca
     $('#weaponsSearchInput').on('keyup', function() {
@@ -77,6 +80,62 @@ $(document).ready(function() {
 });
 
 // ============================================================================
+// FUNÇÃO DE ORDENAÇÃO CUSTOMIZADA PARA is_banned
+// ============================================================================
+
+// Função para ordenar dados antes de adicionar à tabela (banidos primeiro)
+function sortDataByBannedStatus(data) {
+    // Criar cópia do array para evitar mutação do original
+    const dataCopy = data.slice();
+    return dataCopy.sort(function(a, b) {
+        // Converter is_banned para número: 1 para banido, 0 para permitido
+        const aBanned = (a.is_banned === 1 || a.is_banned === true) ? 1 : 0;
+        const bBanned = (b.is_banned === 1 || b.is_banned === true) ? 1 : 0;
+        
+        // Ordenar por is_banned DESC (banidos primeiro)
+        if (aBanned !== bBanned) {
+            return bBanned - aBanned;
+        }
+        
+        // Se is_banned for igual, ordenar por name ASC
+        const aName = (a.name || '').toLowerCase();
+        const bName = (b.name || '').toLowerCase();
+        if (aName < bName) return -1;
+        if (aName > bName) return 1;
+        return 0;
+    });
+}
+
+// Função de ordenação customizada para garantir que is_banned seja ordenado numericamente
+$.fn.dataTable.ext.order['is-banned-pre'] = function(data) {
+    // Converter para número: 1 para banido (true), 0 para permitido (false)
+    // Tratar diferentes formatos de dados
+    if (data === null || data === undefined) {
+        return 0;
+    }
+    // Se for número
+    if (typeof data === 'number') {
+        return data === 1 ? 1 : 0;
+    }
+    // Se for boolean
+    if (typeof data === 'boolean') {
+        return data === true ? 1 : 0;
+    }
+    // Se for string
+    if (typeof data === 'string') {
+        const num = parseInt(data, 10);
+        if (!isNaN(num)) {
+            return num === 1 ? 1 : 0;
+        }
+        if (data.toLowerCase() === 'true' || data.toLowerCase() === '1') {
+            return 1;
+        }
+    }
+    // Padrão: não banido
+    return 0;
+};
+
+// ============================================================================
 // INICIALIZAÇÃO DAS TABELAS
 // ============================================================================
 
@@ -88,14 +147,14 @@ function initializeTables() {
         processing: true,
         serverSide: false,
         responsive: true,
-        pageLength: 25,
-        order: [[1, 'asc']]
+        pageLength: 25
+        // order removido - cada tabela define sua própria ordenação
     };
     
     // Weapons Table
     weaponsTable = $('#weaponsTable').DataTable({
         ...tableOptions,
-        order: [[4, 'desc'], [2, 'asc']], // Ordenar por is_banned DESC, depois por name ASC
+        order: [[4, 'asc'], [2, 'asc']], // Ordenar por is_banned ASC (banidos primeiro), depois por name ASC
         columns: [
             { data: 'id', width: '5%' },
             { 
@@ -114,6 +173,7 @@ function initializeTables() {
             { 
                 data: 'is_banned', 
                 width: '10%',
+                type: 'is-banned-pre',
                 render: function(data) {
                     if (data === 1 || data === true) {
                         return '<span class="badge bg-danger">Banido</span>';
@@ -163,7 +223,7 @@ function initializeTables() {
     // Magazines Table
     magazinesTable = $('#magazinesTable').DataTable({
         ...tableOptions,
-        order: [[4, 'desc'], [2, 'asc']], // Ordenar por is_banned DESC, depois por name ASC
+        order: [[4, 'asc'], [2, 'asc']], // Ordenar por is_banned ASC (banidos primeiro), depois por name ASC
         columns: [
             { data: 'id', width: '5%' },
             { 
@@ -182,6 +242,7 @@ function initializeTables() {
             { 
                 data: 'is_banned', 
                 width: '10%',
+                type: 'is-banned-pre',
                 render: function(data) {
                     if (data === 1 || data === true) {
                         return '<span class="badge bg-danger">Banido</span>';
@@ -231,7 +292,7 @@ function initializeTables() {
     // Ammunitions Table
     ammunitionsTable = $('#ammunitionsTable').DataTable({
         ...tableOptions,
-        order: [[4, 'desc'], [2, 'asc']], // Ordenar por is_banned DESC, depois por name ASC
+        order: [[4, 'asc'], [2, 'asc']], // Ordenar por is_banned ASC (banidos primeiro), depois por name ASC
         columns: [
             { data: 'id', width: '5%' },
             { 
@@ -250,6 +311,7 @@ function initializeTables() {
             { 
                 data: 'is_banned', 
                 width: '10%',
+                type: 'is-banned-pre',
                 render: function(data) {
                     if (data === 1 || data === true) {
                         return '<span class="badge bg-danger">Banido</span>';
@@ -299,7 +361,7 @@ function initializeTables() {
     // Attachments Table
     attachmentsTable = $('#attachmentsTable').DataTable({
         ...tableOptions,
-        order: [[5, 'desc'], [2, 'asc']], // Ordenar por is_banned DESC, depois por name ASC
+        order: [[5, 'asc'], [2, 'asc']], // Ordenar por is_banned ASC (banidos primeiro), depois por name ASC
         columns: [
             { data: 'id', width: '5%' },
             { 
@@ -319,6 +381,7 @@ function initializeTables() {
             { 
                 data: 'is_banned', 
                 width: '10%',
+                type: 'is-banned-pre',
                 render: function(data) {
                     if (data === 1 || data === true) {
                         return '<span class="badge bg-danger">Banido</span>';
@@ -368,7 +431,7 @@ function initializeTables() {
     // Explosives Table
     explosivesTable = $('#explosivesTable').DataTable({
         ...tableOptions,
-        order: [[4, 'desc'], [2, 'asc']], // Ordenar por is_banned DESC, depois por name ASC
+        order: [[4, 'asc'], [2, 'asc']], // Ordenar por is_banned ASC (banidos primeiro), depois por name ASC
         columns: [
             { data: 'id', width: '5%' },
             { 
@@ -387,6 +450,7 @@ function initializeTables() {
             { 
                 data: 'is_banned', 
                 width: '10%',
+                type: 'is-banned-pre',
                 render: function(data) {
                     if (data === 1 || data === true) {
                         return '<span class="badge bg-danger">Banido</span>';
@@ -436,7 +500,7 @@ function initializeTables() {
     // Items Table
     itemsTable = $('#itemsTable').DataTable({
         ...tableOptions,
-        order: [[5, 'desc'], [2, 'asc']], // Ordenar por is_banned DESC, depois por name ASC
+        order: [[5, 'asc'], [2, 'asc']], // Ordenar por is_banned ASC (banidos primeiro), depois por name ASC
         columns: [
             { data: 'id', width: '5%' },
             { 
@@ -456,6 +520,7 @@ function initializeTables() {
             { 
                 data: 'is_banned', 
                 width: '10%',
+                type: 'is-banned-pre',
                 render: function(data) {
                     if (data === 1 || data === true) {
                         return '<span class="badge bg-danger">Banido</span>';
@@ -505,13 +570,14 @@ function initializeTables() {
     // Item Types Table
     itemTypesTable = $('#itemTypesTable').DataTable({
         ...tableOptions,
-        order: [[2, 'desc'], [1, 'asc']], // Ordenar por is_banned DESC, depois por name ASC
+        order: [[2, 'asc'], [1, 'asc']], // Ordenar por is_banned ASC (banidos primeiro), depois por name ASC
         columns: [
             { data: 'id', width: '10%' },
             { data: 'name', width: '60%' },
             { 
                 data: 'is_banned', 
                 width: '15%',
+                type: 'is-banned-pre',
                 render: function(data) {
                     if (data === 1 || data === true) {
                         return '<span class="badge bg-danger">Banido</span>';
@@ -549,8 +615,6 @@ function loadWeapons() {
         success: function(response) {
             if (response.success) {
                 weaponsTable.clear().rows.add(response.weapons).draw();
-                // Garantir ordenação: banidos no topo
-                weaponsTable.order([[4, 'desc'], [2, 'asc']]).draw();
             }
         },
         error: function(xhr) {
@@ -567,8 +631,6 @@ function loadMagazines() {
         success: function(response) {
             if (response.success) {
                 magazinesTable.clear().rows.add(response.magazines).draw();
-                // Garantir ordenação: banidos no topo
-                magazinesTable.order([[4, 'desc'], [2, 'asc']]).draw();
             }
         },
         error: function(xhr) {
@@ -585,8 +647,6 @@ function loadAmmunitions() {
         success: function(response) {
             if (response.success) {
                 ammunitionsTable.clear().rows.add(response.ammunitions).draw();
-                // Garantir ordenação: banidos no topo
-                ammunitionsTable.order([[4, 'desc'], [2, 'asc']]).draw();
             }
         },
         error: function(xhr) {
@@ -603,8 +663,6 @@ function loadAttachments() {
         success: function(response) {
             if (response.success) {
                 attachmentsTable.clear().rows.add(response.attachments).draw();
-                // Garantir ordenação: banidos no topo
-                attachmentsTable.order([[5, 'desc'], [2, 'asc']]).draw();
             }
         },
         error: function(xhr) {
@@ -621,8 +679,6 @@ function loadExplosives() {
         success: function(response) {
             if (response.success) {
                 explosivesTable.clear().rows.add(response.explosives).draw();
-                // Garantir ordenação: banidos no topo
-                explosivesTable.order([[4, 'desc'], [2, 'asc']]).draw();
             }
         },
         error: function(xhr) {
@@ -638,9 +694,12 @@ function loadItems() {
         method: 'GET',
         success: function(response) {
             if (response.success) {
-                itemsTable.clear().rows.add(response.items).draw();
-                // Garantir ordenação: banidos no topo
-                itemsTable.order([[5, 'desc'], [2, 'asc']]).draw();
+                // Filtrar itens de tipos banidos
+                const filteredItems = response.items.filter(function(item) {
+                    return bannedItemTypes.indexOf(item.type_name) === -1;
+                });
+                
+                itemsTable.clear().rows.add(filteredItems).draw();
             }
         },
         error: function(xhr) {
@@ -656,15 +715,54 @@ function loadItemTypes() {
         method: 'GET',
         success: function(response) {
             itemTypesData = response.types;
-            const select = $('#itemsTypeFilter');
-            select.empty();
-            select.append('<option value="">Todos os Tipos</option>');
-            response.types.forEach(function(type) {
-                select.append(`<option value="${type.name}">${type.name}</option>`);
-            });
+            updateItemTypesFilter();
         },
         error: function(xhr) {
             console.error('Erro ao carregar tipos de item:', xhr);
+        }
+    });
+}
+
+function updateItemTypesFilter() {
+    const select = $('#itemsTypeFilter');
+    const currentValue = select.val();
+    select.empty();
+    select.append('<option value="">Todos os Tipos</option>');
+    
+    // Filtrar tipos banidos
+    itemTypesData.forEach(function(type) {
+        if (bannedItemTypes.indexOf(type.name) === -1) {
+            select.append(`<option value="${type.name}">${type.name}</option>`);
+        }
+    });
+    
+    // Restaurar valor selecionado se ainda existir
+    if (currentValue && bannedItemTypes.indexOf(currentValue) === -1) {
+        select.val(currentValue);
+    }
+}
+
+function loadBannedItemTypes() {
+    $.ajax({
+        url: '/api/loadout-rules/item-types',
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                // Atualizar lista de tipos banidos
+                bannedItemTypes = response.item_types
+                    .filter(function(type) {
+                        return type.is_banned === 1 || type.is_banned === true;
+                    })
+                    .map(function(type) {
+                        return type.name;
+                    });
+                
+                // Atualizar filtro de tipos
+                updateItemTypesFilter();
+            }
+        },
+        error: function(xhr) {
+            console.error('Erro ao carregar tipos banidos:', xhr);
         }
     });
 }
@@ -676,8 +774,21 @@ function loadItemTypesRules() {
         success: function(response) {
             if (response.success) {
                 itemTypesTable.clear().rows.add(response.item_types).draw();
-                // Garantir ordenação: banidos no topo
-                itemTypesTable.order([[2, 'desc'], [1, 'asc']]).draw();
+                
+                // Atualizar lista de tipos banidos
+                bannedItemTypes = response.item_types
+                    .filter(function(type) {
+                        return type.is_banned === 1 || type.is_banned === true;
+                    })
+                    .map(function(type) {
+                        return type.name;
+                    });
+                
+                // Recarregar filtro de tipos e lista de itens se necessário
+                updateItemTypesFilter();
+                if (itemsTable && itemsTable.data().any()) {
+                    loadItems();
+                }
             }
         },
         error: function(xhr) {
@@ -949,7 +1060,7 @@ function banItemType(id) {
             if (response.success) {
                 showAlert('success', 'Tipo de item banido com sucesso');
                 loadItemTypesRules();
-                loadItems(); // Recarregar items também
+                // loadItemTypesRules já recarrega loadItems() e updateItemTypesFilter()
             } else {
                 showAlert('danger', 'Erro ao banir tipo de item');
             }
@@ -968,7 +1079,7 @@ function unbanItemType(id) {
             if (response.success) {
                 showAlert('success', 'Tipo de item permitido com sucesso');
                 loadItemTypesRules();
-                loadItems(); // Recarregar items também
+                // loadItemTypesRules já recarrega loadItems() e updateItemTypesFilter()
             } else {
                 showAlert('danger', 'Erro ao permitir tipo de item');
             }
@@ -1103,17 +1214,54 @@ function saveExplosivesGlobalLimit() {
 // ============================================================================
 
 function showAlert(type, message) {
-    const alertHtml = `
-        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    `;
-    $('.container-fluid').prepend(alertHtml);
-    setTimeout(function() {
-        $('.alert').fadeOut(function() {
-            $(this).remove();
+    // Usar showToast se disponível, caso contrário criar toast manualmente
+    if (typeof showToast === 'function') {
+        showToast('', message, type);
+    } else {
+        // Fallback: criar toast manualmente no canto inferior direito
+        const bgClass = {
+            'success': 'bg-success',
+            'error': 'bg-danger',
+            'warning': 'bg-warning',
+            'info': 'bg-info',
+            'danger': 'bg-danger'
+        }[type] || 'bg-info';
+        
+        const icon = {
+            'success': 'fa-check-circle',
+            'error': 'fa-exclamation-circle',
+            'warning': 'fa-exclamation-triangle',
+            'info': 'fa-info-circle',
+            'danger': 'fa-exclamation-circle'
+        }[type] || 'fa-info-circle';
+        
+        const toast = $(`
+            <div class="toast align-items-center text-white ${bgClass} border-0" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <i class="fas ${icon} me-2"></i>${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `);
+        
+        let toastContainer = $('.toast-container');
+        if (toastContainer.length === 0) {
+            $('body').append('<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 9999;"></div>');
+            toastContainer = $('.toast-container');
+        }
+        
+        toast.appendTo(toastContainer);
+        const bsToast = new bootstrap.Toast(toast[0], {
+            autohide: true,
+            delay: 5000
         });
-    }, 3000);
+        bsToast.show();
+        
+        toast.on('hidden.bs.toast', function() {
+            toast.remove();
+        });
+    }
 }
 
