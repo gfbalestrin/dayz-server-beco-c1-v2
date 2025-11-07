@@ -68,13 +68,7 @@ if [[ "$PLAYER_ID" == "RESET" ]]; then
     if [[ "$DayzDeathmatch" -eq "1" ]]; then
         DeathMatchCoords="$DayzServerFolder/$DayzDeathmatchCoords"
         CURRENT_INDEX=$(jq 'map(.Active) | index(1)' "$DeathMatchCoords")
-        NEXT_INDEX=$((CURRENT_INDEX + 1))
-        TOTAL=$(jq 'length' "$DeathMatchCoords")
-        if [ "$NEXT_INDEX" -ge "$TOTAL" ]; then
-            NEXT_INDEX=0
-        fi
         CURRENT_REGION=$(jq -r ".[$CURRENT_INDEX].Region" "$DeathMatchCoords")  
-        NEXT_REGION=$(jq -r ".[$NEXT_INDEX].Region" "$DeathMatchCoords")  
         CONTENT="**(0/60) Usuários online (atualizado em $CURRENT_DATE)**\n"  
         CONTENT="${CONTENT}**Mapa atual: ${CURRENT_REGION}** \n"
     else
@@ -200,11 +194,7 @@ NUM_REGISTROS=$(sqlite3 "$PLAYERS_BECO_C1_DB" "SELECT COUNT(*) FROM players_onli
 if [[ "$DayzDeathmatch" -eq "1" ]]; then
     DeathMatchCoords="$DayzServerFolder/$DayzDeathmatchCoords"
     CURRENT_INDEX=$(jq 'map(.Active) | index(1)' "$DeathMatchCoords")
-    PREV_INDEX=$((CURRENT_INDEX - 1))
-    if [ "$PREV_INDEX" -lt 0 ]; then
-        PREV_INDEX=$(jq 'length - 1' "$DeathMatchCoords")
-    fi
-    CURRENT_REGION=$(jq -r ".[$PREV_INDEX].Region" "$DeathMatchCoords")  
+    CURRENT_REGION=$(jq -r ".[$CURRENT_INDEX].Region" "$DeathMatchCoords")  
     CONTENT="**($NUM_REGISTROS/60) Usuários online (atualizado em $CURRENT_DATE)**\n"  
     CONTENT="${CONTENT}**Mapa atual: ${CURRENT_REGION}** \n\n"
 else

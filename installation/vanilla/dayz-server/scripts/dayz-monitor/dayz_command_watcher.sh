@@ -374,8 +374,14 @@ tail -F "$COMMAND_FILE" | while read -r line; do
                     "$is_alive" "$is_admin" "$stamina" "$stamina_max" \
                     "$items_in_hands" "$items_count" "$main_items")
                 
+                
+                
                 if [ $? -eq 0 ] && [ -n "$PlayerCoordId" ]; then
                     echo ">> Posições armazenadas com sucesso (ID: $PlayerCoordId)"
+
+                    if [[ "$DayzDeathmatch" -eq "1" ]]; then
+                        break
+                    fi
                     
                     # Tenta realizar backup completo do personagem
                     echo ">> Tentando realizar backup do personagem..."
