@@ -3640,16 +3640,15 @@ def api_my_loadout_set_active(db_id):
         if existing_loadout['player_id'] != player_id:
             return jsonify({'success': False, 'message': 'Você não tem permissão para editar este loadout'}), 403
         
-        # Desativar todos os loadouts do usuário
+        # Desativar todos os loadouts do usuário e ativar apenas o selecionado
         all_loadouts = get_loadouts_by_player(player_id)
         for loadout in all_loadouts:
             if loadout['id'] == db_id:
                 # Ativar este loadout
                 update_loadout_player(loadout['id'], loadout['loadout_id'], loadout['name'], True, loadout['loadout_data'])
             else:
-                # Desativar outros loadouts
-                if loadout['is_active']:
-                    update_loadout_player(loadout['id'], loadout['loadout_id'], loadout['name'], False, loadout['loadout_data'])
+                # Desativar TODOS os outros loadouts (garantir que apenas um fique ativo)
+                update_loadout_player(loadout['id'], loadout['loadout_id'], loadout['name'], False, loadout['loadout_data'])
         
         # Sincronizar com arquivo JSON
         sync_player_loadouts_to_file(player_id)

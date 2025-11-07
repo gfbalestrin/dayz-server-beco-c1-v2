@@ -647,6 +647,15 @@ class CustomMission: MissionServer
 		string steamId = identity.GetPlainId();
 		string playerName = identity.GetName();
 		string playerId = identity.GetId();
+
+		if (IsDeathmatchEnabled)
+		{			
+			// Cria e adiciona o novo jogador
+			ActivePlayer newActivePlayer = new ActivePlayer(identity, player);
+			ActivePlayers.Insert(newActivePlayer);
+			WriteToLog("AddOrUpdateActivePlayer(): Jogador adicionado: " + playerName + " (PlayerID: " + playerId + ", SteamID: " + steamId + ")", LogFile.INIT, false, LogType.INFO);
+			return;
+		}
 		
 		// ============================================================================
 		// DETECÇÃO DE DUPLICAÇÃO NO MUNDO

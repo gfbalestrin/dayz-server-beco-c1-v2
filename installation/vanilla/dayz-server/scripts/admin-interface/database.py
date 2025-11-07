@@ -2468,13 +2468,34 @@ def sync_player_loadouts_to_file(player_id: str) -> bool:
         
         # Converter para formato do arquivo JSON
         json_data = []
-        for loadout in loadouts:
+        active_count = 0
+        first_active_index = None
+        
+        for idx, loadout in enumerate(loadouts):
+            is_active = bool(loadout['is_active'])
+            
+            # Contar quantos loadouts estão ativos
+            if is_active:
+                active_count += 1
+                if first_active_index is None:
+                    first_active_index = idx
+            
             json_data.append({
                 "Id": loadout['loadout_id'],
                 "Name": loadout['name'],
-                "IsActive": bool(loadout['is_active']),
+                "IsActive": is_active,
                 "Loadout": loadout['loadout_data']
             })
+        
+        # Validação: garantir que apenas um loadout fique ativo no JSON
+        # Se houver múltiplos ativos (caso raro de inconsistência), manter apenas o primeiro
+        if active_count > 1:
+            for idx, loadout_json in enumerate(json_data):
+                if idx != first_active_index and loadout_json['IsActive']:
+                    loadout_json['IsActive'] = False
+                    # Também atualizar no banco para manter consistência
+                    loadout = loadouts[idx]
+                    update_loadout_player(loadout['id'], loadout['loadout_id'], loadout['name'], False, loadout['loadout_data'])
         
         # Garantir que o diretório existe
         os.makedirs(config.LOADOUTS_PLAYERS_DIR, exist_ok=True)
