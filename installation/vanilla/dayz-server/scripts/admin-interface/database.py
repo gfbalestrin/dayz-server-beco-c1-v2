@@ -1916,6 +1916,18 @@ def get_user_by_id(user_id: int) -> Optional[Dict]:
         result = cursor.fetchone()
         return dict(result) if result else None
 
+def get_user_by_player_id(player_id: str) -> Optional[Dict]:
+    """Busca usuário associado a um PlayerID específico"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT UserID, Username, Password, UserType, PlayerID, IsActive, CreatedAt, LastLogin, MustChangePassword
+            FROM users
+            WHERE PlayerID = ?
+        """, (player_id,))
+        result = cursor.fetchone()
+        return dict(result) if result else None
+
 def create_user(username: str, password: str, user_type: str, player_id: Optional[str] = None) -> Optional[int]:
     """
     Cria novo usuário
@@ -1946,6 +1958,18 @@ def update_user_password(user_id: int, new_password: str, force_change: bool = F
             SET Password = ?, MustChangePassword = ?
             WHERE UserID = ?
         """, (hashed_password, 1 if force_change else 0, user_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def update_user_player_link(user_id: int, player_id: Optional[str]) -> bool:
+    """Atualiza vínculo de PlayerID do usuário (permite definir ou remover)"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users
+            SET PlayerID = ?
+            WHERE UserID = ?
+        """, (player_id, user_id))
         conn.commit()
         return cursor.rowcount > 0
 

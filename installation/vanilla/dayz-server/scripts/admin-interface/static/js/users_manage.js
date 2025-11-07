@@ -5,7 +5,9 @@
 let usersTable;
 let allPlayers = [];
 let isSuperAdmin = false;
+let isAdminUser = false;
 let userToDelete = null;
+let userToLink = null;
 
 // ============================================================================
 // INICIALIZAÇÃO
@@ -15,6 +17,7 @@ $(document).ready(function() {
     // Verificar se é Super Admin
     const userType = $('body').data('user-type');
     isSuperAdmin = userType === 'super_admin';
+    isAdminUser = userType === 'admin';
     
     // Inicializar DataTables
     initializeTable();
@@ -108,27 +111,39 @@ function initializeTable() {
                 width: '20%',
                 orderable: false,
                 render: function(data, type, row) {
-                    if (!isSuperAdmin) {
-                        return '<span class="text-muted">Sem permissão</span>';
-                    }
-                    let html = '<div class="btn-group btn-group-sm" role="group">';
-                    html += `<button class="btn btn-warning btn-edit-password" data-id="${row.UserID}" title="Alterar senha">
-                                <i class="fas fa-key"></i>
-                             </button>`;
-                    if (row.IsActive === 1 || row.IsActive === true) {
-                        html += `<button class="btn btn-danger btn-deactivate" data-id="${row.UserID}" title="Desativar">
-                                    <i class="fas fa-ban"></i>
+                    if (isSuperAdmin) {
+                        let html = '<div class="btn-group btn-group-sm" role="group">';
+                        html += `<button class="btn btn-primary btn-link-player" data-id="${row.UserID}" title="Vincular jogador">
+                                    <i class="fas fa-user-tag"></i>
                                  </button>`;
-                    } else {
-                        html += `<button class="btn btn-success btn-activate" data-id="${row.UserID}" title="Ativar">
-                                    <i class="fas fa-check"></i>
+                        html += `<button class="btn btn-warning btn-edit-password" data-id="${row.UserID}" title="Alterar senha">
+                                    <i class="fas fa-key"></i>
                                  </button>`;
+                        if (row.IsActive === 1 || row.IsActive === true) {
+                            html += `<button class="btn btn-danger btn-deactivate" data-id="${row.UserID}" title="Desativar">
+                                        <i class="fas fa-ban"></i>
+                                     </button>`;
+                        } else {
+                            html += `<button class="btn btn-success btn-activate" data-id="${row.UserID}" title="Ativar">
+                                        <i class="fas fa-check"></i>
+                                     </button>`;
+                        }
+                        html += `<button class="btn btn-danger btn-delete" data-id="${row.UserID}" data-username="${row.Username}" title="Excluir permanentemente">
+                                    <i class="fas fa-trash"></i>
+                                 </button>`;
+                        html += '</div>';
+                        return html;
                     }
-                    html += `<button class="btn btn-danger btn-delete" data-id="${row.UserID}" data-username="${row.Username}" title="Excluir permanentemente">
-                                <i class="fas fa-trash"></i>
-                             </button>`;
-                    html += '</div>';
-                    return html;
+                    
+                    if (isAdminUser && row.UserType === 'player') {
+                        return `<div class="btn-group btn-group-sm" role="group">
+                                    <button class="btn btn-warning btn-edit-password" data-id="${row.UserID}" title="Alterar senha">
+                                        <i class="fas fa-key"></i>
+                                    </button>
+                                </div>`;
+                    }
+                    
+                    return '<span class="text-muted">Sem permissão</span>';
                 }
             }
         ]
@@ -156,7 +171,17 @@ function initializeTable() {
         showDeleteModal(userId, username);
     });
     
+    $('#usersTable').on('click', '.btn-link-player', function() {
+        const button = $(this);
+        const rowData = getRowDataFromButton(button);
+        if (rowData) {
+            showPlayerLinkModal(rowData);
+        }
+    });
+    
     $('#btnConfirmDelete').on('click', deleteUser);
+    $('#btnSavePlayerLink').on('click', savePlayerLink);
+    $('#btnUnlinkPlayer').on('click', unlinkPlayer);
     
     // Carregar dados
     loadUsers();
@@ -204,6 +229,33 @@ function populatePlayerSelect() {
     allPlayers.forEach(player => {
         select.append(`<option value="${player.PlayerID}">${player.PlayerName} (${player.SteamName || player.SteamID})</option>`);
     });
+}
+
+function populatePlayerLinkSelect(selectedPlayerId) {
+    const select = $('#playerLinkSelect');
+    select.empty();
+    select.append('<option value="">Sem jogador vinculado</option>');
+    
+    allPlayers.forEach(player => {
+        select.append(`<option value="${player.PlayerID}">${player.PlayerName} (${player.SteamName || player.SteamID})</option>`);
+    });
+    
+    if (selectedPlayerId) {
+        select.val(selectedPlayerId);
+        if (select.val() !== selectedPlayerId) {
+            let missingLabel = selectedPlayerId;
+            if (userToLink && userToLink.PlayerName) {
+                const steamReference = userToLink.SteamName || userToLink.SteamID || '';
+                if (steamReference) {
+                    missingLabel = `${userToLink.PlayerName} (${steamReference})`;
+                } else {
+                    missingLabel = `${userToLink.PlayerName} (${selectedPlayerId})`;
+                }
+            }
+            select.append(`<option value="${selectedPlayerId}">${missingLabel}</option>`);
+            select.val(selectedPlayerId);
+        }
+    }
 }
 
 // ============================================================================
@@ -388,6 +440,99 @@ function formatRelativeTime(date) {
     if (diffDays < 30) return `Há ${diffDays} dia(s)`;
     
     return date.toLocaleString('pt-BR');
+}
+
+function showPlayerLinkModal(userData) {
+    userToLink = userData;
+    const userIdField = $('#playerLinkUserId');
+    const usernameField = $('#playerLinkUsername');
+    const currentPlayerField = $('#playerLinkCurrentPlayer');
+    const unlinkButton = $('#btnUnlinkPlayer');
+    
+    userIdField.val(userData.UserID);
+    usernameField.val(userData.Username);
+    
+    if (userData.PlayerID) {
+        const playerName = userData.PlayerName || 'Nome não disponível';
+        const steamName = userData.SteamName || userData.SteamID || '';
+        let displayValue = `${playerName} (${userData.PlayerID})`;
+        if (steamName) {
+            displayValue = `${playerName} (${steamName}) - PlayerID: ${userData.PlayerID}`;
+        }
+        currentPlayerField.val(displayValue);
+        unlinkButton.prop('disabled', false);
+    } else {
+        currentPlayerField.val('Nenhum jogador vinculado');
+        unlinkButton.prop('disabled', true);
+    }
+    
+    populatePlayerLinkSelect(userData.PlayerID);
+    $('#playerLinkModal').modal('show');
+}
+
+function savePlayerLink() {
+    if (!userToLink) {
+        return;
+    }
+    
+    const selectedPlayerId = $('#playerLinkSelect').val();
+    const payload = {
+        playerId: selectedPlayerId || null
+    };
+    
+    submitPlayerLinkUpdate(payload);
+}
+
+function unlinkPlayer() {
+    if (!userToLink) {
+        return;
+    }
+    
+    $('#playerLinkSelect').val('');
+    const payload = {
+        playerId: null
+    };
+    submitPlayerLinkUpdate(payload);
+}
+
+function submitPlayerLinkUpdate(payload) {
+    const userId = $('#playerLinkUserId').val();
+    if (!userId) {
+        return;
+    }
+    
+    $.ajax({
+        url: `/api/manage/admins/${userId}`,
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function(response) {
+            if (response.success) {
+                showAlert(response.message || 'Vínculo atualizado com sucesso!', 'success');
+                $('#playerLinkModal').modal('hide');
+                userToLink = null;
+                loadUsers();
+            } else {
+                showAlert(response.message || 'Erro ao atualizar vínculo de jogador', 'danger');
+            }
+        },
+        error: function(xhr) {
+            const response = xhr.responseJSON;
+            showAlert(response?.message || 'Erro ao atualizar vínculo de jogador', 'danger');
+        }
+    });
+}
+
+function getRowDataFromButton(button) {
+    const currentRow = usersTable.row(button.closest('tr'));
+    let rowData = currentRow.data();
+    
+    if (!rowData) {
+        const previousRow = usersTable.row(button.closest('tr').prev());
+        rowData = previousRow.data();
+    }
+    
+    return rowData;
 }
 
 function showAlert(message, type) {

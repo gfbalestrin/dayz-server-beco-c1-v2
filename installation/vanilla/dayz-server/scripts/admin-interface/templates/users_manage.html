@@ -145,6 +145,50 @@
     </div>
 </div>
 
+{% if session.user_type == 'super_admin' %}
+<!-- Modal de Vínculo de Jogador -->
+<div class="modal fade" id="playerLinkModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Vincular Jogador ao Usuário</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="playerLinkForm">
+                    <input type="hidden" id="playerLinkUserId">
+                    <div class="mb-3">
+                        <label class="form-label">Usuário</label>
+                        <input type="text" class="form-control" id="playerLinkUsername" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Jogador vinculado atualmente</label>
+                        <input type="text" class="form-control" id="playerLinkCurrentPlayer" readonly>
+                        <div class="form-text">Mostra o PlayerID atualmente vinculado, se houver.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="playerLinkSelect" class="form-label">Selecionar jogador</label>
+                        <select class="form-select" id="playerLinkSelect">
+                            <option value="">Sem jogador vinculado</option>
+                        </select>
+                        <div class="form-text">Escolha o jogador que deseja vincular a este usuário.</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-outline-danger" id="btnUnlinkPlayer">
+                    <i class="fas fa-unlink me-2"></i>Desvincular Jogador
+                </button>
+                <button type="button" class="btn btn-primary" id="btnSavePlayerLink">
+                    <i class="fas fa-link me-2"></i>Salvar Vínculo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block extra_js %}

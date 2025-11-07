@@ -49,6 +49,7 @@ from database import (
     authenticate_user, get_user_by_id, create_user, update_user_password,
     get_all_admins, deactivate_user, activate_user, delete_user, validate_password_strength, 
     get_all_users, verify_password, log_user_action, get_user_audit_logs, get_unique_audit_actions,
+    get_user_by_player_id, update_user_player_link,
     # Loadouts Functions
     get_loadouts_custom, get_loadout_custom_by_id, create_loadout_custom, update_loadout_custom, delete_loadout_custom,
     get_loadouts_by_player, get_loadout_player_by_id, create_loadout_player, update_loadout_player, delete_loadout_player,
@@ -3014,7 +3015,7 @@ def api_manage_admins_post():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/manage/admins/<int:admin_id>', methods=['PUT'])
-@super_admin_required
+@admin_required
 def api_manage_admins_put(admin_id):
     """Atualizar senha ou status de usuário"""
     try:
@@ -3023,9 +3024,18 @@ def api_manage_admins_put(admin_id):
             return jsonify({'success': False, 'message': 'Usuário não encontrado'}), 404
         
         data = request.get_json()
+        current_user_type = session.get('user_type')
+        is_super_admin = current_user_type == config.USER_TYPE_SUPER_ADMIN
         
         # Verificar se é atualização de senha ou status
         if 'password' in data:
+            if not is_super_admin:
+                extra_fields = set(data.keys()) - {'password'}
+                if extra_fields:
+                    return jsonify({'success': False, 'message': 'Admins podem alterar apenas a senha de usuários com perfil player.'}), 403
+                if user.get('UserType') != config.USER_TYPE_PLAYER:
+                    return jsonify({'success': False, 'message': 'Admins só podem alterar senha de usuários do tipo player.'}), 403
+            
             new_password = data.get('password')
             
             if not new_password:
@@ -3055,6 +3065,8 @@ def api_manage_admins_put(admin_id):
             return jsonify({'success': True, 'message': 'Senha atualizada com sucesso'})
         
         elif 'isActive' in data:
+            if not is_super_admin:
+                return jsonify({'success': False, 'message': 'Apenas super admins podem alterar status do usuário.'}), 403
             is_active = data.get('isActive', False)
             
             if is_active:
@@ -3080,8 +3092,60 @@ def api_manage_admins_put(admin_id):
             
             return jsonify({'success': True, 'message': message})
         
+        elif 'playerId' in data:
+            if not is_super_admin:
+                return jsonify({'success': False, 'message': 'Apenas super admins podem alterar vínculo de jogador.'}), 403
+            player_id_raw = data.get('playerId')
+            player_id = str(player_id_raw).strip() if player_id_raw not in [None, ''] else None
+            previous_player_id = user.get('PlayerID')
+            
+            if player_id == previous_player_id:
+                return jsonify({'success': True, 'message': 'Vínculo de jogador permanece inalterado.'})
+            
+            player_data = None
+            if player_id:
+                player_data = get_player_by_id(player_id)
+                if not player_data:
+                    return jsonify({'success': False, 'message': 'PlayerID informado não existe.'}), 400
+                
+                existing_user = get_user_by_player_id(player_id)
+                if existing_user and existing_user.get('UserID') != admin_id:
+                    return jsonify({'success': False, 'message': 'Este PlayerID já está vinculado a outro usuário.'}), 400
+            
+            success = update_user_player_link(admin_id, player_id)
+            if not success:
+                return jsonify({'success': False, 'message': 'Erro ao atualizar vínculo de jogador.'}), 500
+            
+            action_type = 'LINK_PLAYER' if player_id else 'UNLINK_PLAYER'
+            details = {
+                'action': 'player_link_update',
+                'target_user_id': admin_id,
+                'target_username': user['Username'],
+                'previous_player_id': previous_player_id,
+                'new_player_id': player_id
+            }
+            if player_data:
+                details.update({
+                    'player_name': player_data.get('PlayerName'),
+                    'steam_id': player_data.get('SteamID'),
+                    'steam_name': player_data.get('SteamName')
+                })
+            
+            log_user_action(
+                session.get('user_id'),
+                session.get('username', 'Unknown'),
+                action_type,
+                details,
+                get_client_ip()
+            )
+            
+            message = 'Jogador vinculado ao usuário com sucesso!' if player_id else 'Vínculo de jogador removido com sucesso!'
+            return jsonify({'success': True, 'message': message})
+        
         else:
-            return jsonify({'success': False, 'message': 'Nenhum campo válido para atualização'}), 400
+            if is_super_admin:
+                return jsonify({'success': False, 'message': 'Nenhum campo válido para atualização'}), 400
+            return jsonify({'success': False, 'message': 'Admins não possuem permissão para esta operação.'}), 403
             
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
