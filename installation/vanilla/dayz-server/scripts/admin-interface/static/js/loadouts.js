@@ -2317,6 +2317,16 @@ function openWeaponConfigModalWithData(weaponType) {
     });
     
     function renderModalContent() {
+        // Limpar mensagens antigas de ausência de componentes
+        $('#magazineNoComponentsMessage, #ammunitionNoComponentsMessage, #attachmentNoComponentsMessage').remove();
+        
+        // Garantir que todas as seções estejam visíveis inicialmente (serão ocultadas pelas funções de renderização se necessário)
+        $('#magazinesGridConfig').closest('.mb-3').show();
+        $('#ammunitionsGridConfig').closest('.mb-3').show();
+        $('#attachmentsGridConfig').closest('.mb-3').show();
+        $('#attachmentSearchConfig').closest('.mb-2').show();
+        $('#filterAttachmentTypeConfig').closest('.mb-2').show();
+        
         // Renderizar magazines em grid
         renderMagazinesGridConfig();
         updateSelectedMagazineDisplay();
@@ -2370,12 +2380,31 @@ function renderAttachmentsGridConfig(data = null) {
     const attachmentsSource = getDataSource(weaponType, 'attachments');
     const dataToRender = data || attachmentsSource;
     const grid = $('#attachmentsGridConfig');
-    grid.empty();
+    
+    // Encontrar o elemento pai (div.mb-3) que contém toda a seção de attachments
+    const attachmentSection = grid.closest('.mb-3');
     
     if (dataToRender.length === 0) {
-        grid.html('<div class="text-center p-3">Nenhum attachment encontrado</div>');
+        // Ocultar toda a seção (incluindo filtros) e mostrar apenas uma mensagem simples
+        attachmentSection.hide();
+        // Ocultar também os filtros
+        $('#attachmentSearchConfig').closest('.mb-2').hide();
+        $('#filterAttachmentTypeConfig').closest('.mb-2').hide();
+        // Criar ou atualizar mensagem de ausência
+        if ($('#attachmentNoComponentsMessage').length === 0) {
+            attachmentSection.after('<div id="attachmentNoComponentsMessage" class="mb-3"><p class="text-muted text-center"><i class="fas fa-info-circle me-2"></i>Esta arma não possui attachments compatíveis.</p></div>');
+        }
         return;
     }
+    
+    // Mostrar a seção se estava oculta
+    attachmentSection.show();
+    $('#attachmentSearchConfig').closest('.mb-2').show();
+    $('#filterAttachmentTypeConfig').closest('.mb-2').show();
+    $('#attachmentNoComponentsMessage').remove();
+    
+    grid.empty();
+    
     const selectedAttachments = selectedWeapons[weaponType]?.attachments || [];
     const selectedTypes = selectedAttachments.map(a => a.type); // Tipos já selecionados
     
@@ -2560,15 +2589,27 @@ function getDataSource(weaponType, dataType) {
 
 function renderMagazinesGridConfig() {
     const grid = $('#magazinesGridConfig');
-    grid.empty();
-    
     const weaponType = $('#weaponConfigType').val();
     const magazinesSource = getDataSource(weaponType, 'magazines');
     
+    // Encontrar o elemento pai (div.mb-3) que contém toda a seção de magazines
+    const magazineSection = grid.closest('.mb-3');
+    
     if (magazinesSource.length === 0) {
-        grid.html('<div class="text-center p-3">Nenhum magazine encontrado</div>');
+        // Ocultar toda a seção e mostrar apenas uma mensagem simples
+        magazineSection.hide();
+        // Criar ou atualizar mensagem de ausência
+        if ($('#magazineNoComponentsMessage').length === 0) {
+            magazineSection.after('<div id="magazineNoComponentsMessage" class="mb-3"><p class="text-muted text-center"><i class="fas fa-info-circle me-2"></i>Esta arma não possui magazines compatíveis.</p></div>');
+        }
         return;
     }
+    
+    // Mostrar a seção se estava oculta
+    magazineSection.show();
+    $('#magazineNoComponentsMessage').remove();
+    
+    grid.empty();
     
     const weaponConfig = selectedWeapons[weaponType];
     const selectedMagazine = weaponConfig?.magazine;
@@ -2595,15 +2636,27 @@ function renderMagazinesGridConfig() {
 
 function renderAmmunitionsGridConfig() {
     const grid = $('#ammunitionsGridConfig');
-    grid.empty();
-    
     const weaponType = $('#weaponConfigType').val();
     const ammunitionsSource = getDataSource(weaponType, 'ammunitions');
     
+    // Encontrar o elemento pai (div.mb-3) que contém toda a seção de ammunitions
+    const ammunitionSection = grid.closest('.mb-3');
+    
     if (ammunitionsSource.length === 0) {
-        grid.html('<div class="text-center p-3">Nenhuma munição encontrada</div>');
+        // Ocultar toda a seção e mostrar apenas uma mensagem simples
+        ammunitionSection.hide();
+        // Criar ou atualizar mensagem de ausência
+        if ($('#ammunitionNoComponentsMessage').length === 0) {
+            ammunitionSection.after('<div id="ammunitionNoComponentsMessage" class="mb-3"><p class="text-muted text-center"><i class="fas fa-info-circle me-2"></i>Esta arma não possui ammunitions compatíveis.</p></div>');
+        }
         return;
     }
+    
+    // Mostrar a seção se estava oculta
+    ammunitionSection.show();
+    $('#ammunitionNoComponentsMessage').remove();
+    
+    grid.empty();
     
     const weaponConfig = selectedWeapons[weaponType];
     const selectedAmmunition = weaponConfig?.ammunition;
