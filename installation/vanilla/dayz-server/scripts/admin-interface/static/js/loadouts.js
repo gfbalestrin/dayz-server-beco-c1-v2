@@ -2901,6 +2901,233 @@ function editAttachmentQuantityForWeapon(weaponType, attachmentId, attachmentNam
     return true;
 }
 
+// Funções increment/decrement para componentes de armas
+function incrementMagazineQuantityForWeapon(weaponType) {
+    const weaponConfig = selectedWeapons[weaponType];
+    if (!weaponConfig || !weaponConfig.magazine) return false;
+    
+    const magazine = weaponConfig.magazine;
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    const currentQty = magazine.quantity || 1;
+    let newQty = currentQty + 1;
+    
+    // Validações para loadouts de players
+    if (isPlayerLoadout) {
+        // Para loadouts de players, tratar max_quantity null/undefined como 1 (padrão)
+        const maxQty = magazine.max_quantity !== null && magazine.max_quantity !== undefined 
+            ? magazine.max_quantity 
+            : 1;
+        
+        if (newQty > maxQty) {
+            showAlert('danger', `Quantidade máxima permitida para este magazine é ${maxQty}`);
+            return false;
+        }
+    }
+    
+    magazine.quantity = newQty;
+    updateSelectedWeaponDisplay(weaponType);
+    
+    // Atualizar também o display do modal se estiver aberto
+    const currentWeaponType = $('#weaponConfigType').val();
+    if (currentWeaponType === weaponType) {
+        updateSelectedMagazineDisplay();
+    }
+    
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
+function decrementMagazineQuantityForWeapon(weaponType) {
+    const weaponConfig = selectedWeapons[weaponType];
+    if (!weaponConfig || !weaponConfig.magazine) return false;
+    
+    const magazine = weaponConfig.magazine;
+    const currentQty = magazine.quantity || 1;
+    
+    // Quantidade mínima é 1
+    if (currentQty <= 1) {
+        return false;
+    }
+    
+    magazine.quantity = currentQty - 1;
+    updateSelectedWeaponDisplay(weaponType);
+    
+    // Atualizar também o display do modal se estiver aberto
+    const currentWeaponType = $('#weaponConfigType').val();
+    if (currentWeaponType === weaponType) {
+        updateSelectedMagazineDisplay();
+    }
+    
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
+function incrementAmmunitionQuantityForWeapon(weaponType) {
+    const weaponConfig = selectedWeapons[weaponType];
+    if (!weaponConfig || !weaponConfig.ammunition) return false;
+    
+    const ammunition = weaponConfig.ammunition;
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    const currentQty = ammunition.quantity || 1;
+    let newQty = currentQty + 1;
+    
+    // Validações para loadouts de players
+    if (isPlayerLoadout) {
+        // Para loadouts de players, tratar max_quantity null/undefined como 1 (padrão)
+        const maxQty = ammunition.max_quantity !== null && ammunition.max_quantity !== undefined 
+            ? ammunition.max_quantity 
+            : 1;
+        
+        if (newQty > maxQty) {
+            showAlert('danger', `Quantidade máxima permitida para esta ammunition é ${maxQty}`);
+            return false;
+        }
+    }
+    
+    ammunition.quantity = newQty;
+    updateSelectedWeaponDisplay(weaponType);
+    
+    // Atualizar também o display do modal se estiver aberto
+    const currentWeaponType = $('#weaponConfigType').val();
+    if (currentWeaponType === weaponType) {
+        updateSelectedAmmunitionDisplay();
+    }
+    
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
+function decrementAmmunitionQuantityForWeapon(weaponType) {
+    const weaponConfig = selectedWeapons[weaponType];
+    if (!weaponConfig || !weaponConfig.ammunition) return false;
+    
+    const ammunition = weaponConfig.ammunition;
+    const currentQty = ammunition.quantity || 1;
+    
+    // Quantidade mínima é 1
+    if (currentQty <= 1) {
+        return false;
+    }
+    
+    ammunition.quantity = currentQty - 1;
+    updateSelectedWeaponDisplay(weaponType);
+    
+    // Atualizar também o display do modal se estiver aberto
+    const currentWeaponType = $('#weaponConfigType').val();
+    if (currentWeaponType === weaponType) {
+        updateSelectedAmmunitionDisplay();
+    }
+    
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
+function incrementAttachmentQuantityForWeapon(weaponType, attachmentId, attachmentNameType, attachmentType, attachmentIndex) {
+    const weaponConfig = selectedWeapons[weaponType];
+    if (!weaponConfig) return false;
+    
+    // Tentar encontrar pelo ID primeiro
+    let attachment = weaponConfig.attachments.find(a => a.id === attachmentId);
+    
+    // Se não encontrar pelo ID e temos informações adicionais, usar elas
+    if (!attachment && attachmentId === 0 && attachmentNameType) {
+        attachment = weaponConfig.attachments.find(a => 
+            a.name_type === attachmentNameType && 
+            a.type === attachmentType
+        );
+    }
+    
+    // Se ainda não encontrou, usar o index
+    if (!attachment && typeof attachmentIndex !== 'undefined' && attachmentIndex >= 0) {
+        attachment = weaponConfig.attachments[attachmentIndex];
+    }
+    
+    if (!attachment) return false;
+    
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    const currentQty = attachment.quantity || 1;
+    let newQty = currentQty + 1;
+    
+    // Validações para loadouts de players
+    if (isPlayerLoadout) {
+        // Para loadouts de players, tratar max_quantity null/undefined como 1 (padrão)
+        const maxQty = attachment.max_quantity !== null && attachment.max_quantity !== undefined 
+            ? attachment.max_quantity 
+            : 1;
+        
+        if (newQty > maxQty) {
+            showAlert('danger', `Quantidade máxima permitida para este attachment é ${maxQty}`);
+            return false;
+        }
+    }
+    
+    attachment.quantity = newQty;
+    updateSelectedWeaponDisplay(weaponType);
+    
+    // Atualizar também o display do modal se estiver aberto
+    const currentWeaponType = $('#weaponConfigType').val();
+    if (currentWeaponType === weaponType) {
+        updateSelectedAttachmentsDisplay();
+    }
+    
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
+function decrementAttachmentQuantityForWeapon(weaponType, attachmentId, attachmentNameType, attachmentType, attachmentIndex) {
+    const weaponConfig = selectedWeapons[weaponType];
+    if (!weaponConfig) return false;
+    
+    // Tentar encontrar pelo ID primeiro
+    let attachment = weaponConfig.attachments.find(a => a.id === attachmentId);
+    
+    // Se não encontrar pelo ID e temos informações adicionais, usar elas
+    if (!attachment && attachmentId === 0 && attachmentNameType) {
+        attachment = weaponConfig.attachments.find(a => 
+            a.name_type === attachmentNameType && 
+            a.type === attachmentType
+        );
+    }
+    
+    // Se ainda não encontrou, usar o index
+    if (!attachment && typeof attachmentIndex !== 'undefined' && attachmentIndex >= 0) {
+        attachment = weaponConfig.attachments[attachmentIndex];
+    }
+    
+    if (!attachment) return false;
+    
+    const currentQty = attachment.quantity || 1;
+    
+    // Quantidade mínima é 1
+    if (currentQty <= 1) {
+        return false;
+    }
+    
+    attachment.quantity = currentQty - 1;
+    updateSelectedWeaponDisplay(weaponType);
+    
+    // Atualizar também o display do modal se estiver aberto
+    const currentWeaponType = $('#weaponConfigType').val();
+    if (currentWeaponType === weaponType) {
+        updateSelectedAttachmentsDisplay();
+    }
+    
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
 function updateSelectedMagazineDisplay() {
     const weaponType = $('#weaponConfigType').val();
     const weaponConfig = selectedWeapons[weaponType];
@@ -3037,6 +3264,37 @@ function renderSelectedWeaponCard(weaponConfig, weaponType) {
     const ammunition = weaponConfig.ammunition;
     const attachments = weaponConfig.attachments || [];
     
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    // Calcular estados dos botões para magazine
+    let magazineCanDecrement = false;
+    let magazineCanIncrement = true;
+    if (magazine) {
+        const magQty = magazine.quantity || 1;
+        magazineCanDecrement = magQty > 1;
+        if (isPlayerLoadout) {
+            const magMaxQty = magazine.max_quantity !== null && magazine.max_quantity !== undefined 
+                ? magazine.max_quantity 
+                : 1;
+            magazineCanIncrement = magQty < magMaxQty;
+        }
+    }
+    
+    // Calcular estados dos botões para ammunition
+    let ammunitionCanDecrement = false;
+    let ammunitionCanIncrement = true;
+    if (ammunition) {
+        const ammoQty = ammunition.quantity || 1;
+        ammunitionCanDecrement = ammoQty > 1;
+        if (isPlayerLoadout) {
+            const ammoMaxQty = ammunition.max_quantity !== null && ammunition.max_quantity !== undefined 
+                ? ammunition.max_quantity 
+                : 1;
+            ammunitionCanIncrement = ammoQty < ammoMaxQty;
+        }
+    }
+    
     // Card principal da arma (destacado)
     const weaponCard = $(`
         <div class="selected-weapon-card-main">
@@ -3085,9 +3343,18 @@ function renderSelectedWeaponCard(weaponConfig, weaponType) {
                                                             <strong class="d-block small">${magazine.name || magazine.name_type || 'Magazine'}</strong>
                                                             <small class="text-info d-block mt-1"><i class="fas fa-box"></i> Quantidade: <strong>${magazine.quantity || 1}</strong></small>
                                                         </div>
-                                                        <div class="mt-2">
-                                                            <button class="btn btn-sm btn-primary" onclick="editMagazineQuantityForWeapon('${weaponType}'); event.preventDefault(); event.stopPropagation(); return false;" title="Editar Quantidade">
-                                                                <i class="fas fa-edit"></i> Qtd
+                                                        <div class="mt-2 d-flex gap-1 justify-content-center">
+                                                            <button class="btn btn-sm btn-outline-secondary" 
+                                                                    onclick="decrementMagazineQuantityForWeapon('${weaponType}'); event.preventDefault(); event.stopPropagation(); return false;" 
+                                                                    title="Diminuir Quantidade"
+                                                                    ${!magazineCanDecrement ? 'disabled' : ''}>
+                                                                <i class="fas fa-minus"></i>
+                                                            </button>
+                                                            <button class="btn btn-sm btn-outline-secondary" 
+                                                                    onclick="incrementMagazineQuantityForWeapon('${weaponType}'); event.preventDefault(); event.stopPropagation(); return false;" 
+                                                                    title="Aumentar Quantidade"
+                                                                    ${!magazineCanIncrement ? 'disabled' : ''}>
+                                                                <i class="fas fa-plus"></i>
                                                             </button>
                                                         </div>
                                                     </div>
@@ -3108,9 +3375,18 @@ function renderSelectedWeaponCard(weaponConfig, weaponType) {
                                                             <strong class="d-block small">${ammunition.name || ammunition.name_type || 'Ammunition'}</strong>
                                                             <small class="text-info d-block mt-1"><i class="fas fa-box"></i> Quantidade: <strong>${ammunition.quantity || 1}</strong></small>
                                                         </div>
-                                                        <div class="mt-2">
-                                                            <button class="btn btn-sm btn-primary" onclick="editAmmunitionQuantityForWeapon('${weaponType}'); event.preventDefault(); event.stopPropagation(); return false;" title="Editar Quantidade">
-                                                                <i class="fas fa-edit"></i> Qtd
+                                                        <div class="mt-2 d-flex gap-1 justify-content-center">
+                                                            <button class="btn btn-sm btn-outline-secondary" 
+                                                                    onclick="decrementAmmunitionQuantityForWeapon('${weaponType}'); event.preventDefault(); event.stopPropagation(); return false;" 
+                                                                    title="Diminuir Quantidade"
+                                                                    ${!ammunitionCanDecrement ? 'disabled' : ''}>
+                                                                <i class="fas fa-minus"></i>
+                                                            </button>
+                                                            <button class="btn btn-sm btn-outline-secondary" 
+                                                                    onclick="incrementAmmunitionQuantityForWeapon('${weaponType}'); event.preventDefault(); event.stopPropagation(); return false;" 
+                                                                    title="Aumentar Quantidade"
+                                                                    ${!ammunitionCanIncrement ? 'disabled' : ''}>
+                                                                <i class="fas fa-plus"></i>
                                                             </button>
                                                         </div>
                                                     </div>
@@ -3118,6 +3394,15 @@ function renderSelectedWeaponCard(weaponConfig, weaponType) {
                                             </div>
                                         ` : ''}
                                         ${attachments.map(function(att, attIndex) {
+                                            const attQty = att.quantity || 1;
+                                            const attCanDecrement = attQty > 1;
+                                            let attCanIncrement = true;
+                                            if (isPlayerLoadout) {
+                                                const attMaxQty = att.max_quantity !== null && att.max_quantity !== undefined 
+                                                    ? att.max_quantity 
+                                                    : 1;
+                                                attCanIncrement = attQty < attMaxQty;
+                                            }
                                             return `
                                                 <div class="selected-component-card">
                                                     <div class="card h-100">
@@ -3132,9 +3417,18 @@ function renderSelectedWeaponCard(weaponConfig, weaponType) {
                                                                 <strong class="d-block small">${att.name || att.name_type || 'Attachment'}</strong>
                                                                 <small class="text-info d-block mt-1"><i class="fas fa-box"></i> Quantidade: <strong>${att.quantity || 1}</strong></small>
                                                             </div>
-                                                            <div class="mt-2">
-                                                                <button class="btn btn-sm btn-primary" onclick="editAttachmentQuantityForWeapon('${weaponType}', ${att.id || 0}, '${att.name_type || ''}', '${att.type || ''}', ${attIndex}); event.preventDefault(); event.stopPropagation(); return false;" title="Editar Quantidade">
-                                                                    <i class="fas fa-edit"></i> Qtd
+                                                            <div class="mt-2 d-flex gap-1 justify-content-center">
+                                                                <button class="btn btn-sm btn-outline-secondary" 
+                                                                        onclick="decrementAttachmentQuantityForWeapon('${weaponType}', ${att.id || 0}, '${att.name_type || ''}', '${att.type || ''}', ${attIndex}); event.preventDefault(); event.stopPropagation(); return false;" 
+                                                                        title="Diminuir Quantidade"
+                                                                        ${!attCanDecrement ? 'disabled' : ''}>
+                                                                    <i class="fas fa-minus"></i>
+                                                                </button>
+                                                                <button class="btn btn-sm btn-outline-secondary" 
+                                                                        onclick="incrementAttachmentQuantityForWeapon('${weaponType}', ${att.id || 0}, '${att.name_type || ''}', '${att.type || ''}', ${attIndex}); event.preventDefault(); event.stopPropagation(); return false;" 
+                                                                        title="Aumentar Quantidade"
+                                                                        ${!attCanIncrement ? 'disabled' : ''}>
+                                                                    <i class="fas fa-plus"></i>
                                                                 </button>
                                                             </div>
                                                         </div>
@@ -3304,6 +3598,78 @@ function selectExplosiveForLoadout(explosiveId) {
     markLoadoutChanged();
 }
 
+// Funções increment/decrement para explosivos
+function incrementExplosiveQuantity(explosiveId) {
+    const explosive = selectedExplosives.find(e => e.id === explosiveId);
+    if (!explosive) return false;
+    
+    // Buscar o objeto original do banco para obter max_quantity correto
+    const explosiveOriginal = explosivesDataLoadout.find(e => e.id === explosiveId);
+    if (!explosiveOriginal) return false;
+    
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    const currentQty = explosive.quantity || 1;
+    let newQty = currentQty + 1;
+    
+    // Calcular quantidade total atual de explosivos (para validação de limite global)
+    const currentTotal = selectedExplosives.reduce((sum, exp) => sum + (exp.quantity || 0), 0);
+    const currentForThisExplosive = explosive.quantity || 0;
+    
+    // Validações para loadouts de players
+    if (isPlayerLoadout) {
+        // Para loadouts de players, tratar max_quantity null/undefined como 1 (padrão)
+        const maxQty = explosiveOriginal.max_quantity !== null && explosiveOriginal.max_quantity !== undefined 
+            ? explosiveOriginal.max_quantity 
+            : 1;
+        
+        // Validar quantidade máxima individual
+        if (newQty > maxQty) {
+            showAlert('danger', `Quantidade máxima permitida para este explosive é ${maxQty}`);
+            return false;
+        }
+        
+        // Validar limite global
+        const globalLimit = window.explosivesGlobalLimit || 0;
+        if (globalLimit > 0) {
+            const newTotal = currentTotal - currentForThisExplosive + newQty;
+            if (newTotal > globalLimit) {
+                showAlert('danger', `Limite global de explosivos é ${globalLimit}. Total atual seria ${newTotal}`);
+                return false;
+            }
+        }
+    }
+    
+    explosive.quantity = newQty;
+    // Atualizar max_quantity do objeto selecionado com o valor do banco (caso tenha mudado)
+    explosive.max_quantity = explosiveOriginal.max_quantity || null;
+    
+    updateSelectedExplosivesDisplay();
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
+function decrementExplosiveQuantity(explosiveId) {
+    const explosive = selectedExplosives.find(e => e.id === explosiveId);
+    if (!explosive) return false;
+    
+    const currentQty = explosive.quantity || 1;
+    
+    // Quantidade mínima é 1
+    if (currentQty <= 1) {
+        return false;
+    }
+    
+    explosive.quantity = currentQty - 1;
+    
+    updateSelectedExplosivesDisplay();
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
 function updateSelectedExplosivesDisplay() {
     const container = $('#selectedExplosivesList');
     container.empty();
@@ -3324,6 +3690,25 @@ function updateSelectedExplosivesDisplay() {
 }
 
 function renderSelectedExplosiveCard(explosive, index) {
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    // Calcular estados dos botões
+    const currentQty = explosive.quantity || 1;
+    const canDecrement = currentQty > 1;
+    let canIncrement = true;
+    
+    if (isPlayerLoadout) {
+        // Buscar o objeto original do banco para obter max_quantity correto
+        const explosiveOriginal = explosivesDataLoadout.find(e => e.id === explosive.id);
+        if (explosiveOriginal) {
+            const maxQty = explosiveOriginal.max_quantity !== null && explosiveOriginal.max_quantity !== undefined 
+                ? explosiveOriginal.max_quantity 
+                : 1;
+            canIncrement = currentQty < maxQty;
+        }
+    }
+    
     // Card do explosivo
     const card = $(`
         <div class="selected-item-card" data-explosive-index="${index}" data-explosive-id="${explosive.id}">
@@ -3341,8 +3726,17 @@ function renderSelectedExplosiveCard(explosive, index) {
                             <small class="text-info d-block mt-1"><i class="fas fa-box"></i> Quantidade: <strong>${explosive.quantity}</strong></small>
                         </div>
                         <div class="btn-group btn-group-sm w-100" role="group">
-                            <button class="btn btn-primary" onclick="editExplosiveQuantity(${explosive.id}); event.preventDefault(); event.stopPropagation(); return false;" title="Editar Quantidade">
-                                <i class="fas fa-edit"></i> Qtd
+                            <button class="btn btn-outline-secondary" 
+                                    onclick="decrementExplosiveQuantity(${explosive.id}); event.preventDefault(); event.stopPropagation(); return false;" 
+                                    title="Diminuir Quantidade"
+                                    ${!canDecrement ? 'disabled' : ''}>
+                                <i class="fas fa-minus"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" 
+                                    onclick="incrementExplosiveQuantity(${explosive.id}); event.preventDefault(); event.stopPropagation(); return false;" 
+                                    title="Aumentar Quantidade"
+                                    ${!canIncrement ? 'disabled' : ''}>
+                                <i class="fas fa-plus"></i>
                             </button>
                             <button class="btn btn-danger" onclick="removeExplosiveFromLoadout(${explosive.id}); event.preventDefault(); event.stopPropagation(); return false;" title="Remover">
                                 <i class="fas fa-trash"></i>
@@ -3919,6 +4313,64 @@ function editItemQuantity(itemId) {
     return true;
 }
 
+// Funções increment/decrement para itens
+function incrementItemQuantity(itemId) {
+    const item = selectedItems.find(i => i.id === itemId);
+    if (!item) return false;
+    
+    // Buscar o objeto original do banco para obter max_quantity correto
+    const itemOriginal = itemsDataLoadout.find(i => i.id === itemId);
+    if (!itemOriginal) return false;
+    
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    const currentQty = item.quantity || 1;
+    let newQty = currentQty + 1;
+    
+    // Validações para loadouts de players
+    if (isPlayerLoadout) {
+        // Para loadouts de players, tratar max_quantity null/undefined como 1 (padrão)
+        const maxQty = itemOriginal.max_quantity !== null && itemOriginal.max_quantity !== undefined 
+            ? itemOriginal.max_quantity 
+            : 1;
+        
+        // Validar quantidade máxima individual
+        if (newQty > maxQty) {
+            showAlert('danger', `Quantidade máxima permitida para este item é ${maxQty}`);
+            return false;
+        }
+    }
+    
+    item.quantity = newQty;
+    // Atualizar max_quantity do objeto selecionado com o valor do banco (caso tenha mudado)
+    item.max_quantity = itemOriginal.max_quantity || null;
+    
+    updateSelectedItemsDisplay();
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
+function decrementItemQuantity(itemId) {
+    const item = selectedItems.find(i => i.id === itemId);
+    if (!item) return false;
+    
+    const currentQty = item.quantity || 1;
+    
+    // Quantidade mínima é 1
+    if (currentQty <= 1) {
+        return false;
+    }
+    
+    item.quantity = currentQty - 1;
+    
+    updateSelectedItemsDisplay();
+    updateJSONPreview();
+    markLoadoutChanged();
+    return true;
+}
+
 function validateItemCompatibility(parentItemId, childItemId) {
     // Verificar se childItem pode ser adicionado como subitem do parentItem
     const parentItem = selectedItems.find(i => i.id === parentItemId);
@@ -3951,6 +4403,25 @@ function updateSelectedItemsDisplay() {
 }
 
 function renderSelectedItemCard(item, itemIndex) {
+    const loadoutType = $('#loadoutType').val() || 'custom';
+    const isPlayerLoadout = loadoutType === 'player';
+    
+    // Calcular estados dos botões
+    const currentQty = item.quantity || 1;
+    const canDecrement = currentQty > 1;
+    let canIncrement = true;
+    
+    if (isPlayerLoadout) {
+        // Buscar o objeto original do banco para obter max_quantity correto
+        const itemOriginal = itemsDataLoadout.find(i => i.id === item.id);
+        if (itemOriginal) {
+            const maxQty = itemOriginal.max_quantity !== null && itemOriginal.max_quantity !== undefined 
+                ? itemOriginal.max_quantity 
+                : 1;
+            canIncrement = currentQty < maxQty;
+        }
+    }
+    
     // Card principal do item
     const card = $(`
         <div class="selected-item-card" data-item-index="${itemIndex}">
@@ -3975,8 +4446,17 @@ function renderSelectedItemCard(item, itemIndex) {
                                     ${item.subitems && item.subitems.length > 0 ? ` <span class="badge bg-light text-dark">${item.subitems.length}</span>` : ''}
                                 </button>
                             ` : ''}
-                            <button class="btn btn-primary" onclick="editItemQuantity(${item.id}); event.preventDefault(); event.stopPropagation(); return false;" title="Editar Quantidade">
-                                <i class="fas fa-edit"></i> Qtd
+                            <button class="btn btn-outline-secondary" 
+                                    onclick="decrementItemQuantity(${item.id}); event.preventDefault(); event.stopPropagation(); return false;" 
+                                    title="Diminuir Quantidade"
+                                    ${!canDecrement ? 'disabled' : ''}>
+                                <i class="fas fa-minus"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" 
+                                    onclick="incrementItemQuantity(${item.id}); event.preventDefault(); event.stopPropagation(); return false;" 
+                                    title="Aumentar Quantidade"
+                                    ${!canIncrement ? 'disabled' : ''}>
+                                <i class="fas fa-plus"></i>
                             </button>
                             <button class="btn btn-danger" onclick="removeItemFromLoadout(${itemIndex}); return false;" title="Remover">
                                 <i class="fas fa-trash"></i>
