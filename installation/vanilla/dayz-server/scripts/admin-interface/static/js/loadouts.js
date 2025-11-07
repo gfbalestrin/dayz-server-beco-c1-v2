@@ -1486,25 +1486,28 @@ function formatJSON(type) {
 }
 
 function showAlert(type, message) {
-    const alertHtml = `
-        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    `;
+    // Usar showToast() que já está disponível globalmente (definida em main.js)
+    // Mapear tipos de alert para tipos de toast
+    // showToast aceita: 'success', 'error', 'warning', 'info', 'danger'
+    const toastType = type === 'danger' ? 'danger' : type;
     
-    // Remover alerts existentes
-    $('.alert').remove();
+    // Remover toasts anteriores antes de mostrar um novo
+    // Esconder e remover todos os toasts existentes
+    $('.toast').each(function() {
+        const toastInstance = bootstrap.Toast.getInstance(this);
+        if (toastInstance) {
+            toastInstance.hide();
+        }
+        $(this).remove();
+    });
     
-    // Adicionar novo alert
-    $('.container-fluid').prepend(alertHtml);
-    
-    // Auto-dismiss após 5 segundos
-    setTimeout(function() {
-        $('.alert').fadeOut(function() {
-            $(this).remove();
-        });
-    }, 5000);
+    // Chamar showToast() que já está configurada para aparecer no canto inferior direito
+    if (typeof showToast === 'function') {
+        showToast('', message, toastType);
+    } else {
+        // Fallback caso showToast não esteja disponível (não deveria acontecer)
+        console.error('showToast não está disponível. Mensagem:', message);
+    }
 }
 
 // ============================================================================
