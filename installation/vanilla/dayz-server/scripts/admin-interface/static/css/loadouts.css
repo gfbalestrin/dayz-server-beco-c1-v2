@@ -606,6 +606,27 @@
     background: #555;
 }
 
+/* Animação de pulso e brilho para botões de salvar loadout */
+@keyframes pulse-glow {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.7);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 0 0 10px rgba(13, 110, 253, 0);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(13, 110, 253, 0);
+    }
+}
+
+/* Classe para aplicar animação aos botões de salvar */
+.btn-save-loadout-animated {
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
 /* Responsividade */
 @media (max-width: 768px) {
     .weapons-grid {

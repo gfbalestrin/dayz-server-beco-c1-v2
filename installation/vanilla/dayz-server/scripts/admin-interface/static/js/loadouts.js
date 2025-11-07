@@ -440,6 +440,16 @@ function updateChangesIndicator() {
             indicator.hide();
         }
     }
+    
+    // Adicionar/remover animação nos botões de salvar
+    const saveButtons = $('#btnSaveCustomLoadoutTop, #btnSaveCustomLoadout');
+    if (saveButtons.length > 0) {
+        if (loadoutHasChanges) {
+            saveButtons.addClass('btn-save-loadout-animated');
+        } else {
+            saveButtons.removeClass('btn-save-loadout-animated');
+        }
+    }
 }
 
 function handleCancelLoadout() {
