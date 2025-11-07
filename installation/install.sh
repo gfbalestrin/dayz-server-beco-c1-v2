@@ -474,19 +474,18 @@ set -euo pipefail
 
 echo "[INFO] Iniciando update do servidor DayZ..."
 
-cd "$DayzFolder/scripts"
-
 # Limpa logs de banco antigos (se o script existir)
 if [ -f "$DayzFolder/scripts/clear_databases.sh" ]; then
     echo "[INFO] Limpar logs de banco antigos..."
-    cd "$DayzFolder/scripts"
-    ./clear_databases.sh
+    cd "$DayzFolder/scripts" && source "$DayzFolder/scripts/config.sh"
 fi
 
 cd "$DayzFolder/scripts" && source "$DayzFolder/scripts/config.sh"
 CurrentDate=\$(date "+%d/%m/%Y %H:%M:%S")
 ScriptName=\$(basename "\$0")
-SEND_DISCORD_WEBHOOK "Servidor reiniciando..." "\$DiscordWebhookLogs" "\$CurrentDate" "\$ScriptName"
+SEND_DISCORD_WEBHOOK "Servidor reiniciando e atualizando... Todos os jogadores foram desconectados!" "\$DiscordWebhookLogs" "\$CurrentDate" "\$ScriptName"
+INSERT_CUSTOM_LOG "Servidor reiniciando e atualizando... Todos os jogadores foram desconectados!" "INFO" "\$ScriptName"
+
 
 "$AppFolder/$AppScriptUpdatePlayersOnlineFile" "RESET" 
 

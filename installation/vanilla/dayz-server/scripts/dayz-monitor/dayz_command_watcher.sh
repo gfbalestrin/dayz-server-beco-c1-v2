@@ -294,9 +294,9 @@ tail -F "$COMMAND_FILE" | while read -r line; do
             echo "Evento de servidor reiniciando!" 
             INSERT_CUSTOM_LOG "Evento de restart do servidor!" "INFO" "$ScriptName"
             if [[ "$DayzDeathmatch" -eq "1" ]]; then
-                Content="Servidor reiniciando... (Próximo mapa: $NextMap)"
+                Content="Servidor reiniciando... todos os jogadores foram desconectados! (Próximo mapa: $NextMap)"
             else
-                Content="Servidor reiniciando..."
+                Content="Servidor reiniciando... todos os jogadores foram desconectados!"
             fi
             
             SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"

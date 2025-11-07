@@ -23,6 +23,7 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
           "$Line" != *"bled out"* && \
           "$Line" != *"died. Stats"* && \
           "$Line" != *"hit by Player"* && \
+          "$Line" != *"Server was unlocked"* && \
           "$Line" != *"Chat("* ]]; then
         continue
     fi
@@ -224,6 +225,26 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
             continue
         fi
 
+    
+    elif [[ "$Content" == *"Server was unlocked"* ]]; then
+        echo "Evento de servidor reiniciado!" 
+        INSERT_CUSTOM_LOG "Evento de início do servidor!" "INFO" "$ScriptName"
+        
+        if [[ "$DayzDeathmatch" -eq "1" ]]; then
+            Content="Servidor iniciado e liberado para jogadores!"
+            SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+            Content="Mapa atual: $CurrentMap, Horário: $CurrentTime"
+            SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"   
+        else
+            Content="Servidor iniciado e liberado para jogadores! Horário: $CurrentTime"
+            SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+        fi
+
+        if [[ "$DayzDeathmatch" -eq "1" ]]; then
+            # Gerar estatísticas
+            #"$AppFolder/$AppScriptUpdateGeneralKillfeed"         
+        fi
+        continue
     else
 		Content="${Content//is unconscious/está inconsciente}"
         Content="${Content//bled out/morreu por sangramento}"
