@@ -121,9 +121,29 @@ $(document).ready(function() {
         // Detectar tipo de loadout
         const loadoutType = $('#loadoutType').val() || 'custom';
         
+        // Detectar se está na página "Meu Loadout" (acessada via /my-loadout)
+        const isMyLoadout = window.location.pathname.includes('/my-loadout');
+        
+        // Se for "Meu Loadout", ocultar campo de ID e seção de JSON
+        if (isMyLoadout && loadoutType === 'player') {
+            // Ocultar campo de ID do loadout
+            $('#playerLoadoutId').closest('.col-md-4').hide();
+            // Ocultar seção de JSON
+            $('#playerLoadoutData').closest('.mb-3').hide();
+            // Ocultar botões de validação/formatação JSON
+            $('#btnValidatePlayerJSON, #btnFormatPlayerJSON').closest('small').hide();
+            // Forçar modo visual (ocultar opção de modo JSON)
+            $('input[name="loadoutMode"][value="json"]').closest('.form-check').hide();
+            loadoutMode = 'visual';
+            toggleLoadoutMode();
+        }
+        
         // Detectar alterações nos campos básicos conforme tipo
         if (loadoutType === 'player') {
-            $('#playerLoadoutId').on('input change', markLoadoutChanged);
+            // Não adicionar listener para playerLoadoutId se for "Meu Loadout" (campo oculto)
+            if (!isMyLoadout) {
+                $('#playerLoadoutId').on('input change', markLoadoutChanged);
+            }
             // Aplicar sanitização em tempo real no nome do loadout
             $('#playerLoadoutName').on('input', function() {
                 const $this = $(this);
@@ -453,6 +473,11 @@ function updateChangesIndicator() {
 }
 
 function handleCancelLoadout() {
+    const isMyLoadout = window.location.pathname.includes('/my-loadout');
+    if (isMyLoadout) {
+        window.location.href = '/my-loadout';
+        return;
+    }
     if (loadoutHasChanges) {
         if (!confirm('Você tem alterações não salvas. Tem certeza que deseja cancelar?')) {
             return false;
@@ -725,8 +750,11 @@ function loadLoadoutForEdit(id) {
 }
 
 function loadPlayerLoadoutForEdit(playerId, loadoutId) {
+    const isMyLoadout = window.location.pathname.includes('/my-loadout');
+    const apiUrl = isMyLoadout ? '/api/loadouts/my-loadout' : `/api/loadouts/players/${playerId}`;
+    
     $.ajax({
-        url: `/api/loadouts/players/${playerId}`,
+        url: apiUrl,
         method: 'GET',
         success: function(response) {
             if (response.success) {
@@ -739,10 +767,16 @@ function loadPlayerLoadoutForEdit(playerId, loadoutId) {
                 // O ID do banco (db_id) está em loadout.id
                 $('#playerLoadoutPlayerId').val(playerId);
                 $('#playerLoadoutLoadoutId').val(loadout.id); // ID do banco
-                $('#playerLoadoutId').val(loadout.loadout_id); // ID interno do loadout
+                // Se for "Meu Loadout", não preencher o campo de ID (já está oculto)
+                if (!isMyLoadout) {
+                    $('#playerLoadoutId').val(loadout.loadout_id); // ID interno do loadout
+                }
                 $('#playerLoadoutName').val(loadout.name);
                 $('#playerLoadoutActive').val(loadout.is_active ? 'true' : 'false');
-                $('#playerLoadoutData').val(JSON.stringify(loadout.loadout_data, null, 4));
+                // Se for "Meu Loadout", não preencher o campo de JSON (já está oculto)
+                if (!isMyLoadout) {
+                    $('#playerLoadoutData').val(JSON.stringify(loadout.loadout_data, null, 4));
+                }
                 $('#playerJSONValidation').empty();
                 
                 // Carregar dados para modo visual
@@ -5698,13 +5732,14 @@ function updateJSONPreview() {
 // Atualizar saveCustomLoadout para usar modo visual quando necessário
 function saveCustomLoadout() {
     const loadoutType = $('#loadoutType').val() || 'custom';
+    const isMyLoadout = window.location.pathname.includes('/my-loadout');
     let id, name, isActive, loadoutData;
     let url, method, redirectUrl;
     
     // Detectar tipo e usar campos corretos
     if (loadoutType === 'player') {
         const playerId = $('#playerLoadoutPlayerId').val();
-        const loadoutId = parseInt($('#playerLoadoutId').val());
+        const loadoutId = isMyLoadout ? null : parseInt($('#playerLoadoutId').val()); // Não usar loadoutId se for "Meu Loadout"
         const dbLoadoutId = $('#playerLoadoutLoadoutId').val();
         name = sanitizeLoadoutName($('#playerLoadoutName').val(), true); // true = remover hífens no início/fim ao salvar
         isActive = $('#playerLoadoutActive').val() === 'true';
@@ -5718,16 +5753,31 @@ function saveCustomLoadout() {
         }
         
         // URLs para player loadouts
-        if (dbLoadoutId) {
-            // Editando - usar PUT
-            url = `/api/loadouts/players/${playerId}/${loadoutId}`;
-            method = 'PUT';
+        if (isMyLoadout) {
+            // Usar API "Meu Loadout"
+            if (dbLoadoutId) {
+                // Editando - usar PUT
+                url = `/api/loadouts/my-loadout/${dbLoadoutId}`;
+                method = 'PUT';
+            } else {
+                // Criando - usar POST
+                url = `/api/loadouts/my-loadout`;
+                method = 'POST';
+            }
+            redirectUrl = '/my-loadout';
         } else {
-            // Criando - usar POST
-            url = `/api/loadouts/players/${playerId}`;
-            method = 'POST';
+            // Usar API admin normal
+            if (dbLoadoutId) {
+                // Editando - usar PUT
+                url = `/api/loadouts/players/${playerId}/${loadoutId}`;
+                method = 'PUT';
+            } else {
+                // Criando - usar POST
+                url = `/api/loadouts/players/${playerId}`;
+                method = 'POST';
+            }
+            redirectUrl = `/loadouts#players-tab?player_id=${playerId}`;
         }
-        redirectUrl = `/loadouts#players-tab?player_id=${playerId}`;
     } else {
         // Custom loadout
         id = $('#customLoadoutId').val();
@@ -5780,7 +5830,7 @@ function saveCustomLoadout() {
     let dataToSend;
     if (loadoutType === 'player') {
         const playerId = $('#playerLoadoutPlayerId').val();
-        const loadoutId = parseInt($('#playerLoadoutId').val());
+        const loadoutId = isMyLoadout ? null : parseInt($('#playerLoadoutId').val()); // Não usar loadoutId se for "Meu Loadout"
         const dbLoadoutId = $('#playerLoadoutLoadoutId').val();
         
         dataToSend = {
@@ -5788,15 +5838,21 @@ function saveCustomLoadout() {
             is_active: isActive,
             loadout_data: loadoutData
         };
-        // Se existe dbLoadoutId, estamos editando
-        if (dbLoadoutId) {
-            dataToSend.db_id = dbLoadoutId;
-            dataToSend.loadout_id = loadoutId; // Só enviar loadout_id ao editar
-            // Usar loadoutId atual para garantir que está correto
-            url = `/api/loadouts/players/${playerId}/${loadoutId}`;
-            method = 'PUT';
+        
+        // Se for "Meu Loadout", não enviar loadout_id (será mantido pelo backend)
+        if (isMyLoadout) {
+            // Não enviar loadout_id, o backend manterá o existente
+        } else {
+            // Se existe dbLoadoutId, estamos editando (modo admin)
+            if (dbLoadoutId) {
+                dataToSend.db_id = dbLoadoutId;
+                dataToSend.loadout_id = loadoutId; // Só enviar loadout_id ao editar
+                // Usar loadoutId atual para garantir que está correto
+                url = `/api/loadouts/players/${playerId}/${loadoutId}`;
+                method = 'PUT';
+            }
+            // Ao criar, não enviar loadout_id (será gerado automaticamente pela API)
         }
-        // Ao criar, não enviar loadout_id (será gerado automaticamente pela API)
     } else {
         dataToSend = {
             name: name,

@@ -427,12 +427,12 @@ bool ExecuteCommand(TStringArray tokens)
             g_VoteKickManager.ListarJogadoresOnline(playerID);
             break;
         case "loadouts":
-            SendPrivateMessage(playerID, "Esse recurso não está disponível no momento", MessageColor.FRIENDLY);
-            //ShowLoadoutsToPlayer(playerID);
+            //SendPrivateMessage(playerID, "Esse recurso não está disponível no momento", MessageColor.FRIENDLY);
+            ShowLoadoutsToPlayer(playerID);
             break;
         case "loadout":
-            SendPrivateMessage(playerID, "Esse recurso não está disponível no momento", MessageColor.FRIENDLY);
-            break;
+            //SendPrivateMessage(playerID, "Esse recurso não está disponível no momento", MessageColor.FRIENDLY);
+            //break;
             if (tokens.Count() < 3) {
                 ShowLoadoutsToPlayer(playerID);
                 return true;

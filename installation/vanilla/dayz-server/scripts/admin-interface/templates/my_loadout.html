@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Meu Loadout{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/loadouts.css') }}">
+<style>
+    /* Estilos mobile-first para Meu Loadout */
+    @media (max-width: 768px) {
+        .btn {
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+        }
+        .table-responsive {
+            font-size: 0.9rem;
+        }
+        .loadout-actions {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .loadout-actions .btn {
+            width: 100%;
+        }
+    }
+    
+    .loadout-limit-indicator {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+    }
+    
+    .loadout-limit-indicator.warning {
+        background-color: #fff3cd;
+        border-color: #ffc107;
+    }
+    
+    .loadout-limit-indicator.danger {
+        background-color: #f8d7da;
+        border-color: #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<input type="hidden" id="playerId" value="{{ player_id }}">
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-user-circle me-2"></i>Meu Loadout</h2>
+    </div>
+
+    <!-- Indicador de limite de loadouts -->
+    <div id="loadoutLimitIndicator" class="loadout-limit-indicator">
+        <i class="fas fa-info-circle me-2"></i>
+        <span id="loadoutLimitText">Carregando...</span>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-12 col-md-4 mb-2 mb-md-0">
+            <button class="btn btn-success w-100" id="btnAddMyLoadout">
+                <i class="fas fa-plus me-2"></i>Novo Loadout
+            </button>
+        </div>
+        <div class="col-12 col-md-8">
+            <input type="text" id="myLoadoutSearchInput" class="form-control" placeholder="Buscar loadout...">
+        </div>
+    </div>
+    
+    <div class="table-responsive">
+        <table id="myLoadoutsTable" class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Status</th>
+                    <th>Criado em</th>
+                    <th>Atualizado em</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Populated by JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal de Configuração de Arma no Loadout -->
+<div class="modal fade" id="weaponConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Configurar Arma: <span id="weaponConfigName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="weaponConfigId">
+                <input type="hidden" id="weaponConfigType"> <!-- primary/secondary/small -->
+                
+                <!-- Magazine -->
+                <div class="mb-3">
+                    <label class="form-label">Magazine:</label>
+                    <div id="magazinesGridConfig" class="relationship-grid" style="max-height: 300px; overflow-y: auto;"></div>
+                    <div id="selectedMagazineConfig" class="mt-2">
+                        <h6>Magazine Selecionado:</h6>
+                        <div id="selectedMagazineListConfig"></div>
+                    </div>
+                    <small class="form-text text-muted">Selecione apenas UM magazine compatível com esta arma</small>
+                </div>
+                
+                <!-- Ammunition -->
+                <div class="mb-3">
+                    <label class="form-label">Ammunition:</label>
+                    <div id="ammunitionsGridConfig" class="relationship-grid" style="max-height: 300px; overflow-y: auto;"></div>
+                    <div id="selectedAmmunitionConfig" class="mt-2">
+                        <h6>Ammunition Selecionada:</h6>
+                        <div id="selectedAmmunitionListConfig"></div>
+                    </div>
+                    <small class="form-text text-muted">Selecione apenas UMA munição compatível com esta arma</small>
+                </div>
+                
+                <!-- Attachments -->
+                <div class="mb-3">
+                    <label class="form-label">Attachments:</label>
+                    <div class="mb-2">
+                        <input type="text" class="form-control" id="attachmentSearchConfig" placeholder="Buscar attachment...">
+                    </div>
+                    <div class="mb-2">
+                        <select class="form-select" id="filterAttachmentTypeConfig">
+                            <option value="">Todos os Tipos</option>
+                            <option value="buttstock">Buttstock</option>
+                            <option value="compensator">Compensator</option>
+                            <option value="flashlight">Flashlight</option>
+                            <option value="ghillie">Ghillie</option>
+                            <option value="scope">Scope</option>
+                            <option value="handguard">Handguard</option>
+                            <option value="suppressor">Suppressor</option>
+                        </select>
+                    </div>
+                    <div id="attachmentsGridConfig" class="relationship-grid" style="max-height: 300px; overflow-y: auto;"></div>
+                    <div id="selectedAttachmentsConfig" class="mt-2">
+                        <h6>Attachments Selecionados:</h6>
+                        <div id="selectedAttachmentsListConfig"></div>
+                    </div>
+                    <small class="form-text text-muted">Selecione apenas UM attachment por tipo (scope, suppressor, etc)</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveWeaponConfig">Salvar Configuração</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/loadouts.js') }}"></script>
+<script src="{{ url_for('static', filename='js/my_loadout.js') }}"></script>
+{% endblock %}
+

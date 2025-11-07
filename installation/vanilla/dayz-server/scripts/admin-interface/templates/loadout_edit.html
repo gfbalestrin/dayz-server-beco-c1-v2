@@ -12,6 +12,10 @@
     <!-- Breadcrumb -->
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
+            {% if request.path.startswith('/my-loadout') %}
+            <li class="breadcrumb-item"><a href="{{ url_for('my_loadout') }}">Meu Loadout</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{% if is_edit %}Editar{% else %}Criar{% endif %} Loadout</li>
+            {% else %}
             <li class="breadcrumb-item"><a href="{{ url_for('loadouts') }}">Loadouts</a></li>
             {% if loadout_type == 'player' %}
             <li class="breadcrumb-item"><a href="{{ url_for('loadouts') }}#players-tab">Loadouts Players</a></li>
@@ -19,15 +23,22 @@
             <li class="breadcrumb-item"><a href="{{ url_for('loadouts') }}#custom-tab">Loadouts Custom</a></li>
             {% endif %}
             <li class="breadcrumb-item active" aria-current="page">{% if is_edit %}Editar{% else %}Criar{% endif %} Loadout</li>
+            {% endif %}
         </ol>
     </nav>
 
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="fas fa-layer-group me-2"></i>{% if is_edit %}Editar{% else %}Criar Novo{% endif %} Loadout {% if loadout_type == 'player' %}Player{% else %}Custom{% endif %}</h2>
+        {% if request.path.startswith('/my-loadout') %}
+        <a href="{{ url_for('my_loadout') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Voltar
+        </a>
+        {% else %}
         <a href="{{ url_for('loadouts') }}#{% if loadout_type == 'player' %}players-tab{% else %}custom-tab{% endif %}" class="btn btn-secondary">
             <i class="fas fa-arrow-left me-2"></i>Voltar
         </a>
+        {% endif %}
     </div>
 
     <!-- Barra de Ações Fixa no Topo -->

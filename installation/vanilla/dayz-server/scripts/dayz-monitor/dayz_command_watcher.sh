@@ -34,46 +34,136 @@ tail -F "$COMMAND_FILE" | while read -r line; do
             player_id=$(echo "$line" | jq -r '.player_id')
 
             echo ">> Resetando senha de $player_id"
-            INSERT_CUSTOM_LOG "Resetando senha de $player_id"
+            INSERT_CUSTOM_LOG "Resetando senha de $player_id" "INFO" "$ScriptName"
     
-            # Caminho absoluto para garantir que funcione via systemd
-            result_json=$("$AppFolder/$AppScriptPlayerLoadoutManagerFile" --player-id "$player_id" --reset-password 2>&1)
+            # Verificar e instalar bcrypt se necessário
+            if ! python3 -c "import bcrypt" 2>/dev/null; then
+                echo ">> Instalando bcrypt..."
+                pip3 install bcrypt --quiet 2>/dev/null || {
+                    echo "Erro: Falha ao instalar bcrypt. Instale manualmente com: pip3 install bcrypt"
+                    echo "$player_id;[ERROR] Erro interno ao resetar senha (bcrypt não disponível)" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
+                    continue
+                }
+            fi
+    
+            # Banco de dados
+            PLAYERS_BECO_C1_DB="$AppFolder/$AppPlayerBecoC1DbFile"
+            URL_LOADOUT="$AppUrlAppLoadout"
 
-            # Verifica se a saída é JSON válido
-            if ! echo "$result_json" | jq -e . >/dev/null 2>&1; then
-                echo "Erro: saída inválida do script de reset:"
-                echo "$result_json"
-                echo "$player_id;[ERROR] Erro interno ao resetar senha (formato inválido)" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
+            # Escapar player_id para SQL (evitar SQL injection)
+            player_id_escaped=$(echo "$player_id" | sed "s/'/''/g")
+
+            # Valida se o jogador existe no banco principal
+            PlayerExists=$(sqlite3 -separator "|" "$PLAYERS_BECO_C1_DB" "SELECT PlayerName, SteamID, SteamName FROM players_database WHERE PlayerID = '$player_id_escaped' LIMIT 1;")
+            if [[ -z "$PlayerExists" ]]; then
+                echo "Erro: PlayerID não consta na database de jogadores"
+                echo "$player_id;[ERROR] PlayerID não consta na database de jogadores. Ative sua conta antes." >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
                 continue
             fi
 
-            # Verifica erro no JSON retornado
-            if echo "$result_json" | jq -e 'has("error")' >/dev/null; then
-                erro=$(echo "$result_json" | jq -r '.error')
-                echo "Erro do script: $erro"
-                echo "$player_id;[ERROR] Erro ao resetar a senha: $erro" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-                continue
+            # Extrai dados do jogador
+            PlayerName=$(echo "$PlayerExists" | cut -d'|' -f1 | tr -d '|' | sed 's/[^a-zA-Z0-9_ -]//g' | xargs)
+            SteamID=$(echo "$PlayerExists" | cut -d'|' -f2)
+            SteamName=$(echo "$PlayerExists" | cut -d'|' -f3 | tr -d '|' | sed 's/[^a-zA-Z0-9_ -]//g' | xargs)
+
+            # Verifica se usuário já existe na tabela users
+            UserExists=$(sqlite3 -separator "|" "$PLAYERS_BECO_C1_DB" "SELECT UserID, Username FROM users WHERE PlayerID = '$player_id_escaped' LIMIT 1;")
+
+            if [[ -n "$UserExists" ]]; then
+                # Usuário existe: atualizar senha
+                UserID=$(echo "$UserExists" | cut -d'|' -f1)
+                login=$(echo "$UserExists" | cut -d'|' -f2 | xargs)
+                
+                # Gerar nova senha aleatória
+                senha=$(head -c 100 /dev/urandom | tr -dc 'a-z0-9' | head -c 6)
+                
+                # Gerar hash bcrypt da senha usando Python
+                hash=$(python3 -c "import bcrypt; print(bcrypt.hashpw('$senha'.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8'))" 2>/dev/null)
+                
+                if [[ -z "$hash" ]]; then
+                    echo "Erro: Falha ao gerar hash da senha"
+                    echo "$player_id;[ERROR] Erro interno ao resetar senha (falha ao gerar hash)" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
+                    continue
+                fi
+
+                # Escapar aspas simples no hash para SQL
+                hash_escaped=$(echo "$hash" | sed "s/'/''/g")
+
+                # Atualizar senha na tabela users
+                sqlite3 "$PLAYERS_BECO_C1_DB" "UPDATE users SET Password = '$hash_escaped', MustChangePassword = 1 WHERE UserID = $UserID;"
+                
+                if [[ $? -ne 0 ]]; then
+                    echo "Erro: Falha ao atualizar senha no banco de dados"
+                    echo "$player_id;[ERROR] Erro interno ao resetar senha (falha ao atualizar banco)" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
+                    continue
+                fi
+            else
+                # Usuário não existe: criar novo usuário
+                # Gerar login baseado no SteamName
+                base_login=$(echo "$SteamName" | tr '[:upper:]' '[:lower:]' | tr -dc 'a-z0-9' | cut -c1-16)
+                if [[ -z "$base_login" ]]; then 
+                    base_login="survivor"
+                fi
+                login="$base_login"
+
+                # Verificar se login já existe e gerar novo com sufixo incremental
+                suffix=1
+                while sqlite3 "$PLAYERS_BECO_C1_DB" "SELECT 1 FROM users WHERE Username = '$login' LIMIT 1;" | grep -q 1; do
+                    login="${base_login}${suffix}"
+                    suffix=$((suffix + 1))
+                done
+
+                # Gerar senha aleatória
+                senha=$(head -c 100 /dev/urandom | tr -dc 'a-z0-9' | head -c 8)
+                
+                # Gerar hash bcrypt da senha usando Python
+                hash=$(python3 -c "import bcrypt; print(bcrypt.hashpw('$senha'.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8'))" 2>/dev/null)
+                
+                if [[ -z "$hash" ]]; then
+                    echo "Erro: Falha ao gerar hash da senha"
+                    echo "$player_id;[ERROR] Erro interno ao resetar senha (falha ao gerar hash)" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
+                    continue
+                fi
+
+                # Escapar aspas simples no hash e login para SQL
+                hash_escaped=$(echo "$hash" | sed "s/'/''/g")
+                login_escaped=$(echo "$login" | sed "s/'/''/g")
+
+                # Inserir novo usuário na tabela users
+                sqlite3 "$PLAYERS_BECO_C1_DB" "INSERT INTO users (Username, Password, UserType, PlayerID, IsActive, MustChangePassword) VALUES ('$login_escaped', '$hash_escaped', 'player', '$player_id_escaped', 1, 1);"
+                
+                if [[ $? -ne 0 ]]; then
+                    echo "Erro: Falha ao criar usuário no banco de dados"
+                    echo "$player_id;[ERROR] Erro interno ao resetar senha (falha ao criar usuário)" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
+                    continue
+                fi
             fi
 
-            login=$(echo "$result_json" | jq -r '.login // empty')
-            senha=$(echo "$result_json" | jq -r '.senha // empty')
-            url=$(echo "$result_json" | jq -r '.url // empty')
+            # Verifica se jogador já tem algum loadout
+            loadout_count=$(sqlite3 "$PLAYERS_BECO_C1_DB" "SELECT COUNT(*) FROM loadouts_players WHERE player_id = '$player_id_escaped';")
+
+            if [[ "$loadout_count" -eq 0 ]]; then
+                # Gerar loadout_id único (máximo + 1 ou 1 se não existir)
+                max_loadout_id=$(sqlite3 "$PLAYERS_BECO_C1_DB" "SELECT COALESCE(MAX(loadout_id), 0) FROM loadouts_players WHERE player_id = '$player_id_escaped';")
+                new_loadout_id=$((max_loadout_id + 1))
+                
+                # Criar loadout padrão com JSON vazio
+                loadout_data='{"primary_weapon":null,"secondary_weapon":null,"small_weapon":null,"explosives":[],"items":[]}'
+                loadout_data_escaped=$(echo "$loadout_data" | sed "s/'/''/g")
+                sqlite3 "$PLAYERS_BECO_C1_DB" "INSERT INTO loadouts_players (player_id, loadout_id, name, is_active, loadout_data) VALUES ('$player_id_escaped', $new_loadout_id, 'Loadout Padrão', 1, '$loadout_data_escaped');"
+            fi
 
             echo ">> Senha redefinida com sucesso para o jogador $player_id"
             echo "Login: $login"
             echo "Senha: $senha"
-            echo "URL: $url"
+            echo "URL: $URL_LOADOUT"
 
-            echo "$player_id;Nova senha gerada com sucesso. Acesse $url" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
+            echo "$player_id;Nova senha gerada com sucesso. Acesse $URL_LOADOUT" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
             echo "$player_id;Login: $login" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
             echo "$player_id;Nova senha: $senha" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
 
             # LOG DISCORD
-            PlayerExists=$(sqlite3 -separator "|" "$AppFolder/$AppPlayerBecoC1DbFile" "SELECT PlayerName, SteamID, SteamName FROM players_database WHERE PlayerID = '$player_id';")
             if [[ -n "$PlayerExists" ]]; then
-                PlayerName=$(echo "$PlayerExists" | cut -d'|' -f1 | tr -d '|' | sed 's/[^a-zA-Z0-9_ -]//g' | xargs)
-                SteamID=$(echo "$PlayerExists" | cut -d'|' -f2)
-                SteamName=$(echo "$PlayerExists" | cut -d'|' -f3 | tr -d '|' | sed 's/[^a-zA-Z0-9_ -]//g' | xargs)
                 Content="Jogador **$PlayerName** ([$SteamName](<https://steamcommunity.com/profiles/$SteamID>)) resetou seu acesso no sistema de loadout"
                 SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             fi

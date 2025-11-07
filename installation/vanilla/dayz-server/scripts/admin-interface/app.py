@@ -3103,6 +3103,46 @@ def loadout_player_edit(player_id, loadout_id):
     """Página de edição de loadout de jogador"""
     return render_template('loadout_edit.html', loadout_id=loadout_id, is_edit=True, loadout_type='player', player_id=player_id)
 
+@app.route('/my-loadout')
+@login_required
+def my_loadout():
+    """Tela de gerenciamento de loadouts do usuário logado"""
+    player_id = session.get('player_id')
+    if not player_id:
+        return render_template('error.html', message='Você precisa ter um player_id associado à sua conta para acessar esta página.'), 403
+    return render_template('my_loadout.html', player_id=player_id)
+
+@app.route('/my-loadout/new')
+@login_required
+def my_loadout_new():
+    """Página de criação de novo loadout para o usuário logado"""
+    player_id = session.get('player_id')
+    if not player_id:
+        return render_template('error.html', message='Você precisa ter um player_id associado à sua conta para acessar esta página.'), 403
+    return render_template('loadout_edit.html', loadout_id=None, is_edit=False, loadout_type='player', player_id=player_id)
+
+@app.route('/my-loadout/<int:loadout_id>/edit')
+@login_required
+def my_loadout_edit(loadout_id):
+    """Página de edição de loadout do usuário logado"""
+    player_id = session.get('player_id')
+    if not player_id:
+        return render_template('error.html', message='Você precisa ter um player_id associado à sua conta para acessar esta página.'), 403
+    
+    # Validar que o loadout pertence ao usuário logado
+    from database import get_loadouts_by_player
+    loadouts = get_loadouts_by_player(player_id)
+    loadout = None
+    for l in loadouts:
+        if l['loadout_id'] == loadout_id:
+            loadout = l
+            break
+    
+    if not loadout:
+        return render_template('error.html', message='Loadout não encontrado ou você não tem permissão para editá-lo.'), 404
+    
+    return render_template('loadout_edit.html', loadout_id=loadout_id, is_edit=True, loadout_type='player', player_id=player_id)
+
 # ============================================================================
 # FUNÇÕES AUXILIARES - LOADOUTS
 # ============================================================================
@@ -3415,6 +3455,210 @@ def api_loadouts_players_update(player_id, loadout_id):
         )
         
         return jsonify({'success': True, 'message': 'Loadout atualizado com sucesso'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/loadouts/my-loadout', methods=['GET'])
+@login_required
+def api_my_loadout_list():
+    """Lista loadouts do usuário logado"""
+    try:
+        player_id = session.get('player_id')
+        if not player_id:
+            return jsonify({'success': False, 'message': 'Você precisa ter um player_id associado à sua conta'}), 403
+        
+        loadouts = get_loadouts_by_player(player_id)
+        return jsonify({'success': True, 'loadouts': loadouts})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/loadouts/my-loadout', methods=['POST'])
+@login_required
+def api_my_loadout_create():
+    """Cria um novo loadout para o usuário logado"""
+    try:
+        player_id = session.get('player_id')
+        if not player_id:
+            return jsonify({'success': False, 'message': 'Você precisa ter um player_id associado à sua conta'}), 403
+        
+        # Validar limite de 3 loadouts
+        existing_loadouts = get_loadouts_by_player(player_id)
+        if len(existing_loadouts) >= 3:
+            return jsonify({'success': False, 'message': 'Você já possui o máximo de 3 loadouts. Delete um loadout antes de criar outro.'}), 400
+        
+        data = request.get_json()
+        name = data.get('name')
+        is_active = data.get('is_active', False)
+        loadout_data = data.get('loadout_data', {})
+        
+        if not name or not loadout_data:
+            return jsonify({'success': False, 'message': 'Nome e dados são obrigatórios'}), 400
+        
+        # Sanitizar e validar nome do loadout
+        name = sanitize_loadout_name(name)
+        if not name:
+            return jsonify({'success': False, 'message': 'Nome do loadout inválido. Use apenas letras minúsculas, números e hífen.'}), 400
+        
+        # Auto-gerar loadout_id (None para gerar automaticamente)
+        db_id = create_loadout_player(player_id, None, name, is_active, loadout_data)
+        if not db_id:
+            return jsonify({'success': False, 'message': 'Erro ao criar loadout'}), 500
+        
+        # Buscar o loadout_id gerado para retornar
+        from database import get_loadout_player_by_id
+        created_loadout = get_loadout_player_by_id(db_id)
+        generated_loadout_id = created_loadout['loadout_id'] if created_loadout else None
+        
+        # Sincronizar com arquivo JSON
+        sync_player_loadouts_to_file(player_id)
+        
+        # Registrar ação
+        log_user_action(
+            session.get('user_id'),
+            session.get('username', 'Unknown'),
+            'CREATE_MY_LOADOUT',
+            {'player_id': player_id, 'loadout_id': generated_loadout_id, 'name': name},
+            get_client_ip()
+        )
+        
+        return jsonify({'success': True, 'message': 'Loadout criado com sucesso', 'db_id': db_id, 'loadout_id': generated_loadout_id})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/loadouts/my-loadout/<int:db_id>', methods=['PUT'])
+@login_required
+def api_my_loadout_update(db_id):
+    """Atualiza um loadout do usuário logado"""
+    try:
+        player_id = session.get('player_id')
+        if not player_id:
+            return jsonify({'success': False, 'message': 'Você precisa ter um player_id associado à sua conta'}), 403
+        
+        # Validar que o loadout pertence ao usuário logado
+        from database import get_loadout_player_by_id
+        existing_loadout = get_loadout_player_by_id(db_id)
+        if not existing_loadout:
+            return jsonify({'success': False, 'message': 'Loadout não encontrado'}), 404
+        
+        if existing_loadout['player_id'] != player_id:
+            return jsonify({'success': False, 'message': 'Você não tem permissão para editar este loadout'}), 403
+        
+        data = request.get_json()
+        name = data.get('name')
+        is_active = data.get('is_active', False)
+        loadout_data = data.get('loadout_data', {})
+        
+        if not name or not loadout_data:
+            return jsonify({'success': False, 'message': 'Nome e dados são obrigatórios'}), 400
+        
+        # Sanitizar e validar nome do loadout
+        name = sanitize_loadout_name(name)
+        if not name:
+            return jsonify({'success': False, 'message': 'Nome do loadout inválido. Use apenas letras minúsculas, números e hífen.'}), 400
+        
+        # Usar o loadout_id existente (não permitir alterar)
+        loadout_id = existing_loadout['loadout_id']
+        
+        success = update_loadout_player(db_id, loadout_id, name, is_active, loadout_data)
+        if not success:
+            return jsonify({'success': False, 'message': 'Erro ao atualizar loadout'}), 500
+        
+        # Sincronizar com arquivo JSON
+        sync_player_loadouts_to_file(player_id)
+        
+        # Registrar ação
+        log_user_action(
+            session.get('user_id'),
+            session.get('username', 'Unknown'),
+            'UPDATE_MY_LOADOUT',
+            {'player_id': player_id, 'loadout_id': loadout_id, 'name': name},
+            get_client_ip()
+        )
+        
+        return jsonify({'success': True, 'message': 'Loadout atualizado com sucesso'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/loadouts/my-loadout/<int:db_id>', methods=['DELETE'])
+@login_required
+def api_my_loadout_delete(db_id):
+    """Deleta um loadout do usuário logado"""
+    try:
+        player_id = session.get('player_id')
+        if not player_id:
+            return jsonify({'success': False, 'message': 'Você precisa ter um player_id associado à sua conta'}), 403
+        
+        # Validar que o loadout pertence ao usuário logado
+        from database import get_loadout_player_by_id
+        existing_loadout = get_loadout_player_by_id(db_id)
+        if not existing_loadout:
+            return jsonify({'success': False, 'message': 'Loadout não encontrado'}), 404
+        
+        if existing_loadout['player_id'] != player_id:
+            return jsonify({'success': False, 'message': 'Você não tem permissão para deletar este loadout'}), 403
+        
+        success = delete_loadout_player(db_id)
+        if not success:
+            return jsonify({'success': False, 'message': 'Erro ao deletar loadout'}), 500
+        
+        # Sincronizar com arquivo JSON
+        sync_player_loadouts_to_file(player_id)
+        
+        # Registrar ação
+        log_user_action(
+            session.get('user_id'),
+            session.get('username', 'Unknown'),
+            'DELETE_MY_LOADOUT',
+            {'player_id': player_id, 'loadout_id': existing_loadout['loadout_id'], 'name': existing_loadout['name']},
+            get_client_ip()
+        )
+        
+        return jsonify({'success': True, 'message': 'Loadout deletado com sucesso'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/loadouts/my-loadout/<int:db_id>/set-active', methods=['POST'])
+@login_required
+def api_my_loadout_set_active(db_id):
+    """Define um loadout como ativo (desativa todos os outros)"""
+    try:
+        player_id = session.get('player_id')
+        if not player_id:
+            return jsonify({'success': False, 'message': 'Você precisa ter um player_id associado à sua conta'}), 403
+        
+        # Validar que o loadout pertence ao usuário logado
+        from database import get_loadout_player_by_id
+        existing_loadout = get_loadout_player_by_id(db_id)
+        if not existing_loadout:
+            return jsonify({'success': False, 'message': 'Loadout não encontrado'}), 404
+        
+        if existing_loadout['player_id'] != player_id:
+            return jsonify({'success': False, 'message': 'Você não tem permissão para editar este loadout'}), 403
+        
+        # Desativar todos os loadouts do usuário
+        all_loadouts = get_loadouts_by_player(player_id)
+        for loadout in all_loadouts:
+            if loadout['id'] == db_id:
+                # Ativar este loadout
+                update_loadout_player(loadout['id'], loadout['loadout_id'], loadout['name'], True, loadout['loadout_data'])
+            else:
+                # Desativar outros loadouts
+                if loadout['is_active']:
+                    update_loadout_player(loadout['id'], loadout['loadout_id'], loadout['name'], False, loadout['loadout_data'])
+        
+        # Sincronizar com arquivo JSON
+        sync_player_loadouts_to_file(player_id)
+        
+        # Registrar ação
+        log_user_action(
+            session.get('user_id'),
+            session.get('username', 'Unknown'),
+            'SET_ACTIVE_MY_LOADOUT',
+            {'player_id': player_id, 'loadout_id': existing_loadout['loadout_id'], 'name': existing_loadout['name']},
+            get_client_ip()
+        )
+        
+        return jsonify({'success': True, 'message': 'Loadout ativado com sucesso'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
