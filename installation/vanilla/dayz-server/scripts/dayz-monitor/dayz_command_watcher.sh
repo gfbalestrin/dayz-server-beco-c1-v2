@@ -309,20 +309,20 @@ tail -F "$COMMAND_FILE" | while read -r line; do
             INSERT_CUSTOM_LOG "Evento de início do servidor!" "INFO" "$ScriptName"
             
             if [[ "$DayzDeathmatch" -eq "1" ]]; then
-                Content="Servidor iniciado e liberado para jogadores!"
+                Content="✅ Servidor iniciado e liberado para jogadores!"
                 SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
                 Content="Mapa atual: $CurrentMap, Horário: $CurrentTime"
                 SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"   
             else
-                Content="Servidor iniciado e liberado para jogadores! Horário: $CurrentTime"
+                Content="✅ Servidor iniciado e liberado para jogadores! Horário: $CurrentTime"
                 SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             fi
 
             "$AppFolder/$AppScriptUpdatePlayersOnlineFile" "RESET"  
-            if [[ "$DayzDeathmatch" -eq "1" ]]; then
+            #if [[ "$DayzDeathmatch" -eq "1" ]]; then
                 # Gerar estatísticas
-                "$AppFolder/$AppScriptUpdateGeneralKillfeed"         
-            fi
+                #"$AppFolder/$AppScriptUpdateGeneralKillfeed"         
+            #fi
             ;;
         event_minutes_to_restart)     
             CurrentMap=$(echo "$line" | jq -r '.current_map')

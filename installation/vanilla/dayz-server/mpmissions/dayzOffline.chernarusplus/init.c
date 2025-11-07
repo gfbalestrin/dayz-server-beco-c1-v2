@@ -621,7 +621,14 @@ class CustomMission: MissionServer
 
 	void SendStartEvent()
 	{
-		AppendExternalAction("{\"action\":\"event_start_finished\",\"current_time\":\"" + GetCurrentTimeInGame() + "\"}");
+		if (IsDeathmatchEnabled)
+		{
+			AppendExternalAction("{\"action\":\"event_start_finished\",\"current_time\":\"" + GetCurrentTimeInGame() + "\",\"current_map\":\"" + currentMap.Region + "\"}");
+		}
+		else
+		{
+			AppendExternalAction("{\"action\":\"event_start_finished\",\"current_time\":\"" + GetCurrentTimeInGame() + "\"}");
+		}
 	}
 	
 	// ============================================================================
