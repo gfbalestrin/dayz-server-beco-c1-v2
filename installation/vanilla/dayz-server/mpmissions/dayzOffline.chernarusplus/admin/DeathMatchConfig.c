@@ -342,6 +342,54 @@ vector GetRandomSafeSpawnPosition(array<vector> spawnZones)
     return safePosition;
 }
 
+vector GetFarthestSpawnPosition(array<vector> spawnZones)
+{
+    array<Man> players = new array<Man>();
+    GetGame().GetPlayers(players);
+
+    if (!players || players.Count() <= 1)
+    {
+        int randomIndex = Math.RandomInt(0, spawnZones.Count());
+        vector randomPosition = spawnZones[randomIndex];
+        WriteToLog("GetFarthestSpawnPosition(): Apenas um jogador ativo. Selecionando posição aleatória: " + randomPosition.ToString(), LogFile.INIT, false, LogType.DEBUG);
+        return randomPosition;
+    }
+
+    vector bestSpawn = spawnZones[0];
+    float bestDistance = -1;
+
+    for (int spawnIdx = 0; spawnIdx < spawnZones.Count(); spawnIdx++)
+    {
+        vector candidateSpawn = spawnZones[spawnIdx];
+        float closestDistance = 9999999;
+
+        for (int playerIdx = 0; playerIdx < players.Count(); playerIdx++)
+        {
+            PlayerBase activePlayer = PlayerBase.Cast(players[playerIdx]);
+            if (!activePlayer)
+                continue;
+
+            if (!activePlayer.IsAlive())
+                continue;
+
+            vector playerPosition = activePlayer.GetPosition();
+            float currentDistance = vector.Distance(candidateSpawn, playerPosition);
+
+            if (currentDistance < closestDistance)
+                closestDistance = currentDistance;
+        }
+
+        if (closestDistance > bestDistance)
+        {
+            bestDistance = closestDistance;
+            bestSpawn = candidateSpawn;
+        }
+    }
+
+    WriteToLog("GetFarthestSpawnPosition(): Posição selecionada " + bestSpawn.ToString() + " com distância mínima " + bestDistance.ToString(), LogFile.INIT, false, LogType.INFO);
+    return bestSpawn;
+}
+
 
 bool IsInsidePolygon(vector point, array<vector> polygon)
 {

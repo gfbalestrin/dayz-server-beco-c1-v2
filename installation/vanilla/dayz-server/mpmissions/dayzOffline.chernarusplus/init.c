@@ -2392,7 +2392,7 @@ class CustomMission: MissionServer
 		if (IsDeathmatchEnabled)
 		{
 			// Gera posição segura de respawn
-			vector safePosition = GetRandomSafeSpawnPosition(spawnZones);
+			vector safePosition = GetFarthestSpawnPosition(spawnZones);//GetRandomSafeSpawnPosition(spawnZones);
 			WriteToLog("CreateCharacter(): Posicionando jogador em: " + safePosition.ToString(), LogFile.INIT, false, LogType.DEBUG);
 			// Cria nova entidade do jogador
 			playerEnt = GetGame().CreatePlayer(identity, characterName, safePosition, 0, "NONE");
