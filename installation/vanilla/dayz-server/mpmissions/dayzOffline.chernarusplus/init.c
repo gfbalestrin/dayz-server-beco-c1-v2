@@ -1181,7 +1181,7 @@ class CustomMission: MissionServer
 
 				string listedPlayerId = player.GetPlayerId();
 				string listedSteamId = player.GetSteamId();
-				if ((listedPlayerId != "") && observedPlayerIds.Contains(listedPlayerId))
+				if ((listedPlayerId != "") && (observedPlayerIds.Find(listedPlayerId) != -1))
 				{
 					WriteToLog("ListActivePlayers(): Duplicata detectada para PlayerID " + listedPlayerId + ", removendo entradas excedentes.", LogFile.INIT, false, LogType.DEBUG);
 					PurgeDuplicateActivePlayers(i, listedPlayerId, listedSteamId);
@@ -1191,7 +1191,7 @@ class CustomMission: MissionServer
 					observedPlayerIds.Insert(listedPlayerId);
 				}
 
-				if ((listedSteamId != "") && !observedSteamIds.Contains(listedSteamId))
+				if ((listedSteamId != "") && (observedSteamIds.Find(listedSteamId) == -1))
 				{
 					observedSteamIds.Insert(listedSteamId);
 				}
