@@ -332,7 +332,7 @@ tail -F "$COMMAND_FILE" | while read -r line; do
             INSERT_CUSTOM_LOG "Evento de aviso de tempo para reiniciar o servidor!" "INFO" "$ScriptName"
 
             Content="Mapa atual: $CurrentMap, Horário: $CurrentTime"
-            SEND_DISCORD_WEBHOOK "$Message ($Content)" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+            SEND_DISCORD_WEBHOOK "⏱️ $Message ($Content)" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             ;;
         send_log_discord)     
             Message=$(echo "$line" | jq -r '.message')
