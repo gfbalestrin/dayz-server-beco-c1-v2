@@ -329,7 +329,7 @@ def player_coords(player_id):
 @app.route('/logs/adm')
 @admin_required
 def logs_adm():
-    """Logs administrativos"""
+    """Logs DayZServer.ADM"""
     logs = get_logs_adm()
     return render_template('logs_adm.html', logs=logs)
 

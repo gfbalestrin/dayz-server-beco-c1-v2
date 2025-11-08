@@ -164,11 +164,13 @@ bool ExecuteCommand(TStringArray tokens)
                 if (tokens.Count() >= 5)
                 {
                     posT[1] = tokens[3].ToFloat(); // Usar altura fornecida
+                    WriteToLog("Usando altura fornecida: " + posT[1].ToString(), LogFile.INIT, false, LogType.INFO);
                 }
                 else
                 {
                     // Calcular altura do terreno automaticamente
                     posT[1] = GetGame().SurfaceY(posT[0], posT[2]);
+                    WriteToLog("Ajustando altura automaticamente para: " + posT[1].ToString(), LogFile.INIT, false, LogType.INFO);
                 }
                 
                 target.SetPosition(posT);

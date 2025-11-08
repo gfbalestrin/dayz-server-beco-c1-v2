@@ -609,6 +609,13 @@ in_old {
 ' "$DayzFolder/mpmissions/$DayzMpmission/db/messages.xml" > tmp.xml && \
 mv tmp.xml "$DayzFolder/mpmissions/$DayzMpmission/db/messages.xml"
 
+CFG_FILE="$DayzFolder/serverDZ.cfg"
+DAY_ACCEL="10"
+NIGHT_ACCEL="5"
+sed -i "s/^\s*serverTimeAcceleration=.*/serverTimeAcceleration=${DAY_ACCEL};/" "$CFG_FILE"
+sed -i "s/^\s*serverNightTimeAcceleration=.*/serverNightTimeAcceleration=${NIGHT_ACCEL};/" "$CFG_FILE"
+
+
 chown -R "$LinuxUserName:$LinuxUserName" $DayzFolder/mpmissions/$DayzMpmission/db/messages.xml 2>/dev/null || echo "Aviso: Não foi possível alterar permissões da pasta admin"
 
 echo "[INFO] Update concluído com sucesso."

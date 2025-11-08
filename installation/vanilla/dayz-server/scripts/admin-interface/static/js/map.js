@@ -2022,21 +2022,28 @@ function pixelToDayz(pixelCoords) {
  * Handler para clique no mapa em modo teleporte
  */
 function handleTeleportClick(e) {
-    const playerId = $('#playerFilter').val();
-    if (!playerId || playerId === '') {
+    if (selectedPlayerFilters.length === 0) {
         showToast('Aviso', 'Selecione um jogador no filtro acima para teleportar', 'warning');
         return;
     }
+    
+    if (selectedPlayerFilters.length > 1) {
+        showToast('Aviso', 'Selecione apenas um jogador para teleportar', 'warning');
+        return;
+    }
+    
+    const playerId = selectedPlayerFilters[0];
+    const playerInfo = playersData[playerId] || {};
+    const playerDisplayName = playerInfo.name || playerId;
+    const playerSteamName = playerInfo.steamName ? ` (${playerInfo.steamName})` : '';
     
     // Converter pixel para coordenadas DayZ
     const pixelCoords = [e.latlng.lat, e.latlng.lng];
     const dayzCoords = pixelToDayz(pixelCoords);
     
-    // Buscar nome do jogador do filtro
-    const select = $('#playerFilter');
-    const playerName = select.find('option:selected').text();
+    const confirmationName = `${playerDisplayName}${playerSteamName}`;
     
-    if (!confirm(`Teleportar ${playerName} para X=${dayzCoords.x.toFixed(1)}, Y=${dayzCoords.y.toFixed(1)}?`)) {
+    if (!confirm(`Teleportar ${confirmationName} para X=${dayzCoords.x.toFixed(1)}, Y=${dayzCoords.y.toFixed(1)}?`)) {
         return;
     }
     
