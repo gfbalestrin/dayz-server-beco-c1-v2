@@ -1,9 +1,6 @@
 [
     {
         "RegionId": 1,
-        "Active": false,
-        "NextActiveMap": true,
-        "IsDeleted": false,
         "Region": "Ilha da prisão",
         "CustomMessage": "NÃO SAIA DA ILHA DA PRISÃO OU VOCÊ LEVARÁ PENALIDADES!",
         "SpawnZones": [
@@ -43,13 +40,16 @@
             "2728.13, 0, 1428.75",
             "2458.13, 0, 1484.06",
             "2331.56, 0, 1273.13"
-        ]
+        ],
+        "Active": 0,
+        "NextActiveMap": 1,
+        "IsDeleted": 0,
+        "Spawns": {
+            "Vehicles": []
+        }
     },
     {
         "RegionId": 2,
-        "Active": false,
-        "NextActiveMap": false,
-        "IsDeleted": false,
         "Region": "Ilha Urbana de Cherno",
         "CustomMessage": "NÃO SAIA DA ILHA DOS PRÉDIOS OU VOCÊ LEVARÁ PENALIDADES!",
         "SpawnZones": [
@@ -85,14 +85,17 @@
             "6856.41, 0, 2565.94",
             "6723.52, 0, 2567.34",
             "6723.05, 0, 2470.78"
-        ]
+        ],
+        "Active": 0,
+        "NextActiveMap": 0,
+        "IsDeleted": 0,
+        "Spawns": {
+            "Vehicles": []
+        }
     },
     {
         "RegionId": 3,
-        "Active": false,
-        "NextActiveMap": false,
-        "IsDeleted": false,
-        "Region": "Elektro sul",
+        "Region": "Elektro",
         "CustomMessage": "NÃO ULTRAPASSE A ÁREA DEMARCADA OU VOCÊ LEVARÁ PENALIDADES!",
         "SpawnZones": [
             "9844.203125, 6.011941, 1906.132324",
@@ -130,6 +133,9 @@
             "9819.38, 0, 1966.88",
             "9825.94, 0, 1818.75"
         ],
+        "Active": 0,
+        "NextActiveMap": 0,
+        "IsDeleted": 0,
         "Spawns": {
             "Vehicles": [
                 {
@@ -149,9 +155,6 @@
     },
     {
         "RegionId": 4,
-        "Active": false,
-        "NextActiveMap": false,
-        "IsDeleted": false,
         "Region": "Khelm",
         "CustomMessage": "NÃO ULTRAPASSE A ÁREA DEMARCADA OU VOCÊ LEVARÁ PENALIDADES!",
         "SpawnZones": [
@@ -182,15 +185,15 @@
             "12499, 0, 10735",
             "12114, 0, 10740"
         ],
+        "Active": 0,
+        "NextActiveMap": 0,
+        "IsDeleted": 0,
         "Spawns": {
             "Vehicles": []
         }
     },
     {
         "RegionId": 5,
-        "Active": false,
-        "NextActiveMap": false,
-        "IsDeleted": false,
         "Region": "Berezino",
         "CustomMessage": "NÃO ULTRAPASSE A ÁREA DEMARCADA OU VOCÊ LEVARÁ PENALIDADES!",
         "SpawnZones": [
@@ -238,15 +241,15 @@
             "12052.50, 0, 9558.75",
             "11966.25, 0, 9658.13"
         ],
+        "Active": 0,
+        "NextActiveMap": 0,
+        "IsDeleted": 0,
         "Spawns": {
             "Vehicles": []
         }
     },
     {
         "RegionId": 7,
-        "Active": false,
-        "NextActiveMap": false,
-        "IsDeleted": false,
         "Region": "Pavlovo",
         "CustomMessage": "NÃO ULTRAPASSE A ÁREA DEMARCADA OU VOCÊ LEVARÁ PENALIDADES!",
         "SpawnZones": [
@@ -291,15 +294,15 @@
             "1901.875610, 124.130974, 3705.688232",
             "1745.133423, 135.314194, 3563.355713"
         ],
+        "Active": 0,
+        "NextActiveMap": 0,
+        "IsDeleted": 0,
         "Spawns": {
             "Vehicles": []
         }
     },
     {
         "RegionId": 8,
-        "Active": false,
-        "NextActiveMap": false,
-        "IsDeleted": false,
         "Region": "Svetloyarsk",
         "CustomMessage": "NÃO ULTRAPASSE A ÁREA DEMARCADA OU VOCÊ LEVARÁ PENALIDADES!",
         "SpawnZones": [
@@ -350,14 +353,15 @@
             "13777.712891, 36.786510, 13055.822266",
             "13848.860352, 30.522179, 13022.991211"
         ],
+        "Active": 0,
+        "NextActiveMap": 0,
+        "IsDeleted": 0,
         "Spawns": {
             "Vehicles": []
         }
     },
     {
         "RegionId": 9,
-        "Active": false,
-        "IsDeleted": false,
         "Region": "Selva de Tisy",
         "CustomMessage": "NÃO ULTRAPASSE A ÁREA DEMARCADA OU VOCÊ LEVARÁ PENALIDADES!",
         "SpawnZones": [
@@ -383,14 +387,15 @@
             "3061, 0, 14415",
             "3054, 0, 14865"
         ],
+        "Active": 0,
+        "NextActiveMap": 0,
+        "IsDeleted": 1,
         "Spawns": {
             "Vehicles": []
         }
     },
     {
         "RegionId": 10,
-        "Active": false,
-        "IsDeleted": false,
         "Region": "Zeleno",
         "CustomMessage": "NÃO ULTRAPASSE A ÁREA DEMARCADA OU VOCÊ LEVARÁ PENALIDADES!",
         "SpawnZones": [
@@ -453,6 +458,9 @@
             "2545.262939, 0, 5524.901855",
             "2618.099365, 0, 5629.778809"
         ],
+        "Active": 0,
+        "NextActiveMap": 0,
+        "IsDeleted": 0,
         "Spawns": {
             "Vehicles": [
                 {
@@ -468,9 +476,7 @@
     },
     {
         "RegionId": 11,
-        "Active": false,
         "Region": "Stary Sobor",
-        "IsDeleted": false,
         "CustomMessage": "NÃO ULTRAPASSE A ÁREA DEMARCADA OU VOCÊ LEVARÁ PENALIDADES!",
         "SpawnZones": [
             "5919.844238, 306.119751, 7980.446289",
@@ -527,14 +533,15 @@
             "5857.695312, 0, 7945.639648",
             "5911.324707, 0, 7994.847168"
         ],
+        "Active": 0,
+        "NextActiveMap": 0,
+        "IsDeleted": 0,
         "Spawns": {
             "Vehicles": []
         }
     },
     {
         "RegionId": 12,
-        "Active": true,
-        "NextActiveMap": false,
         "Region": "Airfield",
         "CustomMessage": "NÃO ULTRAPASSE A ÁREA DEMARCADA OU VOCÊ LEVARÁ PENALIDADES!",
         "SpawnZones": [
@@ -627,15 +634,16 @@
             "4352.536621, 0, 10000.701172",
             "4377.894043, 0, 9997.276367"
         ],
+        "Active": 0,
+        "NextActiveMap": 0,
+        "IsDeleted": 1,
         "Spawns": {
             "Vehicles": []
         }
-    },    
+    },
     {
         "RegionId": 13,
-        "Active": false,
-        "NextActiveMap": false,        
-        "Region": "Elektro norte",
+        "Region": "Elektro Norte",
         "CustomMessage": "NÃO ULTRAPASSE A ÁREA DEMARCADA OU VOCÊ LEVARÁ PENALIDADES!",
         "SpawnZones": [
             "10563.430664, 6.074923, 2243.272949",
@@ -666,8 +674,6 @@
             "10571.284180, 6.024955, 2217.063232"
         ],
         "WallZones": [
-            "10232.604492, 0, 2183.299316",
-            "10243.282227, 0, 2133.772949",
             "10279.647461, 0, 2080.463135",
             "10365.295898, 0, 2102.176758",
             "10407.765625, 0, 2125.226318",
@@ -690,9 +696,15 @@
             "10168.742188, 0, 2231.008057",
             "10174.140625, 0, 2214.508057",
             "10181.623047, 0, 2210.599121",
-            "10197.564453, 0, 2206.651123"
-
+            "10190.611328, 0, 2199.179688",
+            "10192.623047, 0, 2186.316406",
+            "10198.641602, 0, 2148.590088",
+            "10209.125977, 0, 2101.580811",
+            "10232.617188, 0, 2072.877686"
         ],
+        "Active": 1,
+        "NextActiveMap": 0,
+        "IsDeleted": 0,
         "Spawns": {
             "Vehicles": []
         }
