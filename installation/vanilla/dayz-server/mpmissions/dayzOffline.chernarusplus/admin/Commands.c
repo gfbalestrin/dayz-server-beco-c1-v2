@@ -1892,12 +1892,9 @@ void ScanFences()
     }
 
     // Envia JSON via ExternalAction
-    if (fencesJson != "")
-    {
-        string jsonAction = "{\"action\":\"fences_positions\",\"fence_data\":[" + fencesJson + "]}";
-        AppendExternalAction(jsonAction);
-        WriteToLog("ScanFences(): JSON com " + count.ToString() + " fences enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
-    }
+    string jsonAction = "{\"action\":\"fences_positions\",\"fence_data\":[" + fencesJson + "]}";
+    AppendExternalAction(jsonAction);
+    WriteToLog("ScanFences(): JSON com " + count.ToString() + " fences enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
 
     string summary = "[FENCE SCAN] Total de estruturas (Fence) encontradas: " + count.ToString();
     Print(summary);
