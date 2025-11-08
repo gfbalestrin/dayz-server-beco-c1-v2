@@ -311,8 +311,8 @@ tail -F "$COMMAND_FILE" | while read -r line; do
             if [[ "$DayzDeathmatch" -eq "1" ]]; then
                 Content="✅ Servidor iniciado e liberado para jogadores!"
                 SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
-                Content="Mapa atual: $CurrentMap, Horário: $CurrentTime"
-                SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"   
+                #Content="Mapa atual: $CurrentMap, Horário: $CurrentTime"
+                #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"   
             else
                 Content="✅ Servidor iniciado e liberado para jogadores! Horário: $CurrentTime"
                 SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
