@@ -557,8 +557,8 @@ EOF
             current_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
             
             # Limpar tabela antes de inserir novas posições
-            sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "DELETE FROM fences_tracking;"
-            echo ">> Tabela de fences limpa"
+            #sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "DELETE FROM fences_tracking;"
+            #echo ">> Tabela de fences limpa"
             
             # Verifica se existe fence_data no JSON
             if ! echo "$line" | jq -e '.fence_data' >/dev/null 2>&1; then
