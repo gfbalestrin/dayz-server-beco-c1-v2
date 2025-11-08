@@ -1882,12 +1882,12 @@ void ScanFences()
 		fencesJson += ",\"is_opened\":" + isOpenedStr;
 		fencesJson += ",\"is_locked\":" + isLockedStr;
 		fencesJson += ",\"attachments\":[" + attachmentsJson + "]";
-		if (isIncomplete)
-		{
+		
+		
 			fencesJson += ",\"has_base\":" + hasBaseStr;
 			fencesJson += ",\"lower_panel_built\":" + lowerPanelBuiltStr;
 			fencesJson += ",\"upper_panel_built\":" + upperPanelBuiltStr;
-		}
+		
 		fencesJson += "}";
     }
 

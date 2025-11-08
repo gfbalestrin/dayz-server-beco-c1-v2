@@ -650,6 +650,25 @@ EOF
                     if [[ -n "$diff_message" ]]; then
                         diff_message="${diff_message%??}"
                         INSERT_CUSTOM_LOG "Fence atualizada (ID=$fence_id) - Alterações: $diff_message" "INFO" "$ScriptName"
+
+                        destruction_detected="false"
+                        destruction_summary=""
+
+                        if [[ "$prev_lower" == "1" && "$lower_panel_built" != "1" ]]; then
+                            destruction_detected="true"
+                            destruction_summary+="Painel inferior destruído; "
+                        fi
+
+                        if [[ "$prev_upper" == "1" && "$upper_panel_built" != "1" ]]; then
+                            destruction_detected="true"
+                            destruction_summary+="Painel superior destruído; "
+                        fi
+
+                        if [[ "$destruction_detected" == "true" ]]; then
+                            destruction_summary="${destruction_summary%??}"
+                            Content="Fence destruída (ID=$fence_id) em (${coord_x},${coord_z},${coord_y}) - $destruction_summary"
+                            SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+                        fi
                     fi
 
                     unset "prev_fences[$fence_id]"
@@ -670,6 +689,8 @@ EOF
                     removed_data="${prev_fences[$removed_id]}"
                     IFS='|' read -r rem_name rem_x rem_z rem_y rem_has_base rem_lower rem_upper <<< "$removed_data"
                     INSERT_CUSTOM_LOG "Fence removida (ID=$removed_id) - Última posição=($rem_x,$rem_z,$rem_y) - Base=$(format_bool_log "$rem_has_base") - PainelInf=$(format_bool_log "$rem_lower") - PainelSup=$(format_bool_log "$rem_upper")" "INFO" "$ScriptName"
+                    Content="Fence destruída (ID=$removed_id) removida do mapa - Última posição=($rem_x,$rem_z,$rem_y)"
+                    SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
                 done
             fi
 
