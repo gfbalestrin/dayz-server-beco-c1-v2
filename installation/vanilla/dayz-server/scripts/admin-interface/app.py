@@ -1051,6 +1051,9 @@ def api_fences_positions():
     for fence in fences:
         # Converter coordenadas para pixel
         pixel_coords = dayz_to_pixel(fence['PositionX'], fence['PositionY'])
+        has_base = fence.get('HasBase')
+        lower_panel_built = fence.get('LowerPanelBuilt')
+        upper_panel_built = fence.get('UpperPanelBuilt')
         
         result['fences'].append({
             'fence_id': fence['FenceId'],
@@ -1059,7 +1062,10 @@ def api_fences_positions():
             'coord_y': fence['PositionY'],  # Sul-Norte (Y do mapa)
             'coord_z': fence['PositionZ'],  # Altitude
             'pixel_coords': pixel_coords,
-            'last_update': fence['TimeStamp'] or ''
+            'last_update': fence['TimeStamp'] or '',
+            'has_base': (has_base == 1) if has_base is not None else None,
+            'lower_panel_built': (lower_panel_built == 1) if lower_panel_built is not None else None,
+            'upper_panel_built': (upper_panel_built == 1) if upper_panel_built is not None else None
         })
     
     return jsonify(result)

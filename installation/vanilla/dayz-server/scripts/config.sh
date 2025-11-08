@@ -807,6 +807,9 @@ INSERT_FENCE_POSITION() {
     local CoordZ="$4"
     local CoordY="$5"
     local CustomTimestamp="$6"  # Parâmetro opcional para timestamp customizado
+    local HasBase="$7"
+    local LowerPanelBuilt="$8"
+    local UpperPanelBuilt="$9"
     local max_retries=5
     local retry_delay=0.2
     local attempt=1
@@ -820,6 +823,9 @@ INSERT_FENCE_POSITION() {
     local EscapedFenceId
     local EscapedFenceName
     local TimestampValue
+    local HasBaseValue
+    local LowerPanelBuiltValue
+    local UpperPanelBuiltValue
 
     # Escapar aspas simples
     EscapedFenceId=$(echo "$FenceId" | sed "s/'/''/g")
@@ -832,16 +838,37 @@ INSERT_FENCE_POSITION() {
         TimestampValue="datetime('now', 'localtime')"
     fi
 
+    if [[ -n "$HasBase" ]]; then
+        HasBaseValue="$HasBase"
+    else
+        HasBaseValue="NULL"
+    fi
+
+    if [[ -n "$LowerPanelBuilt" ]]; then
+        LowerPanelBuiltValue="$LowerPanelBuilt"
+    else
+        LowerPanelBuiltValue="NULL"
+    fi
+
+    if [[ -n "$UpperPanelBuilt" ]]; then
+        UpperPanelBuiltValue="$UpperPanelBuilt"
+    else
+        UpperPanelBuiltValue="NULL"
+    fi
+
     while (( attempt <= max_retries )); do
         local FenceTrackingId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
-INSERT INTO fences_tracking (FenceId, FenceName, PositionX, PositionZ, PositionY, TimeStamp)
+INSERT INTO fences_tracking (FenceId, FenceName, PositionX, PositionZ, PositionY, TimeStamp, HasBase, LowerPanelBuilt, UpperPanelBuilt)
 VALUES (
     '$EscapedFenceId',
     '$EscapedFenceName',
     '$CoordX',
     '$CoordZ',
     '$CoordY',
-    $TimestampValue
+    $TimestampValue,
+    $HasBaseValue,
+    $LowerPanelBuiltValue,
+    $UpperPanelBuiltValue
 );
 SELECT last_insert_rowid();
 EOF
@@ -856,6 +883,10 @@ EOF
             attempt=$((attempt + 1))
         fi
     done
+
+    echo "Failed to insert fence after $max_retries attempts."
+    echo ""
+    return 1
 }
 
 GET_DAYZ_PLAYER_POSITION(){

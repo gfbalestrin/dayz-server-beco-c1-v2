@@ -18,6 +18,17 @@ INSERT_CUSTOM_LOG "Monitorando arquivo: $COMMAND_FILE" "INFO" "$ScriptName"
 
 echo > "$COMMAND_FILE"
 
+format_bool_log() {
+    local value="$1"
+    if [[ "$value" == "1" ]]; then
+        echo "Sim"
+    elif [[ "$value" == "0" ]]; then
+        echo "Não"
+    else
+        echo "Desconhecido"
+    fi
+}
+
 tail -F "$COMMAND_FILE" | while read -r line; do
     # Valida se é um JSON válido
     if ! echo "$line" | jq empty 2>/dev/null; then
@@ -572,7 +583,17 @@ EOF
             
             # Conta quantos fences foram recebidos
             fence_count=$(echo "$line" | jq '.fence_data | length')
-            
+
+            # Carrega snapshot anterior
+            prev_snapshot_timestamp=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT MAX(TimeStamp) FROM fences_tracking;")
+            declare -A prev_fences=()
+
+            if [[ -n "$prev_snapshot_timestamp" ]]; then
+                while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_has_base prev_lower_panel prev_upper_panel; do
+                    prev_fences["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_has_base|$prev_lower_panel|$prev_upper_panel"
+                done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "SELECT FenceId, FenceName, PositionX, PositionZ, PositionY, IFNULL(HasBase,''), IFNULL(LowerPanelBuilt,''), IFNULL(UpperPanelBuilt,'') FROM fences_tracking WHERE TimeStamp = '$prev_snapshot_timestamp';")
+            fi
+
             # Inicializa contador
             processed_count=0
             
@@ -589,6 +610,9 @@ EOF
                 has_gate=$(echo "$fence_data" | jq -r '.has_gate')
                 is_opened=$(echo "$fence_data" | jq -r '.is_opened')
                 is_locked=$(echo "$fence_data" | jq -r '.is_locked')
+                has_base=$(echo "$fence_data" | jq -r 'if has("has_base") then (if .has_base then "1" else "0" end) else "" end')
+                lower_panel_built=$(echo "$fence_data" | jq -r 'if has("lower_panel_built") then (if .lower_panel_built then "1" else "0" end) else "" end')
+                upper_panel_built=$(echo "$fence_data" | jq -r 'if has("upper_panel_built") then (if .upper_panel_built then "1" else "0" end) else "" end')
                 
                 # Gera um ID único baseado nas coordenadas
                 fence_id="Fence_${coord_x}_${coord_y}_${coord_z}"
@@ -599,8 +623,40 @@ EOF
                 [ "$is_opened" == "true" ] && fence_name="${fence_name}_Open"
                 [ "$is_locked" == "true" ] && fence_name="${fence_name}_Locked"
                 
+                # Verifica se houve mudanças em relação ao snapshot anterior
+                prev_data="${prev_fences[$fence_id]}"
+                if [[ -z "$prev_data" ]]; then
+                    INSERT_CUSTOM_LOG "Fence nova detectada (ID=$fence_id) - Coords=($coord_x,$coord_z,$coord_y) - Base=$(format_bool_log "$has_base") - PainelInf=$(format_bool_log "$lower_panel_built") - PainelSup=$(format_bool_log "$upper_panel_built")" "INFO" "$ScriptName"
+                else
+                    IFS='|' read -r prev_name prev_x prev_z prev_y prev_has_base prev_lower prev_upper <<< "$prev_data"
+                    diff_message=""
+
+                    if [[ "$fence_name" != "$prev_name" ]]; then
+                        diff_message+="nome(${prev_name}->${fence_name}); "
+                    fi
+                    if [[ "$coord_x" != "$prev_x" || "$coord_z" != "$prev_z" || "$coord_y" != "$prev_y" ]]; then
+                        diff_message+="coords((${prev_x},${prev_z},${prev_y})->(${coord_x},${coord_z},${coord_y})); "
+                    fi
+                    if [[ "$has_base" != "$prev_has_base" ]]; then
+                        diff_message+="base($(format_bool_log "$prev_has_base")->$(format_bool_log "$has_base")); "
+                    fi
+                    if [[ "$lower_panel_built" != "$prev_lower" ]]; then
+                        diff_message+="painel_inf($(format_bool_log "$prev_lower")->$(format_bool_log "$lower_panel_built")); "
+                    fi
+                    if [[ "$upper_panel_built" != "$prev_upper" ]]; then
+                        diff_message+="painel_sup($(format_bool_log "$prev_upper")->$(format_bool_log "$upper_panel_built")); "
+                    fi
+
+                    if [[ -n "$diff_message" ]]; then
+                        diff_message="${diff_message%??}"
+                        INSERT_CUSTOM_LOG "Fence atualizada (ID=$fence_id) - Alterações: $diff_message" "INFO" "$ScriptName"
+                    fi
+
+                    unset "prev_fences[$fence_id]"
+                fi
+
                 # Insere a posição do portão no banco de dados
-                FenceTrackingId=$(INSERT_FENCE_POSITION "$fence_id" "$fence_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp")
+                FenceTrackingId=$(INSERT_FENCE_POSITION "$fence_id" "$fence_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp" "$has_base" "$lower_panel_built" "$upper_panel_built")
                 
                 if [ $? -eq 0 ]; then
                     ((processed_count++))
@@ -608,6 +664,15 @@ EOF
                 
             done <<< "$fences"
             
+            # Loga fences removidas em relação ao snapshot anterior
+            if [[ ${#prev_fences[@]} -gt 0 ]]; then
+                for removed_id in "${!prev_fences[@]}"; do
+                    removed_data="${prev_fences[$removed_id]}"
+                    IFS='|' read -r rem_name rem_x rem_z rem_y rem_has_base rem_lower rem_upper <<< "$removed_data"
+                    INSERT_CUSTOM_LOG "Fence removida (ID=$removed_id) - Última posição=($rem_x,$rem_z,$rem_y) - Base=$(format_bool_log "$rem_has_base") - PainelInf=$(format_bool_log "$rem_lower") - PainelSup=$(format_bool_log "$rem_upper")" "INFO" "$ScriptName"
+                done
+            fi
+
             echo ">> $processed_count portões processados de $fence_count totais"
             INSERT_CUSTOM_LOG "Total de $processed_count portões rastreados" "INFO" "$ScriptName"
             ;;

@@ -162,7 +162,8 @@ def get_fences_last_position() -> List[Dict]:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT ft.IdFenceTracking, ft.FenceId, ft.FenceName,
-                   ft.PositionX, ft.PositionY, ft.PositionZ, ft.TimeStamp
+                   ft.PositionX, ft.PositionY, ft.PositionZ, ft.TimeStamp,
+                   ft.HasBase, ft.LowerPanelBuilt, ft.UpperPanelBuilt
             FROM fences_tracking ft
             WHERE ft.TimeStamp = (
                 SELECT MAX(TimeStamp) FROM fences_tracking

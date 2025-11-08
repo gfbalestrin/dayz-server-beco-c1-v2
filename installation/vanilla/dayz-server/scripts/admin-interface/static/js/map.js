@@ -1255,6 +1255,34 @@ function createFencePopup(fence) {
     }
     
     const featuresText = features.length > 0 ? features.join(', ') : 'Nenhuma característica especial';
+    const formatFenceStatus = (value) => {
+        if (value === null || value === undefined) {
+            return 'Desconhecido';
+        }
+        return value ? 'Sim' : 'Não';
+    };
+    const hasConstructionData =
+        fence.has_base !== null && fence.has_base !== undefined ||
+        fence.lower_panel_built !== null && fence.lower_panel_built !== undefined ||
+        fence.upper_panel_built !== null && fence.upper_panel_built !== undefined;
+
+    let constructionDetails = '';
+    if (hasConstructionData) {
+        constructionDetails = `
+            <div class="info-row mt-2">
+                <span class="info-label">Base:</span>
+                <span class="info-value">${formatFenceStatus(fence.has_base)}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Painel Inferior:</span>
+                <span class="info-value">${formatFenceStatus(fence.lower_panel_built)}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Painel Superior:</span>
+                <span class="info-value">${formatFenceStatus(fence.upper_panel_built)}</span>
+            </div>
+        `;
+    }
     
     return `
         <div class="player-popup">
@@ -1275,6 +1303,7 @@ function createFencePopup(fence) {
                 <span class="info-label">Atualizado:</span>
                 <span class="info-value">${fence.last_update || 'Desconhecido'}</span>
             </div>
+            ${constructionDetails}
         </div>
     `;
 }
