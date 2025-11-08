@@ -685,9 +685,9 @@ bool ExecuteCommand(TStringArray tokens)
                 target.MessageStatus("Uso: !stamina on | off");
             }
             break;
-
-        
-
+        case "updatefences":          
+            UpdateFences();            
+            break;
         }
 
     return true;
