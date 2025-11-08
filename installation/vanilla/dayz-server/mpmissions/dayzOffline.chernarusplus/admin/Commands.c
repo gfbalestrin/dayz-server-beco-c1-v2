@@ -161,7 +161,7 @@ bool ExecuteCommand(TStringArray tokens)
                 vector posT = Vector(tokens[2].ToFloat(), 0, tokens[4].ToFloat()); // X e Y (CoordZ é Y)
                 
                 // Se altura foi fornecida, usar. Caso contrário, calcular automaticamente
-                if (tokens.Count() >= 5 || tokens[3].ToFloat() != 0)
+                if (tokens.Count() >= 5 && tokens[3].ToFloat() != 0)
                 {
                     posT[1] = tokens[3].ToFloat(); // Usar altura fornecida
                     WriteToLog("Usando altura fornecida: " + posT[1].ToString(), LogFile.INIT, false, LogType.INFO);
