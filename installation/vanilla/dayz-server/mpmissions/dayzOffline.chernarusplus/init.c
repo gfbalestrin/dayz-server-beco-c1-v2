@@ -2201,7 +2201,17 @@ class CustomMission: MissionServer
 			// Mensagens do sistema (reinício)
 			if (channel == 1 && playerName == "" && text.Contains("O servidor vai ser reiniciado em"))
 			{
-				//BroadcastMessage("Próximo mapa: " + nextMap.Region, MessageColor.FRIENDLY);				
+				ref SafeZoneData restartNextMap = GetNextRegionData(DeathMatchConfigJsonFile);
+				string restartCurrentRegion = "Indefinido";
+				string restartNextRegion = "Indefinido";
+
+				if (currentMap)
+					restartCurrentRegion = currentMap.Region;
+
+				if (restartNextMap)
+					restartNextRegion = restartNextMap.Region;
+
+				AppendExternalAction("{\"action\":\"event_minutes_to_restart\",\"current_time\":\"" + GetCurrentTimeInGame() + "\",\"message\":\"" + text + "\",\"current_map\":\"" + restartCurrentRegion + "\",\"next_map\":\"" + restartNextRegion + "\"}");
 			}
 			if (channel == 1 && playerName == "" && text.Contains("O servidor vai ser reiniciado em 60 minutos"))
 			{
@@ -2214,7 +2224,7 @@ class CustomMission: MissionServer
 			}
 			if (channel == 1 && playerName == "" && text.Contains("O servidor vai ser reiniciado em 5 minutos"))
 			{	
-				AppendExternalAction("{\"action\":\"event_minutes_to_restart\",\"current_time\":\"" + GetCurrentTimeInGame() + "\",\"message\":\"" + text + "\",\"current_map\":\"" + currentMap.Region + "\"}");
+				//AppendExternalAction("{\"action\":\"event_minutes_to_restart\",\"current_time\":\"" + GetCurrentTimeInGame() + "\",\"message\":\"" + text + "\",\"current_map\":\"" + currentMap.Region + "\"}");
 			}
 			
 			if (channel == 1 && playerName == "" && text.Contains("O servidor vai ser reiniciado em 10 minutos"))

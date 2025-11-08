@@ -291,6 +291,87 @@ void ToggleActiveRegion(string path)
 	nextMap = zones[pendingNextIndex];
 }
 
+ref SafeZoneData GetNextRegionData(string path)
+{
+	if (nextMap && !nextMap.IsDeleted)
+		return nextMap;
+
+	if (!maps || maps.Count() == 0)
+	{
+		JsonFileLoader<array<ref SafeZoneData>>.JsonLoadFile(path, maps);
+	}
+
+	if (!maps || maps.Count() == 0)
+	{
+		WriteToLog("GetNextRegionData(): Lista de mapas vazia ou nula.", LogFile.INIT, false, LogType.ERROR);
+		return null;
+	}
+
+	int activeIndex = -1;
+	int nextIndex = -1;
+	bool requiresSave = false;
+
+	for (int searchIndex = 0; searchIndex < maps.Count(); searchIndex++)
+	{
+		ref SafeZoneData mapEntry = maps[searchIndex];
+		if (!mapEntry)
+			continue;
+
+		if (mapEntry.IsDeleted)
+		{
+			if (mapEntry.NextActiveMap)
+			{
+				mapEntry.NextActiveMap = false;
+				requiresSave = true;
+				WriteToLog("GetNextRegionData(): Região deletada estava marcada como próxima. RegionId " + mapEntry.RegionId.ToString() + " desmarcada.", LogFile.INIT, false, LogType.WARNING);
+			}
+			continue;
+		}
+
+		if (mapEntry.Active && activeIndex == -1)
+			activeIndex = searchIndex;
+
+		if (mapEntry.NextActiveMap)
+		{
+			nextIndex = searchIndex;
+			break;
+		}
+	}
+
+	if (nextIndex == -1 && activeIndex != -1)
+	{
+		nextIndex = GetNextAvailableMapIndex(maps, activeIndex);
+		if (nextIndex == -1)
+			nextIndex = activeIndex;
+	}
+
+	if (nextIndex == -1)
+	{
+		ref SafeZoneData normalizedActive = LoadActiveRegionData(path);
+		if (normalizedActive && nextMap && !nextMap.IsDeleted)
+			return nextMap;
+
+		WriteToLog("GetNextRegionData(): Não foi possível determinar o próximo mapa.", LogFile.INIT, false, LogType.ERROR);
+		return null;
+	}
+
+	ref SafeZoneData candidateNext = maps[nextIndex];
+	if (requiresSave)
+	{
+		JsonFileLoader<array<ref SafeZoneData>>.JsonSaveFile(path, maps);
+		WriteToLog("GetNextRegionData(): Arquivo normalizado após remover regiões inválidas.", LogFile.INIT, false, LogType.INFO);
+	}
+
+	if (!candidateNext || candidateNext.IsDeleted)
+	{
+		WriteToLog("GetNextRegionData(): Entrada do próximo mapa inválida.", LogFile.INIT, false, LogType.ERROR);
+		return null;
+	}
+
+	nextMap = candidateNext;
+	return candidateNext;
+}
+
 void ExtractVectorArray(string json, string key, out array<vector> output)
 {
     output = new array<vector>();

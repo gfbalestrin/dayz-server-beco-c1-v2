@@ -326,12 +326,12 @@ tail -F "$COMMAND_FILE" | while read -r line; do
             ;;
         event_minutes_to_restart)     
             CurrentMap=$(echo "$line" | jq -r '.current_map')
+            NextMap=$(echo "$line" | jq -r '.next_map')
             CurrentTime=$(echo "$line" | jq -r '.current_time')
             Message=$(echo "$line" | jq -r '.message')
-            echo "Evento de servidor reiniciando!" 
             INSERT_CUSTOM_LOG "Evento de aviso de tempo para reiniciar o servidor!" "INFO" "$ScriptName"
 
-            Content="Mapa atual: $CurrentMap, Horário: $CurrentTime"
+            Content="Mapa atual: $CurrentMap, Próximo mapa: $NextMap, Horário: $CurrentTime"
             SEND_DISCORD_WEBHOOK "⏱️ $Message ($Content)" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             ;;
         send_log_discord)     
@@ -380,7 +380,7 @@ tail -F "$COMMAND_FILE" | while read -r line; do
                     echo ">> Posições armazenadas com sucesso (ID: $PlayerCoordId)"
 
                     if [[ "$DayzDeathmatch" -eq "1" ]]; then
-                        break
+                        continue
                     fi
                     
                     # Tenta realizar backup completo do personagem
