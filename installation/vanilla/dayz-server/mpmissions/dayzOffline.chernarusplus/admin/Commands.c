@@ -1749,6 +1749,7 @@ void ProcessAttachmentsRecursive(EntityAI parentItem, array<ref ItemAttachmentDa
 
 void ScanFences()
 {
+    WriteToLog("ScanFences(): Iniciando scan de fences", LogFile.INIT, false, LogType.INFO);
     array<Object> objects = new array<Object>;
     GetGame().GetObjectsAtPosition(Vector(0,0,0), 99999, objects, NULL);
 
