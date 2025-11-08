@@ -571,7 +571,8 @@ fi
 chown "$LinuxUserName:$LinuxUserName" init.c 2>/dev/null || echo "Aviso: Não foi possível alterar permissões do init.c"
 chown -R "$LinuxUserName:$LinuxUserName" admin 2>/dev/null || echo "Aviso: Não foi possível alterar permissões da pasta admin"
 
-awk -v dl="$DayzRestartMinutes" '
+MINUTES_RESTART=$DayzRestartMinutes
+awk -v dl="$MINUTES_RESTART" '
 BEGIN { in_old = 0; added = 0 }
 
 /<message>/ {
