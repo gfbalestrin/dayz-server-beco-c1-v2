@@ -69,7 +69,8 @@ bool ExecuteCommand(TStringArray tokens)
             case "createweapon":
                 return ExecuteCreateWeapon(tokens);
             case "scanfences":
-                return ScanFences();
+                ScanFences();
+                return true;
             default:
                 WriteToLog("Comando do sistema desconhecido: " + command, LogFile.INIT, false, LogType.ERROR);
                 return false;
