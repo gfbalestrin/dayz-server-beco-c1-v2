@@ -24,6 +24,7 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
           "$Line" != *"died. Stats"* && \
           "$Line" != *"hit by Player"* && \
           "$Line" != *"Built base on Fence"* && \
+          "$Line" != *"Dismantled Base from Fence"* && \
           "$Line" != *"Chat("* ]]; then
         continue
     fi
@@ -210,6 +211,30 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
         else
             INSERT_CUSTOM_LOG "Falha ao montar coordenadas para comando registerfence" "ERROR" "$ScriptName"
         fi
+        continue
+
+    elif [[ "$Content" == *"Dismantled Base from Fence"* ]]; then
+        PlayerName=$(echo "$Content" | sed -n 's/.*Player "\([^"]\+\)".*/\1/p')
+        PlayerId=$(echo "$Content" | grep -oP 'id=\K[^ ]+')
+        Position=$(echo "$Content" | sed -n 's/.*pos=<\([^>]*\)>.*/\1/p' | sed 's/, */,/g')
+
+        PlayerRecord=$(sqlite3 -separator "|" "$AppFolder/$AppPlayerBecoC1DbFile" "SELECT PlayerName, SteamID, SteamName FROM players_database WHERE PlayerID = '$PlayerId';")
+        if [[ -n "$PlayerRecord" ]]; then
+            PlayerDbName=$(echo "$PlayerRecord" | cut -d"|" -f1)
+            PlayerSteamID=$(echo "$PlayerRecord" | cut -d"|" -f2)
+            PlayerSteamName=$(echo "$PlayerRecord" | cut -d"|" -f3)
+
+            PlayerInfo="**$(sanitize_discord_markdown "$PlayerDbName")** ([$(sanitize_discord_markdown "$PlayerSteamName")](<https://steamcommunity.com/profiles/$PlayerSteamID>))"
+            SafePlayerInfo="$PlayerInfo"
+        else
+            INSERT_CUSTOM_LOG "PlayerId '$PlayerId' não encontrado no banco. Usando nome do log apenas." "WARNING" "$ScriptName"
+            SafePlayerInfo="Jogador \"$(sanitize_discord_markdown "$PlayerName")\" (id=$PlayerId)"
+        fi
+
+        Message="Desmontagem detectada: $SafePlayerInfo desmontou uma fence em $Position"
+
+        INSERT_CUSTOM_LOG "$Message" "INFO" "$ScriptName"
+        SEND_DISCORD_WEBHOOK "$Message" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
         continue
 
     else
