@@ -74,7 +74,7 @@ bool ExecuteCommand(TStringArray tokens)
             case "registerfence":
                 if (tokens.Count() < 5)
                 {
-                    WriteToLog("ExecuteCommand(): registerfence requer coordenadas X Y Z", LogFile.INIT, false, LogType.ERROR);
+                    WriteToLog("ExecuteCommand(): registerfence requer coordenadas X Z Y", LogFile.INIT, false, LogType.ERROR);
                     return false;
                 }
 
