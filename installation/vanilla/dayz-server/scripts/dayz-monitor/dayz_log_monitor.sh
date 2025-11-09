@@ -106,74 +106,28 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
 			continue
 		fi
 
-        if [[ "$DayzDeathmatch" -eq "1" ]] && ! grep -q "$PlayerId" "$DayzServerFolder/$DayzAdminIdsFile"; then
-			if [[ "$Content" == *"teleport"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando teleport" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				continue
-			elif [[ "$Content" == *"godmode"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando godmode" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				continue
-			elif [[ "$Content" == *"ungodmode"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando ungodmode" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				continue
-			elif [[ "$Content" == *"heal"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando heal" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				continue
-			elif [[ "$Content" == *"giveitem"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando giveitem" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				continue
-			elif [[ "$Content" == *"spawnvehicle"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando spawnvehicle" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				continue
-			elif [[ "$Content" == *"createcontainer"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando createcontainer" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				continue
-			elif [[ "$Content" == *"createweapon"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando createweapon" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				continue
-			elif [[ "$Content" == *"createitem"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando createitem" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				continue
-			elif [[ "$Content" == *"createvehicle"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando createvehicle" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				continue
-			elif [[ "$Content" == *"ghostmode"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando ghostmode" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				    continue
-			elif [[ "$Content" == *"unghostmode"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando unghostmode" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				continue
-			elif [[ "$Content" == *"kick"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando kick" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				continue
-			elif [[ "$Content" == *"getposition"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando getposition" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				continue
-			elif [[ "$Content" == *"construct"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando construct" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				continue
-			elif [[ "$Content" == *"settime"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando settime" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				continue
-			elif [[ "$Content" == *"setweather"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando setweather" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
-				continue
-			elif [[ "$Content" == *"stamina"* ]]; then
-                echo "$player_id;[ERROR] Somente administradores podem usar o comando stamina" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
+		Command="${Content##*: }"
+		if [[ "$Command" == "!"* ]]; then
+			Command="${Command:1}"
+		fi
+		CommandName=$(echo "$Command" | awk '{print tolower($1)}')
+
+		if grep -q "$PlayerId" "$DayzServerFolder/$DayzAdminIdsFile"; then
+			echo "$PlayerId $Command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
+		elif [[ "$DayzDeathmatch" -eq "1" ]]; then
+			AllowedCommand=0
+			for Allowed in help kill votemap nextmap maps votekick players loadouts loadout; do
+				if [[ "$CommandName" == "$Allowed" ]]; then
+					AllowedCommand=1
+					break
+				fi
+			done
+			if [[ "$AllowedCommand" -eq "0" ]]; then
+				echo "$PlayerId;[ERROR] Comando indisponível para jogadores" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
 				continue
 			fi
-			Command="${Content##*: }"
-            if [[ "$Command" == "!"* ]]; then
-                Command="${Command:1}"
-            fi        
-            echo "$PlayerId $Command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
-            continue
-        elif grep -q "$PlayerId" "$DayzServerFolder/$DayzAdminIdsFile"; then
-            Command="${Content##*: }"
-            if [[ "$Command" == "!"* ]]; then
-                Command="${Command:1}"
-            fi        
-            echo "$PlayerId $Command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
+			echo "$PlayerId $Command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
+			continue
 		fi		
     # Evento de morte por player
     elif [[ "$Content" == *"killed by Player"* ]]; then
