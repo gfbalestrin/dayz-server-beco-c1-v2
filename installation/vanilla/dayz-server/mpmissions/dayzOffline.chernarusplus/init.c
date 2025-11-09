@@ -283,12 +283,9 @@ class CustomMission: MissionServer
 		InitializeVestGrenadeSlots();
 
 		ActivePlayers = new array<ref ActivePlayer>();
-		//GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitFenceTracking, 5000, false);
-		//GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(this.InitVehicleTracking, 5000, false);		
-		//GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(LogLootContainersDetailed, 5000, false);
-		InitFenceTracking();
-		InitVehicleTracking();
-		LogLootContainersDetailed();
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitFenceTracking, 5000, false);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(this.InitVehicleTracking, 5000, false);		
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(LogLootContainersDetailed, 5000, false);
 		//if (!IsDeathmatchEnabled)
 		//{
 			// Loop contínuo para aplicar efeitos aos admins
