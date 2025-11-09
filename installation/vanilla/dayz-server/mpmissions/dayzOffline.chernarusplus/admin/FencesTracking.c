@@ -204,8 +204,8 @@ void SendFencesStatus()
         count++;
     }
 
-    if (count == 0)
-        return;
+    //if (count == 0)
+    //    return;
 
     string jsonAction = "{\"action\":\"fences_positions\",\"fence_data\":[" + fencesJson + "]}";
     AppendExternalAction(jsonAction);

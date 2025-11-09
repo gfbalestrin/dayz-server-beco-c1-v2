@@ -284,8 +284,8 @@ class CustomMission: MissionServer
 
 		ActivePlayers = new array<ref ActivePlayer>();
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitFenceTracking, 5000, false);
-		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(this.InitVehicleTracking, 10000, false);		
-		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(LogLootContainersDetailed, 15000, false);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(this.InitVehicleTracking, 5000, false);		
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(LogLootContainersDetailed, 5000, false);
 
 		//if (!IsDeathmatchEnabled)
 		//{
