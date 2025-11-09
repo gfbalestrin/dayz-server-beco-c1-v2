@@ -23,7 +23,7 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
           "$Line" != *"bled out"* && \
           "$Line" != *"died. Stats"* && \
           "$Line" != *"hit by Player"* && \
-          "$Line" != *"t compile mission init script"* && \
+          "$Line" != *"Built base on Fence"* && \
           "$Line" != *"Chat("* ]]; then
         continue
     fi
@@ -224,12 +224,31 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
             INSERT_CUSTOM_LOG "PlayerIdKiller ou PlayerIdVictim não encontrado no banco de dados. Ignorando mensagem para Discord." "ERROR" "$ScriptName"
             continue
         fi
-    elif [[ "$Content" == *"t compile mission init script"* ]]; then
-        Content="🔴 Erro de compilação detectado no servidor! O servidor será desligado para realizar a correção."
-        INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
-        SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
-        systemctl stop dayz-server
+    
+    elif [[ "$Content" == *"Built base on Fence"* ]]; then
+        PlayerName=$(echo "$Content" | sed -n 's/.*Player "\([^"]\+\)".*/\1/p')
+        PlayerId=$(echo "$Content" | grep -oP 'id=\K[^ ]+')
+        Position=$(echo "$Content" | sed -n 's/.*pos=<\([^>]*\)>.*/\1/p' | sed 's/, */,/g')
+
+        PlayerRecord=$(sqlite3 -separator "|" "$AppFolder/$AppPlayerBecoC1DbFile" "SELECT PlayerName, SteamID, SteamName FROM players_database WHERE PlayerID = '$PlayerId';")
+        if [[ -n "$PlayerRecord" ]]; then
+            PlayerDbName=$(echo "$PlayerRecord" | cut -d"|" -f1)
+            PlayerSteamID=$(echo "$PlayerRecord" | cut -d"|" -f2)
+            PlayerSteamName=$(echo "$PlayerRecord" | cut -d"|" -f3)
+
+            PlayerInfo="**$(sanitize_discord_markdown "$PlayerDbName")** ([$(sanitize_discord_markdown "$PlayerSteamName")](<https://steamcommunity.com/profiles/$PlayerSteamID>))"
+            SafePlayerInfo="$PlayerInfo"
+        else
+            INSERT_CUSTOM_LOG "PlayerId '$PlayerId' não encontrado no banco. Usando nome do log apenas." "WARNING" "$ScriptName"
+            SafePlayerInfo="Jogador \"$(sanitize_discord_markdown "$PlayerName")\" (id=$PlayerId)"
+        fi
+
+        Message="Construção detectada: $SafePlayerInfo construiu uma fence em $Position"
+
+        INSERT_CUSTOM_LOG "$Message" "INFO" "$ScriptName"
+        SEND_DISCORD_WEBHOOK "$Message" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
         continue
+
     else
 		Content="${Content//is unconscious/está inconsciente}"
         Content="${Content//bled out/morreu por sangramento}"
