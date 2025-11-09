@@ -68,7 +68,7 @@ bool ExecuteCommand(TStringArray tokens)
                 return ExecuteCreateContainer(tokens);
             case "createweapon":
                 return ExecuteCreateWeapon(tokens);
-            case "scanObjects":
+            case "scanobjects":
                 InitWorldTracking();
                 return true;
             case "registerfence":
@@ -717,8 +717,8 @@ bool ExecuteCommand(TStringArray tokens)
                 target.MessageStatus("Uso: !stamina on | off");
             }
             break;
-        case "scanfences":
-            InitFenceTracking();
+        case "scanobjects":
+            InitWorldTracking();            
             return true;
         }
 
