@@ -10,7 +10,6 @@
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/VoteMapManager.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/VoteKickManager.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/PlayersLoadout.c"
-#include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/FenceHooks.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/WorldTracking.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/FencesTracking.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/VehicleTracking.c"
