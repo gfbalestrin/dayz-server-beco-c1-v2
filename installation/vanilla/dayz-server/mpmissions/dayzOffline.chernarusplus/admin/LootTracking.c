@@ -37,7 +37,7 @@ void BuildContainersData(array<Object> worldObjects, out string containersJson, 
 			vector containerPosition = candidateObject.GetPosition();
 			vector containerOrientation = candidateObject.GetOrientation();
 
-			WriteToLog("Loot container found: " + objectType + " at " + containerPosition.ToString() + " with orientation " + containerOrientation.ToString(), LogFile.INIT, false, LogType.INFO);
+			//WriteToLog("Loot container found: " + objectType + " at " + containerPosition.ToString() + " with orientation " + containerOrientation.ToString(), LogFile.INIT, false, LogType.INFO);
 
 			string containerJson = "";
 			string itemsJson = "";
