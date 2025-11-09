@@ -96,3 +96,60 @@ void SendVehiclesPositions()
     
     WriteToLog("SendVehiclesPositions(): Posições de " + m_TrackedVehicles.Count().ToString() + " veículos enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
 }
+
+void LogAllVehicles()
+{
+    WriteToLog("Iniciando varredura de veículos no mundo...", LogFile.INIT, false, LogType.DEBUG);	
+
+    vector center = "7500 0 7500"; // Centro aproximado do mapa Chernarus
+    float radius = 20000; // Varre praticamente o mapa todo
+
+    array<Object> nearbyObjects = new array<Object>();
+    GetGame().GetObjectsAtPosition(center, radius, nearbyObjects, null);
+
+    int count = 0;
+
+    foreach (Object obj : nearbyObjects)
+    {
+        if (!obj)
+            continue;
+
+        CarScript vehicle = CarScript.Cast(obj);
+        if (vehicle)
+        {
+            vector pos = vehicle.GetPosition();
+            string name = vehicle.GetDisplayName();
+            WriteToLog("[VEÍCULO] " + name + " em " + pos.ToString(), LogFile.INIT, false, LogType.DEBUG);
+            count++;
+        }
+    }
+
+    WriteToLog("Total de veículos detectados: " + count.ToString(), LogFile.INIT, false, LogType.DEBUG);
+}
+
+
+void TrackVehiclePositions()
+{
+    // Verifica se o array foi inicializado
+    if (!m_TrackedVehicles)
+    {
+        WriteToLog("[TRACKING] Array m_TrackedVehicles não foi inicializado ainda, ignorando rastreamento...", LogFile.INIT, false, LogType.DEBUG);
+        return;
+    }
+
+    WriteToLog("[TRACKING] Atualização de posições dos veículos... " + m_TrackedVehicles.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
+
+    foreach (CarScript vehicle : m_TrackedVehicles)
+    {
+        //if (vehicle && vehicle.IsAlive())
+        if (vehicle)
+        {
+            vector pos = vehicle.GetPosition();
+            WriteToLog("[POSIÇÃO] " + vehicle.GetDisplayName() + " em " + pos.ToString(), LogFile.INIT, false, LogType.DEBUG);
+        }
+        else
+        {
+            WriteToLog("[REMOVER] Veículo inválido ou destruído.", LogFile.INIT, false, LogType.DEBUG);
+        }
+    }
+}
