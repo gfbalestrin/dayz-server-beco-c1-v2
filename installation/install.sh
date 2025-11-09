@@ -611,7 +611,7 @@ mv tmp.xml "$DayzFolder/mpmissions/$DayzMpmission/db/messages.xml"
 
 CFG_FILE="$DayzFolder/serverDZ.cfg"
 DAY_ACCEL="10"
-NIGHT_ACCEL="5"
+NIGHT_ACCEL="3"
 sed -i "s/^\s*serverTimeAcceleration=.*/serverTimeAcceleration=${DAY_ACCEL};/" "$CFG_FILE"
 sed -i "s/^\s*serverNightTimeAcceleration=.*/serverNightTimeAcceleration=${NIGHT_ACCEL};/" "$CFG_FILE"
 
