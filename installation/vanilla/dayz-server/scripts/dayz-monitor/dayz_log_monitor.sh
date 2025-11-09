@@ -23,6 +23,7 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
           "$Line" != *"bled out"* && \
           "$Line" != *"died. Stats"* && \
           "$Line" != *"hit by Player"* && \
+          "$Line" != *"Can't compile mission init script"* && \
           "$Line" != *"Chat("* ]]; then
         continue
     fi
@@ -223,6 +224,12 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
             INSERT_CUSTOM_LOG "PlayerIdKiller ou PlayerIdVictim não encontrado no banco de dados. Ignorando mensagem para Discord." "ERROR" "$ScriptName"
             continue
         fi
+    elif [[ "$Content" == *"Can't compile mission init script"* ]]; then
+        Content="🔴 Erro de compilação detectado no servidor! O servidor será desligado para realizar a correção."
+        INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
+        SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+        systemctl stop dayz-server
+        continue
     else
 		Content="${Content//is unconscious/está inconsciente}"
         Content="${Content//bled out/morreu por sangramento}"
