@@ -1,3 +1,5 @@
+class ActionBuildPart;
+
 modded class ActionBuildPart
 {
 	override void OnFinishProgressServer(ActionData action_data)
