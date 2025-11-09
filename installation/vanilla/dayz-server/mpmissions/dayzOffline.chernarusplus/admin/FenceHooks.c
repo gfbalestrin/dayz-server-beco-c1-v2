@@ -1,4 +1,6 @@
-modded class Fence
+class Fence;
+
+modded class BaseBuilding
 {
 	override void OnPartBuiltServer(int partId, PlayerBase player, ItemBase tool)
 	{
@@ -7,7 +9,14 @@ modded class Fence
 		if (!GetGame() || !GetGame().IsServer())
 			return;
 		
-		RegisterFence(this);
+		if (!this || !this.IsKindOf("Fence"))
+			return;
+		
+		Fence builtFence = Fence.Cast(this);
+		if (!builtFence)
+			return;
+		
+		RegisterFence(builtFence);
 	}
 }
 
