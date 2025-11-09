@@ -3,8 +3,8 @@
 export TZ=America/Sao_Paulo
 
 # Configurações de retenção (hardcoded)
-RETENTION_DAYS_SHORT=7   # Para coords e vehicles
-RETENTION_DAYS_LONG=30   # Para logs
+RETENTION_DAYS_SHORT=1   # Para coords e vehicles
+RETENTION_DAYS_LONG=7   # Para logs
 
 # Importar configurações do config.sh
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -133,32 +133,63 @@ cleanup_database "$logs_db" "server_beco_c1_logs.db"
 
 # Contar registros antes da limpeza
 vehicles_tracking_before=$(count_records "$logs_db" "vehicles_tracking")
+containers_tracking_before=$(count_records "$logs_db" "containers_tracking")
+container_items_tracking_before=$(count_records "$logs_db" "container_items_tracking")
+fences_tracking_before=$(count_records "$logs_db" "fences_tracking")
 logs_adm_before=$(count_records "$logs_db" "logs_adm")
 logs_custom_before=$(count_records "$logs_db" "logs_custom")
+logs_rpt_before=$(count_records "$logs_db" "logs_rpt")
+user_audit_logs_before=$(count_records "$logs_db" "user_audit_logs")
 
 # Contar registros antigos
 vehicles_tracking_old=$(count_old_records "$logs_db" "vehicles_tracking" "TimeStamp" "$RETENTION_DAYS_SHORT")
+containers_tracking_old=$(count_old_records "$logs_db" "containers_tracking" "TimeStamp" "$RETENTION_DAYS_SHORT")
+container_items_tracking_old=$(count_old_records "$logs_db" "container_items_tracking" "TimeStamp" "$RETENTION_DAYS_SHORT")
+fences_tracking_old=$(count_old_records "$logs_db" "fences_tracking" "TimeStamp" "$RETENTION_DAYS_SHORT")
 logs_adm_old=$(count_old_records "$logs_db" "logs_adm" "TimeStamp" "$RETENTION_DAYS_LONG")
 logs_custom_old=$(count_old_records "$logs_db" "logs_custom" "TimeStamp" "$RETENTION_DAYS_LONG")
+logs_rpt_old=$(count_old_records "$logs_db" "logs_rpt" "TimeStamp" "$RETENTION_DAYS_LONG")
+user_audit_logs_old=$(count_old_records "$logs_db" "user_audit_logs" "TimeStamp" "$RETENTION_DAYS_LONG")
+
+INSERT_CUSTOM_LOG "Tabela user_audit_logs será mantida sem exclusões de registros." "INFO" "clear_databases.sh"
 
 INSERT_CUSTOM_LOG "Tabela vehicles_tracking: $vehicles_tracking_before total, $vehicles_tracking_old antigos (mais de $RETENTION_DAYS_SHORT dias)" "INFO" "clear_databases.sh"
+INSERT_CUSTOM_LOG "Tabela containers_tracking: $containers_tracking_before total, $containers_tracking_old antigos (mais de $RETENTION_DAYS_SHORT dias)" "INFO" "clear_databases.sh"
+INSERT_CUSTOM_LOG "Tabela container_items_tracking: $container_items_tracking_before total, $container_items_tracking_old antigos (mais de $RETENTION_DAYS_SHORT dias)" "INFO" "clear_databases.sh"
+INSERT_CUSTOM_LOG "Tabela fences_tracking: $fences_tracking_before total, $fences_tracking_old antigos (mais de $RETENTION_DAYS_SHORT dias)" "INFO" "clear_databases.sh"
 INSERT_CUSTOM_LOG "Tabela logs_adm: $logs_adm_before total, $logs_adm_old antigos (mais de $RETENTION_DAYS_LONG dias)" "INFO" "clear_databases.sh"
 INSERT_CUSTOM_LOG "Tabela logs_custom: $logs_custom_before total, $logs_custom_old antigos (mais de $RETENTION_DAYS_LONG dias)" "INFO" "clear_databases.sh"
+INSERT_CUSTOM_LOG "Tabela logs_rpt: $logs_rpt_before total, $logs_rpt_old antigos (mais de $RETENTION_DAYS_LONG dias)" "INFO" "clear_databases.sh"
+INSERT_CUSTOM_LOG "Tabela user_audit_logs: $user_audit_logs_before total, $user_audit_logs_old antigos (mais de $RETENTION_DAYS_LONG dias)" "INFO" "clear_databases.sh"
 
 # Deletar registros antigos
 delete_old_records "$logs_db" "vehicles_tracking" "TimeStamp" "$RETENTION_DAYS_SHORT" "vehicles_tracking"
+delete_old_records "$logs_db" "containers_tracking" "TimeStamp" "$RETENTION_DAYS_SHORT" "containers_tracking"
+delete_old_records "$logs_db" "container_items_tracking" "TimeStamp" "$RETENTION_DAYS_SHORT" "container_items_tracking"
+delete_old_records "$logs_db" "fences_tracking" "TimeStamp" "$RETENTION_DAYS_SHORT" "fences_tracking"
 delete_old_records "$logs_db" "logs_adm" "TimeStamp" "$RETENTION_DAYS_LONG" "logs_adm"
 delete_old_records "$logs_db" "logs_custom" "TimeStamp" "$RETENTION_DAYS_LONG" "logs_custom"
+delete_old_records "$logs_db" "logs_rpt" "TimeStamp" "$RETENTION_DAYS_LONG" "logs_rpt"
 
 # Contar registros depois da limpeza
 vehicles_tracking_after=$(count_records "$logs_db" "vehicles_tracking")
+containers_tracking_after=$(count_records "$logs_db" "containers_tracking")
+container_items_tracking_after=$(count_records "$logs_db" "container_items_tracking")
+fences_tracking_after=$(count_records "$logs_db" "fences_tracking")
 logs_adm_after=$(count_records "$logs_db" "logs_adm")
 logs_custom_after=$(count_records "$logs_db" "logs_custom")
+logs_rpt_after=$(count_records "$logs_db" "logs_rpt")
+user_audit_logs_after=$(count_records "$logs_db" "user_audit_logs")
 
 # Log de resultados
 INSERT_CUSTOM_LOG "Tabela vehicles_tracking: $vehicles_tracking_before -> $vehicles_tracking_after (deletados: $((vehicles_tracking_before - vehicles_tracking_after)))" "INFO" "clear_databases.sh"
+INSERT_CUSTOM_LOG "Tabela containers_tracking: $containers_tracking_before -> $containers_tracking_after (deletados: $((containers_tracking_before - containers_tracking_after)))" "INFO" "clear_databases.sh"
+INSERT_CUSTOM_LOG "Tabela container_items_tracking: $container_items_tracking_before -> $container_items_tracking_after (deletados: $((container_items_tracking_before - container_items_tracking_after)))" "INFO" "clear_databases.sh"
+INSERT_CUSTOM_LOG "Tabela fences_tracking: $fences_tracking_before -> $fences_tracking_after (deletados: $((fences_tracking_before - fences_tracking_after)))" "INFO" "clear_databases.sh"
 INSERT_CUSTOM_LOG "Tabela logs_adm: $logs_adm_before -> $logs_adm_after (deletados: $((logs_adm_before - logs_adm_after)))" "INFO" "clear_databases.sh"
 INSERT_CUSTOM_LOG "Tabela logs_custom: $logs_custom_before -> $logs_custom_after (deletados: $((logs_custom_before - logs_custom_after)))" "INFO" "clear_databases.sh"
+INSERT_CUSTOM_LOG "Tabela logs_rpt: $logs_rpt_before -> $logs_rpt_after (deletados: $((logs_rpt_before - logs_rpt_after)))" "INFO" "clear_databases.sh"
+INSERT_CUSTOM_LOG "Tabela user_audit_logs: $user_audit_logs_before -> $user_audit_logs_after (deletados: $((user_audit_logs_before - user_audit_logs_after)))" "INFO" "clear_databases.sh"
 
 # Executar VACUUM em ambos os bancos para recuperar espaço
 execute_vacuum "$player_db" "players_beco_c1.db"

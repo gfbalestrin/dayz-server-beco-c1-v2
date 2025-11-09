@@ -2272,12 +2272,12 @@ class CustomMission: MissionServer
 					AppendMessage(msgFixed);
 			}
 			CleanUpDeadEntitiesNearPlayers();
-		} else {
-			CleanTrackedVehicles(); // Limpa veículos destruídos do array
-			SendVehiclesPositions();
-			CleanTrackedFences();
-			SendFencesStatus();
-		}
+		} 
+		
+		CleanTrackedVehicles(); // Limpa veículos destruídos do array
+		SendVehiclesPositions();
+		CleanTrackedFences();
+		SendFencesStatus();		
 		
 		ListActivePlayers();
 		SendPlayersPositions();		
