@@ -1,41 +1,48 @@
 
+void PopulateTrackedFences(array<Object> worldObjects)
+{
+	if (!GetGame() || !GetGame().IsServer())
+		return;
+
+	if (!m_TrackedFences)
+	{
+		WriteToLog("PopulateTrackedFences(): Inicializando array m_TrackedFences...", LogFile.INIT, false, LogType.DEBUG);
+		m_TrackedFences = new array<Fence>();
+	}
+	else
+	{
+		WriteToLog("PopulateTrackedFences(): Array m_TrackedFences já existe, limpando conteúdo...", LogFile.INIT, false, LogType.DEBUG);
+		m_TrackedFences.Clear();
+	}
+
+	if (!worldObjects)
+	{
+		WriteToLog("PopulateTrackedFences(): Lista de objetos vazia recebida.", LogFile.INIT, false, LogType.WARNING);
+		return;
+	}
+
+	foreach (Object candidateObject : worldObjects)
+	{
+		Fence candidateFence = Fence.Cast(candidateObject);
+		if (!candidateFence)
+			continue;
+
+		if (!candidateFence.HasBase())
+			continue;
+
+		m_TrackedFences.Insert(candidateFence);
+	}
+
+	WriteToLog("PopulateTrackedFences(): Total de fences em rastreamento: " + m_TrackedFences.Count().ToString(), LogFile.INIT, false, LogType.INFO);
+}
+
 void InitFenceTracking()
 {
-    WriteToLog("InitFenceTracking(): Iniciando rastreamento de fences...", LogFile.INIT, false, LogType.INFO);
+	WriteToLog("InitFenceTracking(): Iniciando rastreamento de fences...", LogFile.INIT, false, LogType.INFO);
 
-    if (!GetGame() || !GetGame().IsServer())
-        return;
-
-    if (!m_TrackedFences)
-    {
-        WriteToLog("InitFenceTracking(): Inicializando array m_TrackedFences...", LogFile.INIT, false, LogType.DEBUG);
-        m_TrackedFences = new array<Fence>();
-    }
-    else
-    {
-        WriteToLog("InitFenceTracking(): Array m_TrackedFences já existe, limpando conteúdo...", LogFile.INIT, false, LogType.DEBUG);
-        m_TrackedFences.Clear();
-    }
-
-    vector center = "7500 0 7500";
-    float radius = 20000;
-
-    array<Object> objects = new array<Object>();
-    GetGame().GetObjectsAtPosition(center, radius, objects, null);
-
-    foreach (Object obj : objects)
-    {
-        Fence fence = Fence.Cast(obj);
-        if (!fence)
-            continue;
-
-        if (!fence.HasBase())
-            continue;
-
-        m_TrackedFences.Insert(fence);
-    }
-
-    WriteToLog("InitFenceTracking(): Total de fences em rastreamento: " + m_TrackedFences.Count().ToString(), LogFile.INIT, false, LogType.INFO);
+	array<Object> trackedObjects = new array<Object>();
+	GatherWorldObjects(trackedObjects);
+	PopulateTrackedFences(trackedObjects);
 }
 
 void CleanTrackedFences()

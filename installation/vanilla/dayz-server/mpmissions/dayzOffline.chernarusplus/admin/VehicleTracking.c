@@ -3,39 +3,47 @@
 // ============================================================================
 
 // Inicializa o rastreamento de veículos
+void PopulateTrackedVehicles(array<Object> worldObjects)
+{
+	if (!GetGame() || !GetGame().IsServer())
+		return;
+
+	if (!m_TrackedVehicles)
+	{
+		WriteToLog("PopulateTrackedVehicles(): Inicializando array m_TrackedVehicles...", LogFile.INIT, false, LogType.DEBUG);
+		m_TrackedVehicles = new array<CarScript>();
+	}
+	else
+	{
+		WriteToLog("PopulateTrackedVehicles(): Array m_TrackedVehicles já existe, limpando conteúdo...", LogFile.INIT, false, LogType.DEBUG);
+		m_TrackedVehicles.Clear();
+	}
+
+	if (!worldObjects)
+	{
+		WriteToLog("PopulateTrackedVehicles(): Lista de objetos vazia recebida.", LogFile.INIT, false, LogType.WARNING);
+		return;
+	}
+
+	foreach (Object candidateObject : worldObjects)
+	{
+		CarScript candidateVehicle = CarScript.Cast(candidateObject);
+		if (!candidateVehicle)
+			continue;
+
+		m_TrackedVehicles.Insert(candidateVehicle);
+	}
+
+	WriteToLog("PopulateTrackedVehicles(): Total de veículos em rastreamento: " + m_TrackedVehicles.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
+}
+
 void InitVehicleTracking()
 {
-    WriteToLog("Iniciando rastreamento de veículos...", LogFile.INIT, false, LogType.DEBUG);
+	WriteToLog("Iniciando rastreamento de veículos...", LogFile.INIT, false, LogType.DEBUG);
 
-    // Garante que o array seja inicializado
-    if (!m_TrackedVehicles)
-    {
-        WriteToLog("Inicializando array m_TrackedVehicles...", LogFile.INIT, false, LogType.DEBUG);
-        m_TrackedVehicles = new array<CarScript>();
-    }
-    else
-    {
-        WriteToLog("Array m_TrackedVehicles já existe, limpando conteúdo...", LogFile.INIT, false, LogType.DEBUG);
-        m_TrackedVehicles.Clear();
-    }
-
-    vector center = "7500 0 7500";
-    float radius = 20000;
-
-    array<Object> nearbyObjects = new array<Object>();
-    GetGame().GetObjectsAtPosition(center, radius, nearbyObjects, null);
-
-    foreach (Object obj : nearbyObjects)
-    {
-        CarScript vehicle = CarScript.Cast(obj);
-        if (vehicle)
-        {
-            m_TrackedVehicles.Insert(vehicle);
-            //WriteToLog("[TRACKING] Veículo adicionado: " + vehicle.GetDisplayName(), LogFile.INIT, false, LogType.DEBUG);
-        }
-    }
-
-    WriteToLog("Total de veículos em rastreamento: " + m_TrackedVehicles.Count().ToString(), LogFile.INIT, false, LogType.DEBUG);
+	array<Object> trackedObjects = new array<Object>();
+	GatherWorldObjects(trackedObjects);
+	PopulateTrackedVehicles(trackedObjects);
 }
 
 // Limpa veículos null do array de rastreamento

@@ -1,115 +1,121 @@
-void LogLootContainersDetailed()
+void BuildContainersData(array<Object> worldObjects, out string containersJson, out int totalContainers, out int totalItems)
+{
+	containersJson = "";
+	totalContainers = 0;
+	totalItems = 0;
+
+	if (!GetGame() || !GetGame().IsServer())
+		return;
+
+	if (!worldObjects)
+		return;
+
+	TStringArray lootTypes = new TStringArray;
+	lootTypes.Insert("WoodenCrate");
+	lootTypes.Insert("Barrel_Yellow");
+	lootTypes.Insert("Barrel_Red");
+	lootTypes.Insert("Barrel_Blue");
+	lootTypes.Insert("CarTent");
+	lootTypes.Insert("LargeTent");
+	lootTypes.Insert("MediumTent");
+	lootTypes.Insert("PartyTent");
+
+	foreach (Object candidateObject : worldObjects)
 	{
-		if (!GetGame() || !GetGame().IsServer())
-			return;
+		if (!candidateObject)
+			continue;
 
-		array<Object> objects = new array<Object>;
-		GetGame().GetObjectsAtPosition("0 0 0", 999999, objects, NULL);
+		string objectType = candidateObject.GetType();
 
-		// Tipos de containers relevantes
-		TStringArray lootTypes = {
-			"WoodenCrate",
-			"Barrel_Yellow",
-			"Barrel_Red",
-			"Barrel_Blue",
-			"CarTent",
-			"LargeTent",
-			"MediumTent",
-			"PartyTent"
-		};
-
-		int totalContainers = 0;
-		int totalItems = 0;
-		string containersJson = "";
-
-		foreach (Object obj : objects)
+		foreach (string lootType : lootTypes)
 		{
-			if (!obj)
+			if (objectType != lootType)
 				continue;
 
-			string type = obj.GetType();
+			totalContainers++;
 
-			foreach (string lootType : lootTypes)
+			vector containerPosition = candidateObject.GetPosition();
+			vector containerOrientation = candidateObject.GetOrientation();
+
+			WriteToLog("Loot container found: " + objectType + " at " + containerPosition.ToString() + " with orientation " + containerOrientation.ToString(), LogFile.INIT, false, LogType.INFO);
+
+			string containerJson = "";
+			string itemsJson = "";
+
+			EntityAI containerEntity = EntityAI.Cast(candidateObject);
+			if (containerEntity)
 			{
-				if (type == lootType)
+                CargoBase containerCargo = containerEntity.GetInventory().GetCargo();
+				if (containerCargo)
 				{
-					totalContainers++;
-
-					vector pos = obj.GetPosition();
-					vector ori = obj.GetOrientation();
-
-					WriteToLog("Loot container found: " + type + " at " + pos.ToString() + " with orientation " + ori.ToString(), LogFile.INIT, false, LogType.INFO);
-
-					// Monta JSON do container
-					string containerJson = "";
-					string itemsJson = "";
-
-					// --- Verifica itens dentro ---
-					EntityAI container = EntityAI.Cast(obj);
-					if (container)
+					for (int cargoIndex = 0; cargoIndex < containerCargo.GetItemCount(); cargoIndex++)
 					{
-						CargoBase cargo = container.GetInventory().GetCargo();
-						if (cargo)
-						{
-							for (int i = 0; i < cargo.GetItemCount(); i++)
-							{
-								EntityAI item = cargo.GetItem(i);
-								if (!item) continue;
+						EntityAI cargoItem = containerCargo.GetItem(cargoIndex);
+						if (!cargoItem)
+							continue;
 
-								string itemType = item.GetType();
-								float health = item.GetHealth("", "");
-								totalItems++;
+						string cargoType = cargoItem.GetType();
+						float cargoHealth = cargoItem.GetHealth("", "");
+						totalItems++;
 
-								WriteToLog("Item found: " + itemType + " with health " + health.ToString(), LogFile.INIT, false, LogType.INFO);
+						WriteToLog("Item found: " + cargoType + " with health " + cargoHealth.ToString(), LogFile.INIT, false, LogType.INFO);
 
-								// Adiciona item ao JSON
-								if (itemsJson != "")
-									itemsJson += ",";
-								itemsJson += "{\"type\":\"" + itemType + "\",\"health\":" + health.ToString() + "}";
-							}
-						}
-
-						// --- Itens em attachments (ex: slots externos de barris e tendas) ---
-						for (int a = 0; a < container.GetInventory().AttachmentCount(); a++)
-						{
-							EntityAI attachment = container.GetInventory().GetAttachmentFromIndex(a);
-							if (!attachment) continue;
-
-							string attType = attachment.GetType();
-							float attHealth = attachment.GetHealth("", "");
-							totalItems++;
-
-							WriteToLog("Attachment found: " + attType + " with health " + attHealth.ToString(), LogFile.INIT, false, LogType.INFO);
-
-							// Adiciona attachment ao JSON
-							if (itemsJson != "")
-								itemsJson += ",";
-							itemsJson += "{\"type\":\"" + attType + "\",\"health\":" + attHealth.ToString() + "}";
-						}
+						if (itemsJson != "")
+							itemsJson += ",";
+						itemsJson += "{\"type\":\"" + cargoType + "\",\"health\":" + cargoHealth.ToString() + "}";
 					}
+				}
 
-					// Monta JSON do container completo
-					containerJson = "{\"container_type\":\"" + type + "\",\"position\":{\"x\":" + pos[0].ToString() + ",\"z\":" + pos[1].ToString() + ",\"y\":" + pos[2].ToString() + "},\"orientation\":{\"x\":" + ori[0].ToString() + ",\"y\":" + ori[1].ToString() + ",\"z\":" + ori[2].ToString() + "},\"items\":[" + itemsJson + "]}";
+				for (int attachmentIndex = 0; attachmentIndex < containerEntity.GetInventory().AttachmentCount(); attachmentIndex++)
+				{
+					EntityAI attachmentItem = containerEntity.GetInventory().GetAttachmentFromIndex(attachmentIndex);
+					if (!attachmentItem)
+						continue;
 
-					// Adiciona ao array de containers
-					if (containersJson != "")
-						containersJson += ",";
-					containersJson += containerJson;
+					string attachmentType = attachmentItem.GetType();
+					float attachmentHealth = attachmentItem.GetHealth("", "");
+					totalItems++;
 
-					break;
+					WriteToLog("Attachment found: " + attachmentType + " with health " + attachmentHealth.ToString(), LogFile.INIT, false, LogType.INFO);
+
+					if (itemsJson != "")
+						itemsJson += ",";
+					itemsJson += "{\"type\":\"" + attachmentType + "\",\"health\":" + attachmentHealth.ToString() + "}";
 				}
 			}
-		}
 
-		// Envia JSON via ExternalAction
-		if (containersJson != "")
-		{
-			string jsonAction = "{\"action\":\"containers_positions\",\"container_data\":[" + containersJson + "]}";
-			AppendExternalAction(jsonAction);
-			WriteToLog("LogLootContainersDetailed(): JSON com " + totalContainers.ToString() + " containers e " + totalItems.ToString() + " itens enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
-		}
+			containerJson = "{\"container_type\":\"" + objectType + "\",\"position\":{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "},\"orientation\":{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "},\"items\":[" + itemsJson + "]}";
 
-		string summary = string.Format("[LOOT SCAN] Containers: %1 ", totalContainers);
-		Print(summary);
-		WriteToLog(summary, LogFile.INIT, false, LogType.INFO);
+			if (containersJson != "")
+				containersJson += ",";
+			containersJson += containerJson;
+
+			break;
+		}
 	}
+}
+
+void LogLootContainersDetailed()
+{
+	if (!GetGame() || !GetGame().IsServer())
+		return;
+
+	array<Object> trackedObjects = new array<Object>();
+	GatherWorldObjects(trackedObjects);
+
+	string containersJson;
+	int totalContainers;
+	int totalItems;
+	BuildContainersData(trackedObjects, containersJson, totalContainers, totalItems);
+
+	if (containersJson != "")
+	{
+		string jsonAction = "{\"action\":\"containers_positions\",\"container_data\":[" + containersJson + "]}";
+		AppendExternalAction(jsonAction);
+		WriteToLog("LogLootContainersDetailed(): JSON com " + totalContainers.ToString() + " containers e " + totalItems.ToString() + " itens enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
+	}
+
+	string summary = string.Format("[LOOT SCAN] Containers: %1 ", totalContainers);
+	Print(summary);
+	WriteToLog(summary, LogFile.INIT, false, LogType.INFO);
+}
