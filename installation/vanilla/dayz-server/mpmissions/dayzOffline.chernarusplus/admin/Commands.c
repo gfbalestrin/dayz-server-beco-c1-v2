@@ -69,7 +69,7 @@ bool ExecuteCommand(TStringArray tokens)
             case "createweapon":
                 return ExecuteCreateWeapon(tokens);
             case "scanfences":
-                ScanFences();
+                InitFenceTracking();
                 return true;
             default:
                 WriteToLog("Comando do sistema desconhecido: " + command, LogFile.INIT, false, LogType.ERROR);
@@ -689,7 +689,7 @@ bool ExecuteCommand(TStringArray tokens)
             }
             break;
         case "scanfences":
-            ScanFences();
+            InitFenceTracking();
             return true;
         }
 

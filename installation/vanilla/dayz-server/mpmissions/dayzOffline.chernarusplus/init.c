@@ -271,6 +271,7 @@ class CustomMission: MissionServer
 		{
 			// Aguarda o mundo carregar, detecta veículos e inicia rastreamento
 			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(this.InitVehicleTracking, 10000, false);
+			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitFenceTracking, 15000, false);
 		}  
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SendStartEvent, 5000, false);      
     }
@@ -289,7 +290,7 @@ class CustomMission: MissionServer
 			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitAdminLoop, 5000, false); // aguarda 5 segundos
 			ActivePlayers = new array<ref ActivePlayer>();
 			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(LogLootContainersDetailed, 5000, false);
-			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(ScanFences, 5000, false);
+			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitFenceTracking, 5000, false);
 		}		
     }
 
@@ -2272,6 +2273,8 @@ class CustomMission: MissionServer
 		} else {
 			CleanTrackedVehicles(); // Limpa veículos destruídos do array
 			SendVehiclesPositions();
+			CleanTrackedFences();
+			SendFencesStatus();
 		}
 		
 		ListActivePlayers();
