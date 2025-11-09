@@ -1,30 +1,14 @@
-class ActionBuildPart;
-
-modded class ActionBuildPart
+modded class Fence
 {
-	override void OnFinishProgressServer(ActionData action_data)
+	override void OnPartBuiltServer(int partId, PlayerBase player, ItemBase tool)
 	{
-		super.OnFinishProgressServer(action_data);
-
+		super.OnPartBuiltServer(partId, player, tool);
+		
 		if (!GetGame() || !GetGame().IsServer())
 			return;
-
-		ConstructionActionData constructionData = ConstructionActionData.Cast(action_data);
-		if (!constructionData)
-			return;
-
-		if (!constructionData.m_Target)
-			return;
-
-		Object targetObject = constructionData.m_Target.GetObject();
-		if (!targetObject)
-			return;
-
-		Fence constructedFence = Fence.Cast(targetObject);
-		if (!constructedFence)
-			return;
-
-		RegisterFence(constructedFence);
+		
+		RegisterFence(this);
 	}
 }
+
 
