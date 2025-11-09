@@ -71,6 +71,35 @@ bool ExecuteCommand(TStringArray tokens)
             case "scanfences":
                 InitFenceTracking();
                 return true;
+            case "registerfence":
+                if (tokens.Count() < 5)
+                {
+                    WriteToLog("ExecuteCommand(): registerfence requer coordenadas X Y Z", LogFile.INIT, false, LogType.ERROR);
+                    return false;
+                }
+
+                float fencePosX = tokens[2].ToFloat();
+                float fencePosY = tokens[3].ToFloat();
+                float fencePosZ = tokens[4].ToFloat();
+                vector fencePosition = Vector(fencePosX, fencePosY, fencePosZ);
+
+                float searchRadius = 3.0;
+                if (tokens.Count() >= 6)
+                {
+                    float candidateRadius = tokens[5].ToFloat();
+                    if (candidateRadius > 0)
+                        searchRadius = candidateRadius;
+                }
+
+                bool fenceRegistered = RegisterFenceAtPosition(fencePosition, searchRadius);
+                if (fenceRegistered)
+                {
+                    WriteToLog("ExecuteCommand(): registerfence executado com sucesso em " + fencePosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.INFO);
+                    return true;
+                }
+
+                WriteToLog("ExecuteCommand(): registerfence falhou em encontrar fence em " + fencePosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+                return false;
             default:
                 WriteToLog("Comando do sistema desconhecido: " + command, LogFile.INIT, false, LogType.ERROR);
                 return false;

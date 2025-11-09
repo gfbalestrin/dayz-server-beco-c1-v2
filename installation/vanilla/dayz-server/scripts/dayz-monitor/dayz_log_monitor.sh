@@ -247,6 +247,15 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
 
         INSERT_CUSTOM_LOG "$Message" "INFO" "$ScriptName"
         SEND_DISCORD_WEBHOOK "$Message" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+
+        PosCommand=$(echo "$Position" | tr ',' ' ')
+        if [[ -n "$PosCommand" ]]; then
+            CommandLine="SYSTEM registerfence $PosCommand"
+            echo "$CommandLine" >>"$DayzServerFolder/$DayzAdminCmdsFile"
+            INSERT_CUSTOM_LOG "Comando enfileirado: $CommandLine" "DEBUG" "$ScriptName"
+        else
+            INSERT_CUSTOM_LOG "Falha ao montar coordenadas para comando registerfence" "ERROR" "$ScriptName"
+        fi
         continue
 
     else

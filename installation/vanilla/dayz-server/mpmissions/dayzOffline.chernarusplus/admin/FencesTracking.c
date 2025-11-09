@@ -71,6 +71,59 @@ void RegisterFence(Fence newFence)
 	WriteToLog("RegisterFence(): Fence adicionada em " + fencePosition.ToString() + " orientação " + fenceOrientation.ToString(), LogFile.INIT, false, LogType.INFO);
 }
 
+bool RegisterFenceAtPosition(vector targetPosition, float searchRadius = 3.0)
+{
+    if (!GetGame() || !GetGame().IsServer())
+        return false;
+
+    if (searchRadius <= 0)
+        searchRadius = 3.0;
+
+    array<Object> nearbyObjects = new array<Object>();
+    GetGame().GetObjectsAtPosition(targetPosition, searchRadius, nearbyObjects, null);
+
+    if (!nearbyObjects || nearbyObjects.Count() == 0)
+    {
+        WriteToLog("RegisterFenceAtPosition(): Nenhum objeto encontrado próximo a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+        return false;
+    }
+
+    Fence closestFence;
+    float closestDistance = searchRadius + 1.0;
+
+    foreach (Object candidateObject : nearbyObjects)
+    {
+        Fence candidateFence = Fence.Cast(candidateObject);
+        if (!candidateFence)
+            continue;
+
+        if (!candidateFence.HasBase())
+            continue;
+
+        vector candidatePosition = candidateFence.GetPosition();
+        float candidateDistance = vector.Distance(candidatePosition, targetPosition);
+        if (candidateDistance > searchRadius)
+            continue;
+
+        if (!closestFence || candidateDistance < closestDistance)
+        {
+            closestFence = candidateFence;
+            closestDistance = candidateDistance;
+        }
+    }
+
+    if (!closestFence)
+    {
+        WriteToLog("RegisterFenceAtPosition(): Nenhuma fence válida encontrada próxima a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+        return false;
+    }
+
+    RegisterFence(closestFence);
+
+    WriteToLog("RegisterFenceAtPosition(): Fence registrada a " + closestDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
+    return true;
+}
+
 void InitFenceTracking()
 {
 	WriteToLog("InitFenceTracking(): Iniciando rastreamento de fences...", LogFile.INIT, false, LogType.INFO);
