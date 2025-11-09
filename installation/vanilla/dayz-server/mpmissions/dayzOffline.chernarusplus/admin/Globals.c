@@ -109,3 +109,24 @@ void InitializeVestGrenadeSlots()
 
     WriteToLog("InitializeVestGrenadeSlots(): Granadas, coldres e pistolas inicializados", LogFile.INIT, false, LogType.INFO);
 }
+
+// Função auxiliar para sanitizar strings para uso seguro em JSON
+string SanitizeForJson(string input)
+{
+    if (!input)
+        return "";
+    
+    string sanitized = input;
+    TStringArray unsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
+    foreach (string ch : unsafeChars)
+    {
+        sanitized.Replace(ch, "-");
+    }
+    sanitized.Replace("\n", "");
+    sanitized.Replace("\r", "");
+    sanitized.Replace("\t", "");
+    if (sanitized.Length() > 64)
+        sanitized = sanitized.Substring(0, 64);
+    
+    return sanitized;
+}
