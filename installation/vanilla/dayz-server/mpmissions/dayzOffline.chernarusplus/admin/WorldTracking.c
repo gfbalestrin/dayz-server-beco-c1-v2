@@ -46,12 +46,13 @@ void InitWorldTracking()
 	SendFencesStatus();
 	SendVehiclesPositions();
 
-	if (containersJson != "")
-	{
-		string containersAction = "{\"action\":\"containers_positions\",\"container_data\":[" + containersJson + "]}";
-		AppendExternalAction(containersAction);
-		WriteToLog("InitWorldTracking(): JSON com " + totalContainersWithItems.ToString() + " containers com itens e " + totalItems.ToString() + " itens enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
-	}
+	string payloadContainers = containersJson;
+	if (payloadContainers == "")
+		payloadContainers = "";
+
+	string containersAction = "{\"action\":\"containers_positions\",\"container_data\":[" + payloadContainers + "]}";
+	AppendExternalAction(containersAction);
+	WriteToLog("InitWorldTracking(): JSON com " + totalContainersWithItems.ToString() + " containers com itens e " + totalItems.ToString() + " itens enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
 
 	string summary = string.Format("InitWorldTracking(): Containers totais: %1 (com itens: %2, vazios: %3, itens: %4)", totalContainers, totalContainersWithItems, totalContainersEmpty, totalItems);
 	WriteToLog(summary, LogFile.INIT, false, LogType.INFO);
