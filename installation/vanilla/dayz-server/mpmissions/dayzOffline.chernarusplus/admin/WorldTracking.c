@@ -35,8 +35,10 @@ void InitWorldTracking()
 
 	string containersJson;
 	int totalContainers;
+	int totalContainersWithItems;
+	int totalContainersEmpty;
 	int totalItems;
-	BuildContainersData(worldObjects, containersJson, totalContainers, totalItems);
+	BuildContainersData(worldObjects, containersJson, totalContainers, totalContainersWithItems, totalContainersEmpty, totalItems);
 
 	CleanTrackedFences();
 	CleanTrackedVehicles();
@@ -48,9 +50,10 @@ void InitWorldTracking()
 	{
 		string containersAction = "{\"action\":\"containers_positions\",\"container_data\":[" + containersJson + "]}";
 		AppendExternalAction(containersAction);
-		WriteToLog("InitWorldTracking(): JSON com " + totalContainers.ToString() + " containers e " + totalItems.ToString() + " itens enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
+		WriteToLog("InitWorldTracking(): JSON com " + totalContainersWithItems.ToString() + " containers com itens e " + totalItems.ToString() + " itens enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
 	}
 
-	WriteToLog("InitWorldTracking(): Varredura finalizada.", LogFile.INIT, false, LogType.INFO);
+	string summary = string.Format("InitWorldTracking(): Containers totais: %1 (com itens: %2, vazios: %3, itens: %4)", totalContainers, totalContainersWithItems, totalContainersEmpty, totalItems);
+	WriteToLog(summary, LogFile.INIT, false, LogType.INFO);
 }
 
