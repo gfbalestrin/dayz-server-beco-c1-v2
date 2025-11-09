@@ -16,9 +16,14 @@ void SpawnVehicleWithPartsToPlayer(PlayerBase player, string vehicleType)
 bool SpawnVehicleWithParts(vector pos, string vehicleType)
 {
     pos[1] = GetGame().SurfaceY(pos[0], pos[2]);
-    Car vehicle = Car.Cast(GetGame().CreateObject(vehicleType, pos));
-    if (!vehicle)        
+    int spawnFlags = ECE_SETUP | ECE_CREATEPHYSICS | ECE_UPDATEPATHGRAPH;
+    Object spawnedObject = GetGame().CreateObjectEx(vehicleType, pos, spawnFlags);
+    Car vehicle = Car.Cast(spawnedObject);
+    if (!vehicle)
+    {
+        WriteToLog("SpawnVehicleWithParts(): CreateObjectEx falhou para " + vehicleType, LogFile.INIT, false, LogType.ERROR);
         return false;
+    }
 
     // Adiciona veículo ao rastreamento
     CarScript vehicleScript = CarScript.Cast(vehicle);
@@ -27,6 +32,8 @@ bool SpawnVehicleWithParts(vector pos, string vehicleType)
         m_TrackedVehicles.Insert(vehicleScript);
         WriteToLog("SpawnVehicleWithParts(): Veículo adicionado ao rastreamento: " + vehicleType, LogFile.INIT, false, LogType.DEBUG);
     }
+
+    WriteToLog("SpawnVehicleWithParts(): Veiculo criado com sucesso: " + vehicleType, LogFile.INIT, false, LogType.DEBUG);
 
     vehicle.SetOrientation("0 0 0");
     vehicle.Fill(CarFluid.FUEL, 1000.0);
@@ -236,6 +243,12 @@ bool SpawnVehicleWithParts(vector pos, string vehicleType)
             break;
     }
 
+    if (!vehicle.GetInventory())
+    {
+        WriteToLog("SpawnVehicleWithParts(): Inventario nulo para " + vehicleType, LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+
     vehicle.GetInventory().CreateAttachment(battery);
     vehicle.GetInventory().CreateAttachment(plug);
     for (int i = 0; i < wheels; i++)
@@ -244,8 +257,11 @@ bool SpawnVehicleWithParts(vector pos, string vehicleType)
     foreach (string part : parts)
         vehicle.GetInventory().CreateAttachment(part);
 
+    WriteToLog("SpawnVehicleWithParts(): Attachments aplicados para " + vehicleType, LogFile.INIT, false, LogType.DEBUG);
+
     // 🔧 Forçar sincronização com persistência
     vehicle.SetSynchDirty();
+    WriteToLog("SpawnVehicleWithParts(): Veiculo sincronizado: " + vehicleType, LogFile.INIT, false, LogType.DEBUG);
 
     // Salvar veículo na persistência de novo após um momento
     GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SaveVehicle, 1000, false, vehicle);
