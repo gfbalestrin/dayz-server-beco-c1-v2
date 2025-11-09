@@ -68,8 +68,8 @@ bool ExecuteCommand(TStringArray tokens)
                 return ExecuteCreateContainer(tokens);
             case "createweapon":
                 return ExecuteCreateWeapon(tokens);
-            case "scanfences":
-                InitFenceTracking();
+            case "scanObjects":
+                InitWorldTracking();
                 return true;
             case "registerfence":
                 if (tokens.Count() < 5)
