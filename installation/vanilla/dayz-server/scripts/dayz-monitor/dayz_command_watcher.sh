@@ -567,10 +567,6 @@ EOF
             # Captura o timestamp atual antes do loop
             current_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
             
-            # Limpar tabela antes de inserir novas posições
-            #sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "DELETE FROM fences_tracking;"
-            #echo ">> Tabela de fences limpa"
-            
             # Verifica se existe fence_data no JSON
             if ! echo "$line" | jq -e '.fence_data' >/dev/null 2>&1; then
                 echo ">> Nenhum fence encontrado no JSON"
@@ -593,6 +589,11 @@ EOF
                     prev_fences["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_has_base|$prev_lower_panel|$prev_upper_panel"
                 done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "SELECT FenceId, FenceName, PositionX, PositionZ, PositionY, IFNULL(HasBase,''), IFNULL(LowerPanelBuilt,''), IFNULL(UpperPanelBuilt,'') FROM fences_tracking WHERE TimeStamp = '$prev_snapshot_timestamp';")
             fi
+
+            # Limpar tabela antes de registrar novo snapshot
+            sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "DELETE FROM fences_tracking;"
+            echo ">> Tabela de fences limpa para novo snapshot"
+            INSERT_CUSTOM_LOG "Tabela fences_tracking limpa para registrar novo snapshot" "INFO" "$ScriptName"
 
             # Inicializa contador
             processed_count=0
