@@ -64,7 +64,9 @@ void BuildContainersData(array<Object> worldObjects, out string containersJson, 
 							itemsJson += ",";
 						itemsJson += "{\"type\":\"" + cargoType + "\",\"health\":" + cargoHealth.ToString() + "}";
 					}
-				}
+				} else {
+                    continue;
+                }
 
 				for (int attachmentIndex = 0; attachmentIndex < containerEntity.GetInventory().AttachmentCount(); attachmentIndex++)
 				{
