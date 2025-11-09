@@ -36,6 +36,41 @@ void PopulateTrackedFences(array<Object> worldObjects)
 	WriteToLog("PopulateTrackedFences(): Total de fences em rastreamento: " + m_TrackedFences.Count().ToString(), LogFile.INIT, false, LogType.INFO);
 }
 
+void RegisterFence(Fence newFence)
+{
+	if (!GetGame() || !GetGame().IsServer())
+		return;
+
+	if (!newFence)
+		return;
+
+	if (!newFence.HasBase())
+		return;
+
+	if (!m_TrackedFences)
+		m_TrackedFences = new array<Fence>();
+
+	int trackedCount = m_TrackedFences.Count();
+	for (int trackedIndex = 0; trackedIndex < trackedCount; trackedIndex++)
+	{
+		Fence trackedFence = m_TrackedFences.Get(trackedIndex);
+		if (!trackedFence)
+			continue;
+
+		if (trackedFence == newFence)
+		{
+			WriteToLog("RegisterFence(): Fence já está rastreada, ignorando.", LogFile.INIT, false, LogType.DEBUG);
+			return;
+		}
+	}
+
+	m_TrackedFences.Insert(newFence);
+
+	vector fencePosition = newFence.GetPosition();
+	vector fenceOrientation = newFence.GetOrientation();
+	WriteToLog("RegisterFence(): Fence adicionada em " + fencePosition.ToString() + " orientação " + fenceOrientation.ToString(), LogFile.INIT, false, LogType.INFO);
+}
+
 void InitFenceTracking()
 {
 	WriteToLog("InitFenceTracking(): Iniciando rastreamento de fences...", LogFile.INIT, false, LogType.INFO);
