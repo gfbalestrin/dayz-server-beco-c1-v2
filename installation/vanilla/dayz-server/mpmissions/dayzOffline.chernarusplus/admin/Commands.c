@@ -79,8 +79,8 @@ bool ExecuteCommand(TStringArray tokens)
                 }
 
                 float fencePosX = tokens[2].ToFloat();
-                float fencePosY = tokens[3].ToFloat();
-                float fencePosZ = tokens[4].ToFloat();
+                float fencePosZ = tokens[3].ToFloat();
+                float fencePosY = tokens[4].ToFloat();
                 vector fencePosition = Vector(fencePosX, fencePosY, fencePosZ);
 
                 float searchRadius = 3.0;
