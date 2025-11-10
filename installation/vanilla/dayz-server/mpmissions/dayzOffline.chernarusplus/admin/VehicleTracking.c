@@ -117,28 +117,6 @@ void SendVehiclesPositions()
         vehiclesJson += "{\"vehicle_id\":\"" + vehicleIdentifier + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + position[0].ToString() + ",\"z\":" + position[1].ToString() + ",\"y\":" + position[2].ToString() + "}";
     }
 
-    // Debug para verificar o ID persistente dos veículos
-    foreach (CarScript vehicle2 : m_TrackedVehicles)
-    {
-        WriteToLog("[TRACKING] Primeiro veículo: " + vehicle2.GetDisplayName(), LogFile.INIT, false, LogType.DEBUG);
-        int pidLow1 = 0;
-        int pidLow2 = 0;
-        int pidHigh1 = 0;
-        int pidHigh2 = 0;
-        vehicle2.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
-
-        string status = "false";
-        if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
-        {
-            status = "true";
-        }
-
-        string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
-        string fallbackId = "pending-" + vehicle2.GetID().ToString();
-        WriteToLog("[TRACKING] PersistID=" + persistentKey + " status=" + status + " fallback=" + fallbackId, LogFile.INIT, false, LogType.DEBUG);
-        break;
-    }
-
     string jsonAction = "{\"action\":\"vehicles_positions\",\"vehicles\":[" + vehiclesJson + "]}";
     AppendExternalAction(jsonAction, false);
     
