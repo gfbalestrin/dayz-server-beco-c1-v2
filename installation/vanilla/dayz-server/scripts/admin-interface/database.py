@@ -19,6 +19,7 @@ class DatabaseConnection:
     
     def __enter__(self):
         self.conn = sqlite3.connect(self.db_path)
+        self.conn.text_factory = lambda b: b.decode("utf-8", "replace") if isinstance(b, bytes) else b
         self.conn.row_factory = sqlite3.Row
         return self.conn
     
