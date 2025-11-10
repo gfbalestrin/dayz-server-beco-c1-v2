@@ -99,6 +99,18 @@ void SendVehiclesPositions()
         vehiclesJson += "{\"vehicle_id\":\"" + vehicleId.ToString() + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + position[0].ToString() + ",\"z\":" + position[1].ToString() + ",\"y\":" + position[2].ToString() + "}";
     }
 
+    // Debug para verificar o ID persistente dos veículos
+    foreach (CarScript vehicle2 : m_TrackedVehicles)
+    {
+        WriteToLog("[TRACKING] Primeiro veículo: " + vehicle2.GetDisplayName(), LogFile.INIT, false, LogType.DEBUG);
+        int vehicleId2 = vehicle2.GetID();
+        int pidLow, pidHigh;
+        bool hasPersistent = vehicle2.GetPersistentID(pidLow, pidHigh);
+        string persistentKey = pidLow.ToString() + "-" + pidHigh.ToString();
+        WriteToLog("[TRACKING] GetId=" + vehicle2.GetId() + " GetPersistentID=" + vehicleId2.ToString() + " PID=" + persistentKey + " status=" + hasPersistent.ToString(), LogFile.INIT, false, LogType.DEBUG);
+        break;
+    }
+
     string jsonAction = "{\"action\":\"vehicles_positions\",\"vehicles\":[" + vehiclesJson + "]}";
     AppendExternalAction(jsonAction, false);
     
