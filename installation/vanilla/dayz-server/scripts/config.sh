@@ -922,31 +922,22 @@ SEND_DISCORD_WEBHOOK() {
     local current_date="${3:-$(date '+%d/%m/%Y %H:%M:%S')}"
     local source="$4"
 
-    #INSERT_CUSTOM_LOG "Enviando evento para o discord..." "INFO" "$source"
-
     if [[ -z "$content" || -z "$webhook_url" ]]; then
         INSERT_CUSTOM_LOG "Usage: send_discord_webhook_log <content> <webhook_url> [current_date]" "ERROR" "$source"
         return 1
     fi
 
-    echo $content
+    local escaped_message="$current_date - $content"
+    local payload
+    payload=$(jq -cn --arg content "$escaped_message" '{content: $content}')
 
-    local payload=$(
-        cat <<EOF
-{ "content": "$current_date - $content" }   
-EOF
-    )
-
-    # Envia a requisição e captura o código de status HTTP
     local http_code
     http_code=$(curl -s -o /dev/null -w "%{http_code}" \
         -H "Content-Type: application/json" \
         -X POST -d "$payload" "$webhook_url")
 
-    # Verifica se foi sucesso (HTTP 200 ou 204)
     if [[ "$http_code" -eq 200 || "$http_code" -eq 204 ]]; then
         echo "✅ Mensagem enviada com sucesso para o Discord."
-        #INSERT_CUSTOM_LOG "Enviou evento para o discord!" "INFO" "$source"
     else
         INSERT_CUSTOM_LOG "Falha ao enviar evento para discord! Código HTTP: $http_code" "ERROR" "$source"
     fi

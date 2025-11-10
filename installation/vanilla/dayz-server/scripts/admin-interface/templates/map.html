@@ -8,6 +8,20 @@
 {% endblock %}
 
 {% block content %}
+{% set map_configs = [
+    {
+        'id': 'chernarus',
+        'name': 'Chernarus Topográfico',
+        'image': url_for('static', filename='img/chernarus.jpeg'),
+        'pixel_size': 4096
+    },
+    {
+        'id': 'chernarus_satelite',
+        'name': 'Chernarus Satélite',
+        'image': url_for('static', filename='img/chernarus_satelite.webp'),
+        'pixel_size': 5195
+    }
+] %}
 <!-- Topo Minimalista -->
 <div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-2">
     <h2 class="mb-0">
@@ -40,7 +54,7 @@
     <!-- Mapa -->
     <div class="col-lg-9 mb-3">
         <div class="position-relative">
-            <div id="map" class="map-container" data-map-image="{{ url_for('static', filename='img/chernarus.jpeg') }}"></div>
+            <div id="map" class="map-container" data-map-configs='{{ map_configs | tojson }}' data-map-default="chernarus"></div>
             
             <!-- Alerta de Modo Teleporte -->
             <div class="position-absolute top-0 start-0 w-100 p-2" style="display: none;" id="teleportInfo">
@@ -77,6 +91,10 @@
                 <i class="fas fa-eye me-2"></i>Visualizar
             </div>
             <div class="card-body p-2">
+                <div class="mb-2">
+                    <label class="form-label small" for="mapTypeSelect">Tipo de Mapa:</label>
+                    <select id="mapTypeSelect" class="form-select form-select-sm"></select>
+                </div>
                 <div class="d-grid gap-1">
                     <button type="button" class="btn btn-sm btn-primary" id="refreshBtn">
                         <i class="fas fa-sync-alt me-1"></i>Atualizar

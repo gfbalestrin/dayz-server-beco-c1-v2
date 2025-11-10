@@ -29,6 +29,12 @@ let trailDateFilter = {
 };
 // Variáveis removidas - funcionalidades de spawn movidas para spawning.html
 
+const BASE_MAP_SIZE = 4096;
+let mapConfigs = {};
+let mapConfigList = [];
+let currentMapConfig = null;
+let mapImageOverlay = null;
+
 // Cor padrão do Leaflet - cores escuras para melhor visibilidade
 const iconColors = [
     '#cc0000', '#0044cc', '#008800', '#cc4400', '#6600cc', '#cc0066',
@@ -102,9 +108,309 @@ function createFenceIcon(fenceName) {
     });
 }
 
+/**
+ * Ler e preparar configurações de mapas disponíveis
+ */
+function initializeMapConfigs() {
+    const mapElement = $('#map');
+    const configsAttr = mapElement.attr('data-map-configs');
+    let parsedConfigs = [];
+    
+    if (configsAttr) {
+        try {
+            parsedConfigs = JSON.parse(configsAttr);
+        } catch (error) {
+            console.error('Erro ao interpretar configurações do mapa:', error);
+        }
+    }
+    
+    if (!Array.isArray(parsedConfigs) || parsedConfigs.length === 0) {
+        const fallbackImage = mapElement.data('map-image') || '';
+        parsedConfigs = [
+            {
+                id: 'default',
+                name: 'Chernarus',
+                image: fallbackImage,
+                pixel_size: BASE_MAP_SIZE
+            }
+        ];
+    }
+    
+    mapConfigs = {};
+    mapConfigList = [];
+    
+    parsedConfigs.forEach(function(rawConfig) {
+        if (!rawConfig || !rawConfig.id || !rawConfig.image) {
+            return;
+        }
+        
+        const normalizedConfig = {
+            id: rawConfig.id,
+            name: rawConfig.name || rawConfig.id,
+            image: rawConfig.image,
+            pixelSize: rawConfig.pixel_size || rawConfig.pixelSize || BASE_MAP_SIZE
+        };
+        
+        mapConfigs[normalizedConfig.id] = normalizedConfig;
+        mapConfigList.push(normalizedConfig);
+    });
+    
+    if (mapConfigList.length === 0) {
+        const fallbackConfig = {
+            id: 'default',
+            name: 'Chernarus',
+            image: '',
+            pixelSize: BASE_MAP_SIZE
+        };
+        mapConfigs[fallbackConfig.id] = fallbackConfig;
+        mapConfigList.push(fallbackConfig);
+    }
+    
+    const defaultMapId = mapElement.attr('data-map-default');
+    currentMapConfig = (defaultMapId && mapConfigs[defaultMapId]) ? mapConfigs[defaultMapId] : mapConfigList[0];
+}
+
+/**
+ * Popular seletor de mapas e registrar eventos
+ */
+function setupMapSelector() {
+    const select = $('#mapTypeSelect');
+    const wrapper = select.closest('.mb-2');
+    
+    if (!select.length) {
+        return;
+    }
+    
+    select.empty();
+    
+    mapConfigList.forEach(function(config) {
+        const option = $('<option></option>')
+            .val(config.id)
+            .text(config.name);
+        select.append(option);
+    });
+    
+    if (currentMapConfig) {
+        select.val(currentMapConfig.id);
+    }
+    
+    if (mapConfigList.length <= 1) {
+        select.prop('disabled', true);
+        if (wrapper.length) {
+            wrapper.hide();
+        }
+        return;
+    }
+    
+    if (wrapper.length) {
+        wrapper.show();
+    }
+    select.prop('disabled', false);
+    
+    select.off('change.mapSelector').on('change.mapSelector', function() {
+        const selectedId = $(this).val();
+        switchMap(selectedId);
+    });
+}
+
+/**
+ * Obter bounds atuais do mapa baseado na configuração
+ */
+function getCurrentMapBounds() {
+    const size = currentMapConfig ? currentMapConfig.pixelSize : BASE_MAP_SIZE;
+    return [[0, 0], [size, size]];
+}
+
+/**
+ * Obter centro do mapa baseado na configuração
+ */
+function getMapCenter() {
+    const size = currentMapConfig ? currentMapConfig.pixelSize : BASE_MAP_SIZE;
+    return [size / 2, size / 2];
+}
+
+/**
+ * Obter fator de escala em relação ao mapa base (4096)
+ */
+function getMapScaleFactor() {
+    if (!currentMapConfig) {
+        return 1;
+    }
+    return currentMapConfig.pixelSize / BASE_MAP_SIZE;
+}
+
+/**
+ * Converter coordenadas armazenadas para o sistema atual do Leaflet
+ */
+function convertToMapCoords(pixelCoords) {
+    if (!pixelCoords || pixelCoords.length < 2) {
+        return null;
+    }
+    
+    const scaleFactor = getMapScaleFactor();
+    return [pixelCoords[0] * scaleFactor, pixelCoords[1] * scaleFactor];
+}
+
+/**
+ * Determinar direção do tooltip baseado na posição atual
+ */
+function getTooltipDirectionForPoint(lat, lng) {
+    const size = currentMapConfig ? currentMapConfig.pixelSize : BASE_MAP_SIZE;
+    const margin = size * 0.2;
+    let direction = 'top';
+    
+    if (lat > size - margin) {
+        direction = 'bottom';
+    }
+    
+    if (lng < margin) {
+        direction = 'right';
+    } else if (lng > size - margin) {
+        direction = 'left';
+    }
+    
+    return direction;
+}
+
+/**
+ * Aplicar configuração de mapa atual (imagem, bounds, centro)
+ */
+function applyMapConfiguration() {
+    if (!map || !currentMapConfig) {
+        hideLoading();
+        return;
+    }
+    
+    const bounds = getCurrentMapBounds();
+    
+    if (mapImageOverlay) {
+        map.removeLayer(mapImageOverlay);
+    }
+    
+    const imageUrl = currentMapConfig.image;
+    
+    if (!imageUrl) {
+        console.error('URL da imagem do mapa não encontrada para a configuração selecionada');
+        hideLoading();
+        return;
+    }
+    
+    const img = new Image();
+    img.onload = function() {
+        console.log('Imagem do mapa carregada com sucesso:', imageUrl);
+        hideLoading();
+    };
+    img.onerror = function() {
+        console.error('Erro ao carregar imagem do mapa:', imageUrl);
+        hideLoading();
+    };
+    img.src = imageUrl;
+    
+    mapImageOverlay = L.imageOverlay(imageUrl, bounds, {
+        opacity: 1,
+        interactive: false
+    });
+    mapImageOverlay.addTo(map);
+    
+    map.options.maxBounds = bounds;
+    map.setMaxBounds(bounds);
+    map.setView(getMapCenter(), map.getZoom());
+}
+
+/**
+ * Alterar mapa exibido
+ */
+function switchMap(mapId) {
+    if (!mapId || !mapConfigs[mapId] || (currentMapConfig && currentMapConfig.id === mapId)) {
+        return;
+    }
+    
+    currentMapConfig = mapConfigs[mapId];
+    showLoading();
+    applyMapConfiguration();
+    clearMapLayers();
+    loadPositions();
+    
+    if (showVehicles) {
+        loadVehicles();
+    }
+    if (showContainers) {
+        loadContainers();
+    }
+    if (showFences) {
+        loadFences();
+    }
+    if (showKills) {
+        loadKills();
+    }
+    
+    console.log('Mapa alternado para:', currentMapConfig.name, '(', currentMapConfig.pixelSize, 'px )');
+}
+
+/**
+ * Limpar todos os layers que dependem do mapa atual
+ */
+function clearMapLayers() {
+    if (!map) {
+        return;
+    }
+    
+    Object.keys(playerMarkers).forEach(function(key) {
+        map.removeLayer(playerMarkers[key]);
+    });
+    playerMarkers = {};
+    
+    Object.keys(vehicleMarkers).forEach(function(key) {
+        map.removeLayer(vehicleMarkers[key]);
+    });
+    vehicleMarkers = {};
+    
+    Object.keys(containerMarkers).forEach(function(key) {
+        map.removeLayer(containerMarkers[key]);
+    });
+    containerMarkers = {};
+    
+    Object.keys(fenceMarkers).forEach(function(key) {
+        map.removeLayer(fenceMarkers[key]);
+    });
+    fenceMarkers = {};
+    
+    Object.keys(playerTrails).forEach(function(key) {
+        const trail = playerTrails[key];
+        if (Array.isArray(trail)) {
+            trail.forEach(item => map.removeLayer(item));
+        } else if (trail) {
+            map.removeLayer(trail);
+        }
+    });
+    playerTrails = {};
+    
+    killMarkers.forEach(function(item) {
+        if (item.marker) {
+            map.removeLayer(item.marker);
+            if (item.marker._iconMarker) {
+                map.removeLayer(item.marker._iconMarker);
+            }
+        }
+        if (item.line) {
+            map.removeLayer(item.line);
+        }
+    });
+    killMarkers = [];
+    
+    $('#mapOnlineCount').text('0');
+    $('#mapOfflineCount').text('0');
+    $('#mapTotalCount').text('0');
+    $('#vehicleCount').text('0');
+    $('#containerCount').text('0');
+    $('#fenceCount').text('0');
+}
+
 // Inicializar o mapa quando o documento estiver pronto
 $(document).ready(function() {
+    initializeMapConfigs();
     initMap();
+    setupMapSelector();
     loadPositions();
     
     // Event listeners
@@ -161,47 +467,27 @@ function initMap() {
     // Mostrar loading enquanto carrega
     showLoading();
     
+    if (!currentMapConfig) {
+        console.error('Nenhuma configuração de mapa disponível');
+        hideLoading();
+        return;
+    }
+    
     // Criar mapa
     map = L.map('map', {
         crs: L.CRS.Simple,  // Sem projeção geográfica
         minZoom: -2,
         maxZoom: 3,
-        maxBounds: [[0, 0], [4096, 4096]],
+        maxBounds: getCurrentMapBounds(),
         maxBoundsViscosity: 1.0,  // Impede arrastar para fora dos limites
         zoom: -2,  // Iniciar no zoom mínimo para ver mapa completo
-        center: [2048, 2048],  // Centro do mapa 4096x4096
+        center: getMapCenter(),
         zoomControl: true,
         attributionControl: false
     });
     
-    // Obter URL da imagem do atributo data
-    const imageUrl = $('#map').data('map-image');
-    
-    if (!imageUrl) {
-        console.error('URL da imagem do mapa não encontrada!');
-        hideLoading();
-        return;
-    }
-    
-    // Adicionar imagem com evento de load
-    const imageOverlay = L.imageOverlay(imageUrl, [[0, 0], [4096, 4096]], {
-        opacity: 1,
-        interactive: false
-    });
-    
-    // Quando a imagem carregar, remover loading
-    const img = new Image();
-    img.onload = function() {
-        console.log('Imagem do mapa carregada com sucesso');
-        hideLoading();
-    };
-    img.onerror = function() {
-        console.error('Erro ao carregar imagem do mapa');
-        hideLoading();
-    };
-    img.src = imageUrl;
-    
-    imageOverlay.addTo(map);
+    // Adicionar imagem do mapa conforme configuração atual
+    applyMapConfiguration();
     
     // Adicionar evento de clique no mapa
     map.on('click', function(e) {
@@ -210,7 +496,7 @@ function initMap() {
         }
     });
     
-    console.log('Mapa inicializado com imagem:', imageUrl);
+    console.log('Mapa inicializado com imagem:', currentMapConfig.image);
 }
 
 /**
@@ -322,8 +608,14 @@ function updatePositions(data) {
         }
         
         const color = getPlayerColor(playerId);
-        const lat = player.pixel_coords[0];
-        const lng = player.pixel_coords[1];
+        const mapCoords = convertToMapCoords(player.pixel_coords);
+        
+        if (!mapCoords) {
+            return;
+        }
+        
+        const lat = mapCoords[0];
+        const lng = mapCoords[1];
         
         // Remover marcador antigo se existir
         if (playerMarkers[playerId]) {
@@ -419,20 +711,7 @@ function updatePositions(data) {
         tooltipContent += `<br>⏰ Atualizado: <span class="value">${player.last_update || 'Desconhecido'}</span>`;
         
         // Direção dinâmica baseada na posição no mapa
-        let tooltipDirection = 'top'; // padrão (sul)
-        
-        if (lat > 3000) {
-            // Norte - tooltip para baixo
-            tooltipDirection = 'bottom';
-        }
-        
-        if (lng < 2000) {
-            // Oeste (esquerda) - tooltip para direita
-            tooltipDirection = 'right';
-        } else if (lng > 13000) {
-            // Leste (direita) - tooltip para esquerda
-            tooltipDirection = 'left';
-        }
+        const tooltipDirection = getTooltipDirectionForPoint(lat, lng);
         
         // Adicionar tooltip (aparece ao passar o mouse)
         marker.bindTooltip(tooltipContent, {
@@ -458,6 +737,12 @@ function updatePositions(data) {
     $('#mapOnlineCount').text(onlineCount);
     $('#mapOfflineCount').text(offlineCount);
     $('#mapTotalCount').text(onlineCount + offlineCount);
+    
+    if (showTrails) {
+        setTimeout(function() {
+            Object.keys(playerMarkers).forEach(loadPlayerTrail);
+        }, 500);
+    }
     
     hideLoading();
     console.log(`Posições atualizadas: ${data.players.length} jogadores`);
@@ -496,21 +781,38 @@ function drawTrail(playerId, trail) {
     if (trail.length === 0) return;
     
     // Aplicar filtro de data se ativo
+    let filteredTrail = trail;
     if (trailDateFilter.enabled) {
-        trail = trail.filter(point => {
+        filteredTrail = trail.filter(point => {
             const pointDate = new Date(point.timestamp);
             return pointDate >= trailDateFilter.startDate && 
                    pointDate <= trailDateFilter.endDate;
         });
         
-        if (trail.length === 0) {
+        if (filteredTrail.length === 0) {
             console.log('Nenhum ponto encontrado no período especificado');
             return;
         }
     }
     
+    // Converter pontos para coordenadas do mapa
+    const processedTrail = [];
+    filteredTrail.forEach(function(point) {
+        const coords = convertToMapCoords(point.pixel_coords);
+        if (coords) {
+            processedTrail.push({
+                data: point,
+                mapCoords: coords
+            });
+        }
+    });
+    
+    if (processedTrail.length === 0) {
+        return;
+    }
+    
     // Criar linha do trail
-    const latlngs = trail.map(point => [point.pixel_coords[0], point.pixel_coords[1]]);
+    const latlngs = processedTrail.map(item => item.mapCoords);
     const color = getPlayerColor(playerId);
     
     const polyline = L.polyline(latlngs, {
@@ -522,12 +824,14 @@ function drawTrail(playerId, trail) {
     playerTrails[playerId].push(polyline);
     
     // Adicionar marcadores em cada ponto com cálculo de velocidade
-    for (let i = 0; i < trail.length; i++) {
-        const point = trail[i];
+    for (let i = 0; i < processedTrail.length; i++) {
+        const point = processedTrail[i].data;
+        const pointLat = processedTrail[i].mapCoords[0];
+        const pointLng = processedTrail[i].mapCoords[1];
         const playerName = playersData[playerId]?.name || 'Jogador';
         const steamName = playersData[playerId]?.steamName || '';
         let tooltipText = `<strong>👤 ${playerName}${steamName ? ` (${steamName})` : ''}</strong><br>`;
-        tooltipText += `<strong>📍 Ponto ${trail.length - i}</strong><br>`;
+        tooltipText += `<strong>📍 Ponto ${processedTrail.length - i}</strong><br>`;
         tooltipText += `⏰ Tempo: <span class="value">${point.timestamp}</span><br>`;
         tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
         
@@ -544,7 +848,7 @@ function drawTrail(playerId, trail) {
         
         // Calcular velocidade se houver ponto anterior
         if (i > 0) {
-            const prevPoint = trail[i - 1];
+            const prevPoint = processedTrail[i - 1].data;
             
             // Calcular distância em metros (Pitágoras)
             const dx = point.coord_x - prevPoint.coord_x;
@@ -578,7 +882,7 @@ function drawTrail(playerId, trail) {
         
         // Criar marcador circular no ponto
         const circleMarker = L.circleMarker(
-            [point.pixel_coords[0], point.pixel_coords[1]],
+            processedTrail[i].mapCoords,
             {
                 radius: markerRadius,
                 fillColor: pointColor,
@@ -599,20 +903,7 @@ function drawTrail(playerId, trail) {
         
         // Adicionar tooltip (direção dinâmica baseada na posição)
         // Valores altos de Y (pixel_coords[0]) representam o norte do mapa
-        let tooltipDirection = 'top'; // padrão (sul)
-        
-        if (point.pixel_coords[0] > 3000) {
-            // Norte - tooltip para baixo
-            tooltipDirection = 'bottom';
-        }
-        
-        if (point.pixel_coords[1] < 2000) {
-            // Oeste (esquerda) - tooltip para direita
-            tooltipDirection = 'right';
-        } else if (point.pixel_coords[1] > 13000) {
-            // Leste (direita) - tooltip para esquerda
-            tooltipDirection = 'left';
-        }
+        const tooltipDirection = getTooltipDirectionForPoint(pointLat, pointLng);
         
         circleMarker.bindTooltip(tooltipText, {
             permanent: false,
@@ -1003,10 +1294,13 @@ function updateVehicles(data) {
     // Adicionar veículos
     data.vehicles.forEach(function(vehicle) {
         const vehicleId = vehicle.vehicle_id;
-        const lat = vehicle.pixel_coords[0];
-        const lng = vehicle.pixel_coords[1];
+        const coords = convertToMapCoords(vehicle.pixel_coords);
         
-        const marker = L.marker([lat, lng], {
+        if (!coords) {
+            return;
+        }
+        
+        const marker = L.marker(coords, {
             icon: createVehicleIcon(),
             opacity: 1.0
         }).addTo(map);
@@ -1099,10 +1393,13 @@ function updateContainers(data) {
     // Adicionar containers
     data.containers.forEach(function(container) {
         const containerId = container.container_id;
-        const lat = container.pixel_coords[0];
-        const lng = container.pixel_coords[1];
+        const coords = convertToMapCoords(container.pixel_coords);
         
-        const marker = L.marker([lat, lng], {
+        if (!coords) {
+            return;
+        }
+        
+        const marker = L.marker(coords, {
             icon: createContainerIcon(container.container_type),
             opacity: 1.0
         }).addTo(map);
@@ -1218,10 +1515,13 @@ function updateFences(data) {
     // Adicionar fences
     data.fences.forEach(function(fence) {
         const fenceId = fence.fence_id;
-        const lat = fence.pixel_coords[0];
-        const lng = fence.pixel_coords[1];
+        const coords = convertToMapCoords(fence.pixel_coords);
         
-        const marker = L.marker([lat, lng], {
+        if (!coords) {
+            return;
+        }
+        
+        const marker = L.marker(coords, {
             icon: createFenceIcon(fence.fence_name),
             opacity: 1.0
         }).addTo(map);
@@ -1399,14 +1699,20 @@ function updateKills(data) {
         
         // Criar marcador na posição da vítima (se disponível)
         if (victimPos && victimPos.pixel_coords) {
-            const lat = victimPos.pixel_coords[0];
-            const lng = victimPos.pixel_coords[1];
+            const victimCoords = convertToMapCoords(victimPos.pixel_coords);
+            
+            if (!victimCoords) {
+                return;
+            }
+            
+            const lat = victimCoords[0];
+            const lng = victimCoords[1];
             
             // Debug: verificar coordenadas
             console.log(`Kill marker - Event ID: ${event.id}, pixel_coords: [${lat}, ${lng}], x: ${victimPos.x}, y: ${victimPos.y}`);
             
             // Usar circleMarker como base (funciona corretamente)
-            marker = L.circleMarker([lat, lng], {
+            marker = L.circleMarker(victimCoords, {
                 radius: 10,
                 fillColor: '#dc3545',
                 color: '#ffffff',
@@ -1422,7 +1728,7 @@ function updateKills(data) {
                 iconSize: [20, 20],
                 iconAnchor: [10, 10]
             });
-            const iconMarker = L.marker([lat, lng], {
+            const iconMarker = L.marker(victimCoords, {
                 icon: iconElement,
                 interactive: false,
                 zIndexOffset: 1000
@@ -1441,20 +1747,7 @@ function updateKills(data) {
             `;
             
             // Direção dinâmica baseada na posição no mapa (igual aos jogadores)
-            let tooltipDirection = 'top'; // padrão (sul)
-            
-            if (lat > 3000) {
-                // Norte - tooltip para baixo
-                tooltipDirection = 'bottom';
-            }
-            
-            if (lng < 2000) {
-                // Oeste (esquerda) - tooltip para direita
-                tooltipDirection = 'right';
-            } else if (lng > 13000) {
-                // Leste (direita) - tooltip para esquerda
-                tooltipDirection = 'left';
-            }
+            const tooltipDirection = getTooltipDirectionForPoint(lat, lng);
             
             // Adicionar tooltip hover (aparece ao passar o mouse)
             marker.bindTooltip(tooltipContent, {
@@ -1476,17 +1769,24 @@ function updateKills(data) {
         
         // Criar linha conectando killer e victim (apenas se ambas posições são válidas)
         if (killerPos && killerPos.pixel_coords && victimPos && victimPos.pixel_coords) {
-            const killerLat = killerPos.pixel_coords[0];
-            const killerLng = killerPos.pixel_coords[1];
-            const victimLat = victimPos.pixel_coords[0];
-            const victimLng = victimPos.pixel_coords[1];
+            const killerCoords = convertToMapCoords(killerPos.pixel_coords);
+            const victimCoords = convertToMapCoords(victimPos.pixel_coords);
+            
+            if (!killerCoords || !victimCoords) {
+                return;
+            }
+            
+            const killerLat = killerCoords[0];
+            const killerLng = killerCoords[1];
+            const victimLat = victimCoords[0];
+            const victimLng = victimCoords[1];
             
             // Debug: verificar coordenadas da linha (que funciona corretamente)
             console.log(`Kill line - Killer: [${killerLat}, ${killerLng}], Victim: [${victimLat}, ${victimLng}]`);
             
             line = L.polyline([
-                [killerLat, killerLng],
-                [victimLat, victimLng]
+                killerCoords,
+                victimCoords
             ], {
                 color: '#dc3545',
                 weight: 2,
@@ -1506,16 +1806,7 @@ function updateKills(data) {
             // Direção dinâmica para tooltip da linha
             const lineMidLat = (killerLat + victimLat) / 2;
             const lineMidLng = (killerLng + victimLng) / 2;
-            let lineTooltipDirection = 'top';
-            
-            if (lineMidLat > 3000) {
-                lineTooltipDirection = 'bottom';
-            }
-            if (lineMidLng < 2000) {
-                lineTooltipDirection = 'right';
-            } else if (lineMidLng > 13000) {
-                lineTooltipDirection = 'left';
-            }
+            const lineTooltipDirection = getTooltipDirectionForPoint(lineMidLat, lineMidLng);
             
             line.bindTooltip(lineTooltip, {
                 permanent: false,
@@ -2042,8 +2333,9 @@ function pixelToDayz(pixelCoords) {
     // Inverso da conversão dayz_to_pixel
     // pixel_x = (coord_x / 15360.0) * 4096
     // pixel_y = (coord_y / 15360.0) * 4096
-    const x = (pixelCoords[1] / 4096) * 15360.0;
-    const y = (pixelCoords[0] / 4096) * 15360.0;
+    const pixelSize = currentMapConfig ? currentMapConfig.pixelSize : BASE_MAP_SIZE;
+    const x = (pixelCoords[1] / pixelSize) * 15360.0;
+    const y = (pixelCoords[0] / pixelSize) * 15360.0;
     return { x: x, y: y };
 }
 
