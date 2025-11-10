@@ -221,54 +221,134 @@ function loadUsers() {
     });
 }
 
-function loadPlayers() {
+function loadPlayers(callback) {
+    console.log('[users_manage] loadPlayers() iniciado');
     $.ajax({
         url: '/api/players/all-with-status',
         method: 'GET',
+        dataType: 'json',
         success: function(response) {
-            if (response.success) {
-                allPlayers = response.data;
-                populatePlayerSelect();
+            console.log('[users_manage] loadPlayers() sucesso', response);
+            handlePlayersResponse(response, callback);
+        },
+        error: function() {
+            showAlert('Erro ao carregar lista de jogadores', 'danger');
+            console.warn('[users_manage] loadPlayers() erro ao recuperar dados');
+            if (typeof callback === 'function') {
+                callback();
             }
         }
     });
 }
 
+function handlePlayersResponse(response, callback) {
+    console.log('[users_manage] handlePlayersResponse() bruto', response);
+    let responseData = response;
+    if (typeof response === 'string') {
+        try {
+            responseData = JSON.parse(response);
+            console.log('[users_manage] handlePlayersResponse() string convertida em objeto');
+        } catch (error) {
+            showAlert('Resposta inválida ao carregar jogadores', 'danger');
+            console.error('[users_manage] handlePlayersResponse() erro ao converter string em JSON', error);
+            if (typeof callback === 'function') {
+                callback();
+            }
+            return;
+        }
+    }
+    
+    let playersList = null;
+    if (Array.isArray(responseData)) {
+        playersList = responseData;
+    } else if (responseData && Array.isArray(responseData.players)) {
+        playersList = responseData.players;
+    } else if (responseData && Array.isArray(responseData.data)) {
+        playersList = responseData.data;
+    }
+    
+    if (playersList && playersList.length > 0) {
+        allPlayers = playersList;
+        console.log(`[users_manage] handlePlayersResponse() jogadores carregados: ${playersList.length}`);
+        refreshPlayerSelects();
+    } else if (!playersList) {
+        showAlert('Formato inesperado na resposta da API de jogadores', 'warning');
+        console.warn('[users_manage] handlePlayersResponse() formato inesperado', responseData);
+    } else {
+        console.warn('[users_manage] handlePlayersResponse() lista de jogadores vazia');
+        refreshPlayerSelects();
+    }
+    
+    if (typeof callback === 'function') {
+        callback();
+    }
+}
 function populatePlayerSelect() {
     const select = $('#playerId');
+    if (!select.length) {
+        console.log('[users_manage] populatePlayerSelect() select não encontrado');
+        return;
+    }
     select.empty();
     select.append('<option value="">Selecione um jogador...</option>');
     
     allPlayers.forEach(player => {
-        select.append(`<option value="${player.PlayerID}">${player.PlayerName} (${player.SteamName || player.SteamID})</option>`);
+        const optionLabel = buildPlayerOptionLabel(player);
+        select.append(`<option value="${player.PlayerID}">${optionLabel}</option>`);
     });
+    console.log(`[users_manage] populatePlayerSelect() total de jogadores adicionados: ${allPlayers.length}`);
 }
 
 function populatePlayerLinkSelect(selectedPlayerId) {
     const select = $('#playerLinkSelect');
+    if (!select.length) {
+        console.log('[users_manage] populatePlayerLinkSelect() select não encontrado');
+        return;
+    }
+    
+    const previousSelection = select.val() || '';
     select.empty();
     select.append('<option value="">Sem jogador vinculado</option>');
     
     allPlayers.forEach(player => {
-        select.append(`<option value="${player.PlayerID}">${player.PlayerName} (${player.SteamName || player.SteamID})</option>`);
+        const optionLabel = buildPlayerOptionLabel(player);
+        select.append(`<option value="${player.PlayerID}">${optionLabel}</option>`);
     });
+    console.log(`[users_manage] populatePlayerLinkSelect() total de jogadores adicionados: ${allPlayers.length}`);
     
     if (selectedPlayerId) {
         select.val(selectedPlayerId);
         if (select.val() !== selectedPlayerId) {
-            let missingLabel = selectedPlayerId;
-            if (userToLink && userToLink.PlayerName) {
-                const steamReference = userToLink.SteamName || userToLink.SteamID || '';
-                if (steamReference) {
+            const optionExists = select.find(`option[value="${selectedPlayerId}"]`).length > 0;
+            if (!optionExists) {
+                let missingLabel = selectedPlayerId;
+                if (userToLink && userToLink.PlayerName) {
+                    const steamReference = userToLink.SteamName || userToLink.SteamID || selectedPlayerId;
                     missingLabel = `${userToLink.PlayerName} (${steamReference})`;
-                } else {
-                    missingLabel = `${userToLink.PlayerName} (${selectedPlayerId})`;
                 }
+                select.append(`<option value="${selectedPlayerId}">${missingLabel}</option>`);
+                console.log('[users_manage] populatePlayerLinkSelect() adicionando opção faltante', { selectedPlayerId, missingLabel });
             }
-            select.append(`<option value="${selectedPlayerId}">${missingLabel}</option>`);
             select.val(selectedPlayerId);
         }
+    } else if (previousSelection) {
+        select.val(previousSelection);
     }
+}
+
+function buildPlayerOptionLabel(player) {
+    const displayName = player.PlayerName || 'Nome não disponível';
+    const steamReference = player.SteamName || player.SteamID || 'Sem Steam';
+    const isOnline = player.IsOnline && player.IsOnline !== 0;
+    const statusText = isOnline ? 'Online' : 'Offline';
+    return `${displayName} (${steamReference}) - ${statusText}`;
+}
+
+function refreshPlayerSelects() {
+    console.log('[users_manage] refreshPlayerSelects() chamado', { totalPlayers: allPlayers.length });
+    populatePlayerSelect();
+    const selectedPlayerId = userToLink ? userToLink.PlayerID : null;
+    populatePlayerLinkSelect(selectedPlayerId);
 }
 
 // ============================================================================
@@ -456,6 +536,7 @@ function formatRelativeTime(date) {
 }
 
 function showPlayerLinkModal(userData) {
+    console.log('[users_manage] showPlayerLinkModal()', userData);
     userToLink = userData;
     const userIdField = $('#playerLinkUserId');
     const usernameField = $('#playerLinkUsername');
@@ -479,8 +560,18 @@ function showPlayerLinkModal(userData) {
         unlinkButton.prop('disabled', true);
     }
     
-    populatePlayerLinkSelect(userData.PlayerID);
-    $('#playerLinkModal').modal('show');
+    const showModal = function() {
+        console.log('[users_manage] showPlayerLinkModal() exibindo modal', { totalPlayers: allPlayers.length });
+        populatePlayerLinkSelect(userData.PlayerID);
+        $('#playerLinkModal').modal('show');
+    };
+    
+    if (!allPlayers || allPlayers.length === 0) {
+        console.log('[users_manage] showPlayerLinkModal() lista de jogadores vazia, requisitando loadPlayers()');
+        loadPlayers(showModal);
+    } else {
+        showModal();
+    }
 }
 
 function savePlayerLink() {
