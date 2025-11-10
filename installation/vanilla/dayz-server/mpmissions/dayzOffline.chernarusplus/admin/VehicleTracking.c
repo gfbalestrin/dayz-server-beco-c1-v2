@@ -83,8 +83,26 @@ void SendVehiclesPositions()
 
         vector position = vehicle.GetPosition();
         string vehicleName = vehicle.GetDisplayName();
-        int vehicleId = vehicle.GetID();
-        
+
+        int pidLow1 = 0;
+        int pidLow2 = 0;
+        int pidHigh1 = 0;
+        int pidHigh2 = 0;
+        vehicle.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+
+        bool hasPersistent = false;
+        if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+        {
+            hasPersistent = true;
+        }
+
+        string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+        string vehicleIdentifier = persistentKey;
+        if (!hasPersistent)
+        {
+            vehicleIdentifier = "pending-" + vehicle.GetID().ToString();
+        }
+
         // Sanitiza o nome do veículo
         string safeName = vehicleName;
         TStringArray unsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
@@ -96,29 +114,28 @@ void SendVehiclesPositions()
         if (vehiclesJson != "")
             vehiclesJson += ",";
         
-        vehiclesJson += "{\"vehicle_id\":\"" + vehicleId.ToString() + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + position[0].ToString() + ",\"z\":" + position[1].ToString() + ",\"y\":" + position[2].ToString() + "}";
+        vehiclesJson += "{\"vehicle_id\":\"" + vehicleIdentifier + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + position[0].ToString() + ",\"z\":" + position[1].ToString() + ",\"y\":" + position[2].ToString() + "}";
     }
 
     // Debug para verificar o ID persistente dos veículos
     foreach (CarScript vehicle2 : m_TrackedVehicles)
     {
         WriteToLog("[TRACKING] Primeiro veículo: " + vehicle2.GetDisplayName(), LogFile.INIT, false, LogType.DEBUG);
-        int vehicleId2 = vehicle2.GetID();
-        
         int pidLow1 = 0;
         int pidLow2 = 0;
         int pidHigh1 = 0;
         int pidHigh2 = 0;
         vehicle2.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
-        
+
         string status = "false";
         if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
         {
             status = "true";
         }
-        
+
         string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
-        WriteToLog("[TRACKING] GetID=" + vehicleId2.ToString() + " PID=" + persistentKey + " status=" + status, LogFile.INIT, false, LogType.DEBUG);
+        string fallbackId = "pending-" + vehicle2.GetID().ToString();
+        WriteToLog("[TRACKING] PersistID=" + persistentKey + " status=" + status + " fallback=" + fallbackId, LogFile.INIT, false, LogType.DEBUG);
         break;
     }
 
