@@ -109,14 +109,14 @@ void SendVehiclesPositions()
         int pidLow2 = 0;
         int pidHigh1 = 0;
         int pidHigh2 = 0;
+        vehicle2.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+        
         string status = "false";
-
-        if (vehicle2.HasPersistentID())
+        if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
         {
-            vehicle2.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
             status = "true";
         }
-
+        
         string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
         WriteToLog("[TRACKING] GetID=" + vehicleId2.ToString() + " PID=" + persistentKey + " status=" + status, LogFile.INIT, false, LogType.DEBUG);
         break;
