@@ -29,6 +29,16 @@ format_bool_log() {
     fi
 }
 
+format_coord() {
+    local value="$1"
+    if [[ -z "$value" ]]; then
+        echo ""
+        return
+    fi
+
+    awk -v val="$value" 'BEGIN { printf("%.3f", val + 0) }'
+}
+
 tail -F "$COMMAND_FILE" | while read -r line; do
     # Valida se é um JSON válido
     if ! echo "$line" | jq empty 2>/dev/null; then
@@ -451,34 +461,88 @@ EOF
             echo ">> Recebendo posições dos veículos"
             #INSERT_CUSTOM_LOG "Processando posições dos veículos" "INFO" "$ScriptName"
             
-            # Limpar tabela antes de inserir novas posições (mantemos apenas posição atual)
-            #sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "DELETE FROM vehicles_tracking;"
-            #echo ">> Tabela de tracking limpa"
-            
             # Captura o timestamp atual antes do loop para usar em todos os veículos
             current_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
             
+            # Carrega snapshot anterior
+            prev_snapshot_timestamp=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT MAX(TimeStamp) FROM vehicles_tracking;")
+            declare -A prev_vehicles=()
+
+            if [[ -n "$prev_snapshot_timestamp" ]]; then
+                while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y; do
+                    prev_x_fmt=$(format_coord "$prev_x")
+                    prev_z_fmt=$(format_coord "$prev_z")
+                    prev_y_fmt=$(format_coord "$prev_y")
+                    prev_vehicles["$prev_id"]="$prev_name|$prev_x_fmt|$prev_z_fmt|$prev_y_fmt"
+                done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "SELECT VehicleId, VehicleName, PositionX, PositionZ, PositionY FROM vehicles_tracking WHERE TimeStamp = '$prev_snapshot_timestamp';")
+            fi
+
+            # Limpa tabela para manter somente snapshot atual
+            sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "DELETE FROM vehicles_tracking;"
+            echo ">> Tabela de vehicles limpa para novo snapshot"
+            INSERT_CUSTOM_LOG "Tabela vehicles_tracking limpa para registrar novo snapshot" "INFO" "$ScriptName"
+
             # Obtém o array de veículos do JSON
-            vehicles=$(echo "$line" | jq -c '.vehicles[]')
+            vehicles=$(echo "$line" | jq -c '.vehicles[]?')
             
             # Conta quantos veículos foram recebidos
-            vehicle_count=$(echo "$line" | jq '.vehicles | length')
+            vehicle_count=$(echo "$line" | jq '.vehicles | length // 0')
+            processed_count=0
             
             # Itera sobre cada veículo no array
             while IFS= read -r vehicle_data; do
+                if [ -z "$vehicle_data" ]; then
+                    continue
+                fi
+
                 vehicle_id=$(echo "$vehicle_data" | jq -r '.vehicle_id')
                 vehicle_name=$(echo "$vehicle_data" | jq -r '.vehicle_name')
                 coord_x=$(echo "$vehicle_data" | jq -r '.x')
                 coord_z=$(echo "$vehicle_data" | jq -r '.z')
                 coord_y=$(echo "$vehicle_data" | jq -r '.y')
+
+                coord_x_fmt=$(format_coord "$coord_x")
+                coord_z_fmt=$(format_coord "$coord_z")
+                coord_y_fmt=$(format_coord "$coord_y")
+
+                prev_data="${prev_vehicles[$vehicle_id]}"
+                if [[ -z "$prev_data" ]]; then
+                    INSERT_CUSTOM_LOG "Veículo novo detectado (ID=$vehicle_id) - Nome=\"$vehicle_name\" - Coords=($coord_x_fmt,$coord_z_fmt,$coord_y_fmt)" "INFO" "$ScriptName"
+                else
+                    IFS='|' read -r prev_name prev_x prev_z prev_y <<< "$prev_data"
+                    movement_message=""
+
+                    if [[ "$coord_x_fmt" != "$prev_x" || "$coord_z_fmt" != "$prev_z" || "$coord_y_fmt" != "$prev_y" ]]; then
+                        movement_message="Coords((${prev_x},${prev_z},${prev_y})->(${coord_x_fmt},${coord_z_fmt},${coord_y_fmt}))"
+                    fi
+
+                    if [[ -n "$movement_message" ]]; then
+                        INSERT_CUSTOM_LOG "Veículo movido (ID=$vehicle_id) - Nome=\"$vehicle_name\" - $movement_message" "INFO" "$ScriptName"
+                    fi
+
+                    unset "prev_vehicles[$vehicle_id]"
+                fi
                 
                 # Insere a posição do veículo no banco de dados com o timestamp compartilhado
-                VehicleTrackingId=$(INSERT_VEHICLE_POSITION "$vehicle_id" "$vehicle_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp")
-                               
+                VehicleTrackingId=$(INSERT_VEHICLE_POSITION "$vehicle_id" "$vehicle_name" "$coord_x_fmt" "$coord_z_fmt" "$coord_y_fmt" "$current_timestamp")
+                if [ $? -eq 0 ] && [ -n "$VehicleTrackingId" ]; then
+                    ((processed_count++))
+                else
+                    INSERT_CUSTOM_LOG "Erro ao salvar posição do veículo (ID=$vehicle_id)" "ERROR" "$ScriptName"
+                fi
             done <<< "$vehicles"
+
+            # Veículos que desapareceram em relação ao snapshot anterior
+            if [[ ${#prev_vehicles[@]} -gt 0 ]]; then
+                for removed_id in "${!prev_vehicles[@]}"; do
+                    removed_data="${prev_vehicles[$removed_id]}"
+                    IFS='|' read -r rem_name rem_x rem_z rem_y <<< "$removed_data"
+                    INSERT_CUSTOM_LOG "Veículo removido (ID=$removed_id) - Nome=\"$rem_name\" - Última posição=($rem_x,$rem_z,$rem_y)" "INFO" "$ScriptName"
+                done
+            fi
             
-            echo ">> $vehicle_count veículos processados"
-            INSERT_CUSTOM_LOG "Total de $vehicle_count veículos rastreados" "INFO" "$ScriptName"
+            echo ">> $processed_count veículos processados de $vehicle_count totais"
+            INSERT_CUSTOM_LOG "Total de $processed_count veículos rastreados" "INFO" "$ScriptName"
             ;;
         containers_positions)
             echo ">> Recebendo containers para loot: $line"
