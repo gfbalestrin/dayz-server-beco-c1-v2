@@ -4,9 +4,11 @@ handle_update_player() {
     local line="$1"
 
     sanitize_name() {
-        tr -d '\r' | tr -cd '[:print:]\n' \
-        | sed 's/[^[:alnum:] _.\-\[\]()@#+]/ /g' \
-        | sed 's/[[:space:]]\{1,\}/ /g' \
+        LC_ALL=C tr -d '\r' \
+        | iconv -c -f UTF-8 -t ASCII//TRANSLIT 2>/dev/null \
+        | tr '\n' ' ' \
+        | LC_ALL=C sed 's/[^[:alnum:] ._\-\[\]()@#+]/ /g' \
+        | sed 's/[[:space:]]\+/ /g' \
         | sed 's/^[[:space:]]\+//; s/[[:space:]]\+$//'
     }
 
