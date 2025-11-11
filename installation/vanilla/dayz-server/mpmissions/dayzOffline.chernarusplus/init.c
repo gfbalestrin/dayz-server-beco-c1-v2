@@ -27,6 +27,18 @@ void main()
 
 class CustomMission: MissionServer
 {	
+	ref array<string> FixedMessages;
+	float m_AdminCheckCooldown10 = 10.0;
+	float m_AdminCheckTimer10 = 0.0;
+	float m_AdminCheckCooldown60 = 60.0;
+	float m_AdminCheckTimer60 = 0.0;
+
+	// Deathmatch
+	string regionStr;
+	string customMessage;
+	ref array<vector> spawnZones;	
+	ref array<vector> wallZones;
+	SafeZoneDataSpawns spawns;
 
 	void CustomMission()
 	{
@@ -130,7 +142,7 @@ class CustomMission: MissionServer
     {
         super.OnInit();
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SendStartEvent, 5000, false);    
-		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitWorldTracking, 5000, false);  
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitWorldTracking, 5000, false);
     }
 
 	override void OnMissionStart()
