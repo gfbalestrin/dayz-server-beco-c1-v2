@@ -1,4 +1,4 @@
-void mainCustom()
+void MainCustom()
 {
     WriteToLog("main(): Inicializando método main()...", LogFile.INIT, false, LogType.INFO);
 

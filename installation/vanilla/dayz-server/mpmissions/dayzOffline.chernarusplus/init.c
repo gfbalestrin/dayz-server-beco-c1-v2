@@ -6,7 +6,7 @@
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/Log.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/Functions.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/ExternalActions.c"
-#include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/Main.c"
+#include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/MainCustom.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/Construction.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/VoteMapManager.c"
 #include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/VoteKickManager.c"
@@ -23,7 +23,7 @@
 
 void main()
 {
-	mainCustom();	
+	MainCustom();	
 }
 
 class CustomMission: MissionServer
