@@ -56,6 +56,19 @@ ref array<string> ALLOWED_PISTOLS;
 // Lista de jogadores ativos/conectados
 ref array<ref ActivePlayer> ActivePlayers;  
 
+ref array<string> FixedMessages;
+float m_AdminCheckCooldown10 = 10.0;
+float m_AdminCheckTimer10 = 0.0;
+float m_AdminCheckCooldown60 = 60.0;
+float m_AdminCheckTimer60 = 0.0;
+
+// Deathmatch
+string regionStr;
+string customMessage;
+ref array<vector> spawnZones;	
+ref array<vector> wallZones;
+SafeZoneDataSpawns spawns;
+
 void InitializeVestGrenadeSlots()
 {
     DEFAULT_GRENADE_TYPES = new array<string>();
