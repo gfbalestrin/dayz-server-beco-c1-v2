@@ -210,11 +210,11 @@ void OnEventCustom(EventType eventTypeId, Param params)
             float yaw = prepareParams.param4;       // Rotação yaw
             int preloadTimeout = prepareParams.param5;  // Timeout de preload adicional
             
-            if (identity)
-            {
-                WriteToLog("  -> Jogador preparando: " + identity.GetName() + " | PlayerID: " + identity.GetId(), LogFile.INIT, false, LogType.DEBUG);
+            //if (identity)
+            //{
+                //WriteToLog("  -> Jogador preparando: " + identity.GetName() + " | PlayerID: " + identity.GetId(), LogFile.INIT, false, LogType.DEBUG);
                 //WriteToLog("  -> UseDB: " + useDB + " | Pos: " + position.ToString() + " | Yaw: " + yaw + " | Timeout: " + preloadTimeout, LogFile.INIT, false, LogType.DEBUG);
-            }
+            //}
         }
     }
     
@@ -230,10 +230,10 @@ void OnEventCustom(EventType eventTypeId, Param params)
         if (respawnParams)
         {
             identity = respawnParams.param1;
-            if (identity)
-            {
-                WriteToLog("  -> Jogador respawnou: " + identity.GetName(), LogFile.INIT, false, LogType.DEBUG);
-            }
+            //if (identity)
+            //{
+                //WriteToLog("  -> Jogador respawnou: " + identity.GetName(), LogFile.INIT, false, LogType.DEBUG);
+            //}
         }
     }
     
@@ -249,10 +249,10 @@ void OnEventCustom(EventType eventTypeId, Param params)
         if (reconnectParams)
         {
             identity = reconnectParams.param1;
-            if (identity)
-            {
-                WriteToLog("  -> Jogador reconectou: " + identity.GetName(), LogFile.INIT, false, LogType.DEBUG);
-            }
+            //if (identity)
+            //{
+                //WriteToLog("  -> Jogador reconectou: " + identity.GetName(), LogFile.INIT, false, LogType.DEBUG);
+            //}
         }
     }
     
@@ -264,11 +264,11 @@ void OnEventCustom(EventType eventTypeId, Param params)
     {
         WriteToLog("EVENT: LoginTimeEventTypeID - Tempo de login", LogFile.INIT, false, LogType.DEBUG);
         LoginTimeEventParams loginTimeParams = LoginTimeEventParams.Cast(params);
-        if (loginTimeParams)
-        {
+        //if (loginTimeParams)
+        //{
             // Params podem conter informações sobre o tempo de login
-            WriteToLog("  -> LoginTime params disponíveis", LogFile.INIT, false, LogType.DEBUG);
-        }
+            //WriteToLog("  -> LoginTime params disponíveis", LogFile.INIT, false, LogType.DEBUG);
+        //}
     }
     
     // ============================================================================
@@ -279,10 +279,10 @@ void OnEventCustom(EventType eventTypeId, Param params)
     {
         WriteToLog("EVENT: LoginStatusEventTypeID - Status de login alterado", LogFile.INIT, false, LogType.DEBUG);
         LoginStatusEventParams loginStatusParams = LoginStatusEventParams.Cast(params);
-        if (loginStatusParams)
-        {
-            WriteToLog("  -> LoginStatus params disponíveis", LogFile.INIT, false, LogType.DEBUG);
-        }
+        //if (loginStatusParams)
+        //{
+        //    WriteToLog("  -> LoginStatus params disponíveis", LogFile.INIT, false, LogType.DEBUG);
+        //}
     }
     
     // ============================================================================
@@ -298,10 +298,10 @@ void OnEventCustom(EventType eventTypeId, Param params)
         {
             player = logoutCancelParams.param1;
             playerBase = PlayerBase.Cast(player);
-            if (playerBase && playerBase.GetIdentity())
-            {
-                WriteToLog("  -> Logout cancelado para: " + playerBase.GetIdentity().GetName(), LogFile.INIT, false, LogType.DEBUG);
-            }
+            //if (playerBase && playerBase.GetIdentity())
+            //{
+            //    WriteToLog("  -> Logout cancelado para: " + playerBase.GetIdentity().GetName(), LogFile.INIT, false, LogType.DEBUG);
+            //}
         }
     }
     
@@ -313,10 +313,10 @@ void OnEventCustom(EventType eventTypeId, Param params)
     {
         WriteToLog("EVENT: RespawnEventTypeID - Processo de respawn", LogFile.INIT, false, LogType.DEBUG);
         RespawnEventParams respawnEventParams = RespawnEventParams.Cast(params);
-        if (respawnEventParams)
-        {
-            WriteToLog("  -> Respawn event params disponíveis", LogFile.INIT, false, LogType.DEBUG);
-        }
+        //if (respawnEventParams)
+        //{
+        //    WriteToLog("  -> Respawn event params disponíveis", LogFile.INIT, false, LogType.DEBUG);
+        //}
     }
     
     // ============================================================================
@@ -327,10 +327,10 @@ void OnEventCustom(EventType eventTypeId, Param params)
     {
         WriteToLog("EVENT: SetFreeCameraEventTypeID - Câmera livre ativada", LogFile.INIT, false, LogType.INFO);
         SetFreeCameraEventParams freeCamParams = SetFreeCameraEventParams.Cast(params);
-        if (freeCamParams)
-        {
-            WriteToLog("  -> Câmera livre params disponíveis", LogFile.INIT, false, LogType.DEBUG);
-        }
+        //if (freeCamParams)
+        //{
+        //    WriteToLog("  -> Câmera livre params disponíveis", LogFile.INIT, false, LogType.DEBUG);
+        //}
     }
     
     // ============================================================================
@@ -341,10 +341,10 @@ void OnEventCustom(EventType eventTypeId, Param params)
     {
         WriteToLog("EVENT: PreloadEventTypeID - Pré-carregamento de recursos", LogFile.INIT, false, LogType.DEBUG);
         PreloadEventParams preloadParams = PreloadEventParams.Cast(params);
-        if (preloadParams)
-        {
-            WriteToLog("  -> Preload params disponíveis", LogFile.INIT, false, LogType.DEBUG);
-        }
+        //if (preloadParams)
+        //{
+        //    WriteToLog("  -> Preload params disponíveis", LogFile.INIT, false, LogType.DEBUG);
+        //}
     }
     
     // ============================================================================
@@ -411,14 +411,14 @@ void OnEventCustom(EventType eventTypeId, Param params)
     // ============================================================================
     else if (eventTypeId == VONStateEventTypeID)
     {
-        WriteToLog("EVENT: VONStateEventTypeID - Estado VON alterado", LogFile.INIT, false, LogType.DEBUG);
-        VONStateEventParams vonStateParams = VONStateEventParams.Cast(params);
-        if (vonStateParams)
-        {
-            bool listening = vonStateParams.param1;
-            bool toggled = vonStateParams.param2;
-            WriteToLog("  -> Listening: " + listening + " | Toggled: " + toggled, LogFile.INIT, false, LogType.DEBUG);
-        }
+        //WriteToLog("EVENT: VONStateEventTypeID - Estado VON alterado", LogFile.INIT, false, LogType.DEBUG);
+        //VONStateEventParams vonStateParams = VONStateEventParams.Cast(params);
+        //if (vonStateParams)
+        //{
+            //bool listening = vonStateParams.param1;
+            //bool toggled = vonStateParams.param2;
+            //WriteToLog("  -> Listening: " + listening + " | Toggled: " + toggled, LogFile.INIT, false, LogType.DEBUG);
+        //}
     }
     
     // ============================================================================
@@ -427,12 +427,12 @@ void OnEventCustom(EventType eventTypeId, Param params)
     // ============================================================================
     else if (eventTypeId == VONStartSpeakingEventTypeID)
     {
-        WriteToLog("EVENT: VONStartSpeakingEventTypeID - Jogador começou a falar", LogFile.INIT, false, LogType.DEBUG);
-        VONStartSpeakingEventParams vonStartParams = VONStartSpeakingEventParams.Cast(params);
-        if (vonStartParams)
-        {
-            WriteToLog("  -> Jogador falando no VON", LogFile.INIT, false, LogType.DEBUG);
-        }
+        //WriteToLog("EVENT: VONStartSpeakingEventTypeID - Jogador começou a falar", LogFile.INIT, false, LogType.DEBUG);
+        //VONStartSpeakingEventParams vonStartParams = VONStartSpeakingEventParams.Cast(params);
+        //if (vonStartParams)
+        //{
+        //    WriteToLog("  -> Jogador falando no VON", LogFile.INIT, false, LogType.DEBUG);
+        //}
     }
     
     // ============================================================================
@@ -441,12 +441,12 @@ void OnEventCustom(EventType eventTypeId, Param params)
     // ============================================================================
     else if (eventTypeId == VONStopSpeakingEventTypeID)
     {
-        WriteToLog("EVENT: VONStopSpeakingEventTypeID - Jogador parou de falar", LogFile.INIT, false, LogType.DEBUG);
-        VONStopSpeakingEventParams vonStopParams = VONStopSpeakingEventParams.Cast(params);
-        if (vonStopParams)
-        {
-            WriteToLog("  -> Jogador parou de falar no VON", LogFile.INIT, false, LogType.DEBUG);
-        }
+        //WriteToLog("EVENT: VONStopSpeakingEventTypeID - Jogador parou de falar", LogFile.INIT, false, LogType.DEBUG);
+        //VONStopSpeakingEventParams vonStopParams = VONStopSpeakingEventParams.Cast(params);
+        //if (vonStopParams)
+        //{
+        //    WriteToLog("  -> Jogador parou de falar no VON", LogFile.INIT, false, LogType.DEBUG);
+        //}
     }
     // typedef Param2<DayZPlayer, Object> PlayerDeathEventParams
     // Player, "Killer" (Beware: Not necessarily actually the killer, Client doesn't have this info)
