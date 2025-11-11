@@ -53,6 +53,8 @@ ref array<string> DEFAULT_GRENADE_TYPES;
 ref array<string> ALLOWED_HOLSTERS;
 // Lista de pistolas permitidas para anexar em coldres
 ref array<string> ALLOWED_PISTOLS;
+// Lista de jogadores ativos/conectados
+ref array<ref ActivePlayer> ActivePlayers;  
 
 void InitializeVestGrenadeSlots()
 {

@@ -128,7 +128,7 @@ void SetClearWeatherNow()
 
 class CustomMission: MissionServer
 {
-	ref array<ref ActivePlayer> ActivePlayers;  // Lista de jogadores ativos/conectados
+	
 	ref array<string> FixedMessages;
 	float m_AdminCheckCooldown10 = 10.0;
 	float m_AdminCheckTimer10 = 0.0;
@@ -432,30 +432,7 @@ class CustomMission: MissionServer
 			}
 		}
 		return null;
-	}
-
-	// Retorna a quantidade de jogadores ativos (apenas jogadores válidos)
-	int GetActivePlayersCount()
-	{
-		// Verifica se ActivePlayers está inicializado
-		if (!ActivePlayers)
-		{
-			WriteToLog("GetActivePlayersCount(): AVISO - ActivePlayers está NULL! Inicializando...", LogFile.INIT, false, LogType.ERROR);
-			ActivePlayers = new array<ref ActivePlayer>();
-			return 0;
-		}
-		
-		int validCount = 0;
-		for (int i = 0; i < ActivePlayers.Count(); i++)
-		{
-			ActivePlayer player = ActivePlayers.Get(i);
-			if (player && player.HasIdentity())
-			{
-				validCount++;
-			}
-		}
-		return validCount;
-	}
+	}	
 	
 	// Lista todos os jogadores ativos no log e limpa automaticamente jogadores inválidos
 	void ListActivePlayers()
@@ -516,42 +493,7 @@ class CustomMission: MissionServer
 			CleanupInvalidActivePlayers();
 		}
 	}
-	
-	// Força desconexão de um jogador ghost
-	void ForceDisconnectGhost(ActivePlayer ghostPlayer)
-	{
-		if (!ghostPlayer || !ghostPlayer.HasIdentity()) 
-		{
-			WriteToLog("ForceDisconnectGhost(): GhostPlayer inválido", LogFile.INIT, false, LogType.DEBUG);
-			return;
-		}
 		
-		PlayerIdentity identity = ghostPlayer.GetIdentity();
-		string ghostName = ghostPlayer.GetPlayerName();
-		string ghostSteamId = ghostPlayer.GetSteamId();
-		string ghostPlayerId = ghostPlayer.GetPlayerId();
-		
-		WriteToLog("ForceDisconnectGhost(): Forçando desconexão de ghost: " + ghostName + " (SteamID: " + ghostSteamId + ", PlayerID: " + ghostPlayerId + ")", LogFile.INIT, false, LogType.INFO);
-		GetGame().DisconnectPlayer(identity, ghostPlayerId);
-	}
-	
-	// Verifica se um jogador está ativo no mundo (existe em GetPlayers())
-	bool IsPlayerActiveInWorld(string playerId)
-	{
-		array<Man> players = new array<Man>();
-		GetGame().GetPlayers(players);
-		
-		foreach (Man man : players)
-		{
-			PlayerBase player = PlayerBase.Cast(man);
-			if (player && player.GetIdentity() && player.GetIdentity().GetId() == playerId)
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-	
 	// Limpa jogadores inválidos do array ActivePlayers e força desconexão de ghosts
 	void CleanupInvalidActivePlayers()
 	{
