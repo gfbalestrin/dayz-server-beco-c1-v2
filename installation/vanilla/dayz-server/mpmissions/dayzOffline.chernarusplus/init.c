@@ -276,9 +276,9 @@ class CustomMission: MissionServer
 			} 
 			
 			CleanTrackedVehicles(); // Limpa veículos destruídos do array
-			SendVehiclesPositions();
-			CleanTrackedFences();
-			SendFencesStatus();		
+			SendVehiclesPositions(); // Envia posições de todos os veículos rastreados
+			CleanTrackedFences(); // Limpa cercas destruídas do array
+			SendFencesStatus(); // Envia status de todas as cercas rastreadas
 			
 			ListActivePlayers();
 			SendPlayersPositions();		
