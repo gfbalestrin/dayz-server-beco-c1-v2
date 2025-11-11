@@ -9,8 +9,15 @@ handle_players_positions() {
     players=$(echo "$line" | jq -c '.players[]')
 
     local player_data player_id coord_x coord_z coord_y health blood shock energy water is_alive is_admin stamina stamina_max items_in_hands items_count main_items
+    local current_players=()
     while IFS= read -r player_data; do
+        if [[ -z "$player_data" ]]; then
+            continue
+        fi
         player_id=$(echo "$player_data" | jq -r '.player_id')
+        if [[ -n "$player_id" ]]; then
+            current_players+=("$player_id")
+        fi
         coord_x=$(echo "$player_data" | jq -r '.x')
         coord_z=$(echo "$player_data" | jq -r '.z')
         coord_y=$(echo "$player_data" | jq -r '.y')
@@ -91,5 +98,44 @@ EOF
     local player_count
     player_count=$(echo "$players" | wc -l)
     INSERT_CUSTOM_LOG "Total de $player_count jogadores rastreados" "INFO" "$ScriptName"
+
+    local sync_timestamp
+    sync_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+    local sync_sql
+    sync_sql="BEGIN;
+CREATE TEMP TABLE IF NOT EXISTS SyncCurrent(PlayerID TEXT PRIMARY KEY);
+DELETE FROM SyncCurrent;
+"
+
+    local sanitized_id
+    local idx
+    for idx in "${!current_players[@]}"; do
+        sanitized_id=$(echo "${current_players[$idx]}" | sed "s/'/''/g")
+        sync_sql+="INSERT INTO SyncCurrent(PlayerID) VALUES ('$sanitized_id');
+INSERT INTO players_online (PlayerID, DataConnect) VALUES ('$sanitized_id', '$sync_timestamp')
+ON CONFLICT(PlayerID) DO UPDATE SET DataConnect='$sync_timestamp';
+"
+    done
+
+    if [[ ${#current_players[@]} -gt 0 ]]; then
+        sync_sql+="DELETE FROM players_online WHERE PlayerID NOT IN (SELECT PlayerID FROM SyncCurrent);
+"
+    else
+        sync_sql+="DELETE FROM players_online;
+"
+    fi
+
+    sync_sql+="DROP TABLE IF EXISTS SyncCurrent;
+COMMIT;
+"
+
+    local sync_output
+    sync_output=$(sqlite3 "$PLAYERS_BECO_C1_DB" "$sync_sql" 2>&1)
+
+    if [[ $? -ne 0 ]]; then
+        INSERT_CUSTOM_LOG "Erro ao sincronizar players_online: $sync_output" "ERROR" "$ScriptName"
+    else
+        INSERT_CUSTOM_LOG "Tabela players_online sincronizada com sucesso ($player_count jogadores)." "INFO" "$ScriptName"
+    fi
 }
 

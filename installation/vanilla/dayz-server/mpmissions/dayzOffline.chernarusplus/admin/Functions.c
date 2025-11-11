@@ -614,3 +614,703 @@ void CleanUpDeadEntitiesNearPlayers()
         WriteToLog("CleanUpDeadEntities(): Ignorou " + skippedNearAlive.ToString(), LogFile.INIT, false, LogType.DEBUG);
     }
 }
+
+// ============================================================================
+// FUNÇÕES HELPER PARA GERENCIAR JOGADORES ATIVOS
+// ============================================================================
+
+// Adiciona ou atualiza um jogador à lista de jogadores ativos
+void AddOrUpdateActivePlayer(PlayerIdentity identity, Man player = null)
+{
+    if (!identity)
+    {
+        WriteToLog("AddOrUpdateActivePlayer(): Identity nula!", LogFile.INIT, false, LogType.ERROR);
+        return;
+    }
+
+    // Verifica e inicializa ActivePlayers se necessário
+    if (!ActivePlayers)
+    {
+        WriteToLog("AddOrUpdateActivePlayer(): AVISO - ActivePlayers está NULL! Inicializando...", LogFile.INIT, false, LogType.ERROR);
+        ActivePlayers = new array<ref ActivePlayer>();
+    }
+
+    string steamId = identity.GetPlainId();
+    string playerName = identity.GetName();
+    string playerId = identity.GetId();
+
+    int existingIndex = FindActivePlayerIndexByIdentifiers(playerId, steamId);
+    if (existingIndex != -1)
+    {
+        ActivePlayer existingPlayerRecord = ActivePlayers.Get(existingIndex);
+        if (existingPlayerRecord)
+        {
+            Man storedMan = existingPlayerRecord.GetPlayer();
+
+            if (identity)
+                existingPlayerRecord.SetIdentity(identity);
+
+            if (player)
+            {
+                if (storedMan && (storedMan != player))
+                {
+                    PlayerBase storedPlayerBase = PlayerBase.Cast(storedMan);
+                    if (storedPlayerBase && !storedPlayerBase.IsAlive())
+                    {
+                        WriteToLog("AddOrUpdateActivePlayer(): Deletando corpo antigo ao atualizar jogador: " + playerName, LogFile.INIT, false, LogType.DEBUG);
+                        GetGame().ObjectDelete(storedPlayerBase);
+                    }
+                }
+
+                existingPlayerRecord.SetPlayer(player);
+            }
+            else
+            {
+                EnsureActivePlayerHasManRef(playerId);
+            }
+
+            PurgeDuplicateActivePlayers(existingIndex, playerId, steamId);
+            WriteToLog("AddOrUpdateActivePlayer(): Jogador já registrado, referências atualizadas: " + playerName + " (PlayerID: " + playerId + ", SteamID: " + steamId + ")", LogFile.INIT, false, LogType.DEBUG);
+        }
+        return;
+    }
+
+    if (IsDeathmatchEnabled)
+    {			
+        // Cria e adiciona o novo jogador
+        ActivePlayer newActivePlayerDM = new ActivePlayer(identity, player);
+        ActivePlayers.Insert(newActivePlayerDM);
+        WriteToLog("AddOrUpdateActivePlayer(): Jogador adicionado: " + playerName + " (PlayerID: " + playerId + ", SteamID: " + steamId + ")", LogFile.INIT, false, LogType.INFO);
+        return;
+    }
+    
+    // ============================================================================
+    // DETECÇÃO DE DUPLICAÇÃO NO MUNDO
+    // Verifica se já existe personagem físico com mesmo PlayerID
+    // ============================================================================
+    array<Man> allPlayers = new array<Man>();
+    GetGame().GetPlayers(allPlayers);
+    
+    int duplicateCount = 0;
+    Man firstFoundMan = null;
+    
+    foreach (Man m : allPlayers)
+    {
+        PlayerBase pb = PlayerBase.Cast(m);
+        if (pb && pb.GetIdentity() && pb.GetIdentity().GetId() == playerId)
+        {
+            duplicateCount++;
+            if (!firstFoundMan)
+                firstFoundMan = m;
+                
+            string detectMsg = "AddOrUpdateActivePlayer(): DETECTADO personagem no mundo #" + duplicateCount.ToString() + " com PlayerID: " + playerId + " | Nome: " + pb.GetIdentity().GetName() + " | Pos: " + pb.GetPosition().ToString();
+            WriteToLog(detectMsg, LogFile.INIT, false, LogType.INFO);
+        }
+    }
+    
+    if (duplicateCount > 1)
+    {
+        string alertMsg = "AddOrUpdateActivePlayer(): ALERTA! Múltiplos personagens detectados (" + duplicateCount.ToString() + ") para o mesmo PlayerID!";
+        WriteToLog(alertMsg, LogFile.INIT, false, LogType.ERROR);
+    }
+    
+    string playerParamStatus = "NULL";
+    if (player)
+        playerParamStatus = "VÁLIDO";
+    
+    string resumoMsg = "AddOrUpdateActivePlayer(): Resumo - Duplicados: " + duplicateCount.ToString() + " | player param: " + playerParamStatus;
+    //WriteToLog(resumoMsg, LogFile.INIT, false, LogType.DEBUG);
+    
+    if (duplicateCount == 1 && !player)
+    {
+        WriteToLog("AddOrUpdateActivePlayer(): ALERTA! Personagem já existe no mundo mas player param é NULL", LogFile.INIT, false, LogType.DEBUG);
+    }
+    else if (duplicateCount == 1 && player && firstFoundMan != player)
+    {
+        WriteToLog("AddOrUpdateActivePlayer(): DUPLICAÇÃO CRÍTICA! Personagem existente é DIFERENTE do novo!", LogFile.INIT, false, LogType.ERROR);
+    }
+    
+    // ============================================================================
+    // DEBUG: Verifica se player está presente
+    // ============================================================================
+    string playerStatus = "NULL";
+    if (player)
+        playerStatus = "PRESENTE";
+    
+    //WriteToLog("AddOrUpdateActivePlayer(): DEBUG - player=" + playerStatus + " | PlayerName: " + playerName, LogFile.INIT, false, LogType.DEBUG);
+    
+    // Se player é null, tenta buscar manualmente
+    if (!player)
+    {
+        player = FindPlayerManInWorld(playerId);
+        
+        string searchResult = "FALHOU";
+        if (player)
+            searchResult = "ENCONTRADO";
+        
+        WriteToLog("AddOrUpdateActivePlayer(): DEBUG - Player era null, buscado manualmente: " + searchResult, LogFile.INIT, false, LogType.DEBUG);
+    }
+    
+    // ============================================================================
+    // DETECÇÃO DE DUPLICAÇÃO FÍSICA: Verifica se já existe outro personagem no mundo
+    // ============================================================================
+    if (player)
+    {
+        Man existingManInWorld = FindPlayerManInWorld(playerId);
+        
+        string foundResult = "NULL";
+        if (existingManInWorld)
+            foundResult = "ENCONTRADO";
+        
+        //WriteToLog("AddOrUpdateActivePlayer(): DEBUG - FindPlayerManInWorld retornou: " + foundResult, LogFile.INIT, false, LogType.DEBUG);
+        
+        // Se já existe um personagem no mundo E é diferente do que está sendo adicionado = DUPLICAÇÃO!
+        if (existingManInWorld && existingManInWorld != player)
+        {
+            WriteToLog("AddOrUpdateActivePlayer(): DEBUG - Comparação: existingMan IS DIFFERENT from newPlayer", LogFile.INIT, false, LogType.DEBUG);
+            
+            PlayerBase ghostPB = PlayerBase.Cast(existingManInWorld);
+            if (ghostPB)
+            {
+                vector ghostPos = ghostPB.GetPosition();
+                string ghostSteamId = ghostPB.GetIdentity().GetPlainId();
+                
+                WriteToLog("AddOrUpdateActivePlayer(): DUPLICAÇÃO DETECTADA! Deletando personagem ghost: " + playerName + " | Pos: " + ghostPos.ToString() + " | SteamID: " + ghostSteamId, LogFile.INIT, false, LogType.INFO);
+                
+                // Força desconexão do ghost primeiro
+                GetGame().DisconnectPlayer(ghostPB.GetIdentity(), playerId);
+                
+                // Deletar fisicamente o ghost do mundo (garante remoção imediata)
+                GetGame().ObjectDelete(existingManInWorld);
+                
+                WriteToLog("AddOrUpdateActivePlayer(): Ghost deletado fisicamente do mundo com sucesso", LogFile.INIT, false, LogType.INFO);
+            }
+        }
+        //else if (existingManInWorld == player)
+        //{
+        //	WriteToLog("AddOrUpdateActivePlayer(): DEBUG - Comparação: existingMan IS THE SAME as newPlayer (normal)", LogFile.INIT, false, LogType.DEBUG);
+        //}
+    }
+
+    // Verifica se existe algum player na lista com o mesmo steamId OU playerId
+    ActivePlayer foundBySteamId = null;
+    ActivePlayer foundByPlayerId = null;
+    int foundBySteamIdIndex = -1;
+    int foundByPlayerIdIndex = -1;
+
+    for (int i = 0; i < ActivePlayers.Count(); i++)
+    {
+        ActivePlayer actPlayer = ActivePlayers.Get(i);
+        if (!actPlayer) continue;
+
+        if (actPlayer.IsSamePlayer(steamId)) {
+            foundBySteamId = actPlayer;
+            foundBySteamIdIndex = i;
+        }
+
+        if (actPlayer.IsSamePlayerById(playerId)) {
+            foundByPlayerId = actPlayer;
+            foundByPlayerIdIndex = i;
+        }
+
+        // Se já encontrou ambos, pode parar
+        if (foundBySteamId && foundByPlayerId) break;
+    }
+
+    // Se já existe o jogador por steamId OU por playerId, atualiza se necessário e retorna
+    if (foundBySteamId || foundByPlayerId)
+    {
+        ActivePlayer existingPlayer = foundBySteamId;
+        int existingPlayerIndex = foundBySteamIdIndex;
+        if (!existingPlayer) 
+        {
+            existingPlayer = foundByPlayerId;
+            existingPlayerIndex = foundByPlayerIdIndex;
+        }
+
+        if (existingPlayer && identity)
+        {
+            existingPlayer.SetIdentity(identity);
+        }
+
+        // Garante que playerId e steamId não são inconsistentes
+        if (foundBySteamId && foundByPlayerId && foundBySteamId != foundByPlayerId)
+        {
+            WriteToLog("AddOrUpdateActivePlayer(): Conflito - jogador com playerId e steamId duplicados diferentes! SteamID: " + steamId + ", PlayerID: " + playerId, LogFile.INIT, false, LogType.ERROR);
+            return;
+        }
+
+        // ============================================================================
+        // DETECÇÃO DE RECONEXÃO RÁPIDA (Ghost via ActivePlayers)
+        // Se existingPlayer tem Identity válida = sessão antiga ainda registrada
+        // ============================================================================
+        if (existingPlayer && existingPlayer.HasIdentity())
+        {
+            WriteToLog("AddOrUpdateActivePlayer(): RECONEXÃO RÁPIDA DETECTADA! Removendo sessão antiga...", LogFile.INIT, false, LogType.INFO);
+            
+            // Pega o objeto Man do ghost
+            Man ghostMan = existingPlayer.GetPlayer();
+            
+            // Força desconexão
+            PlayerIdentity ghostIdentity = existingPlayer.GetIdentity();
+            GetGame().DisconnectPlayer(ghostIdentity, playerId);
+            
+            // Deletar fisicamente se o objeto existe
+            if (ghostMan)
+            {
+                WriteToLog("AddOrUpdateActivePlayer(): Deletando objeto Man do ghost...", LogFile.INIT, false, LogType.INFO);
+                GetGame().ObjectDelete(ghostMan);
+            }
+            
+            // Remove de ActivePlayers
+            ActivePlayers.Remove(existingPlayerIndex);
+            WriteToLog("AddOrUpdateActivePlayer(): Sessão antiga removida com sucesso", LogFile.INIT, false, LogType.INFO);
+            
+            // Agora adiciona o novo normalmente (continua o fluxo abaixo)
+            ActivePlayer newReconnectedPlayer = new ActivePlayer(identity, player);
+            ActivePlayers.Insert(newReconnectedPlayer);
+            WriteToLog("AddOrUpdateActivePlayer(): Jogador readicionado após remoção de sessão antiga: " + playerName + " (PlayerID: " + playerId + ", SteamID: " + steamId + ")", LogFile.INIT, false, LogType.INFO);
+            return;
+        }
+
+        // ANTES DE ATUALIZAR: Verifica se o jogador existente é um GHOST (verificação legada)
+        bool existingPlayerIsGhost = false;
+        if (existingPlayer && existingPlayer.HasIdentity())
+        {
+            string existingPlayerId = existingPlayer.GetPlayerId();
+            
+            // Verifica se está em ActivePlayers mas não no mundo
+            if (!IsPlayerActiveInWorld(existingPlayerId))
+            {
+                existingPlayerIsGhost = true;
+                WriteToLog("AddOrUpdateActivePlayer(): Ghost detectado para SteamID " + steamId + " (PlayerID: " + existingPlayerId + "). Forçando desconexão...", LogFile.INIT, false, LogType.INFO);
+                
+                // Força desconexão do ghost
+                ForceDisconnectGhost(existingPlayer);
+                
+                // Remove o ghost da lista
+                ActivePlayers.Remove(existingPlayerIndex);
+                WriteToLog("AddOrUpdateActivePlayer(): Ghost removido da lista após desconexão", LogFile.INIT, false, LogType.INFO);
+            }
+        }
+        
+        // Se era um ghost, adiciona o novo jogador normalmente
+        if (existingPlayerIsGhost)
+        {
+            ActivePlayer newGhostPlayer = new ActivePlayer(identity, player);
+            ActivePlayers.Insert(newGhostPlayer);
+            WriteToLog("AddOrUpdateActivePlayer(): Jogador adicionado após remoção de ghost: " + playerName + " (PlayerID: " + playerId + ", SteamID: " + steamId + ")", LogFile.INIT, false, LogType.INFO);
+        }
+        else
+        {
+            // Atualiza o objeto Man se fornecido
+            if (player)
+            {
+                existingPlayer.SetPlayer(player);
+                WriteToLog("AddOrUpdateActivePlayer(): Player atualizado para " + playerName + " (" + playerId + ")", LogFile.INIT, false, LogType.DEBUG);
+            }
+            else
+            {
+                WriteToLog("AddOrUpdateActivePlayer(): Jogador já está na lista: " + playerName + " (" + playerId + ")", LogFile.INIT, false, LogType.DEBUG);
+            }
+        }
+        return;
+    }
+
+    // Cria e adiciona o novo jogador
+    ActivePlayer newActivePlayer = new ActivePlayer(identity, player);
+    ActivePlayers.Insert(newActivePlayer);
+    WriteToLog("AddOrUpdateActivePlayer(): Jogador adicionado: " + playerName + " (PlayerID: " + playerId + ", SteamID: " + steamId + ")", LogFile.INIT, false, LogType.INFO);
+    EnsureActivePlayerHasManRef(playerId, player);
+}
+
+// Função reutilizável para processar jogador quando estiver pronto
+void ProcessPlayerReady(PlayerIdentity identity, Man player)
+{
+    if (!identity)
+    {
+        WriteToLog("ProcessPlayerReady(): Identity nula!", LogFile.INIT, false, LogType.ERROR);
+        return;
+    }
+
+    if (player)
+    {
+        WriteToLog("  -> Man/Player PRESENTE no evento ClientReadyEventTypeID", LogFile.INIT, false, LogType.INFO);
+        PlayerBase pb = PlayerBase.Cast(player);
+        if (pb)
+        {
+            vector pos = pb.GetPosition();
+            WriteToLog("  -> Posição do Player: " + pos.ToString(), LogFile.INIT, false, LogType.INFO);
+
+            vector newPos = pos;
+            if (IsDeathmatchEnabled)
+                newPos[1] = newPos[1] + 0.1;  // Move 0.1 metro para cima (eixo Y)
+            else
+                newPos[1] = newPos[1] + 0.5;  // Move 0.5 metro para cima (eixo Y)
+            
+            pb.SetPosition(newPos);
+
+            WriteToLog("  -> Posição alterada para: " + newPos[0].ToString() + " " + newPos[1].ToString() + " " + newPos[2].ToString(), LogFile.INIT, false, LogType.INFO);
+                    
+        }
+    }
+    else
+    {
+        WriteToLog("  -> AVISO: Man/Player é NULL no ClientReadyEventTypeID!", LogFile.INIT, false, LogType.DEBUG);
+    }
+    
+    WriteToLog("  -> Jogador pronto: " + identity.GetName() + " | PlayerID: " + identity.GetId() + " | SteamID: " + identity.GetPlainId(), LogFile.INIT, false, LogType.INFO);
+    
+    // Verifica estado de ActivePlayers antes de adicionar
+    if (!ActivePlayers)
+    {
+        WriteToLog("  -> AVISO: ActivePlayers está NULL antes de AddOrUpdateActivePlayer! Inicializando...", LogFile.INIT, false, LogType.ERROR);
+        ActivePlayers = new array<ref ActivePlayer>();
+    }
+    else
+    {
+        WriteToLog("  -> ActivePlayers existe com " + ActivePlayers.Count() + " jogador(es) antes de adicionar", LogFile.INIT, false, LogType.DEBUG);
+    }
+                                
+    // Adiciona o jogador à lista
+    WriteToLog("  -> Chamando AddOrUpdateActivePlayer para PlayerID: " + identity.GetId(), LogFile.INIT, false, LogType.DEBUG);
+    AddOrUpdateActivePlayer(identity, player);
+    EnsureActivePlayerHasManRef(identity.GetId(), player);
+    
+    // Verifica estado de ActivePlayers após adicionar
+    if (!ActivePlayers)
+    {
+        WriteToLog("  -> ERRO CRÍTICO: ActivePlayers está NULL após AddOrUpdateActivePlayer!", LogFile.INIT, false, LogType.ERROR);
+        ActivePlayers = new array<ref ActivePlayer>();
+    }
+    else
+    {
+        WriteToLog("  -> ActivePlayers existe com " + ActivePlayers.Count() + " jogador(es) após adicionar", LogFile.INIT, false, LogType.DEBUG);
+    }
+    
+    // Limpa corpos órfãos/ghosts próximos após 2 segundos
+    if (player)
+    {
+        PlayerBase pbForCleanup = PlayerBase.Cast(player);
+        if (pbForCleanup)
+        {
+            GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(CleanOrphanedBodiesNearPlayer, 2000, false, pbForCleanup, 100.0);
+        }
+    }
+    
+    // Verifica se o jogador foi adicionado corretamente
+    WriteToLog("  -> Buscando jogador adicionado via GetActivePlayerById: " + identity.GetId(), LogFile.INIT, false, LogType.DEBUG);
+    ActivePlayer addedPlayer = GetActivePlayerById(identity.GetId());
+    if (addedPlayer)
+    {
+        WriteToLog("  -> Jogador encontrado na lista após adicionar", LogFile.INIT, false, LogType.DEBUG);
+        
+        // Verifica estados do jogador adicionado
+        bool hasIdentity = addedPlayer.HasIdentity();
+        bool hasPlayer = addedPlayer.HasPlayer();
+        WriteToLog("  -> Estado do jogador - HasIdentity: " + hasIdentity + " | HasPlayer: " + hasPlayer, LogFile.INIT, false, LogType.DEBUG);
+        
+        if (hasPlayer)
+        {
+            string playerNameToUpdate = identity.GetName();
+
+            // Sanitize o nome do jogador para uso seguro em JSON/Banco/Shell
+            // Remove caracteres potencialmente perigosos: | ; ` $ " ' \ < > & (pipe, ponto e vírgula, aspas, etc)
+            TStringArray unsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
+            foreach (string ch : unsafeChars) {
+                playerNameToUpdate.Replace(ch, "-");
+            }
+
+            // Limita o tamanho do nome e remove caracteres de controle \n \r \t
+            playerNameToUpdate.Replace("\n", "");
+            playerNameToUpdate.Replace("\r", "");
+            playerNameToUpdate.Replace("\t", "");
+            if (playerNameToUpdate.Length() > 32)
+                playerNameToUpdate = playerNameToUpdate.Substring(0, 32);
+
+            WriteToLog("  -> Enviando ações externas: update_player e player_connected", LogFile.INIT, false, LogType.DEBUG);
+            AppendExternalAction("{\"action\":\"update_player\",\"player_id\":\"" + identity.GetId() + "\",\"player_name\":\"" + playerNameToUpdate + "\",\"steam_id\":\"" + identity.GetPlainId() + "\"}");
+            AppendExternalAction("{\"action\":\"player_connected\",\"player_id\":\"" + identity.GetId() + "\"}");
+        }
+        else
+        {
+            WriteToLog("  -> DEPOIS AddOrUpdate: Man NÃO foi armazenado (é null)!", LogFile.INIT, false, LogType.ERROR);
+        }
+    }
+    else
+    {
+        WriteToLog("  -> ERRO: Jogador NÃO foi encontrado na lista após AddOrUpdateActivePlayer! PlayerID: " + identity.GetId(), LogFile.INIT, false, LogType.ERROR);
+        if (ActivePlayers)
+        {
+            WriteToLog("  -> ActivePlayers tem " + ActivePlayers.Count() + " elemento(s) mas jogador não foi encontrado", LogFile.INIT, false, LogType.ERROR);
+        }
+        else
+        {
+            WriteToLog("  -> ActivePlayers está NULL após buscar jogador!", LogFile.INIT, false, LogType.ERROR);
+        }
+    }
+    
+    // Verifica estado antes de chamar GetActivePlayersCount
+    if (!ActivePlayers)
+    {
+        WriteToLog("  -> AVISO: ActivePlayers está NULL antes de GetActivePlayersCount! Inicializando...", LogFile.INIT, false, LogType.ERROR);
+        ActivePlayers = new array<ref ActivePlayer>();
+    }
+    
+    int totalCount = GetActivePlayersCount();
+    WriteToLog("Total de jogadores conectados: " + totalCount, LogFile.INIT, false, LogType.INFO);
+    if (ActivePlayers)
+    {
+        WriteToLog("  -> ActivePlayers.Count() = " + ActivePlayers.Count() + " | GetActivePlayersCount() = " + totalCount, LogFile.INIT, false, LogType.DEBUG);
+    }
+}
+
+int FindActivePlayerIndexByIdentifiers(string targetPlayerId, string targetSteamId)
+{
+    if (!ActivePlayers)
+        return -1;
+
+    for (int searchIdx = 0; searchIdx < ActivePlayers.Count(); searchIdx++)
+    {
+        ActivePlayer storedPlayer = ActivePlayers.Get(searchIdx);
+        if (!storedPlayer)
+            continue;
+
+        if ((targetPlayerId != "") && (storedPlayer.GetPlayerId() == targetPlayerId))
+            return searchIdx;
+
+        if ((targetSteamId != "") && (storedPlayer.GetSteamId() == targetSteamId))
+            return searchIdx;
+
+        if ((targetPlayerId != "") && storedPlayer.IsSamePlayerById(targetPlayerId))
+            return searchIdx;
+
+        if ((targetSteamId != "") && storedPlayer.IsSamePlayer(targetSteamId))
+            return searchIdx;
+    }
+
+    return -1;
+}
+
+void PurgeDuplicateActivePlayers(int keepIndex, string targetPlayerId, string targetSteamId)
+{
+    if (!ActivePlayers)
+        return;
+
+    for (int purgeIdx = ActivePlayers.Count() - 1; purgeIdx >= 0; purgeIdx--)
+    {
+        if (purgeIdx == keepIndex)
+            continue;
+
+        ActivePlayer candidatePlayer = ActivePlayers.Get(purgeIdx);
+        if (!candidatePlayer)
+        {
+            ActivePlayers.Remove(purgeIdx);
+            continue;
+        }
+
+        bool isSamePlayer = false;
+        if ((targetPlayerId != "") && (candidatePlayer.GetPlayerId() == targetPlayerId))
+            isSamePlayer = true;
+        else if ((targetSteamId != "") && (candidatePlayer.GetSteamId() == targetSteamId))
+            isSamePlayer = true;
+        else if ((targetPlayerId != "") && candidatePlayer.IsSamePlayerById(targetPlayerId))
+            isSamePlayer = true;
+        else if ((targetSteamId != "") && candidatePlayer.IsSamePlayer(targetSteamId))
+            isSamePlayer = true;
+
+        if (isSamePlayer)
+        {
+            string duplicateName = candidatePlayer.GetPlayerName();
+            if (duplicateName == "")
+                duplicateName = candidatePlayer.GetPlayerId();
+
+            WriteToLog("PurgeDuplicateActivePlayers(): Removendo duplicata de jogador: " + duplicateName, LogFile.INIT, false, LogType.DEBUG);
+            ActivePlayers.Remove(purgeIdx);
+        }
+    }
+}
+
+// Busca um personagem no mundo pelo PlayerID e retorna o objeto Man
+Man FindPlayerManInWorld(string playerId)
+{
+    array<Man> players = new array<Man>();
+    GetGame().GetPlayers(players);
+    
+    foreach (Man man : players)
+    {
+        PlayerBase pb = PlayerBase.Cast(man);
+        if (pb && pb.GetIdentity() && pb.GetIdentity().GetId() == playerId)
+        {
+            return man;
+        }
+    }
+    return null;
+}
+
+void EnsureActivePlayerHasManRef(string targetPlayerId, Man preferredMan = null)
+{
+    if (!ActivePlayers)
+        return;
+
+    if (targetPlayerId == "")
+        return;
+
+    int ensureIdx = FindActivePlayerIndexByIdentifiers(targetPlayerId, "");
+    if (ensureIdx == -1)
+        return;
+
+    ActivePlayer ensurePlayer = ActivePlayers.Get(ensureIdx);
+    if (!ensurePlayer)
+        return;
+
+    if (preferredMan)
+    {
+        ensurePlayer.SetPlayer(preferredMan);
+        return;
+    }
+
+    if (ensurePlayer.HasPlayer())
+        return;
+
+    Man recoveredMan = FindPlayerManInWorld(targetPlayerId);
+    if (recoveredMan)
+    {
+        ensurePlayer.SetPlayer(recoveredMan);
+        WriteToLog("EnsureActivePlayerHasManRef(): Referência ao Man restaurada para PlayerID " + targetPlayerId, LogFile.INIT, false, LogType.DEBUG);
+    }
+}
+
+// Função helper para obter o objeto Man através do PlayerIdentity
+Man GetManFromIdentity(PlayerIdentity identity)
+{
+    if (!identity)
+    {
+        WriteToLog("GetManFromIdentity(): Identity nula!", LogFile.INIT, false, LogType.ERROR);
+        return null;
+    }
+
+    // Usa a função GetPlayerById que já existe em Functions.c
+    PlayerBase player = GetPlayerById(identity.GetId());
+    if (player)
+    {
+        WriteToLog("GetManFromIdentity(): Man encontrado para " + identity.GetName(), LogFile.INIT, false, LogType.DEBUG);
+        return player;
+    }
+    else
+    {
+        WriteToLog("GetManFromIdentity(): Man NÃO encontrado para " + identity.GetName(), LogFile.INIT, false, LogType.DEBUG);
+        return null;
+    }
+}
+
+// Limpa corpos órfãos/ghosts próximos ao jogador (clone bodies sem Identity)
+void CleanOrphanedBodiesNearPlayer(PlayerBase player, float radius)
+{
+    if (!player) return;
+    
+    vector playerPos = player.GetPosition();
+    
+    array<Object> nearbyObjects = new array<Object>();
+    array<CargoBase> proxyCargos = new array<CargoBase>();
+    
+    GetGame().GetObjectsAtPosition(playerPos, radius, nearbyObjects, proxyCargos);
+    
+    int deletedCount = 0;
+    
+    foreach (Object obj : nearbyObjects)
+    {
+        PlayerBase pb = PlayerBase.Cast(obj);
+        if (!pb) continue;
+        
+        if (pb == player) continue;
+        
+        if (!pb.GetIdentity())
+        {
+            vector orphanPos = pb.GetPosition();
+            WriteToLog("CleanOrphanedBodiesNearPlayer(): Corpo órfão detectado (sem Identity) | Pos: " + orphanPos.ToString(), LogFile.INIT, false, LogType.INFO);
+            GetGame().ObjectDelete(pb);
+            deletedCount++;
+            continue;
+        }
+        
+        string pbId = pb.GetIdentity().GetId();
+        bool foundInGetPlayers = false;
+        
+        array<Man> allPlayers = new array<Man>();
+        GetGame().GetPlayers(allPlayers);
+        
+        foreach (Man m : allPlayers)
+        {
+            PlayerBase activePB = PlayerBase.Cast(m);
+            if (activePB && activePB.GetIdentity() && activePB.GetIdentity().GetId() == pbId)
+            {
+                foundInGetPlayers = true;
+                break;
+            }
+        }
+        
+        if (!foundInGetPlayers)
+        {
+            WriteToLog("CleanOrphanedBodiesNearPlayer(): Ghost body detectado (tem Identity mas não em GetPlayers) | ID: " + pbId, LogFile.INIT, false, LogType.INFO);
+            GetGame().ObjectDelete(pb);
+            deletedCount++;
+        }
+    }
+    
+    if (deletedCount > 0)
+    {
+        string summaryMsg = "CleanOrphanedBodiesNearPlayer(): " + deletedCount.ToString() + " corpos órfãos deletados";
+        WriteToLog(summaryMsg, LogFile.INIT, false, LogType.INFO);
+    }
+}
+
+// Busca um jogador ativo pelo Player ID
+ActivePlayer GetActivePlayerById(string playerId)
+{
+    if (!ActivePlayers)
+    {
+        return null;
+    }
+    
+    for (int i = 0; i < ActivePlayers.Count(); i++)
+    {
+        ActivePlayer player = ActivePlayers.Get(i);
+        if (player && player.IsSamePlayerById(playerId))
+        {
+            return player;
+        }
+    }
+    return null;
+}
+
+// Remove um jogador da lista pelo Player ID
+void RemoveActivePlayerById(string playerId)
+{
+    if (!ActivePlayers)
+    {
+        WriteToLog("RemoveActivePlayerById(): AVISO - ActivePlayers está NULL!", LogFile.INIT, false, LogType.DEBUG);
+        return;
+    }
+    
+    bool removedById = false;
+    for (int j = ActivePlayers.Count() - 1; j >= 0; j--)
+    {
+        ActivePlayer player = ActivePlayers.Get(j);
+        if (!player)
+            continue;
+        if (!player.IsSamePlayerById(playerId))
+            continue;
+        string nameLogId = player.GetPlayerName();
+        if (nameLogId == "")
+            nameLogId = player.GetPlayerId();
+        WriteToLog("RemoveActivePlayerById(): Jogador removido: " + nameLogId + " (PlayerID: " + player.GetPlayerId() + ")", LogFile.INIT, false, LogType.INFO);
+        ActivePlayers.Remove(j);
+        removedById = true;
+    }
+    if (!removedById)
+    {
+        WriteToLog("RemoveActivePlayerById(): Jogador não encontrado na lista: " + playerId, LogFile.INIT, false, LogType.DEBUG);
+    }
+}
+
