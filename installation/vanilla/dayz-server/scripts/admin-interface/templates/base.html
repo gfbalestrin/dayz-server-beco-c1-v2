@@ -61,6 +61,16 @@
                                     <i class="fas fa-user-shield me-1"></i>Logs Auditoria
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item {% if request.endpoint == 'logs_init' %}active{% endif %}" href="{{ url_for('logs_init') }}">
+                                    <i class="fas fa-terminal me-1"></i>Logs init.log
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.endpoint == 'logs_dayz_err' %}active{% endif %}" href="{{ url_for('logs_dayz_err') }}">
+                                    <i class="fas fa-bug me-1"></i>Logs Dayz-server.err
+                                </a>
+                            </li>
                         </ul>
                     </li>
                     {% endif %}

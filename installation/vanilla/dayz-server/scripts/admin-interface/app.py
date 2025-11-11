@@ -1,11 +1,12 @@
 """
 Aplicação Flask para interface administrativa DayZ
 """
-from flask import Flask, render_template, request, session, redirect, url_for, jsonify
+from flask import Flask, render_template, request, session, redirect, url_for, jsonify, Response, stream_with_context
 from functools import wraps
 import config
 import json
 import os
+import time
 import re
 from packing_algorithm import can_fit_items_in_container, pack_items_ffdh
 from database import (
@@ -79,6 +80,82 @@ except ImportError:
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
+
+
+def stream_log_file(log_path: str):
+    """Gera eventos SSE com o conteúdo de um arquivo de log, simulando tail -F."""
+    def iterator():
+        log_descriptor = None
+        current_position = 0
+        last_heartbeat = time.time()
+        heartbeat_interval = 10.0
+        try:
+            while True:
+                if log_descriptor is None:
+                    try:
+                        log_descriptor = open(log_path, 'r', encoding='utf-8', errors='replace')
+                        log_descriptor.seek(0, os.SEEK_END)
+                        file_size = log_descriptor.tell()
+                        if file_size > 0:
+                            window_size = 16384
+                            start_position = file_size - window_size
+                            if start_position < 0:
+                                start_position = 0
+                            log_descriptor.seek(start_position, os.SEEK_SET)
+                            if start_position > 0:
+                                log_descriptor.readline()
+                            for recent_line in log_descriptor.readlines():
+                                sanitized_recent = recent_line.rstrip('\r\n')
+                                yield f"data: {sanitized_recent}\n\n"
+                            current_position = log_descriptor.tell()
+                        else:
+                            current_position = 0
+                            yield "data: __heartbeat__\n\n"
+                        last_heartbeat = time.time()
+                    except FileNotFoundError:
+                        yield "data: __heartbeat__\n\n"
+                        last_heartbeat = time.time()
+                        time.sleep(1.0)
+                        continue
+                    except Exception as open_error:
+                        app.logger.error(f'Falha ao abrir log {log_path}: {open_error}')
+                        yield "data: __heartbeat__\n\n"
+                        last_heartbeat = time.time()
+                        time.sleep(1.0)
+                        continue
+                line_text = log_descriptor.readline()
+                if line_text:
+                    current_position = log_descriptor.tell()
+                    sanitized_line = line_text.rstrip('\r\n')
+                    yield f"data: {sanitized_line}\n\n"
+                    last_heartbeat = time.time()
+                    continue
+                time.sleep(0.5)
+                try:
+                    file_size = os.path.getsize(log_path)
+                except FileNotFoundError:
+                    log_descriptor.close()
+                    log_descriptor = None
+                    current_position = 0
+                    continue
+                except Exception as stat_error:
+                    app.logger.error(f'Falha ao verificar log {log_path}: {stat_error}')
+                    continue
+                if file_size < current_position:
+                    log_descriptor.close()
+                    log_descriptor = None
+                    current_position = 0
+                    yield "data: __heartbeat__\n\n"
+                    last_heartbeat = time.time()
+                    continue
+                now = time.time()
+                if now - last_heartbeat >= heartbeat_interval:
+                    yield "data: __heartbeat__\n\n"
+                    last_heartbeat = now
+        finally:
+            if log_descriptor:
+                log_descriptor.close()
+    return iterator()
 
 # ============================================================================
 # DECORATORS DE AUTENTICAÇÃO
@@ -339,6 +416,53 @@ def logs_custom():
     """Logs customizados"""
     logs = get_logs_custom()
     return render_template('logs_custom.html', logs=logs)
+
+
+@app.route('/logs/init')
+@admin_required
+def logs_init():
+    """Logs init.log em tempo real"""
+    return render_template(
+        'logs_init.html',
+        log_title='Logs init.log',
+        log_stream=url_for('logs_init_stream'),
+        log_path=config.INIT_LOG_PATH
+    )
+
+
+@app.route('/logs/init/stream')
+@admin_required
+def logs_init_stream():
+    """Stream SSE do init.log"""
+    generator = stream_log_file(config.INIT_LOG_PATH)
+    response = Response(stream_with_context(generator), mimetype='text/event-stream')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['X-Accel-Buffering'] = 'no'
+    return response
+
+
+@app.route('/logs/dayz-server-err')
+@admin_required
+def logs_dayz_err():
+    """Logs dayz-server.err em tempo real"""
+    return render_template(
+        'logs_dayz_err.html',
+        log_title='Logs Dayz-server.err',
+        log_stream=url_for('logs_dayz_err_stream'),
+        log_path=config.DAYZ_SERVER_ERR_PATH
+    )
+
+
+@app.route('/logs/dayz-server-err/stream')
+@admin_required
+def logs_dayz_err_stream():
+    """Stream SSE do dayz-server.err"""
+    generator = stream_log_file(config.DAYZ_SERVER_ERR_PATH)
+    response = Response(stream_with_context(generator), mimetype='text/event-stream')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['X-Accel-Buffering'] = 'no'
+    return response
+
 
 @app.route('/logs/audit')
 @admin_required

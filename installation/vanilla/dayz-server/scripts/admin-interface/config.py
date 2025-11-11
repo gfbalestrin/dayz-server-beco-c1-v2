@@ -54,3 +54,7 @@ LOADOUTS_BASE_PATH = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline
 LOADOUTS_CUSTOM_FILE = os.path.join(LOADOUTS_BASE_PATH, 'custom.json')
 LOADOUTS_PLAYERS_DIR = os.path.join(LOADOUTS_BASE_PATH, 'players')
 LOADOUTS_PLAYERS_IDS_FILE = os.path.join(LOADOUTS_BASE_PATH, 'players_ids.json')
+
+# Caminhos de logs do servidor
+INIT_LOG_PATH = '/home/dayzadmin/servers/dayz-server/profiles/init.log'
+DAYZ_SERVER_ERR_PATH = '/home/dayzadmin/servers/dayz-server/profiles/dayz-server.err'
