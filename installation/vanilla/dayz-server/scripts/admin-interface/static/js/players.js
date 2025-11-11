@@ -328,20 +328,26 @@ function confirmRedirectToSpawning(playerId, playerName) {
 
 // Função para renderizar ações
 function renderActions(player) {
-    if (!player.IsOnline || player.IsOnline === 0) {
-        return '<span class="text-muted">-</span>';
-    }
-    
     const playerName = escapeJsString(player.PlayerName || 'Jogador');
-    
-    // Verificar se o jogador já é administrador
     const isAdmin = adminIds.has(player.PlayerID);
     const addAdminButton = isAdmin ? '' : `
         <button class="btn btn-outline-primary" onclick="confirmAddAdminFromPlayer('${player.PlayerID}', '${playerName}')" title="Adicionar como Administrador">
             <i class="fas fa-user-shield"></i>
         </button>
     `;
-    
+    const isOnline = player.IsOnline && player.IsOnline !== 0;
+
+    if (!isOnline) {
+        if (addAdminButton) {
+            return `
+                <div class="btn-group btn-group-sm" role="group">
+                    ${addAdminButton}
+                </div>
+            `;
+        }
+        return '<span class="text-muted">-</span>';
+    }
+
     return `
         <div class="btn-group btn-group-sm" role="group">
             <button class="btn btn-success" onclick="confirmExecuteAction('${player.PlayerID}', 'heal', '${playerName}')" title="Curar">
