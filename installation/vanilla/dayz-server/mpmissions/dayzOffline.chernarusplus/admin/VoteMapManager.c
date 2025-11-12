@@ -155,30 +155,6 @@ class VoteMapManager
 		return winner;
 	}
 
-	private string FormatMapListForBroadcast()
-	{
-		ref array<ref SafeZoneData> votableMaps = GetVotableMaps();
-		
-		if (votableMaps.Count() == 0)
-			return "";
-
-		string mapList = "";
-		int count = 0;
-		
-		foreach (ref SafeZoneData mapData : votableMaps)
-		{
-			if (!mapData) continue;
-			
-			if (count > 0)
-				mapList += ", ";
-			
-			mapList += mapData.RegionId.ToString() + " - " + mapData.Region;
-			count++;
-		}
-		
-		return mapList;
-	}
-
 	// --- Fluxo principal ---
 	void IniciaVotacaoProximoMapa()
 	{
@@ -196,10 +172,19 @@ class VoteMapManager
 		WriteToLog("Votação iniciada! Os jogadores têm " + tempo + " para votar.", LogFile.INIT, false, LogType.INFO);
 		AppendExternalAction("{\"action\":\"send_log_discord\",\"message\":\"Votação de mapa iniciada para a troca de mapa\"}");
 
-		string mapList = FormatMapListForBroadcast();
-		if (mapList != "")
+		ref array<ref SafeZoneData> votableMaps = GetVotableMaps();
+		
+		if (votableMaps.Count() > 0)
 		{
-			BroadcastMessage("Mapas disponíveis: " + mapList + " | Digite: !votemap <ID>", MessageColor.FRIENDLY);
+			BroadcastMessage("Mapas disponíveis para votação:", MessageColor.FRIENDLY);
+			
+			foreach (ref SafeZoneData mapData : votableMaps)
+			{
+				if (!mapData) continue;
+				
+				string linha = mapData.RegionId.ToString() + " - " + mapData.Region + " | Digite: !votemap " + mapData.RegionId.ToString();
+				BroadcastMessage(linha, MessageColor.FRIENDLY);
+			}
 		}
 		else
 		{
