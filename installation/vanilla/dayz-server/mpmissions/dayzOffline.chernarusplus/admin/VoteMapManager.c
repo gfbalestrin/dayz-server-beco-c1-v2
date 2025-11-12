@@ -25,6 +25,160 @@ class VoteMapManager
 	void SetChangeMapNow(bool value) { m_ChangeMapNow = value; }
 	bool GetStatusVotingMap()        { return m_IsVotingMapActive; }
 
+	// --- Métodos de validação ---
+	private bool IsValidMapForVoting(int regionId)
+	{
+		if (!maps) return false;
+
+		foreach (ref SafeZoneData map : maps)
+		{
+			if (map && map.RegionId == regionId && !map.IsDeleted)
+				return true;
+		}
+		return false;
+	}
+
+	private ref array<ref SafeZoneData> GetVotableMaps()
+	{
+		ref array<ref SafeZoneData> votableMaps = new array<ref SafeZoneData>();
+		
+		if (!maps) return votableMaps;
+
+		foreach (ref SafeZoneData map : maps)
+		{
+			if (map && !map.IsDeleted)
+				votableMaps.Insert(map);
+		}
+		return votableMaps;
+	}
+
+	private bool ValidatePlayerOnline(string playerID)
+	{
+		array<Man> players = new array<Man>();
+		GetGame().GetPlayers(players);
+
+		foreach (Man man : players)
+		{
+			PlayerBase player = PlayerBase.Cast(man);
+			if (player && player.GetIdentity() && player.GetIdentity().GetId() == playerID)
+				return true;
+		}
+		return false;
+	}
+
+	private void CleanDisconnectedPlayersVotes()
+	{
+		if (!m_PlayerVotesMap) return;
+
+		array<Man> playersOnline = new array<Man>();
+		GetGame().GetPlayers(playersOnline);
+
+		ref array<string> onlinePlayerIds = new array<string>();
+		
+		foreach (Man man : playersOnline)
+		{
+			string id = GetPlayerId(man);
+			if (id != "")
+				onlinePlayerIds.Insert(id);
+		}
+
+		ref array<string> disconnectedPlayers = new array<string>();
+		
+		foreach (string playerID, int regionId : m_PlayerVotesMap)
+		{
+			bool found = false;
+			foreach (string onlineId : onlinePlayerIds)
+			{
+				if (onlineId == playerID)
+				{
+					found = true;
+					break;
+				}
+			}
+			
+			if (!found)
+				disconnectedPlayers.Insert(playerID);
+		}
+
+		foreach (string disconnectedId : disconnectedPlayers)
+		{
+			if (m_PlayerVotesMap.Contains(disconnectedId))
+			{
+				int votedRegionId = m_PlayerVotesMap.Get(disconnectedId);
+				
+				if (m_VoteCountsMap.Contains(votedRegionId))
+				{
+					int currentCount = m_VoteCountsMap.Get(votedRegionId);
+					if (currentCount > 1)
+					{
+						m_VoteCountsMap.Set(votedRegionId, currentCount - 1);
+					}
+					else
+					{
+						m_VoteCountsMap.Remove(votedRegionId);
+					}
+				}
+				
+				m_PlayerVotesMap.Remove(disconnectedId);
+			}
+		}
+	}
+
+	private int CalculateVotingResults()
+	{
+		if (!m_VoteCountsMap || m_VoteCountsMap.Count() == 0)
+			return -1;
+
+		int highest = -1;
+		int winner = -1;
+		int winnersCount = 0;
+
+		foreach (int regionId, int count : m_VoteCountsMap)
+		{
+			if (count > highest)
+			{
+				highest = count;
+				winner = regionId;
+				winnersCount = 1;
+			}
+			else if (count == highest)
+			{
+				winnersCount++;
+			}
+		}
+
+		if (winnersCount > 1)
+		{
+			return -1;
+		}
+
+		return winner;
+	}
+
+	private string FormatMapListForBroadcast()
+	{
+		ref array<ref SafeZoneData> votableMaps = GetVotableMaps();
+		
+		if (votableMaps.Count() == 0)
+			return "";
+
+		string mapList = "";
+		int count = 0;
+		
+		foreach (ref SafeZoneData map : votableMaps)
+		{
+			if (!map) continue;
+			
+			if (count > 0)
+				mapList += ", ";
+			
+			mapList += map.RegionId.ToString() + " - " + map.Region;
+			count++;
+		}
+		
+		return mapList;
+	}
+
 	// --- Fluxo principal ---
 	void IniciaVotacaoProximoMapa()
 	{
@@ -42,11 +196,14 @@ class VoteMapManager
 		WriteToLog("Votação iniciada! Os jogadores têm " + tempo + " para votar.", LogFile.INIT, false, LogType.INFO);
 		AppendExternalAction("{\"action\":\"send_log_discord\",\"message\":\"Votação de mapa iniciada para a troca de mapa\"}");
 
-		// 'maps' deve ser array/ref já existente no seu escopo
-		foreach (ref SafeZoneData mapV : maps)
+		string mapList = FormatMapListForBroadcast();
+		if (mapList != "")
 		{
-			if (!mapV) continue;
-			BroadcastMessage(mapV.RegionId.ToString() + " - " + mapV.Region + " - digite no chat: !votemap " + mapV.RegionId.ToString(), MessageColor.FRIENDLY);
+			BroadcastMessage("Mapas disponíveis: " + mapList + " | Digite: !votemap <ID>", MessageColor.FRIENDLY);
+		}
+		else
+		{
+			BroadcastMessage("Nenhum mapa disponível para votação.", MessageColor.WARNING);
 		}
 	}
 
@@ -57,6 +214,20 @@ class VoteMapManager
 			SendPrivateMessage(playerID, "A votação ainda não foi iniciada.", MessageColor.WARNING);
 			return;
 		}
+
+		if (!ValidatePlayerOnline(playerID))
+		{
+			SendPrivateMessage(playerID, "Erro: Você não está online.", MessageColor.WARNING);
+			return;
+		}
+
+		if (!IsValidMapForVoting(regionId))
+		{
+			SendPrivateMessage(playerID, "ID do mapa inválido ou mapa deletado.", MessageColor.WARNING);
+			return;
+		}
+
+		CleanDisconnectedPlayersVotes();
 
 		if (m_PlayerVotesMap.Contains(playerID))
 		{
@@ -119,81 +290,52 @@ class VoteMapManager
 	{
 		m_IsVotingMapActive = false;
 
-		int highest = -1;
-		int winner  = -1;
+		CleanDisconnectedPlayersVotes();
 
-		// Iteração sobre map<int,int>
-		foreach (int regionId, int count : m_VoteCountsMap)
+		int winner = CalculateVotingResults();
+
+		if (winner == -1)
 		{
-			if (count > highest)
+			if (m_VoteCountsMap && m_VoteCountsMap.Count() == 0)
 			{
-				highest = count;
-				winner  = regionId;
+				BroadcastMessage("Nenhum voto recebido. O próximo mapa será " + nextMap.Region, MessageColor.FRIENDLY);
+				AppendExternalAction("{\"action\":\"send_log_discord\",\"message\":\"Nenhum voto recebido. O próximo mapa será: " + nextMap.Region + "\"}");
+			}
+			else
+			{
+				BroadcastMessage("Votação empatada. Mantendo próximo mapa: " + nextMap.Region, MessageColor.WARNING);
+				AppendExternalAction("{\"action\":\"send_log_discord\",\"message\":\"Votação de mapa empatada. Mantendo próximo mapa: " + nextMap.Region + "\"}");
 			}
 		}
-
-		if (winner != -1)
+		else
 		{
 			string mapName = "";
+			
 			foreach (ref SafeZoneData mapW : maps)
 			{
 				if (mapW && mapW.RegionId == winner)
 				{
 					mapName = mapW.Region;
-					nextMap = mapW; // assume variável global existente
 					break;
 				}
 			}
 
+			if (mapName == "")
+				mapName = "ID " + winner.ToString();
+
+			int voteCount = 0;
+			if (m_VoteCountsMap.Contains(winner))
+				voteCount = m_VoteCountsMap.Get(winner);
+
+			BroadcastMessage("Mapa vencedor: " + winner.ToString() + " - " + mapName + " com " + voteCount.ToString() + " voto(s).", MessageColor.FRIENDLY);
+			AppendExternalAction("{\"action\":\"send_log_discord\",\"message\":\"Votação de mapa finalizada! O próximo mapa será: " + mapName + " com " + voteCount.ToString() + " voto(s).\"}");
+
+			SetNextActiveRegionById(winner);
+
 			if (m_ChangeMapNow)
 			{
-				array<Man> playersOnline = new array<Man>();
-				GetGame().GetPlayers(playersOnline);
-
-				int totalOnline       = 0;
-				int votosNoVencedor   = 0;
-
-				foreach (Man man : playersOnline)
-				{
-					string id = GetPlayerId(man);
-					if (id == "") continue;
-
-					totalOnline++;
-
-					if (m_PlayerVotesMap.Contains(id) && m_PlayerVotesMap.Get(id) == winner)
-						votosNoVencedor++;
-				}
-
-				WriteToLog("Total online: " + totalOnline.ToString(), LogFile.INIT, false, LogType.DEBUG);
-				WriteToLog("Votos no vencedor: " + votosNoVencedor.ToString(), LogFile.INIT, false, LogType.DEBUG);
-
-                if (votosNoVencedor == totalOnline && totalOnline > 0)
-                {
-                    BroadcastMessage("Votação unânime! Reiniciando com o mapa: " + mapName, MessageColor.IMPORTANT);
-                    AppendExternalAction("{\"action\":\"send_log_discord\",\"message\":\"Votação de mapa finalizada! O próximo mapa será: " + mapName + "\"}");
-                    SetNextActiveRegionById(winner);
-                    AppendExternalAction("{\"action\": \"restart_server\", \"minutes\": 1, \"message\": \"Servidor será reiniciado em 1 minuto\"}");
-                }
-				else
-				{
-					AppendExternalAction("{\"action\":\"send_log_discord\",\"message\":\"Votação de mapa finalizada! A votação não foi unânime e nenhuma troca será feita.\"}");
-					BroadcastMessage("A votação não foi unânime. Nenhuma troca será feita.", MessageColor.WARNING);
-				}
+				AppendExternalAction("{\"action\": \"restart_server\", \"minutes\": 1, \"message\": \"Servidor será reiniciado em 1 minuto\"}");
 			}
-			else
-			{
-				if (mapName == "")
-					mapName = "ID " + winner.ToString();
-
-				BroadcastMessage("Mapa vencedor: " + winner + " - " + mapName + " com " + highest.ToString() + " votos.", MessageColor.FRIENDLY);
-				AppendExternalAction("{\"action\":\"send_log_discord\",\"message\":\"Mapa vencedor: " + winner + " - " + mapName + " com " + highest.ToString() + " votos.\"}");
-                SetNextActiveRegionById(winner);
-			}
-		}
-		else
-		{
-			BroadcastMessage("Nenhum voto recebido. O próximo mapa será " + nextMap.Region, MessageColor.FRIENDLY);
-			AppendExternalAction("{\"action\":\"send_log_discord\",\"message\":\"Nenhum voto recebido. O próximo mapa será: " + nextMap.Region + "\"}");
 		}
 
 		ResetVotingMap();
@@ -221,7 +363,9 @@ class VoteMapManager
 
 		SendPrivateMessage(playerID, "Resultado parcial da votação:", MessageColor.FRIENDLY);
 
-		foreach (ref SafeZoneData mapS : maps)
+		ref array<ref SafeZoneData> votableMaps = GetVotableMaps();
+
+		foreach (ref SafeZoneData mapS : votableMaps)
 		{
 			if (!mapS) continue;
 
@@ -245,7 +389,9 @@ class VoteMapManager
 		}
 		else
 		{
-			foreach (ref SafeZoneData mapL : maps)
+			ref array<ref SafeZoneData> votableMaps = GetVotableMaps();
+			
+			foreach (ref SafeZoneData mapL : votableMaps)
 			{
 				if (!mapL) continue;
 				string linha = mapL.RegionId.ToString() + " - " + mapL.Region;
