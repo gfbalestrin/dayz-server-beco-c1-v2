@@ -30,9 +30,9 @@ class VoteMapManager
 	{
 		if (!maps) return false;
 
-		foreach (ref SafeZoneData map : maps)
+		foreach (ref SafeZoneData mapData : maps)
 		{
-			if (map && map.RegionId == regionId && !map.IsDeleted)
+			if (mapData && mapData.RegionId == regionId && !mapData.IsDeleted)
 				return true;
 		}
 		return false;
@@ -44,10 +44,10 @@ class VoteMapManager
 		
 		if (!maps) return votableMaps;
 
-		foreach (ref SafeZoneData map : maps)
+		foreach (ref SafeZoneData mapData : maps)
 		{
-			if (map && !map.IsDeleted)
-				votableMaps.Insert(map);
+			if (mapData && !mapData.IsDeleted)
+				votableMaps.Insert(mapData);
 		}
 		return votableMaps;
 	}
@@ -165,14 +165,14 @@ class VoteMapManager
 		string mapList = "";
 		int count = 0;
 		
-		foreach (ref SafeZoneData map : votableMaps)
+		foreach (ref SafeZoneData mapData : votableMaps)
 		{
-			if (!map) continue;
+			if (!mapData) continue;
 			
 			if (count > 0)
 				mapList += ", ";
 			
-			mapList += map.RegionId.ToString() + " - " + map.Region;
+			mapList += mapData.RegionId.ToString() + " - " + mapData.Region;
 			count++;
 		}
 		
