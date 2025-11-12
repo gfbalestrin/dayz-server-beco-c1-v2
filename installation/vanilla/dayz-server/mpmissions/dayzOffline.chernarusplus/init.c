@@ -167,8 +167,8 @@ class CustomMission: MissionServer
 
             if (restartNextMap)
                 restartNextRegion = restartNextMap.Region;
-			
-			AppendExternalAction("{\"action\":\"event_start_finished\",\"current_time\":\"" + GetCurrentTimeInGame() + "\",\"message\":\"" + text + "\",\"current_map\":\"" + restartCurrentRegion + "\",\"next_map\":\"" + restartNextRegion + "\"}");
+
+			AppendExternalAction("{\"action\":\"event_start_finished\",\"current_time\":\"" + GetCurrentTimeInGame() + "\",\"current_map\":\"" + restartCurrentRegion + "\",\"next_map\":\"" + restartNextRegion + "\"}");
 		}
 		else
 		{

@@ -2,11 +2,10 @@
 
 handle_event_start_finished() {
     local line="$1"
-    local CurrentMap NextMap CurrentTime Message CurrentDate Content
+    local CurrentMap NextMap CurrentTime CurrentDate Content
     CurrentMap=$(echo "$line" | jq -r '.current_map')
     NextMap=$(echo "$line" | jq -r '.next_map')
     CurrentTime=$(echo "$line" | jq -r '.current_time')
-    Message=$(echo "$line" | jq -r '.message')
     CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
 
     INSERT_CUSTOM_LOG "Evento de início do servidor!" "INFO" "$ScriptName"
