@@ -21,6 +21,7 @@ handle_chat_command() {
 
     if grep -q "$PlayerId" "$DayzServerFolder/$DayzAdminIdsFile"; then
         echo "$PlayerId $Command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
+        HANDLER_SHOULD_CONTINUE=1
         return
     fi
 

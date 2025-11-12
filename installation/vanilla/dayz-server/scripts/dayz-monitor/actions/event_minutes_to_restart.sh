@@ -12,6 +12,11 @@ handle_event_minutes_to_restart() {
     INSERT_CUSTOM_LOG "Evento de aviso de tempo para reiniciar o servidor!" "INFO" "$ScriptName"
 
     Content="Mapa atual: $CurrentMap, Próximo mapa: $NextMap, Horário: $CurrentTime"
-    SEND_DISCORD_WEBHOOK "⏱️ $Message ($Content)" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+    if [[ "$Content" == *"O servidor vai ser reiniciado em 1 minuto"* ]]; then
+        SEND_DISCORD_WEBHOOK "⏱️ $Message $Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+    else
+        SEND_DISCORD_WEBHOOK "⏱️ $Message" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+    fi
+    
 }
 

@@ -665,6 +665,8 @@ echo "Removendo logs antigos (mais de 7 dias)..."
 find "\$LOG_DIR" -name "DayZServer_*.ADM" -type f -mtime +7 -delete
 find "\$LOG_DIR" -name "DayZServer_*.RPT" -type f -mtime +7 -delete
 find "\$LOG_DIR" -name "DayZServer_*.log" -type f -mtime +7 -delete
+find "\$LOG_DIR" -name "DayZServer_*.mdmp" -type f -mtime +7 -delete
+find "\$LOG_DIR" -name "script_*.log" -type f -mtime +7 -delete
 
 # Log da limpeza de logs
 if [ \$? -eq 0 ]; then
