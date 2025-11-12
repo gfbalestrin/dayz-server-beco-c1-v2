@@ -542,23 +542,6 @@ void OnEventCustom(EventType eventTypeId, Param params)
                 restartNextRegion = restartNextMap.Region;
 
             AppendExternalAction("{\"action\":\"event_minutes_to_restart\",\"current_time\":\"" + GetCurrentTimeInGame() + "\",\"message\":\"" + text + "\",\"current_map\":\"" + restartCurrentRegion + "\",\"next_map\":\"" + restartNextRegion + "\"}");
-        }
-        if (channel == 1 && playerName == "" && text.Contains("O servidor vai ser reiniciado em 60 minutos"))
-        {
-            //AppendExternalAction("{\"action\":\"event_start_finished\",\"current_time\":\"" + GetCurrentTimeInGame() + "\"}");
-        }
-        if (channel == 1 && playerName == "" && text.Contains("O servidor vai ser reiniciado em 1 minutos"))
-        {
-            //AppendExternalAction("{\"action\":\"event_restarting\"}");
-            //WriteToLog("Servidor reiniciando...", LogFile.INIT, false, LogType.INFO);
-        }
-        if (channel == 1 && playerName == "" && text.Contains("O servidor vai ser reiniciado em 5 minutos"))
-        {	
-            //AppendExternalAction("{\"action\":\"event_minutes_to_restart\",\"current_time\":\"" + GetCurrentTimeInGame() + "\",\"message\":\"" + text + "\",\"current_map\":\"" + currentMap.Region + "\"}");
-        }
-        
-        if (channel == 1 && playerName == "" && text.Contains("O servidor vai ser reiniciado em 10 minutos"))
-        {
             return;
         }
         
