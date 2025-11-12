@@ -158,7 +158,17 @@ class CustomMission: MissionServer
 	{
 		if (IsDeathmatchEnabled)
 		{
-			AppendExternalAction("{\"action\":\"event_start_finished\",\"current_time\":\"" + GetCurrentTimeInGame() + "\",\"current_map\":\"" + currentMap.Region + "\"}");
+			ref SafeZoneData restartNextMap = GetNextRegionData(DeathMatchConfigJsonFile);
+            string restartCurrentRegion = "Indefinido";
+            string restartNextRegion = "Indefinido";
+
+            if (currentMap)
+                restartCurrentRegion = currentMap.Region;
+
+            if (restartNextMap)
+                restartNextRegion = restartNextMap.Region;
+			
+			AppendExternalAction("{\"action\":\"event_start_finished\",\"current_time\":\"" + GetCurrentTimeInGame() + "\",\"message\":\"" + text + "\",\"current_map\":\"" + restartCurrentRegion + "\",\"next_map\":\"" + restartNextRegion + "\"}");
 		}
 		else
 		{

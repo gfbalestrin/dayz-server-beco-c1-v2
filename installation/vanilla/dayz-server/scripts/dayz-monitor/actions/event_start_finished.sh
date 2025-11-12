@@ -2,16 +2,17 @@
 
 handle_event_start_finished() {
     local line="$1"
-    local CurrentMap CurrentTime CurrentDate Content
+    local CurrentMap NextMap CurrentTime Message CurrentDate Content
     CurrentMap=$(echo "$line" | jq -r '.current_map')
+    NextMap=$(echo "$line" | jq -r '.next_map')
     CurrentTime=$(echo "$line" | jq -r '.current_time')
+    Message=$(echo "$line" | jq -r '.message')
     CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
 
-    echo "Evento de servidor reiniciado!"
     INSERT_CUSTOM_LOG "Evento de início do servidor!" "INFO" "$ScriptName"
 
     if [[ "$DayzDeathmatch" -eq "1" ]]; then
-        Content="✅ Servidor iniciado e liberado para jogadores!"
+        Content="✅ Servidor iniciado e liberado para jogadores! Mapa atual: $CurrentMap, Próximo mapa: $NextMap, Horário: $CurrentTime"
         SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
     else
         Content="✅ Servidor iniciado e liberado para jogadores! Horário: $CurrentTime"
