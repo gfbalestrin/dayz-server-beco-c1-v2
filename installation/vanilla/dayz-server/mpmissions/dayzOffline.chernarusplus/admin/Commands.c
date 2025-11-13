@@ -140,31 +140,22 @@ bool ExecuteCommand(TStringArray tokens)
     } else {
         WriteToLog("PlayerID " + target.GetIdentity().GetName() + " (" + playerID + ")" + " digitou comando " + command, LogFile.INIT, false, LogType.INFO);
     }
-    bool isAdmin = true;//CheckIfIsAdmin(playerID);
 
     switch (command)
     {
         case "help":
-            if (!CheckIfIsAdmin(playerID))
-            {
+            if (IsDeathmatchEnabled) {
                 SendPrivateMessage(playerID, "!loadouts -> Lista loadouts configurados", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!loadout meuloadout1' -> Ativa meuloadout1", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!loadout reset -> Gera nova senha aleatória para acessar o sistema de loadout: " + UrlAppPython, MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!maps -> Lista mapas disponíveis", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!votemap 1 -> Vota no mapa 1", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!players -> Lista jogadores online", MessageColor.FRIENDLY);
-                SendPrivateMessage(playerID, "!votekick 12345679 -> Vota para kickar o jogador de ID 12345679", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!kill -> Cometer suicídio", MessageColor.FRIENDLY);
-            } else 
-            {
-                //SendPrivateMessage(playerID, "!loadouts -> Lista loadouts configurados", MessageColor.FRIENDLY);
-                //SendPrivateMessage(playerID, "!loadout meuloadout1' -> Ativa meuloadout1", MessageColor.FRIENDLY);
-                //SendPrivateMessage(playerID, "!loadout reset -> Gera nova senha aleatória para acessar o sistema de loadout: " + UrlAppPython, MessageColor.FRIENDLY);
-                //SendPrivateMessage(playerID, "!maps -> Lista mapas disponíveis", MessageColor.FRIENDLY);
-                //SendPrivateMessage(playerID, "!votemap 1 -> Vota no mapa 1", MessageColor.FRIENDLY);
-                //SendPrivateMessage(playerID, "!players -> Lista jogadores online", MessageColor.FRIENDLY);
-                //SendPrivateMessage(playerID, "!votekick 12345679 -> Vota para kickar o jogador de ID 12345679", MessageColor.FRIENDLY);
-                SendPrivateMessage(playerID, "!kill -> Cometer suicídio", MessageColor.FRIENDLY);
+            }
+            
+            if (CheckIfIsAdmin(playerID))
+            {                
                 SendPrivateMessage(playerID, "!heal -> Se cura", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!godmode -> Ativa godmode", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!ungodmode -> Desativa godmode", MessageColor.FRIENDLY);
@@ -174,18 +165,10 @@ bool ExecuteCommand(TStringArray tokens)
                 SendPrivateMessage(playerID, "!settime 6 30 -> Altera o horário para as 06:30", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!setweather clear -> Altera o tempo para limpo. Opções: clear, cloudy, rain, foggy ou default", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!teleport 100.0 100.0 100.0 -> Teleporta para a posição 100.0, 100.0, 100.0", MessageColor.FRIENDLY);
-                SendPrivateMessage(playerID, "!getposition -> Mostra posição atual", MessageColor.FRIENDLY);
-                
+                SendPrivateMessage(playerID, "!getposition -> Mostra posição atual", MessageColor.FRIENDLY);                
             }
             break;
-        case "teleport":
-            if (!isAdmin)
-            {
-                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
-                WriteToLog("Comando foi bloqueado para o jogador!", LogFile.INIT, false, LogType.ERROR);
-                return false;
-            }
-            
+        case "teleport":            
             // Formato: PlayerID teleport CoordX CoordZ CoordY [AlturaOpcional]
             if (tokens.Count() >= 4)
             {
@@ -211,12 +194,6 @@ bool ExecuteCommand(TStringArray tokens)
             break;
 
         case "heal":
-            if (!isAdmin)
-            {
-                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
-                WriteToLog("Comando foi bloqueado para o jogador!", LogFile.INIT, false, LogType.ERROR);
-                return false;
-            }
             target.SetHealth("", "", 100);
             target.SetHealth("GlobalHealth", "Blood", 5000);
             target.SetHealth("GlobalHealth", "Shock", 5000);
@@ -232,34 +209,16 @@ bool ExecuteCommand(TStringArray tokens)
             break;
 
         case "godmode":
-            if (!isAdmin)
-            {
-                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
-                WriteToLog("Comando foi bloqueado para o jogador!", LogFile.INIT, false, LogType.ERROR);
-                return false;
-            }
             target.SetAllowDamage(false);
             target.MessageStatus("God Mode ativado");
             break;
 
         case "ungodmode":
-            if (!isAdmin)
-            {
-                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
-                WriteToLog("Comando foi bloqueado para o jogador!", LogFile.INIT, false, LogType.ERROR);
-                return false;
-            }
             target.SetAllowDamage(true);
             target.MessageStatus("God Mode desativado");
             break;
 
-        case "giveitem":  
-            if (!isAdmin)
-            {
-                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
-                WriteToLog("Comando foi bloqueado para o jogador!", LogFile.INIT, false, LogType.ERROR);
-                return false;
-            }          
+        case "giveitem":    
             if (tokens.Count() >= 3)
             {
                 string itemName = tokens[2];
@@ -290,12 +249,6 @@ bool ExecuteCommand(TStringArray tokens)
             break;
 
         case "spawnvehicle":
-            if (!isAdmin)
-            {
-                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
-                WriteToLog("Comando foi bloqueado para o jogador!", LogFile.INIT, false, LogType.ERROR);
-                return false;
-            }
             if (tokens.Count() == 3)
             {
                 string vehicleType = tokens[2];
@@ -304,46 +257,22 @@ bool ExecuteCommand(TStringArray tokens)
             break;
 
         case "createcontainer":
-            if (!isAdmin)
-            {
-                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
-                WriteToLog("Comando foi bloqueado para o jogador!", LogFile.INIT, false, LogType.ERROR);
-                return false;
-            }
             ExecuteCreateContainer(tokens, target);
             target.MessageStatus("Container criado na sua posição");
             break;
 
         case "createweapon":
-            if (!isAdmin)
-            {
-                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
-                WriteToLog("Comando foi bloqueado para o jogador!", LogFile.INIT, false, LogType.ERROR);
-                return false;
-            }
             ExecuteCreateWeapon(tokens, target);
             target.MessageStatus("Arma criada na sua posição");
             break;
 
         case "ghostmode":
-            if (!isAdmin)
-            {
-                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
-                WriteToLog("Comando foi bloqueado para o jogador!", LogFile.INIT, false, LogType.ERROR);
-                return false;
-            }
             target.SetInvisible(true);
             target.SetScale(0.0001);
             target.MessageStatus("Você está invisível");
             break;
 
         case "unghostmode":
-            if (!isAdmin)
-            {
-                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
-                WriteToLog("Comando foi bloqueado para o jogador!", LogFile.INIT, false, LogType.ERROR);
-                return false;
-            }
             target.SetInvisible(false);
             target.MessageStatus("Você está visível");
             break;
@@ -379,12 +308,6 @@ bool ExecuteCommand(TStringArray tokens)
             WriteToLog("Posição capturada: " + posP.ToString(), LogFile.INIT, false, LogType.DEBUG);
             break;
             case "construct":
-            if (!isAdmin)
-            {
-                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
-                WriteToLog("Comando foi bloqueado para o jogador!", LogFile.INIT, false, LogType.ERROR);
-                return false;
-            }
             if (tokens.Count() >= 3)
             {
                 float heightOffset = 1.0;
@@ -495,13 +418,6 @@ bool ExecuteCommand(TStringArray tokens)
 
             break;
         case "settime":
-            if (!isAdmin)
-            {
-                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
-                WriteToLog("Comando bloqueado para não-admin: settime", LogFile.INIT, false, LogType.ERROR);
-                return false;
-            }
-
             if (tokens.Count() < 4 || !IsInteger(tokens[2]) || !IsInteger(tokens[3]))
             {
                 SendPrivateMessage(playerID, "Uso: !settime <hora> <minuto> (ex: !settime 6 30)", MessageColor.WARNING);
@@ -533,10 +449,6 @@ bool ExecuteCommand(TStringArray tokens)
             WriteToLog("Admin " + playerID + " definiu horário do mundo para " + horaFormatada, LogFile.INIT, false, LogType.INFO);
             break;
         case "setweather":
-            if (!isAdmin) {
-                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
-                return false;
-            }
             if (!GetGame().IsServer()) {
                 SendPrivateMessage(playerID, "Comando de clima só pode ser executado no servidor.", MessageColor.WARNING);
                 return false;
@@ -633,6 +545,18 @@ bool ExecuteCommand(TStringArray tokens)
         case "scanobjects":
             InitWorldTracking();            
             return true;
+        
+        case "goup":
+        if (tokens.Count() > 2) {
+            float height = tokens[2].ToFloat();
+            target.setPos(target.getPos() + vector(0, height, 0));
+            target.MessageStatus("Você foi elevado para " + height.ToString() + " metros");
+            WriteToLog("Jogador " + playerID + " elevado para " + target.getPos().ToString(), LogFile.INIT, false, LogType.INFO);
+        } else {
+            SendPrivateMessage(playerID, "Uso: !goup <altura>", MessageColor.WARNING);
+            return false;
+        }
+        break;
         }
 
     return true;
