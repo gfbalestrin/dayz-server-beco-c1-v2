@@ -1,6 +1,5 @@
 let playersData = [];
 let table;
-let staminaStatus = {};
 let autoRefreshInterval = null;
 let currentRefreshInterval = 30000; // 30 segundos padrão
 let nextRefreshTime = 0;
@@ -190,45 +189,6 @@ function confirmDeactivateGodMode(playerId, playerName) {
     );
 }
 
-// Função para toggle Stamina Infinita (versão interna)
-function toggleStaminaInternal(playerId) {
-    const isActive = staminaStatus[playerId] || false;
-    const action = isActive ? 'stamina off' : 'stamina on';
-    
-    $.ajax({
-        url: `/api/players/${encodeURIComponent(playerId)}/action`,
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({ action: action }),
-        success: function(response) {
-            staminaStatus[playerId] = !isActive;
-            showToast('Sucesso', response.message, 'success');
-        },
-        error: function(xhr) {
-            const error = xhr.responseJSON || {};
-            showToast('Erro', error.message || 'Erro ao executar ação', 'error');
-        }
-    });
-}
-
-// Função para toggle Stamina Infinita com confirmação
-function confirmToggleStamina(playerId, playerName) {
-    const player = playersData.find(p => p.PlayerID === playerId);
-    const displayName = player ? (player.PlayerName || 'Jogador desconhecido') : playerName;
-    const isActive = staminaStatus[playerId] || false;
-    const actionText = isActive ? 'desativar' : 'ativar';
-    
-    showActionConfirmationModal(
-        'Stamina Infinita',
-        `Deseja ${actionText} Stamina Infinita para este jogador?`,
-        playerId,
-        displayName,
-        function() {
-            toggleStaminaInternal(playerId);
-        }
-    );
-}
-
 // Função para criar link de mapa
 function createMapLink(coordX, coordY) {
     if (!coordX || !coordY) return '<span class="text-muted">-</span>';
@@ -358,9 +318,6 @@ function renderActions(player) {
             </button>
             <button class="btn btn-secondary" onclick="confirmDeactivateGodMode('${player.PlayerID}', '${playerName}')" title="Remover God Mode">
                 <i class="fas fa-shield"></i>
-            </button>
-            <button class="btn btn-info" onclick="confirmToggleStamina('${player.PlayerID}', '${playerName}')" title="Stamina Infinita">
-                <i class="fas fa-bolt"></i>
             </button>
             <button class="btn btn-danger" onclick="confirmExecuteAction('${player.PlayerID}', 'kill', '${playerName}')" title="Matar">
                 <i class="fas fa-skull"></i>
@@ -652,7 +609,6 @@ $(document).ready(function() {
     window.confirmExecuteAction = confirmExecuteAction;
     window.confirmActivateGodMode = confirmActivateGodMode;
     window.confirmDeactivateGodMode = confirmDeactivateGodMode;
-    window.confirmToggleStamina = confirmToggleStamina;
     window.confirmRedirectToSpawning = confirmRedirectToSpawning;
     window.removeAdmin = removeAdmin;
     window.confirmAddAdminFromPlayer = confirmAddAdminFromPlayer;
