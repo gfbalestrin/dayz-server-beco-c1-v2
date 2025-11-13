@@ -1,5 +1,3 @@
-#include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/models/SafeZoneData.c"
-
 void SpawnVehicleWithPartsToPlayer(PlayerBase player, string vehicleType)
 {
     vector spawnOffset = "2 0 2";
