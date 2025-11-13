@@ -115,16 +115,6 @@ class CustomMission: MissionServer
 				{
 					spawns = currentMap.Spawns;
 					WriteToLog("CustomMission(): Spawns carregados", LogFile.INIT, false, LogType.INFO);
-					if (spawns.Vehicles)
-					{
-						foreach (SafeZoneDataVehicle vehicle : spawns.Vehicles) {
-							bool successSpawnVehicle = SpawnVehicleWithParts(vehicle.GetCoord(), vehicle.name);
-							if (successSpawnVehicle)
-								WriteToLog("Veículo " + vehicle.name + " criado com sucesso na posição " + vehicle.coord, LogFile.INIT, false, LogType.DEBUG);
-							else
-								WriteToLog("Falha ao criar veículo " + vehicle.name + " criado com sucesso na posição " + vehicle.coord, LogFile.INIT, false, LogType.ERROR);
-						}
-					}				
 				}
 				else
 				{
@@ -143,7 +133,8 @@ class CustomMission: MissionServer
     {
         super.OnInit();		
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitWorldTracking, 5000, false);
-		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SendStartEvent, 5000, false);    
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SendStartEvent, 5000, false);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SpawnConfiguredVehicles, 3000, false);
     }
 
 	override void OnMissionStart()
@@ -174,6 +165,43 @@ class CustomMission: MissionServer
 		{
 			AppendExternalAction("{\"action\":\"event_start_finished\",\"current_time\":\"" + GetCurrentTimeInGame() + "\"}");
 		}
+	}
+
+	void SpawnConfiguredVehicles()
+	{
+		if (!IsDeathmatchEnabled)
+		{
+			return;
+		}
+
+		if (!spawns)
+		{
+			WriteToLog("SpawnConfiguredVehicles(): spawns não configurado", LogFile.INIT, false, LogType.DEBUG);
+			return;
+		}
+
+		if (!spawns.Vehicles)
+		{
+			WriteToLog("SpawnConfiguredVehicles(): nenhum veículo configurado para spawn", LogFile.INIT, false, LogType.DEBUG);
+			return;
+		}
+
+		WriteToLog("SpawnConfiguredVehicles(): Iniciando spawn de " + spawns.Vehicles.Count().ToString() + " veículos", LogFile.INIT, false, LogType.INFO);
+
+		foreach (SafeZoneDataVehicle vehicle : spawns.Vehicles)
+		{
+			bool successSpawnVehicle = SpawnVehicleWithParts(vehicle.GetCoord(), vehicle.name);
+			if (successSpawnVehicle)
+			{
+				WriteToLog("Veículo " + vehicle.name + " criado com sucesso na posição " + vehicle.coord, LogFile.INIT, false, LogType.DEBUG);
+			}
+			else
+			{
+				WriteToLog("Falha ao criar veículo " + vehicle.name + " na posição " + vehicle.coord, LogFile.INIT, false, LogType.ERROR);
+			}
+		}
+
+		WriteToLog("SpawnConfiguredVehicles(): Spawn de veículos concluído", LogFile.INIT, false, LogType.INFO);
 	}	
 
 	override void OnEvent(EventType eventTypeId, Param params)

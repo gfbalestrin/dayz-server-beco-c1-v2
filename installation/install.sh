@@ -447,30 +447,13 @@ chown -R "$LinuxUserName:$LinuxUserName" "${DayzFolder}/profiles" 2>/dev/null ||
 mkdir -p "$DayzFolder/scripts"
 chown -R "$LinuxUserName:$LinuxUserName" "$DayzFolder/scripts" 2>/dev/null || echo "Aviso: Não foi possível alterar permissões da pasta scripts"
 
-if [[ "$DayzWipeOnRestart" == "1" ]]; then
-
-confirm_step "Criação do script de wipe (limpeza de dados)"
-
-echo "Criando script de wipe.sh ..."
-PROFILE_DIR="$DayzFolder/mpmissions/$DayzMpmission/storage_1"
-cat <<EOF > "$DayzFolder/scripts/wipe.sh"
-#!/bin/bash
-echo "=== Realizando wipe do servidor DayZ ==="
-echo "PROFILE_DIR: $PROFILE_DIR"
-rm -rf $PROFILE_DIR/*
-echo "Wipe completo!"
-EOF
-chmod +x "$DayzFolder/scripts/wipe.sh"
-
-fi
-
 confirm_step "Criação dos scripts de atualização e pós-inicialização"
 
 echo "Configurando script de update $DayzFolder/scripts/update.sh ..."
 
 cat <<EOF > "$DayzFolder/scripts/update.sh"
 #!/bin/bash
-
+export TZ=America/Sao_Paulo
 set -euo pipefail
 
 echo "[INFO] Iniciando update do servidor DayZ..."
@@ -616,18 +599,8 @@ NIGHT_ACCEL="3"
 sed -i "s/^\s*serverTimeAcceleration=.*/serverTimeAcceleration=${DAY_ACCEL};/" "$CFG_FILE"
 sed -i "s/^\s*serverNightTimeAcceleration=.*/serverNightTimeAcceleration=${NIGHT_ACCEL};/" "$CFG_FILE"
 
-
 chown -R "$LinuxUserName:$LinuxUserName" $DayzFolder/mpmissions/$DayzMpmission/db/messages.xml 2>/dev/null || echo "Aviso: Não foi possível alterar permissões da pasta admin"
 
-echo "[INFO] Update concluído com sucesso."
-EOF
-
-chmod +x "$DayzFolder/scripts/update.sh"
-
-echo "Configurando script de pós inicialização $DayzFolder/scripts/execute_script_pos.sh ..."
-cat <<EOF > "$DayzFolder/scripts/execute_script_pos.sh"
-#!/bin/bash
-export TZ=America/Sao_Paulo
 CURRENT_DATE=\$(date "+%Y-%m-%d_%H-%M-%S")
 PLAYER_DB="/home/$LinuxUserName/servers/dayz-server/mpmissions/$DayzMpmission/storage_1/players.db"
 BACKUP_DIR="/home/$LinuxUserName/servers/dayz-server/mpmissions/$DayzMpmission/storage_1/backup_custom"
@@ -675,6 +648,17 @@ if [ \$? -eq 0 ]; then
 else
     echo "Aviso: Erro durante limpeza de logs antigos"
 fi
+
+echo "[INFO] Update concluído com sucesso."
+EOF
+
+chmod +x "$DayzFolder/scripts/update.sh"
+
+echo "Configurando script de pós inicialização $DayzFolder/scripts/execute_script_pos.sh ..."
+cat <<EOF > "$DayzFolder/scripts/execute_script_pos.sh"
+#!/bin/bash
+export TZ=America/Sao_Paulo
+LOG_DIR="/home/$LinuxUserName/servers/dayz-server/profiles"
 
 # Aguarda alguns segundos para o arquivo ser gerado
 sleep 10
