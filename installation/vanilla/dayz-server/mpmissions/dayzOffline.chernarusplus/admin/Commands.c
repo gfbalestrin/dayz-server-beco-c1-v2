@@ -165,7 +165,9 @@ bool ExecuteCommand(TStringArray tokens)
                 SendPrivateMessage(playerID, "!settime 6 30 -> Altera o horário para as 06:30", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!setweather clear -> Altera o tempo para limpo. Opções: clear, cloudy, rain, foggy ou default", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!teleport 100.0 100.0 100.0 -> Teleporta para a posição 100.0, 100.0, 100.0", MessageColor.FRIENDLY);
-                SendPrivateMessage(playerID, "!getposition -> Mostra posição atual", MessageColor.FRIENDLY);                
+                SendPrivateMessage(playerID, "!getposition -> Mostra posição atual", MessageColor.FRIENDLY);         
+                SendPrivateMessage(playerID, "!goup 10.0 -> Eleva o jogador para 10.0 metros", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!setheight 10.0 -> Ajusta a altura do jogador para 10.0 metros", MessageColor.FRIENDLY);
             }
             break;
         case "teleport":            
@@ -546,13 +548,7 @@ bool ExecuteCommand(TStringArray tokens)
             InitWorldTracking();            
             return true;
         
-        case "goup":
-            if (!CheckIfIsAdmin(playerID))
-            {
-                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
-                return false;
-            }
-            
+        case "goup":            
             if (tokens.Count() > 2) {
                 float height = tokens[2].ToFloat();
                 
@@ -576,6 +572,34 @@ bool ExecuteCommand(TStringArray tokens)
                 WriteToLog("Jogador " + playerID + " elevado em " + height.ToString() + " metros. Posição final: " + goupNewPos.ToString(), LogFile.INIT, false, LogType.INFO);
             } else {
                 SendPrivateMessage(playerID, "Uso: !goup <altura>", MessageColor.WARNING);
+                return false;
+            }
+            break;
+        
+        case "setheight":            
+            if (tokens.Count() > 2) {
+                float height = tokens[2].ToFloat();
+                
+                // Validar altura (deve ser positiva e não muito grande)
+                if (height <= 0)
+                {
+                    SendPrivateMessage(playerID, "A altura deve ser um valor positivo", MessageColor.WARNING);
+                    return false;
+                }
+                
+                if (height > 10000)
+                {
+                    SendPrivateMessage(playerID, "A altura máxima permitida é 10000 metros", MessageColor.WARNING);
+                    return false;
+                }
+                
+                vector setheightCurrentPos = target.GetPosition();
+                vector setheightNewPos = Vector(setheightCurrentPos[0], height, setheightCurrentPos[2]);
+                target.SetPosition(setheightNewPos);
+                target.MessageStatus("Altura definida para " + height.ToString() + " metros");
+                WriteToLog("Jogador " + playerID + " altura definida para " + height.ToString() + " metros. Posição final: " + setheightNewPos.ToString(), LogFile.INIT, false, LogType.INFO);
+            } else {
+                SendPrivateMessage(playerID, "Uso: !setheight <altura>", MessageColor.WARNING);
                 return false;
             }
             break;
