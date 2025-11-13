@@ -550,26 +550,26 @@ bool ExecuteCommand(TStringArray tokens)
         
         case "goup":            
             if (tokens.Count() > 2) {
-                float height = tokens[2].ToFloat();
+                float goupHeight = tokens[2].ToFloat();
                 
                 // Validar altura (deve ser positiva e não muito grande)
-                if (height <= 0)
+                if (goupHeight <= 0)
                 {
                     SendPrivateMessage(playerID, "A altura deve ser um valor positivo", MessageColor.WARNING);
                     return false;
                 }
                 
-                if (height > 10000)
+                if (goupHeight > 10000)
                 {
                     SendPrivateMessage(playerID, "A altura máxima permitida é 10000 metros", MessageColor.WARNING);
                     return false;
                 }
                 
                 vector goupCurrentPos = target.GetPosition();
-                vector goupNewPos = goupCurrentPos + Vector(0, height, 0);
+                vector goupNewPos = goupCurrentPos + Vector(0, goupHeight, 0);
                 target.SetPosition(goupNewPos);
-                target.MessageStatus("Você foi elevado em " + height.ToString() + " metros");
-                WriteToLog("Jogador " + playerID + " elevado em " + height.ToString() + " metros. Posição final: " + goupNewPos.ToString(), LogFile.INIT, false, LogType.INFO);
+                target.MessageStatus("Você foi elevado em " + goupHeight.ToString() + " metros");
+                WriteToLog("Jogador " + playerID + " elevado em " + goupHeight.ToString() + " metros. Posição final: " + goupNewPos.ToString(), LogFile.INIT, false, LogType.INFO);
             } else {
                 SendPrivateMessage(playerID, "Uso: !goup <altura>", MessageColor.WARNING);
                 return false;
@@ -578,26 +578,26 @@ bool ExecuteCommand(TStringArray tokens)
         
         case "setheight":            
             if (tokens.Count() > 2) {
-                float height = tokens[2].ToFloat();
+                float setheightHeight = tokens[2].ToFloat();
                 
                 // Validar altura (deve ser positiva e não muito grande)
-                if (height <= 0)
+                if (setheightHeight <= 0)
                 {
                     SendPrivateMessage(playerID, "A altura deve ser um valor positivo", MessageColor.WARNING);
                     return false;
                 }
                 
-                if (height > 10000)
+                if (setheightHeight > 10000)
                 {
                     SendPrivateMessage(playerID, "A altura máxima permitida é 10000 metros", MessageColor.WARNING);
                     return false;
                 }
                 
                 vector setheightCurrentPos = target.GetPosition();
-                vector setheightNewPos = Vector(setheightCurrentPos[0], height, setheightCurrentPos[2]);
+                vector setheightNewPos = Vector(setheightCurrentPos[0], setheightHeight, setheightCurrentPos[2]);
                 target.SetPosition(setheightNewPos);
-                target.MessageStatus("Altura definida para " + height.ToString() + " metros");
-                WriteToLog("Jogador " + playerID + " altura definida para " + height.ToString() + " metros. Posição final: " + setheightNewPos.ToString(), LogFile.INIT, false, LogType.INFO);
+                target.MessageStatus("Altura definida para " + setheightHeight.ToString() + " metros");
+                WriteToLog("Jogador " + playerID + " altura definida para " + setheightHeight.ToString() + " metros. Posição final: " + setheightNewPos.ToString(), LogFile.INIT, false, LogType.INFO);
             } else {
                 SendPrivateMessage(playerID, "Uso: !setheight <altura>", MessageColor.WARNING);
                 return false;
