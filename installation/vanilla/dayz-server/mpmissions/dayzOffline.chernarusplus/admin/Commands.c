@@ -549,7 +549,7 @@ bool ExecuteCommand(TStringArray tokens)
         case "goup":
         if (tokens.Count() > 2) {
             float height = tokens[2].ToFloat();
-            target.setPos(target.getPos() + vector(0, height, 0));
+            target.setPosition(target.getPosition() + vector(0, height, 0));
             target.MessageStatus("Você foi elevado para " + height.ToString() + " metros");
             WriteToLog("Jogador " + playerID + " elevado para " + target.getPos().ToString(), LogFile.INIT, false, LogType.INFO);
         } else {
