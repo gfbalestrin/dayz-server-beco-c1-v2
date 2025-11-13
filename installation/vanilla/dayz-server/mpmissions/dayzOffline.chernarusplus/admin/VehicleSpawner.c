@@ -1,3 +1,5 @@
+#include "$CurrentDir:mpmissions/dayzOffline.chernarusplus/admin/models/SafeZoneData.c"
+
 void SpawnVehicleWithPartsToPlayer(PlayerBase player, string vehicleType)
 {
     vector spawnOffset = "2 0 2";
@@ -276,6 +278,38 @@ void SaveVehicle(Car vehicle)
         vehicle.SetAffectPathgraph(true, false);
         vehicle.SetLifetime(3888000);
     }
+}
+
+void SpawnConfiguredVehicles(array<SafeZoneDataVehicle> vehicles)
+{
+    if (!vehicles)
+    {
+        WriteToLog("SpawnConfiguredVehicles(): array de veículos nulo", LogFile.INIT, false, LogType.DEBUG);
+        return;
+    }
+
+    if (vehicles.Count() == 0)
+    {
+        WriteToLog("SpawnConfiguredVehicles(): nenhum veículo configurado para spawn", LogFile.INIT, false, LogType.DEBUG);
+        return;
+    }
+
+    WriteToLog("SpawnConfiguredVehicles(): Iniciando spawn de " + vehicles.Count().ToString() + " veículos", LogFile.INIT, false, LogType.INFO);
+
+    foreach (SafeZoneDataVehicle vehicle : vehicles)
+    {
+        bool successSpawnVehicle = SpawnVehicleWithParts(vehicle.GetCoord(), vehicle.name);
+        if (successSpawnVehicle)
+        {
+            WriteToLog("Veículo " + vehicle.name + " criado com sucesso na posição " + vehicle.coord, LogFile.INIT, false, LogType.DEBUG);
+        }
+        else
+        {
+            WriteToLog("Falha ao criar veículo " + vehicle.name + " na posição " + vehicle.coord, LogFile.INIT, false, LogType.ERROR);
+        }
+    }
+
+    WriteToLog("SpawnConfiguredVehicles(): Spawn de veículos concluído", LogFile.INIT, false, LogType.INFO);
 }
 
 
