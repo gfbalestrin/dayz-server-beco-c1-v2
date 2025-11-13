@@ -4,6 +4,8 @@ handle_chat_command() {
     local line="$1"
     local content="$2"
 
+    HANDLER_SHOULD_CONTINUE=1
+
     local PlayerId
     PlayerId=$(echo "$content" | awk -F'id=' '{print $2}' | awk -F')' '{print $1}')
     if [[ -z "$PlayerId" ]]; then
