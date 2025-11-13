@@ -569,11 +569,11 @@ bool ExecuteCommand(TStringArray tokens)
                     return false;
                 }
                 
-                vector currentPos = target.GetPosition();
-                vector newPos = currentPos + Vector(0, height, 0);
-                target.SetPosition(newPos);
+                vector goupCurrentPos = target.GetPosition();
+                vector goupNewPos = goupCurrentPos + Vector(0, height, 0);
+                target.SetPosition(goupNewPos);
                 target.MessageStatus("Você foi elevado em " + height.ToString() + " metros");
-                WriteToLog("Jogador " + playerID + " elevado em " + height.ToString() + " metros. Posição final: " + newPos.ToString(), LogFile.INIT, false, LogType.INFO);
+                WriteToLog("Jogador " + playerID + " elevado em " + height.ToString() + " metros. Posição final: " + goupNewPos.ToString(), LogFile.INIT, false, LogType.INFO);
             } else {
                 SendPrivateMessage(playerID, "Uso: !goup <altura>", MessageColor.WARNING);
                 return false;
