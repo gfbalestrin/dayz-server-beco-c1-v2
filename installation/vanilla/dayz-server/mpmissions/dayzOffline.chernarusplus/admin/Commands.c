@@ -547,16 +547,38 @@ bool ExecuteCommand(TStringArray tokens)
             return true;
         
         case "goup":
-        if (tokens.Count() > 2) {
-            float height = tokens[2].ToFloat();
-            target.setPosition(target.getPosition() + vector(0, height, 0));
-            target.MessageStatus("Você foi elevado para " + height.ToString() + " metros");
-            WriteToLog("Jogador " + playerID + " elevado para " + target.getPos().ToString(), LogFile.INIT, false, LogType.INFO);
-        } else {
-            SendPrivateMessage(playerID, "Uso: !goup <altura>", MessageColor.WARNING);
-            return false;
-        }
-        break;
+            if (!CheckIfIsAdmin(playerID))
+            {
+                SendPrivateMessage(playerID, "Você não possui permissão para executar esse comando", MessageColor.IMPORTANT);
+                return false;
+            }
+            
+            if (tokens.Count() > 2) {
+                float height = tokens[2].ToFloat();
+                
+                // Validar altura (deve ser positiva e não muito grande)
+                if (height <= 0)
+                {
+                    SendPrivateMessage(playerID, "A altura deve ser um valor positivo", MessageColor.WARNING);
+                    return false;
+                }
+                
+                if (height > 10000)
+                {
+                    SendPrivateMessage(playerID, "A altura máxima permitida é 10000 metros", MessageColor.WARNING);
+                    return false;
+                }
+                
+                vector currentPos = target.GetPosition();
+                vector newPos = currentPos + Vector(0, height, 0);
+                target.SetPosition(newPos);
+                target.MessageStatus("Você foi elevado em " + height.ToString() + " metros");
+                WriteToLog("Jogador " + playerID + " elevado em " + height.ToString() + " metros. Posição final: " + newPos.ToString(), LogFile.INIT, false, LogType.INFO);
+            } else {
+                SendPrivateMessage(playerID, "Uso: !goup <altura>", MessageColor.WARNING);
+                return false;
+            }
+            break;
         }
 
     return true;
