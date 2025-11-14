@@ -8,6 +8,13 @@ handle_players_positions() {
     local players
     players=$(echo "$line" | jq -c '.players[]')
 
+    local previous_players=()
+    while IFS= read -r player_id; do
+        if [[ -n "$player_id" ]]; then
+            previous_players+=("$player_id")
+        fi
+    done < <(sqlite3 "$PLAYERS_BECO_C1_DB" "SELECT PlayerID FROM players_online;" 2>/dev/null || true)
+
     local player_data player_id coord_x coord_z coord_y health blood shock energy water is_alive is_admin stamina stamina_max items_in_hands items_count main_items
     local current_players=()
     while IFS= read -r player_data; do
@@ -98,6 +105,52 @@ EOF
     local player_count
     player_count=$(echo "$players" | wc -l)
     INSERT_CUSTOM_LOG "Total de $player_count jogadores rastreados" "INFO" "$ScriptName"
+
+    local connect_players=()
+    local disconnect_players=()
+
+    for player_id in "${current_players[@]}"; do
+        local found=false
+        for prev_id in "${previous_players[@]}"; do
+            if [[ "$player_id" == "$prev_id" ]]; then
+                found=true
+                break
+            fi
+        done
+        if [[ "$found" != true ]]; then
+            connect_players+=("$player_id")
+        fi
+    done
+
+    for prev_id in "${previous_players[@]}"; do
+        local found=false
+        for player_id in "${current_players[@]}"; do
+            if [[ "$prev_id" == "$player_id" ]]; then
+                found=true
+                break
+            fi
+        done
+        if [[ "$found" != true ]]; then
+            disconnect_players+=("$prev_id")
+        fi
+    done
+
+    local update_script
+    update_script="$AppFolder/$AppScriptUpdatePlayersOnlineFile"
+
+    for player_id in "${connect_players[@]}"; do
+        echo ">> Jogador $player_id conectou"
+        if [[ -f "$update_script" ]]; then
+            "$update_script" "$player_id" "CONNECT" &
+        fi
+    done
+
+    for player_id in "${disconnect_players[@]}"; do
+        echo ">> Jogador $player_id desconectou"
+        if [[ -f "$update_script" ]]; then
+            "$update_script" "$player_id" "DISCONNECT" &
+        fi
+    done
 
     local sync_timestamp
     sync_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
