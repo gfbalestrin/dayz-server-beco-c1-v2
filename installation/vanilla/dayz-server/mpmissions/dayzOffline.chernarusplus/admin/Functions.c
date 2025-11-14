@@ -944,8 +944,8 @@ void ProcessPlayerReady(PlayerIdentity identity, Man player)
             WriteToLog("  -> Posição do Player: " + pos.ToString(), LogFile.INIT, false, LogType.INFO);
 
             vector newPos = pos;
-            if (!IsDeathmatchEnabled)
-                newPos[1] = newPos[1] + 0.5;  // Move 0.5 metro para cima (eixo Y)
+            //if (!IsDeathmatchEnabled)
+            newPos[1] = newPos[1] + 0.5;  // Move 0.5 metro para cima (eixo Y)
             
             pb.SetPosition(newPos);
 
