@@ -386,11 +386,11 @@ function clearMapLayers() {
     playerTrails = {};
     
     killMarkers.forEach(function(item) {
-        if (item.marker) {
-            map.removeLayer(item.marker);
-            if (item.marker._iconMarker) {
-                map.removeLayer(item.marker._iconMarker);
-            }
+        if (item.killerMarker) {
+            map.removeLayer(item.killerMarker);
+        }
+        if (item.victimMarker) {
+            map.removeLayer(item.victimMarker);
         }
         if (item.line) {
             map.removeLayer(item.line);
@@ -534,6 +534,32 @@ function createKillIcon() {
                </div>`,
         iconSize: [20, 20],
         iconAnchor: [10, 10]  // Centralizar o ícone no círculo
+    });
+}
+
+/**
+ * Criar ícone do killer (jogador que matou)
+ */
+function createKillerIcon() {
+    return L.divIcon({
+        className: 'killer-marker',
+        html: `<div style="background-color: #007bff; border: 2px solid white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                 <i class="fas fa-user" style="color: white; font-size: 14px;"></i>
+               </div>`,
+        iconSize: [24, 24]
+    });
+}
+
+/**
+ * Criar ícone da vítima (jogador que morreu)
+ */
+function createVictimIcon() {
+    return L.divIcon({
+        className: 'victim-marker',
+        html: `<div style="background-color: #dc3545; border: 2px solid white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                 <i class="fas fa-skull-crossbones" style="color: white; font-size: 14px;"></i>
+               </div>`,
+        iconSize: [24, 24]
     });
 }
 
@@ -1670,11 +1696,8 @@ function loadKills() {
 function updateKills(data) {
     // Limpar kills antigos
     killMarkers.forEach(item => {
-        map.removeLayer(item.marker);
-        // Remover ícone sobreposto se existir
-        if (item.marker && item.marker._iconMarker) {
-            map.removeLayer(item.marker._iconMarker);
-        }
+        if (item.killerMarker) map.removeLayer(item.killerMarker);
+        if (item.victimMarker) map.removeLayer(item.victimMarker);
         if (item.line) map.removeLayer(item.line);
     });
     killMarkers = [];
@@ -1694,77 +1717,106 @@ function updateKills(data) {
             return;
         }
         
-        let marker = null;
+        let killerMarker = null;
+        let victimMarker = null;
         let line = null;
         
-        // Criar marcador na posição da vítima (se disponível)
+        // Criar marcador do killer (se disponível)
+        if (killerPos && killerPos.pixel_coords) {
+            const killerCoords = convertToMapCoords(killerPos.pixel_coords);
+            
+            if (killerCoords) {
+                const killerLat = killerCoords[0];
+                const killerLng = killerCoords[1];
+                
+                // Criar marcador do killer com ícone azul e fa-user
+                killerMarker = L.marker(killerCoords, {
+                    icon: createKillerIcon(),
+                    opacity: 1.0
+                }).addTo(map);
+                
+                // Formatar conteúdo do tooltip do killer
+                const killerTooltipContent = `
+                    <strong>🔪 Killer</strong><br>
+                    <strong>👤 Nome:</strong> ${event.killer_name}${event.killer_steam_name ? ` (${event.killer_steam_name})` : ''}<br>
+                    <strong>💀 Vítima:</strong> ${event.victim_name}${event.victim_steam_name ? ` (${event.victim_steam_name})` : ''}<br>
+                    <strong>🔫 Arma:</strong> <span class="value">${event.weapon}</span><br>
+                    <strong>📏 Distância:</strong> <span class="value">${event.distance ? event.distance.toFixed(0) + 'm' : 'N/A'}</span><br>
+                    <strong>📍 Coords:</strong> <span class="value">X=${killerPos.x.toFixed(1)}, Y=${killerPos.y.toFixed(1)}</span><br>
+                    <strong>⏰ Data:</strong> <span class="value">${event.timestamp || 'Desconhecido'}</span><br>
+                    <span style="color: #4caf50; font-weight: bold;">🖱️ Clique para teleportar</span>
+                `;
+                
+                // Direção dinâmica baseada na posição no mapa
+                const killerTooltipDirection = getTooltipDirectionForPoint(killerLat, killerLng);
+                
+                // Adicionar tooltip hover
+                killerMarker.bindTooltip(killerTooltipContent, {
+                    permanent: false,
+                    direction: killerTooltipDirection,
+                    className: 'trail-tooltip'
+                });
+                
+                // Clique abre modal de teleporte para posição do killer
+                killerMarker.on('click', function() {
+                    showKillMarkerActions(event, 'killer');
+                });
+                
+                console.log(`Killer marker criado na posição [${killerLat}, ${killerLng}]`);
+            }
+        }
+        
+        // Criar marcador da vítima (se disponível)
         if (victimPos && victimPos.pixel_coords) {
             const victimCoords = convertToMapCoords(victimPos.pixel_coords);
             
-            if (!victimCoords) {
-                return;
+            if (victimCoords) {
+                const victimLat = victimCoords[0];
+                const victimLng = victimCoords[1];
+                
+                // Criar marcador da vítima com ícone vermelho e fa-skull-crossbones
+                victimMarker = L.marker(victimCoords, {
+                    icon: createVictimIcon(),
+                    opacity: 1.0
+                }).addTo(map);
+                
+                // Formatar conteúdo do tooltip da vítima
+                let victimTooltipContent = `
+                    <strong>💀 Vítima</strong><br>
+                    <strong>👤 Nome:</strong> ${event.victim_name}${event.victim_steam_name ? ` (${event.victim_steam_name})` : ''}<br>
+                    <strong>🔪 Killer:</strong> ${event.killer_name}${event.killer_steam_name ? ` (${event.killer_steam_name})` : ''}<br>
+                `;
+                
+                // Adicionar aviso se killer não tiver posição
+                if (!killerPos || !killerPos.pixel_coords) {
+                    victimTooltipContent += `<span style="color: #ffc107; font-weight: bold;">⚠️ Posição do killer não disponível</span><br>`;
+                }
+                
+                victimTooltipContent += `
+                    <strong>🔫 Arma:</strong> <span class="value">${event.weapon}</span><br>
+                    <strong>📏 Distância:</strong> <span class="value">${event.distance ? event.distance.toFixed(0) + 'm' : 'N/A'}</span><br>
+                    <strong>📍 Coords:</strong> <span class="value">X=${victimPos.x.toFixed(1)}, Y=${victimPos.y.toFixed(1)}</span><br>
+                    <strong>⏰ Data:</strong> <span class="value">${event.timestamp || 'Desconhecido'}</span><br>
+                    <span style="color: #4caf50; font-weight: bold;">🖱️ Clique para teleportar</span>
+                `;
+                
+                // Direção dinâmica baseada na posição no mapa
+                const victimTooltipDirection = getTooltipDirectionForPoint(victimLat, victimLng);
+                
+                // Adicionar tooltip hover
+                victimMarker.bindTooltip(victimTooltipContent, {
+                    permanent: false,
+                    direction: victimTooltipDirection,
+                    className: 'trail-tooltip'
+                });
+                
+                // Clique abre modal de teleporte para posição da vítima
+                victimMarker.on('click', function() {
+                    showKillMarkerActions(event, 'victim');
+                });
+                
+                console.log(`Victim marker criado na posição [${victimLat}, ${victimLng}]`);
             }
-            
-            const lat = victimCoords[0];
-            const lng = victimCoords[1];
-            
-            // Debug: verificar coordenadas
-            console.log(`Kill marker - Event ID: ${event.id}, pixel_coords: [${lat}, ${lng}], x: ${victimPos.x}, y: ${victimPos.y}`);
-            
-            // Usar circleMarker como base (funciona corretamente)
-            marker = L.circleMarker(victimCoords, {
-                radius: 10,
-                fillColor: '#dc3545',
-                color: '#ffffff',
-                weight: 2,
-                opacity: 1,
-                fillOpacity: 0.8
-            }).addTo(map);
-            
-            // Adicionar ícone de caveira como elemento HTML sobreposto ao círculo
-            const iconElement = L.divIcon({
-                className: 'kill-icon-overlay',
-                html: '<i class="fas fa-skull-crossbones" style="color: white; font-size: 12px; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); pointer-events: none;"></i>',
-                iconSize: [20, 20],
-                iconAnchor: [10, 10]
-            });
-            const iconMarker = L.marker(victimCoords, {
-                icon: iconElement,
-                interactive: false,
-                zIndexOffset: 1000
-            }).addTo(map);
-            
-            // Formatar conteúdo do tooltip (aparece ao passar o mouse)
-            const tooltipContent = `
-                <strong>💀 Kill Event</strong><br>
-                <strong>🔪 Killer:</strong> ${event.killer_name}${event.killer_steam_name ? ` (${event.killer_steam_name})` : ''}<br>
-                <strong>💀 Victim:</strong> ${event.victim_name}${event.victim_steam_name ? ` (${event.victim_steam_name})` : ''}<br>
-                <strong>🔫 Arma:</strong> <span class="value">${event.weapon}</span><br>
-                <strong>📏 Distância:</strong> <span class="value">${event.distance ? event.distance.toFixed(0) + 'm' : 'N/A'}</span><br>
-                <strong>📍 Coords:</strong> <span class="value">X=${victimPos.x.toFixed(1)}, Y=${victimPos.y.toFixed(1)}</span><br>
-                <strong>⏰ Data:</strong> <span class="value">${event.timestamp || 'Desconhecido'}</span><br>
-                <span style="color: #4caf50; font-weight: bold;">🖱️ Clique para teleportar</span>
-            `;
-            
-            // Direção dinâmica baseada na posição no mapa (igual aos jogadores)
-            const tooltipDirection = getTooltipDirectionForPoint(lat, lng);
-            
-            // Adicionar tooltip hover (aparece ao passar o mouse)
-            marker.bindTooltip(tooltipContent, {
-                permanent: false,
-                direction: tooltipDirection,
-                className: 'trail-tooltip'
-            });
-            
-            // Clique abre modal de teleporte (posição da vítima)
-            marker.on('click', function() {
-                showKillMarkerActions(event, 'victim');
-            });
-            
-            // Armazenar ícone junto com marker para limpeza
-            marker._iconMarker = iconMarker;
-            
-            console.log(`Kill circleMarker com tooltip criado na posição [${lat}, ${lng}]`);
         }
         
         // Criar linha conectando killer e victim (apenas se ambas posições são válidas)
@@ -1772,57 +1824,61 @@ function updateKills(data) {
             const killerCoords = convertToMapCoords(killerPos.pixel_coords);
             const victimCoords = convertToMapCoords(victimPos.pixel_coords);
             
-            if (!killerCoords || !victimCoords) {
-                return;
+            if (killerCoords && victimCoords) {
+                const killerLat = killerCoords[0];
+                const killerLng = killerCoords[1];
+                const victimLat = victimCoords[0];
+                const victimLng = victimCoords[1];
+                
+                // Debug: verificar coordenadas da linha
+                console.log(`Kill line - Killer: [${killerLat}, ${killerLng}], Victim: [${victimLat}, ${victimLng}]`);
+                
+                line = L.polyline([
+                    killerCoords,
+                    victimCoords
+                ], {
+                    color: '#dc3545',
+                    weight: 2,
+                    opacity: 0.6,
+                    dashArray: '5, 10',
+                    interactive: true  // Tornar linha clicável
+                }).addTo(map);
+                
+                // Adicionar tooltip à linha
+                const lineTooltip = `
+                    <strong>💀 Kill Event</strong><br>
+                    <strong>🔪 Killer:</strong> ${event.killer_name}${event.killer_steam_name ? ` (${event.killer_steam_name})` : ''}<br>
+                    <strong>💀 Vítima:</strong> ${event.victim_name}${event.victim_steam_name ? ` (${event.victim_steam_name})` : ''}<br>
+                    <strong>🔫 Arma:</strong> <span class="value">${event.weapon}</span><br>
+                    <strong>📏 Distância:</strong> <span class="value">${event.distance ? event.distance.toFixed(0) + 'm' : 'N/A'}</span><br>
+                    <span style="color: #4caf50; font-weight: bold;">🖱️ Clique para teleportar ao Killer</span>
+                `;
+                
+                // Direção dinâmica para tooltip da linha
+                const lineMidLat = (killerLat + victimLat) / 2;
+                const lineMidLng = (killerLng + victimLng) / 2;
+                const lineTooltipDirection = getTooltipDirectionForPoint(lineMidLat, lineMidLng);
+                
+                line.bindTooltip(lineTooltip, {
+                    permanent: false,
+                    direction: lineTooltipDirection,
+                    className: 'trail-tooltip'
+                });
+                
+                // Clique na linha abre modal de teleporte para posição do killer
+                line.on('click', function() {
+                    showKillMarkerActions(event, 'killer');
+                });
             }
-            
-            const killerLat = killerCoords[0];
-            const killerLng = killerCoords[1];
-            const victimLat = victimCoords[0];
-            const victimLng = victimCoords[1];
-            
-            // Debug: verificar coordenadas da linha (que funciona corretamente)
-            console.log(`Kill line - Killer: [${killerLat}, ${killerLng}], Victim: [${victimLat}, ${victimLng}]`);
-            
-            line = L.polyline([
-                killerCoords,
-                victimCoords
-            ], {
-                color: '#dc3545',
-                weight: 2,
-                opacity: 0.6,
-                dashArray: '5, 10',
-                interactive: true  // Tornar linha clicável
-            }).addTo(map);
-            
-            // Adicionar tooltip à linha
-            const lineTooltip = `
-                <strong>💀 Kill Event</strong><br>
-                <strong>🔪 Killer:</strong> ${event.killer_name}${event.killer_steam_name ? ` (${event.killer_steam_name})` : ''}<br>
-                <strong>📍 Coords:</strong> <span class="value">X=${killerPos.x.toFixed(1)}, Y=${killerPos.y.toFixed(1)}</span><br>
-                <span style="color: #4caf50; font-weight: bold;">🖱️ Clique para teleportar ao Killer</span>
-            `;
-            
-            // Direção dinâmica para tooltip da linha
-            const lineMidLat = (killerLat + victimLat) / 2;
-            const lineMidLng = (killerLng + victimLng) / 2;
-            const lineTooltipDirection = getTooltipDirectionForPoint(lineMidLat, lineMidLng);
-            
-            line.bindTooltip(lineTooltip, {
-                permanent: false,
-                direction: lineTooltipDirection,
-                className: 'trail-tooltip'
-            });
-            
-            // Clique na linha abre modal de teleporte para posição do killer
-            line.on('click', function() {
-                showKillMarkerActions(event, 'killer');
-            });
         }
         
-        // Adicionar ao array apenas se tiver marker ou line
-        if (marker || line) {
-            killMarkers.push({ marker, line });
+        // Adicionar ao array apenas se tiver pelo menos um marcador ou linha
+        if (killerMarker || victimMarker || line) {
+            killMarkers.push({ 
+                killerMarker: killerMarker, 
+                victimMarker: victimMarker, 
+                line: line 
+            });
         }
     });
     
@@ -1841,11 +1897,8 @@ function toggleKills() {
     } else {
         $('#toggleKillsBtn').html('<i class="fas fa-skull-crossbones me-1"></i>Mostrar Kills');
         killMarkers.forEach(item => {
-            map.removeLayer(item.marker);
-            // Remover ícone sobreposto se existir
-            if (item.marker && item.marker._iconMarker) {
-                map.removeLayer(item.marker._iconMarker);
-            }
+            if (item.killerMarker) map.removeLayer(item.killerMarker);
+            if (item.victimMarker) map.removeLayer(item.victimMarker);
             if (item.line) map.removeLayer(item.line);
         });
         killMarkers = [];
