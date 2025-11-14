@@ -603,6 +603,82 @@ bool ExecuteCommand(TStringArray tokens)
                 return false;
             }
             break;
+        case "checkinventory":
+            if (tokens.Count() < 4)
+            {
+                SendPrivateMessage(playerID, "Uso: !checkinventory <PlayerID_ou_Nome> <request_id>", MessageColor.WARNING);
+                return false;
+            }
+            
+            string targetPlayerIdOrName = tokens[2];
+            string requestId = tokens[3];
+            
+            PlayerBase checkInventoryTarget = GetPlayerById(targetPlayerIdOrName);
+            
+            if (!checkInventoryTarget)
+            {
+                checkInventoryTarget = GetPlayerByName(targetPlayerIdOrName);
+            }
+            
+            if (!checkInventoryTarget)
+            {
+                SendPrivateMessage(playerID, "Jogador não encontrado: " + targetPlayerIdOrName, MessageColor.WARNING);
+                WriteToLog("ExecuteCommand(): checkinventory - Jogador não encontrado: " + targetPlayerIdOrName + " (request_id: " + requestId + ")", LogFile.INIT, false, LogType.ERROR);
+                return false;
+            }
+            
+            if (!checkInventoryTarget.IsAlive())
+            {
+                SendPrivateMessage(playerID, "Jogador está morto: " + checkInventoryTarget.GetIdentity().GetName(), MessageColor.WARNING);
+                WriteToLog("ExecuteCommand(): checkinventory - Jogador está morto: " + checkInventoryTarget.GetIdentity().GetName() + " (request_id: " + requestId + ")", LogFile.INIT, false, LogType.WARNING);
+                return false;
+            }
+            
+            WriteToLog("ExecuteCommand(): checkinventory - Verificando inventário de " + checkInventoryTarget.GetIdentity().GetName() + " (request_id: " + requestId + ")", LogFile.INIT, false, LogType.INFO);
+            
+            ref array<EntityAI> inventoryItems = new array<EntityAI>();
+            checkInventoryTarget.GetInventory().EnumerateInventory(InventoryTraversalType.PREORDER, inventoryItems);
+            
+            string itemsJson = "";
+            int itemCount = 0;
+            
+            foreach (EntityAI item : inventoryItems)
+            {
+                if (!item)
+                    continue;
+                
+                itemCount++;
+                string itemType = item.GetType();
+                int itemQuantity = 1;
+                
+                if (item.IsInherited(ItemBase))
+                {
+                    ItemBase itemBase = ItemBase.Cast(item);
+                    if (itemBase && itemBase.HasQuantity())
+                    {
+                        itemQuantity = itemBase.GetQuantity();
+                    }
+                }
+                
+                string sanitizedType = SanitizeForJson(itemType);
+                
+                if (itemsJson != "")
+                    itemsJson = itemsJson + ",";
+                
+                itemsJson = itemsJson + "{\"type\":\"" + sanitizedType + "\",\"quantity\":" + itemQuantity.ToString() + "}";
+            }
+            
+            string playerName = SanitizeForJson(checkInventoryTarget.GetIdentity().GetName());
+            string sanitizedRequestId = SanitizeForJson(requestId);
+            string playerIdStr = checkInventoryTarget.GetIdentity().GetId();
+            
+            string resultJson = "{\"request_id\":\"" + sanitizedRequestId + "\",\"command\":\"checkinventory\",\"player_id\":\"" + playerIdStr + "\",\"player_name\":\"" + playerName + "\",\"items\":[" + itemsJson + "]}";
+            
+            AppendCommandResult(resultJson, false);
+            
+            WriteToLog("ExecuteCommand(): checkinventory - Inventário verificado: " + itemCount.ToString() + " itens encontrados para " + checkInventoryTarget.GetIdentity().GetName() + " (request_id: " + requestId + ")", LogFile.INIT, false, LogType.INFO);
+            
+            break;
         }
 
     return true;

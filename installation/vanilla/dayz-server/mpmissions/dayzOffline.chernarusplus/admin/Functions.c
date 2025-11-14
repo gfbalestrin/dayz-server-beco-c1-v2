@@ -5,6 +5,7 @@ void EnsureAllFilesExist()
     EnsureFileExists("$mission:admin/files/messages_to_send.txt");
     EnsureFileExists("$mission:admin/files/messages_private_to_send.txt");
     EnsureFileExists("$mission:admin/files/admin_ids.txt");
+    EnsureFileExists("$mission:admin/files/commands_results.txt");
 }
 void EnsureFileExists(string path)
 {
@@ -944,7 +945,7 @@ void ProcessPlayerReady(PlayerIdentity identity, Man player)
 
             vector newPos = pos;
             if (IsDeathmatchEnabled)
-                newPos[1] = newPos[1] + 0.1;  // Move 0.1 metro para cima (eixo Y)
+                newPos[1] = newPos[1] + 0.3;  // Move 0.1 metro para cima (eixo Y)
             else
                 newPos[1] = newPos[1] + 0.5;  // Move 0.5 metro para cima (eixo Y)
             
