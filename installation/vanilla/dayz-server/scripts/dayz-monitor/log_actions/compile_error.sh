@@ -7,7 +7,8 @@ handle_compile_error() {
     INSERT_CUSTOM_LOG "Erro crítico de compilação detectado: $content" "ERROR" "$ScriptName"
 
     local ErrorMessage
-    ErrorMessage="🚨 **ERRO CRÍTICO**: $content"
+    ErrorMessage="🚨 **ERRO CRÍTICO**: Erro de compilação detectado. O servidor será desligado."
+    sudo systemctl stop dayz-server
 
     HANDLER_CONTENT="$ErrorMessage"
 }
