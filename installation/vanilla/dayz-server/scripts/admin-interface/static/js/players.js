@@ -232,6 +232,110 @@ function showActionConfirmationModal(actionName, message, playerId, playerName, 
     $('#actionConfirmationModal').modal('show');
 }
 
+// Função para mostrar modal de enviar mensagem privada
+function showSendMessageModal(playerId, playerName) {
+    const player = playersData.find(p => p.PlayerID === playerId);
+    const displayPlayerName = player ? (player.PlayerName || 'Jogador desconhecido') : (playerName || 'Jogador desconhecido');
+    const steamName = player ? (player.SteamName || null) : null;
+    
+    // Formatar nome com Steam Name entre parênteses
+    let displayName = escapeHtml(displayPlayerName);
+    if (steamName) {
+        displayName += ` (${escapeHtml(steamName)})`;
+    }
+    
+    $('#sendMessagePlayerName').html(displayName);
+    $('#sendMessagePlayerId').text(playerId);
+    $('#sendMessageText').val('');
+    
+    // Remover handlers anteriores e adicionar novo
+    $('#sendMessageConfirmBtn').off('click').on('click', function() {
+        const message = $('#sendMessageText').val().trim();
+        
+        if (!message) {
+            showToast('Aviso', 'Por favor, digite uma mensagem', 'warning');
+            return;
+        }
+        
+        sendPrivateMessage(playerId, message);
+    });
+    
+    // Limpar textarea ao fechar modal
+    $('#sendMessageModal').on('hidden.bs.modal', function() {
+        $('#sendMessageText').val('');
+    });
+    
+    $('#sendMessageModal').modal('show');
+}
+
+// Função para enviar mensagem privada
+function sendPrivateMessage(playerId, message) {
+    $.ajax({
+        url: `/api/players/${encodeURIComponent(playerId)}/send-message`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ message: message }),
+        success: function(response) {
+            if (response.success) {
+                showToast('Sucesso', response.message, 'success');
+                $('#sendMessageModal').modal('hide');
+            } else {
+                showToast('Erro', response.message || 'Erro ao enviar mensagem', 'error');
+            }
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            showToast('Erro', error.message || 'Erro ao enviar mensagem', 'error');
+        }
+    });
+}
+
+// Função para mostrar modal de enviar mensagem global
+function showSendGlobalMessageModal() {
+    $('#sendGlobalMessageText').val('');
+    
+    // Remover handlers anteriores e adicionar novo
+    $('#sendGlobalMessageConfirmBtn').off('click').on('click', function() {
+        const message = $('#sendGlobalMessageText').val().trim();
+        
+        if (!message) {
+            showToast('Aviso', 'Por favor, digite uma mensagem', 'warning');
+            return;
+        }
+        
+        sendGlobalMessage(message);
+    });
+    
+    // Limpar textarea ao fechar modal
+    $('#sendGlobalMessageModal').on('hidden.bs.modal', function() {
+        $('#sendGlobalMessageText').val('');
+    });
+    
+    $('#sendGlobalMessageModal').modal('show');
+}
+
+// Função para enviar mensagem global
+function sendGlobalMessage(message) {
+    $.ajax({
+        url: '/api/messages/global',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ message: message }),
+        success: function(response) {
+            if (response.success) {
+                showToast('Sucesso', response.message, 'success');
+                $('#sendGlobalMessageModal').modal('hide');
+            } else {
+                showToast('Erro', response.message || 'Erro ao enviar mensagem', 'error');
+            }
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            showToast('Erro', error.message || 'Erro ao enviar mensagem', 'error');
+        }
+    });
+}
+
 // Função para escapar aspas simples para uso em atributos JavaScript
 function escapeJsString(str) {
     if (!str) return '';
@@ -327,6 +431,9 @@ function renderActions(player) {
             </button>
             <button class="btn btn-info" onclick="confirmExecuteAction('${player.PlayerID}', 'desbug', '${playerName}')" title="Desbug">
                 <i class="fas fa-wrench"></i>
+            </button>
+            <button class="btn btn-primary" onclick="showSendMessageModal('${player.PlayerID}', '${playerName}')" title="Enviar Mensagem Privada">
+                <i class="fas fa-envelope"></i>
             </button>
             ${addAdminButton}
         </div>
@@ -569,6 +676,11 @@ $(document).ready(function() {
         updateRefreshInterval();
     });
     
+    // Event listener para botão de mensagem global
+    $('#sendGlobalMessageBtn').on('click', function() {
+        showSendGlobalMessageModal();
+    });
+    
     // Search com debounce
     $('#searchInput').on('input', function() {
         const searchTerm = $(this).val();
@@ -611,6 +723,7 @@ $(document).ready(function() {
     window.confirmDeactivateGodMode = confirmDeactivateGodMode;
     window.confirmRedirectToSpawning = confirmRedirectToSpawning;
     window.removeAdmin = removeAdmin;
+    window.showSendMessageModal = showSendMessageModal;
     window.confirmAddAdminFromPlayer = confirmAddAdminFromPlayer;
     
     // Limpar intervalos ao sair da página

@@ -15,6 +15,9 @@
             <span id="totalCount">0</span> Total
         </div>
         <span class="text-muted small me-3" id="nextRefreshTime">--</span>
+        <button type="button" class="btn btn-primary btn-sm" id="sendGlobalMessageBtn" title="Enviar Mensagem Global">
+            <i class="fas fa-bullhorn me-2"></i>Enviar Mensagem Global
+        </button>
     </div>
 </div>
 
@@ -161,6 +164,69 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="actionModalConfirmBtn">
                     <i class="fas fa-check me-2"></i>Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para enviar mensagem privada -->
+<div class="modal fade" id="sendMessageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-envelope me-2"></i>Enviar Mensagem Privada
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <p class="mb-2"><strong>Jogador:</strong></p>
+                    <p class="h5 text-primary mb-2" id="sendMessagePlayerName"></p>
+                    <p class="text-muted mb-3"><small>Player ID: <code id="sendMessagePlayerId"></code></small></p>
+                </div>
+                <div class="mb-3">
+                    <label for="sendMessageText" class="form-label">Mensagem:</label>
+                    <textarea class="form-control" id="sendMessageText" rows="4" placeholder="Digite sua mensagem aqui..." required></textarea>
+                    <div class="form-text">A mensagem será enviada como mensagem privada ao jogador no jogo.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="sendMessageConfirmBtn">
+                    <i class="fas fa-paper-plane me-2"></i>Enviar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para enviar mensagem global -->
+<div class="modal fade" id="sendGlobalMessageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-bullhorn me-2"></i>Enviar Mensagem Global
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Esta mensagem será enviada para <strong>TODOS os jogadores online</strong> no servidor.
+                </div>
+                <div class="mb-3">
+                    <label for="sendGlobalMessageText" class="form-label">Mensagem:</label>
+                    <textarea class="form-control" id="sendGlobalMessageText" rows="4" placeholder="Digite sua mensagem aqui..." required></textarea>
+                    <div class="form-text">A mensagem será enviada como mensagem global a todos os jogadores conectados.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="sendGlobalMessageConfirmBtn">
+                    <i class="fas fa-paper-plane me-2"></i>Enviar
                 </button>
             </div>
         </div>

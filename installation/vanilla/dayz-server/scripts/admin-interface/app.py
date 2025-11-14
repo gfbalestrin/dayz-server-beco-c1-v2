@@ -1376,6 +1376,145 @@ def api_teleport_player(player_id):
             'message': f'Erro ao executar teleporte: {str(e)}'
         }), 500
 
+@app.route('/api/players/<player_id>/send-message', methods=['POST'])
+@admin_required
+@audit_action('SEND_PRIVATE_MESSAGE')
+def api_send_private_message(player_id):
+    """API para enviar mensagem privada a um jogador"""
+    import logging
+    import fcntl
+    import os
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        data = request.get_json()
+        message = data.get('message', '').strip()
+        
+        logger.debug(f"Send message request: player_id={player_id}, message_length={len(message)}")
+        
+        if not message:
+            return jsonify({'success': False, 'message': 'Mensagem não pode estar vazia'}), 400
+        
+        if not player_id or not player_id.strip():
+            return jsonify({'success': False, 'message': 'Player ID inválido'}), 400
+        
+        # Caminho do arquivo de mensagens privadas
+        messages_file = config.MESSAGES_PRIVATE_TO_SEND_FILE
+        
+        if not os.path.exists(messages_file):
+            logger.error(f"Arquivo de mensagens privadas não encontrado: {messages_file}")
+            return jsonify({
+                'success': False,
+                'message': 'Arquivo de mensagens privadas não encontrado'
+            }), 500
+        
+        # Formato: PlayerId;Mensagem
+        message_line = f"{player_id};{message}\n"
+        
+        logger.info(f"Adicionando mensagem privada: {player_id};{message[:50]}...")
+        
+        # Usar file lock para evitar concorrência
+        try:
+            with open(messages_file, 'a') as f:
+                # Adquirir lock exclusivo
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.write(message_line)
+                    f.flush()
+                    os.fsync(f.fileno())
+                finally:
+                    # Liberar lock
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            
+            logger.info("Mensagem privada adicionada com sucesso")
+            return jsonify({
+                'success': True,
+                'message': 'Mensagem privada enviada com sucesso!'
+            })
+            
+        except IOError as e:
+            logger.error(f"Erro ao escrever no arquivo de mensagens privadas: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'Erro ao escrever mensagem: {str(e)}'
+            }), 500
+            
+    except Exception as e:
+        logger.exception("Erro inesperado ao enviar mensagem privada")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao enviar mensagem: {str(e)}'
+        }), 500
+
+@app.route('/api/messages/global', methods=['POST'])
+@admin_required
+@audit_action('SEND_GLOBAL_MESSAGE')
+def api_send_global_message():
+    """API para enviar mensagem global a todos os jogadores online"""
+    import logging
+    import fcntl
+    import os
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        data = request.get_json()
+        message = data.get('message', '').strip()
+        
+        logger.debug(f"Send global message request: message_length={len(message)}")
+        
+        if not message:
+            return jsonify({'success': False, 'message': 'Mensagem não pode estar vazia'}), 400
+        
+        # Caminho do arquivo de mensagens globais
+        messages_file = config.MESSAGES_TO_SEND_FILE
+        
+        if not os.path.exists(messages_file):
+            logger.error(f"Arquivo de mensagens globais não encontrado: {messages_file}")
+            return jsonify({
+                'success': False,
+                'message': 'Arquivo de mensagens globais não encontrado'
+            }), 500
+        
+        # Formato: apenas a mensagem, sem Player ID
+        message_line = f"{message}\n"
+        
+        logger.info(f"Adicionando mensagem global: {message[:50]}...")
+        
+        # Usar file lock para evitar concorrência
+        try:
+            with open(messages_file, 'a') as f:
+                # Adquirir lock exclusivo
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.write(message_line)
+                    f.flush()
+                    os.fsync(f.fileno())
+                finally:
+                    # Liberar lock
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            
+            logger.info("Mensagem global adicionada com sucesso")
+            return jsonify({
+                'success': True,
+                'message': 'Mensagem global enviada com sucesso!'
+            })
+            
+        except IOError as e:
+            logger.error(f"Erro ao escrever no arquivo de mensagens globais: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'Erro ao escrever mensagem: {str(e)}'
+            }), 500
+            
+    except Exception as e:
+        logger.exception("Erro inesperado ao enviar mensagem global")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao enviar mensagem: {str(e)}'
+        }), 500
+
 @app.route('/api/events/kills')
 @admin_required
 def api_kills():
