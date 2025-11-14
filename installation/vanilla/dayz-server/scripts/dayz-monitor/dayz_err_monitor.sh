@@ -30,7 +30,8 @@ INSERT_CUSTOM_LOG "Monitorando arquivo: $LogFileName" "INFO" "$ScriptName"
 stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
     # Ignora linhas que não contêm os erros críticos monitorados
     if [[ "$Line" != *"Can't compile mission init script'!"* && \
-          "$Line" != *"Invalid number -nan"* ]]; then
+          "$Line" != *"Invalid number -nan"* && \
+          "$Line" != *"Admin Kick"* ]]; then
         continue
     fi
 
@@ -48,6 +49,8 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
         handle_compile_error "$Line" "$Content"
     elif [[ "$Content" == *"Invalid number -nan"* ]]; then
         handle_invalid_number_nan "$Line" "$Content"
+    elif [[ "$Content" == *"Admin Kick"* ]]; then
+        handle_admin_kick "$Line" "$Content"
     fi
 
     if [[ "$HANDLER_SHOULD_CONTINUE" -eq 1 ]]; then
