@@ -642,18 +642,18 @@ bool ExecuteCommand(TStringArray tokens)
             string itemsJson = "";
             int itemCount = 0;
             
-            foreach (EntityAI item : inventoryItems)
+            foreach (EntityAI inventoryItem : inventoryItems)
             {
-                if (!item)
+                if (!inventoryItem)
                     continue;
                 
                 itemCount++;
-                string itemType = item.GetType();
+                string itemType = inventoryItem.GetType();
                 int itemQuantity = 1;
                 
-                if (item.IsInherited(ItemBase))
+                if (inventoryItem.IsInherited(ItemBase))
                 {
-                    ItemBase itemBase = ItemBase.Cast(item);
+                    ItemBase itemBase = ItemBase.Cast(inventoryItem);
                     if (itemBase && itemBase.HasQuantity())
                     {
                         itemQuantity = itemBase.GetQuantity();
