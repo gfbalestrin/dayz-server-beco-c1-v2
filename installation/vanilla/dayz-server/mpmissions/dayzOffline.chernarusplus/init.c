@@ -328,7 +328,7 @@ class CustomMission: MissionServer
 		{
 			// Gera posição segura de respawn
 			vector safePosition = GetFarthestSpawnPosition(spawnZones);//GetRandomSafeSpawnPosition(spawnZones);
-			//safePosition[1] = safePosition[1] + 0.2;
+			safePosition[1] = safePosition[1] + 0.5;
 			WriteToLog("CreateCharacter(): Posicionando jogador em: " + safePosition.ToString(), LogFile.INIT, false, LogType.DEBUG);
 			// Cria nova entidade do jogador
 			playerEnt = GetGame().CreatePlayer(identity, characterName, safePosition, 0, "NONE");
