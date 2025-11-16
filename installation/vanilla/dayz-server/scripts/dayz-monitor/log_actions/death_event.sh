@@ -27,14 +27,18 @@ handle_death_event() {
             INSERT_CUSTOM_LOG "Informações do jogador: $PlayerInfo" "INFO" "$ScriptName"
 
             SafePlayerInfo=$(printf '%s\n' "$PlayerInfo" | sed 's/[&/]/\\&/g')
-            CleanContent=$(echo "$UpdatedContent" | sed -E 's/ \(id=[^)]*\)//')
+            CleanContent=$(echo "$UpdatedContent" | sed -E 's/ \(id=[^)]+\)//')
+            CleanContent=$(echo "$CleanContent" | sed -E 's/ pos=<[^>]+>//g')
             NewContent=$(echo "$CleanContent" | sed -E "s|(Player )\"[^\"]+\"|\1$SafePlayerInfo|")
 
-            if [[ -n "$NewContent" ]]; then
+            if [[ -n "$NewContent" && "$NewContent" != "$CleanContent" ]]; then
                 UpdatedContent="$NewContent"
                 INSERT_CUSTOM_LOG "Evento formatado com informações do jogador: $UpdatedContent" "INFO" "$ScriptName"
             else
-                INSERT_CUSTOM_LOG "Erro ao formatar o evento com informações do jogador" "INFO" "$ScriptName"
+                INSERT_CUSTOM_LOG "Erro ao formatar o evento com informações do jogador. NewContent: '$NewContent', CleanContent: '$CleanContent'" "INFO" "$ScriptName"
+                CleanContent=$(echo "$UpdatedContent" | sed -E 's/ \(id=[^)]+\)//')
+                CleanContent=$(echo "$CleanContent" | sed -E 's/ pos=<[^>]+>//g')
+                UpdatedContent="$CleanContent"
             fi
         else
             INSERT_CUSTOM_LOG "PlayerId não encontrado no banco de dados. Ignorando..." "INFO" "$ScriptName"
@@ -44,6 +48,11 @@ handle_death_event() {
     fi
 
     UpdatedContent="${UpdatedContent//Player/Jogador}"
+
+    UpdatedContent=$(echo "$UpdatedContent" | sed -E 's/ \(id=[^)]+\)//g')
+    UpdatedContent=$(echo "$UpdatedContent" | sed -E 's/ pos=<[^>]+>//g')
+    UpdatedContent=$(echo "$UpdatedContent" | sed -E 's/id=[^ ]+//g')
+    UpdatedContent=$(echo "$UpdatedContent" | sed -E 's/pos=<[^>]+>//g')
 
     HANDLER_CONTENT=$(echo "$UpdatedContent" | tr -d '\r\n' | sed "s/   */ /g")
 }
