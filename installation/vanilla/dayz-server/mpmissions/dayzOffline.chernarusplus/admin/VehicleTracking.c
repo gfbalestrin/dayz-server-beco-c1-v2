@@ -112,14 +112,14 @@ void CleanTrackedVehicles()
             continue;
         }
 
-        float vehicleHealth = vehicle.GetHealth("", "");
-        if (vehicleHealth <= 0.0)
+        float engineHealth = vehicle.GetHealth01("Engine", "");
+        if (engineHealth <= 0.0)
         {
             string vehicleName = vehicle.GetDisplayName();
             vector vehiclePosition = vehicle.GetPosition();
             m_TrackedVehicles.Remove(i);
             cleanedDestroyed++;
-            WriteToLog("CleanTrackedVehicles(): Veículo destruído removido - Nome: " + vehicleName + " em " + vehiclePosition.ToString() + " (health: " + vehicleHealth.ToString() + ")", LogFile.INIT, false, LogType.INFO);
+            WriteToLog("CleanTrackedVehicles(): Veículo destruído removido - Nome: " + vehicleName + " em " + vehiclePosition.ToString() + " (motor health: " + engineHealth.ToString() + ")", LogFile.INIT, false, LogType.INFO);
         }
     }
     
