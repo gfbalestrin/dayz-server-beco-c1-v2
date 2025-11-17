@@ -32,6 +32,7 @@ void InitWorldTracking()
 
 	PopulateTrackedFences(worldObjects);
 	PopulateTrackedVehicles(worldObjects);
+	PopulateTrackedContainers(worldObjects);
 
 	string containersJson;
 	int totalContainers;

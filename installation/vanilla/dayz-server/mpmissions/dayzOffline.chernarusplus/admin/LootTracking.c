@@ -133,3 +133,155 @@ void LogLootContainersDetailed()
 	Print(summary);
 	WriteToLog(summary, LogFile.INIT, false, LogType.INFO);
 }
+
+void PopulateTrackedContainers(array<Object> worldObjects)
+{
+	if (!GetGame() || !GetGame().IsServer())
+		return;
+
+	if (!m_TrackedContainers)
+	{
+		WriteToLog("PopulateTrackedContainers(): Inicializando array m_TrackedContainers...", LogFile.INIT, false, LogType.DEBUG);
+		m_TrackedContainers = new array<EntityAI>();
+	}
+	else
+	{
+		WriteToLog("PopulateTrackedContainers(): Array m_TrackedContainers já existe, limpando conteúdo...", LogFile.INIT, false, LogType.DEBUG);
+		m_TrackedContainers.Clear();
+	}
+
+	if (!worldObjects)
+	{
+		WriteToLog("PopulateTrackedContainers(): Lista de objetos vazia recebida.", LogFile.INIT, false, LogType.WARNING);
+		return;
+	}
+
+	TStringArray lootTypes = new TStringArray;
+	lootTypes.Insert("WoodenCrate");
+	lootTypes.Insert("Barrel_Yellow");
+	lootTypes.Insert("Barrel_Red");
+	lootTypes.Insert("Barrel_Blue");
+	lootTypes.Insert("CarTent");
+	lootTypes.Insert("LargeTent");
+	lootTypes.Insert("MediumTent");
+	lootTypes.Insert("PartyTent");
+
+	foreach (Object candidateObject : worldObjects)
+	{
+		if (!candidateObject)
+			continue;
+
+		string objectType = candidateObject.GetType();
+
+		foreach (string lootType : lootTypes)
+		{
+			if (objectType != lootType)
+				continue;
+
+			EntityAI candidateContainer = EntityAI.Cast(candidateObject);
+			if (!candidateContainer)
+				continue;
+
+			m_TrackedContainers.Insert(candidateContainer);
+			break;
+		}
+	}
+
+	WriteToLog("PopulateTrackedContainers(): Total de containers em rastreamento: " + m_TrackedContainers.Count().ToString(), LogFile.INIT, false, LogType.INFO);
+}
+
+void CleanTrackedContainers()
+{
+	if (!m_TrackedContainers)
+		return;
+
+	int cleaned = 0;
+	for (int i = m_TrackedContainers.Count() - 1; i >= 0; i--)
+	{
+		if (!m_TrackedContainers.Get(i))
+		{
+			m_TrackedContainers.Remove(i);
+			cleaned++;
+		}
+	}
+
+	if (cleaned > 0)
+	{
+		WriteToLog("CleanTrackedContainers(): " + cleaned.ToString() + " containers null removidos", LogFile.INIT, false, LogType.DEBUG);
+	}
+}
+
+void CheckContainersForLoot()
+{
+	if (!m_TrackedContainers || m_TrackedContainers.Count() == 0)
+		return;
+
+	string containersJson = "";
+	int containersWithItems = 0;
+	int totalItems = 0;
+
+	foreach (EntityAI container : m_TrackedContainers)
+	{
+		if (!container)
+			continue;
+
+		string containerType = container.GetType();
+		vector containerPosition = container.GetPosition();
+		vector containerOrientation = container.GetOrientation();
+
+		string itemsJson = "";
+		bool containerHasItems = false;
+
+		CargoBase containerCargo = container.GetInventory().GetCargo();
+		if (containerCargo)
+		{
+			for (int cargoIndex = 0; cargoIndex < containerCargo.GetItemCount(); cargoIndex++)
+			{
+				EntityAI cargoItem = containerCargo.GetItem(cargoIndex);
+				if (!cargoItem)
+					continue;
+
+				string cargoType = cargoItem.GetType();
+				float cargoHealth = cargoItem.GetHealth("", "");
+				totalItems++;
+				containerHasItems = true;
+
+				if (itemsJson != "")
+					itemsJson += ",";
+				itemsJson += "{\"type\":\"" + cargoType + "\",\"health\":" + cargoHealth.ToString() + "}";
+			}
+		}
+
+		for (int attachmentIndex = 0; attachmentIndex < container.GetInventory().AttachmentCount(); attachmentIndex++)
+		{
+			EntityAI attachmentItem = container.GetInventory().GetAttachmentFromIndex(attachmentIndex);
+			if (!attachmentItem)
+				continue;
+
+			string attachmentType = attachmentItem.GetType();
+			float attachmentHealth = attachmentItem.GetHealth("", "");
+			totalItems++;
+			containerHasItems = true;
+
+			if (itemsJson != "")
+				itemsJson += ",";
+			itemsJson += "{\"type\":\"" + attachmentType + "\",\"health\":" + attachmentHealth.ToString() + "}";
+		}
+
+		if (containerHasItems)
+		{
+			containersWithItems++;
+			string containerJson = "{\"container_type\":\"" + containerType + "\",\"position\":{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "},\"orientation\":{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "},\"items\":[" + itemsJson + "]}";
+			if (containersJson != "")
+				containersJson += ",";
+			containersJson += containerJson;
+		}
+	}
+
+	if (containersWithItems > 0)
+	{
+		string jsonAction = "{\"action\":\"containers_positions\",\"container_data\":[" + containersJson + "]}";
+		AppendExternalAction(jsonAction);
+		WriteToLog("CheckContainersForLoot(): JSON com " + containersWithItems.ToString() + " containers com itens e " + totalItems.ToString() + " itens enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
+	}
+}

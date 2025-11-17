@@ -5,17 +5,42 @@ handle_containers_positions() {
 
     echo ">> Recebendo containers para loot: $line"
 
-    local current_timestamp
+    local current_timestamp CurrentDate
     current_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-
-    sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "DELETE FROM containers_tracking;"
-    echo ">> Tabela de containers limpa"
+    CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
 
     if ! echo "$line" | jq -e '.container_data' >/dev/null 2>&1; then
         echo ">> Nenhum container encontrado no JSON"
         INSERT_CUSTOM_LOG "JSON de containers vazio ou inválido" "INFO" "$ScriptName"
         return
     fi
+
+    local prev_snapshot_timestamp
+    prev_snapshot_timestamp=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT MAX(TimeStamp) FROM containers_tracking;")
+    declare -A prev_containers=()
+
+    if [[ -n "$prev_snapshot_timestamp" ]]; then
+        while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_items; do
+            prev_containers["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_items"
+        done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' <<EOF
+SELECT 
+    ct.ContainerId,
+    ct.ContainerName,
+    ct.PositionX,
+    ct.PositionZ,
+    ct.PositionY,
+    IFNULL(GROUP_CONCAT(cit.ItemType || ':' || IFNULL(cit.ItemHealth, ''), ','), '')
+FROM containers_tracking ct
+LEFT JOIN container_items_tracking cit ON ct.IdContainerTracking = cit.ContainerTrackingId
+WHERE ct.TimeStamp = '$prev_snapshot_timestamp'
+GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.PositionY;
+EOF
+)
+    fi
+
+    sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "DELETE FROM containers_tracking;"
+    echo ">> Tabela de containers limpa para novo snapshot"
+    INSERT_CUSTOM_LOG "Tabela containers_tracking limpa para registrar novo snapshot" "INFO" "$ScriptName"
 
     local containers container_count processed_count
     containers=$(echo "$line" | jq -c '.container_data[]')
@@ -37,15 +62,132 @@ handle_containers_positions() {
         container_id="${container_type}_${coord_x}_${coord_y}_${coord_z}"
         container_name="$container_type"
 
+        local current_items current_items_str
+        current_items=$(echo "$container_data" | jq -c '.items[]?' 2>/dev/null)
+        current_items_str=""
+        if [[ -n "$current_items" ]]; then
+            while IFS= read -r item_data; do
+                if [[ -z "$item_data" ]]; then
+                    continue
+                fi
+                local item_type item_health
+                item_type=$(echo "$item_data" | jq -r '.type')
+                item_health=$(echo "$item_data" | jq -r '.health // empty')
+                if [[ -n "$item_type" ]]; then
+                    if [[ -n "$current_items_str" ]]; then
+                        current_items_str+=","
+                    fi
+                    current_items_str+="${item_type}:${item_health}"
+                fi
+            done <<< "$current_items"
+        fi
+
+        local prev_data
+        prev_data="${prev_containers[$container_id]}"
+        if [[ -z "$prev_data" ]]; then
+            if [[ -n "$current_items_str" ]]; then
+                local item_count
+                item_count=$(echo "$container_data" | jq '.items | length' 2>/dev/null || echo "0")
+                INSERT_CUSTOM_LOG "Container novo detectado (ID=$container_id) - Coords=($coord_x,$coord_z,$coord_y) - Tipo=$container_type - Itens=$item_count" "INFO" "$ScriptName"
+                local Content
+                Content="Container novo com loot (ID=$container_id) em (${coord_x},${coord_z},${coord_y}) - Tipo: $container_type - $item_count item(s)"
+                SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+            fi
+        else
+            local prev_name prev_x prev_z prev_y prev_items_str
+            IFS='|' read -r prev_name prev_x prev_z prev_y prev_items_str <<< "$prev_data"
+            local diff_message=""
+
+            if [[ "$coord_x" != "$prev_x" || "$coord_z" != "$prev_z" || "$coord_y" != "$prev_y" ]]; then
+                diff_message+="coords((${prev_x},${prev_z},${prev_y})->(${coord_x},${coord_z},${coord_y})); "
+            fi
+
+            local prev_items_array current_items_array
+            declare -A prev_items_map current_items_map
+
+            if [[ -n "$prev_items_str" ]]; then
+                IFS=',' read -ra prev_items_array <<< "$prev_items_str"
+                for item_pair in "${prev_items_array[@]}"; do
+                    if [[ -n "$item_pair" ]]; then
+                        local item_key item_type_prev item_health_prev
+                        IFS=':' read -r item_type_prev item_health_prev <<< "$item_pair"
+                        item_key="${item_type_prev}"
+                        prev_items_map["$item_key"]="${item_health_prev}"
+                    fi
+                done
+            fi
+
+            if [[ -n "$current_items_str" ]]; then
+                IFS=',' read -ra current_items_array <<< "$current_items_str"
+                for item_pair in "${current_items_array[@]}"; do
+                    if [[ -n "$item_pair" ]]; then
+                        local item_key item_type_curr item_health_curr
+                        IFS=':' read -r item_type_curr item_health_curr <<< "$item_pair"
+                        item_key="${item_type_curr}"
+                        current_items_map["$item_key"]="${item_health_curr}"
+                    fi
+                done
+            fi
+
+            local items_added items_removed items_changed
+            items_added=""
+            items_removed=""
+            items_changed=""
+
+            for item_key in "${!prev_items_map[@]}"; do
+                if [[ -z "${current_items_map[$item_key]}" ]]; then
+                    if [[ -n "$items_removed" ]]; then
+                        items_removed+=", "
+                    fi
+                    items_removed+="$item_key"
+                elif [[ "${prev_items_map[$item_key]}" != "${current_items_map[$item_key]}" ]]; then
+                    if [[ -n "$items_changed" ]]; then
+                        items_changed+=", "
+                    fi
+                    items_changed+="$item_key(${prev_items_map[$item_key]}->${current_items_map[$item_key]})"
+                fi
+            done
+
+            for item_key in "${!current_items_map[@]}"; do
+                if [[ -z "${prev_items_map[$item_key]}" ]]; then
+                    if [[ -n "$items_added" ]]; then
+                        items_added+=", "
+                    fi
+                    items_added+="$item_key"
+                fi
+            done
+
+            if [[ -n "$items_added" || -n "$items_removed" || -n "$items_changed" || -n "$diff_message" ]]; then
+                if [[ -n "$items_added" ]]; then
+                    diff_message+="itens_adicionados($items_added); "
+                fi
+                if [[ -n "$items_removed" ]]; then
+                    diff_message+="itens_removidos($items_removed); "
+                fi
+                if [[ -n "$items_changed" ]]; then
+                    diff_message+="itens_alterados($items_changed); "
+                fi
+
+                diff_message="${diff_message%??}"
+                INSERT_CUSTOM_LOG "Container atualizado (ID=$container_id) - Alterações: $diff_message" "INFO" "$ScriptName"
+
+                if [[ -n "$items_added" ]]; then
+                    local Content
+                    Content="Container recebeu loot (ID=$container_id) em (${coord_x},${coord_z},${coord_y}) - Itens adicionados: $items_added"
+                    SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+                fi
+            fi
+
+            unset "prev_containers[$container_id]"
+        fi
+
         local ContainerTrackingId
         ContainerTrackingId=$(INSERT_CONTAINER_POSITION "$container_id" "$container_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp")
 
         if [[ $? -eq 0 && -n "$ContainerTrackingId" ]]; then
             processed_count=$((processed_count + 1))
 
-            local items
-            items=$(echo "$container_data" | jq -c '.items[]?' 2>/dev/null)
-            if [[ -n "$items" ]]; then
+            if [[ -n "$current_items" ]]; then
                 local item_count item_data item_type item_health
                 item_count=0
                 while IFS= read -r item_data; do
@@ -60,7 +202,7 @@ handle_containers_positions() {
                         INSERT_CONTAINER_ITEM "$ContainerTrackingId" "$item_type" "$item_health" "$current_timestamp" >/dev/null
                         item_count=$((item_count + 1))
                     fi
-                done <<< "$items"
+                done <<< "$current_items"
 
                 if [[ $item_count -gt 0 ]]; then
                     echo "  -> $item_count item(s) inseridos no container $container_id"
@@ -70,7 +212,23 @@ handle_containers_positions() {
 
     done <<< "$containers"
 
+    if [[ ${#prev_containers[@]} -gt 0 ]]; then
+        local removed_id removed_data rem_name rem_x rem_z rem_y rem_items Content
+        for removed_id in "${!prev_containers[@]}"; do
+            removed_data="${prev_containers[$removed_id]}"
+            IFS='|' read -r rem_name rem_x rem_z rem_y rem_items <<< "$removed_data"
+            local rem_item_count
+            if [[ -n "$rem_items" ]]; then
+                rem_item_count=$(echo "$rem_items" | tr ',' '\n' | wc -l)
+            else
+                rem_item_count=0
+            fi
+            INSERT_CUSTOM_LOG "Container removido (ID=$removed_id) - Última posição=($rem_x,$rem_z,$rem_y) - Tipo=$rem_name - Itens=$rem_item_count" "INFO" "$ScriptName"
+            Content="Container removido (ID=$removed_id) do mapa - Última posição=($rem_x,$rem_z,$rem_y) - Tipo: $rem_name"
+            SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+        done
+    fi
+
     echo ">> $processed_count containers processados de $container_count totais"
     INSERT_CUSTOM_LOG "Total de $processed_count containers rastreados" "INFO" "$ScriptName"
 }
-
