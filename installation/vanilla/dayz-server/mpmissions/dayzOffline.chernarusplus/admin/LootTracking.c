@@ -145,7 +145,9 @@ void BuildContainersData(array<Object> worldObjects, out string containersJson, 
 		if (containerHasItems)
 		{
 			totalContainersWithItems++;
-			string containerJson = "{\"container_id\":\"" + containerId.ToString() + "\",\"container_type\":\"" + objectType + "\",\"position\":{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "},\"orientation\":{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "},\"items\":[" + itemsJson + "]}";
+			string positionJson = "{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "}";
+			string orientationJson = "{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "}";
+			string containerJson = "{\"container_id\":\"" + containerId.ToString() + "\",\"container_type\":\"" + objectType + "\",\"position\":" + positionJson + ",\"orientation\":" + orientationJson + ",\"items\":[" + itemsJson + "]}";
 			if (containersJson != "")
 				containersJson += ",";
 			containersJson += containerJson;
@@ -332,7 +334,9 @@ void CheckContainersForLoot()
 			containersWithItems++;
 		}
 
-		string containerJson = "{\"container_id\":\"" + containerId.ToString() + "\",\"container_type\":\"" + containerType + "\",\"position\":{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "},\"orientation\":{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "},\"items\":[" + itemsJson + "]}";
+		string positionJson = "{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "}";
+		string orientationJson = "{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "}";
+		string containerJson = "{\"container_id\":\"" + containerId.ToString() + "\",\"container_type\":\"" + containerType + "\",\"position\":" + positionJson + ",\"orientation\":" + orientationJson + ",\"items\":[" + itemsJson + "]}";
 		if (containersJson != "")
 			containersJson += ",";
 		containersJson += containerJson;
