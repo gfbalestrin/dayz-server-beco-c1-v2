@@ -239,6 +239,16 @@ bool ExecuteCommand(TStringArray tokens)
                     if (item)
                     {
                         target.MessageStatus("Item recebido: " + itemName);
+                        
+                        if (IsContainerType(itemName))
+                        {
+                            RegisterContainer(item);
+                        }
+                        
+                        if (IsVehicle(item))
+                        {
+                            RegisterVehicle(item);
+                        }
                     }
                     else
                     {
@@ -824,6 +834,8 @@ bool ExecuteCreateContainer(TStringArray tokens, PlayerBase player = null)
     }
     
     WriteToLog("Container " + containerType + " criado em X=" + coordX.ToString() + " Y=" + coordY.ToString(), LogFile.INIT, false, LogType.INFO);
+    
+    RegisterContainer(container);
     
     // Log adicional sobre capacidade do container
     CargoBase containerCargo = container.GetInventory().GetCargo();

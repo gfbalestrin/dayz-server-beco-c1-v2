@@ -26,11 +26,10 @@ bool SpawnVehicleWithParts(vector pos, string vehicleType)
     }
 
     // Adiciona veículo ao rastreamento
-    CarScript vehicleScript = CarScript.Cast(vehicle);
-    if (vehicleScript && m_TrackedVehicles)
+    EntityAI vehicleEntity = EntityAI.Cast(vehicle);
+    if (vehicleEntity)
     {
-        m_TrackedVehicles.Insert(vehicleScript);
-        WriteToLog("SpawnVehicleWithParts(): Veículo adicionado ao rastreamento: " + vehicleType, LogFile.INIT, false, LogType.DEBUG);
+        RegisterVehicle(vehicleEntity);
     }
 
     WriteToLog("SpawnVehicleWithParts(): Veiculo criado com sucesso: " + vehicleType, LogFile.INIT, false, LogType.DEBUG);

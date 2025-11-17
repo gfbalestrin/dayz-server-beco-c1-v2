@@ -2,6 +2,54 @@
 // FUNÇÕES DE TRACKING DE VEÍCULOS
 // ============================================================================
 
+bool IsVehicle(EntityAI entity)
+{
+	if (!entity)
+		return false;
+
+	CarScript vehicle = CarScript.Cast(entity);
+	return vehicle != null;
+}
+
+void RegisterVehicle(EntityAI newVehicle)
+{
+	if (!GetGame() || !GetGame().IsServer())
+		return;
+
+	if (!newVehicle)
+		return;
+
+	if (!IsVehicle(newVehicle))
+		return;
+
+	CarScript vehicleScript = CarScript.Cast(newVehicle);
+	if (!vehicleScript)
+		return;
+
+	if (!m_TrackedVehicles)
+		m_TrackedVehicles = new array<CarScript>();
+
+	int trackedCount = m_TrackedVehicles.Count();
+	for (int trackedIndex = 0; trackedIndex < trackedCount; trackedIndex++)
+	{
+		CarScript trackedVehicle = m_TrackedVehicles.Get(trackedIndex);
+		if (!trackedVehicle)
+			continue;
+
+		if (trackedVehicle == vehicleScript)
+		{
+			WriteToLog("RegisterVehicle(): Veículo já está rastreado, ignorando.", LogFile.INIT, false, LogType.DEBUG);
+			return;
+		}
+	}
+
+	m_TrackedVehicles.Insert(vehicleScript);
+
+	vector vehiclePosition = vehicleScript.GetPosition();
+	string vehicleName = vehicleScript.GetDisplayName();
+	WriteToLog("RegisterVehicle(): Veículo " + vehicleName + " adicionado em " + vehiclePosition.ToString(), LogFile.INIT, false, LogType.INFO);
+}
+
 // Inicializa o rastreamento de veículos
 void PopulateTrackedVehicles(array<Object> worldObjects)
 {
