@@ -229,7 +229,7 @@ class CustomMission: MissionServer
 				string playerName = identity.GetName();		
 				string steamId = identity.GetPlainId();
 
-				if (IsDeathmatchEnabled)
+				if (IsDeathmatchEnabled && !CheckIfIsAdmin(playerId))
 				{
 					// Verifica zona de barreira
 					if (wallZones)
