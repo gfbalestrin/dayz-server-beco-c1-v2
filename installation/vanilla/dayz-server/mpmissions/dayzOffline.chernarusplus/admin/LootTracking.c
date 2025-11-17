@@ -230,19 +230,37 @@ void CleanTrackedContainers()
 	if (!m_TrackedContainers)
 		return;
 
-	int cleaned = 0;
+	int cleanedNull = 0;
+	int cleanedDestroyed = 0;
 	for (int i = m_TrackedContainers.Count() - 1; i >= 0; i--)
 	{
-		if (!m_TrackedContainers.Get(i))
+		EntityAI container = m_TrackedContainers.Get(i);
+		if (!container)
 		{
 			m_TrackedContainers.Remove(i);
-			cleaned++;
+			cleanedNull++;
+			continue;
+		}
+
+		float containerHealth = container.GetHealth("", "");
+		if (containerHealth <= 0.0)
+		{
+			string containerType = container.GetType();
+			vector containerPosition = container.GetPosition();
+			m_TrackedContainers.Remove(i);
+			cleanedDestroyed++;
+			WriteToLog("CleanTrackedContainers(): Container destruído removido - Tipo: " + containerType + " em " + containerPosition.ToString() + " (health: " + containerHealth.ToString() + ")", LogFile.INIT, false, LogType.INFO);
 		}
 	}
 
-	if (cleaned > 0)
+	if (cleanedNull > 0)
 	{
-		WriteToLog("CleanTrackedContainers(): " + cleaned.ToString() + " containers null removidos", LogFile.INIT, false, LogType.DEBUG);
+		WriteToLog("CleanTrackedContainers(): " + cleanedNull.ToString() + " containers null removidos", LogFile.INIT, false, LogType.DEBUG);
+	}
+
+	if (cleanedDestroyed > 0)
+	{
+		WriteToLog("CleanTrackedContainers(): " + cleanedDestroyed.ToString() + " containers destruídos removidos", LogFile.INIT, false, LogType.INFO);
 	}
 }
 
@@ -323,4 +341,5 @@ void CheckContainersForLoot()
 		AppendExternalAction(jsonAction);
 		WriteToLog("CheckContainersForLoot(): JSON com " + containersTotal.ToString() + " containers (com itens: " + containersWithItems.ToString() + ", vazios: " + (containersTotal - containersWithItems).ToString() + ") e " + totalItems.ToString() + " itens enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
 	}
+}
 }
