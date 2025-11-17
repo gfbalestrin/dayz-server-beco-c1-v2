@@ -100,19 +100,37 @@ void CleanTrackedVehicles()
     if (!m_TrackedVehicles)
         return;
         
-    int cleaned = 0;
+    int cleanedNull = 0;
+    int cleanedDestroyed = 0;
     for (int i = m_TrackedVehicles.Count() - 1; i >= 0; i--)
     {
-        if (!m_TrackedVehicles.Get(i))
+        CarScript vehicle = m_TrackedVehicles.Get(i);
+        if (!vehicle)
         {
             m_TrackedVehicles.Remove(i);
-            cleaned++;
+            cleanedNull++;
+            continue;
+        }
+
+        float vehicleHealth = vehicle.GetHealth("", "");
+        if (vehicleHealth <= 0.0)
+        {
+            string vehicleName = vehicle.GetDisplayName();
+            vector vehiclePosition = vehicle.GetPosition();
+            m_TrackedVehicles.Remove(i);
+            cleanedDestroyed++;
+            WriteToLog("CleanTrackedVehicles(): Veículo destruído removido - Nome: " + vehicleName + " em " + vehiclePosition.ToString() + " (health: " + vehicleHealth.ToString() + ")", LogFile.INIT, false, LogType.INFO);
         }
     }
     
-    if (cleaned > 0)
+    if (cleanedNull > 0)
     {
-        WriteToLog("CleanTrackedVehicles(): " + cleaned.ToString() + " veículos null removidos", LogFile.INIT, false, LogType.DEBUG);
+        WriteToLog("CleanTrackedVehicles(): " + cleanedNull.ToString() + " veículos null removidos", LogFile.INIT, false, LogType.DEBUG);
+    }
+
+    if (cleanedDestroyed > 0)
+    {
+        WriteToLog("CleanTrackedVehicles(): " + cleanedDestroyed.ToString() + " veículos destruídos removidos", LogFile.INIT, false, LogType.INFO);
     }
 }	
 
@@ -226,4 +244,5 @@ void TrackVehiclePositions()
             WriteToLog("[REMOVER] Veículo inválido ou destruído.", LogFile.INIT, false, LogType.DEBUG);
         }
     }
+}
 }
