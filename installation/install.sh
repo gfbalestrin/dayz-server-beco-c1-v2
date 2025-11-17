@@ -489,7 +489,8 @@ if [[ "\$DayzWipeOnRestart" == "1" ]]; then
     rm -rf "\$PROFILE_DIR/players.db"
     rm -rf "\$PROFILE_DIR/spawnpoints.bin"
     rm -rf "\$PROFILE_DIR/data"
-    echo "Wipe completo!"
+    echo "Wipe realizado!"
+    SEND_DISCORD_WEBHOOK "Wipe realizado!" "\$DiscordWebhookLogs" "\$CurrentDate" "\$ScriptName"
 fi
 
 # Atualiza o servidor via SteamCMD
