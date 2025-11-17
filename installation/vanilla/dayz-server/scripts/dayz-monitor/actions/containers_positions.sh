@@ -91,7 +91,7 @@ EOF
                 INSERT_CUSTOM_LOG "Container novo detectado (ID=$container_id) - Coords=($coord_x,$coord_z,$coord_y) - Tipo=$container_type - Itens=$item_count" "INFO" "$ScriptName"
                 local Content
                 Content="Container novo com loot (ID=$container_id) em (${coord_x},${coord_z},${coord_y}) - Tipo: $container_type - $item_count item(s)"
-                SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+                #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             fi
         else
             local prev_name prev_x prev_z prev_y prev_items_str
@@ -209,38 +209,40 @@ EOF
                         fi
                         Content+="Itens alterados: $items_changed"
                     fi
-                    SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+                    #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
                 fi
             fi
 
             unset "prev_containers[$container_id]"
         fi
 
-        local ContainerTrackingId
-        ContainerTrackingId=$(INSERT_CONTAINER_POSITION "$container_id" "$container_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp")
+        if [[ -n "$current_items_str" ]]; then
+            local ContainerTrackingId
+            ContainerTrackingId=$(INSERT_CONTAINER_POSITION "$container_id" "$container_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp")
 
-        if [[ $? -eq 0 && -n "$ContainerTrackingId" ]]; then
-            processed_count=$((processed_count + 1))
+            if [[ $? -eq 0 && -n "$ContainerTrackingId" ]]; then
+                processed_count=$((processed_count + 1))
 
-            if [[ -n "$current_items" ]]; then
-                local item_count item_data item_type item_health
-                item_count=0
-                while IFS= read -r item_data; do
-                    if [[ -z "$item_data" ]]; then
-                        continue
+                if [[ -n "$current_items" ]]; then
+                    local item_count item_data item_type item_health
+                    item_count=0
+                    while IFS= read -r item_data; do
+                        if [[ -z "$item_data" ]]; then
+                            continue
+                        fi
+
+                        item_type=$(echo "$item_data" | jq -r '.type')
+                        item_health=$(echo "$item_data" | jq -r '.health // empty')
+
+                        if [[ -n "$item_type" ]]; then
+                            INSERT_CONTAINER_ITEM "$ContainerTrackingId" "$item_type" "$item_health" "$current_timestamp" >/dev/null
+                            item_count=$((item_count + 1))
+                        fi
+                    done <<< "$current_items"
+
+                    if [[ $item_count -gt 0 ]]; then
+                        echo "  -> $item_count item(s) inseridos no container $container_id"
                     fi
-
-                    item_type=$(echo "$item_data" | jq -r '.type')
-                    item_health=$(echo "$item_data" | jq -r '.health // empty')
-
-                    if [[ -n "$item_type" ]]; then
-                        INSERT_CONTAINER_ITEM "$ContainerTrackingId" "$item_type" "$item_health" "$current_timestamp" >/dev/null
-                        item_count=$((item_count + 1))
-                    fi
-                done <<< "$current_items"
-
-                if [[ $item_count -gt 0 ]]; then
-                    echo "  -> $item_count item(s) inseridos no container $container_id"
                 fi
             fi
         fi
@@ -281,7 +283,7 @@ EOF
             fi
             INSERT_CUSTOM_LOG "Container removido (ID=$removed_id) - Última posição=($rem_x,$rem_z,$rem_y) - Tipo=$rem_name - Itens=$rem_item_count - Detalhes: $rem_items_summary" "INFO" "$ScriptName"
             Content="Container removido (ID=$removed_id) do mapa - Última posição=($rem_x,$rem_z,$rem_y) - Tipo: $rem_name"
-            SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+            #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
         done
     fi
 
