@@ -253,12 +253,15 @@ void CheckContainersForLoot()
 
 	string containersJson = "";
 	int containersWithItems = 0;
+	int containersTotal = 0;
 	int totalItems = 0;
 
 	foreach (EntityAI container : m_TrackedContainers)
 	{
 		if (!container)
 			continue;
+
+		containersTotal++;
 
 		string containerType = container.GetType();
 		vector containerPosition = container.GetPosition();
@@ -306,17 +309,18 @@ void CheckContainersForLoot()
 		if (containerHasItems)
 		{
 			containersWithItems++;
-			string containerJson = "{\"container_type\":\"" + containerType + "\",\"position\":{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "},\"orientation\":{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "},\"items\":[" + itemsJson + "]}";
-			if (containersJson != "")
-				containersJson += ",";
-			containersJson += containerJson;
 		}
+
+		string containerJson = "{\"container_type\":\"" + containerType + "\",\"position\":{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "},\"orientation\":{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "},\"items\":[" + itemsJson + "]}";
+		if (containersJson != "")
+			containersJson += ",";
+		containersJson += containerJson;
 	}
 
-	if (containersWithItems > 0)
+	if (containersTotal > 0)
 	{
 		string jsonAction = "{\"action\":\"containers_positions\",\"container_data\":[" + containersJson + "]}";
 		AppendExternalAction(jsonAction);
-		WriteToLog("CheckContainersForLoot(): JSON com " + containersWithItems.ToString() + " containers com itens e " + totalItems.ToString() + " itens enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
+		WriteToLog("CheckContainersForLoot(): JSON com " + containersTotal.ToString() + " containers (com itens: " + containersWithItems.ToString() + ", vazios: " + (containersTotal - containersWithItems).ToString() + ") e " + totalItems.ToString() + " itens enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
 	}
 }

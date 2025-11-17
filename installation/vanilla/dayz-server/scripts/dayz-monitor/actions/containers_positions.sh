@@ -109,10 +109,18 @@ EOF
                 IFS=',' read -ra prev_items_array <<< "$prev_items_str"
                 for item_pair in "${prev_items_array[@]}"; do
                     if [[ -n "$item_pair" ]]; then
-                        local item_key item_type_prev item_health_prev
+                        local item_type_prev item_health_prev
                         IFS=':' read -r item_type_prev item_health_prev <<< "$item_pair"
-                        item_key="${item_type_prev}"
-                        prev_items_map["$item_key"]="${item_health_prev}"
+                        if [[ -n "$item_type_prev" ]]; then
+                            if [[ -z "${prev_items_map[$item_type_prev]}" ]]; then
+                                prev_items_map["$item_type_prev"]="1:${item_health_prev}"
+                            else
+                                local existing_count existing_healths
+                                IFS=':' read -r existing_count existing_healths <<< "${prev_items_map[$item_type_prev]}"
+                                local new_count=$((existing_count + 1))
+                                prev_items_map["$item_type_prev"]="${new_count}:${existing_healths},${item_health_prev}"
+                            fi
+                        fi
                     fi
                 done
             fi
@@ -121,10 +129,18 @@ EOF
                 IFS=',' read -ra current_items_array <<< "$current_items_str"
                 for item_pair in "${current_items_array[@]}"; do
                     if [[ -n "$item_pair" ]]; then
-                        local item_key item_type_curr item_health_curr
+                        local item_type_curr item_health_curr
                         IFS=':' read -r item_type_curr item_health_curr <<< "$item_pair"
-                        item_key="${item_type_curr}"
-                        current_items_map["$item_key"]="${item_health_curr}"
+                        if [[ -n "$item_type_curr" ]]; then
+                            if [[ -z "${current_items_map[$item_type_curr]}" ]]; then
+                                current_items_map["$item_type_curr"]="1:${item_health_curr}"
+                            else
+                                local existing_count existing_healths
+                                IFS=':' read -r existing_count existing_healths <<< "${current_items_map[$item_type_curr]}"
+                                local new_count=$((existing_count + 1))
+                                current_items_map["$item_type_curr"]="${new_count}:${existing_healths},${item_health_curr}"
+                            fi
+                        fi
                     fi
                 done
             fi
@@ -135,25 +151,35 @@ EOF
             items_changed=""
 
             for item_key in "${!prev_items_map[@]}"; do
+                local prev_count prev_healths
+                IFS=':' read -r prev_count prev_healths <<< "${prev_items_map[$item_key]}"
+                
                 if [[ -z "${current_items_map[$item_key]}" ]]; then
                     if [[ -n "$items_removed" ]]; then
                         items_removed+=", "
                     fi
-                    items_removed+="$item_key"
-                elif [[ "${prev_items_map[$item_key]}" != "${current_items_map[$item_key]}" ]]; then
-                    if [[ -n "$items_changed" ]]; then
-                        items_changed+=", "
+                    items_removed+="$item_key(qtd:$prev_count)"
+                else
+                    local curr_count curr_healths
+                    IFS=':' read -r curr_count curr_healths <<< "${current_items_map[$item_key]}"
+                    
+                    if [[ "$prev_count" != "$curr_count" ]]; then
+                        if [[ -n "$items_changed" ]]; then
+                            items_changed+=", "
+                        fi
+                        items_changed+="$item_key(qtd:$prev_count->$curr_count)"
                     fi
-                    items_changed+="$item_key(${prev_items_map[$item_key]}->${current_items_map[$item_key]})"
                 fi
             done
 
             for item_key in "${!current_items_map[@]}"; do
                 if [[ -z "${prev_items_map[$item_key]}" ]]; then
+                    local curr_count curr_healths
+                    IFS=':' read -r curr_count curr_healths <<< "${current_items_map[$item_key]}"
                     if [[ -n "$items_added" ]]; then
                         items_added+=", "
                     fi
-                    items_added+="$item_key"
+                    items_added+="$item_key(qtd:$curr_count)"
                 fi
             done
 
@@ -171,9 +197,18 @@ EOF
                 diff_message="${diff_message%??}"
                 INSERT_CUSTOM_LOG "Container atualizado (ID=$container_id) - Alterações: $diff_message" "INFO" "$ScriptName"
 
-                if [[ -n "$items_added" ]]; then
+                if [[ -n "$items_added" || -n "$items_changed" ]]; then
                     local Content
-                    Content="Container recebeu loot (ID=$container_id) em (${coord_x},${coord_z},${coord_y}) - Itens adicionados: $items_added"
+                    Content="Container recebeu loot (ID=$container_id) em (${coord_x},${coord_z},${coord_y})"
+                    if [[ -n "$items_added" ]]; then
+                        Content+=" - Itens adicionados: $items_added"
+                    fi
+                    if [[ -n "$items_changed" ]]; then
+                        if [[ -n "$items_added" ]]; then
+                            Content+="; "
+                        fi
+                        Content+="Itens alterados: $items_changed"
+                    fi
                     SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
                 fi
             fi
@@ -217,13 +252,34 @@ EOF
         for removed_id in "${!prev_containers[@]}"; do
             removed_data="${prev_containers[$removed_id]}"
             IFS='|' read -r rem_name rem_x rem_z rem_y rem_items <<< "$removed_data"
-            local rem_item_count
+            local rem_item_count rem_items_summary
+            rem_item_count=0
+            rem_items_summary=""
             if [[ -n "$rem_items" ]]; then
-                rem_item_count=$(echo "$rem_items" | tr ',' '\n' | wc -l)
-            else
-                rem_item_count=0
+                declare -A rem_items_map
+                IFS=',' read -ra rem_items_array <<< "$rem_items"
+                for item_pair in "${rem_items_array[@]}"; do
+                    if [[ -n "$item_pair" ]]; then
+                        local item_type_rem item_health_rem
+                        IFS=':' read -r item_type_rem item_health_rem <<< "$item_pair"
+                        if [[ -n "$item_type_rem" ]]; then
+                            rem_item_count=$((rem_item_count + 1))
+                            if [[ -z "${rem_items_map[$item_type_rem]}" ]]; then
+                                rem_items_map["$item_type_rem"]=1
+                            else
+                                rem_items_map["$item_type_rem"]=$((${rem_items_map[$item_type_rem]} + 1))
+                            fi
+                        fi
+                    fi
+                done
+                for item_type_key in "${!rem_items_map[@]}"; do
+                    if [[ -n "$rem_items_summary" ]]; then
+                        rem_items_summary+=", "
+                    fi
+                    rem_items_summary+="$item_type_key(${rem_items_map[$item_type_key]})"
+                done
             fi
-            INSERT_CUSTOM_LOG "Container removido (ID=$removed_id) - Última posição=($rem_x,$rem_z,$rem_y) - Tipo=$rem_name - Itens=$rem_item_count" "INFO" "$ScriptName"
+            INSERT_CUSTOM_LOG "Container removido (ID=$removed_id) - Última posição=($rem_x,$rem_z,$rem_y) - Tipo=$rem_name - Itens=$rem_item_count - Detalhes: $rem_items_summary" "INFO" "$ScriptName"
             Content="Container removido (ID=$removed_id) do mapa - Última posição=($rem_x,$rem_z,$rem_y) - Tipo: $rem_name"
             SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
         done
