@@ -95,10 +95,12 @@ void BuildContainersData(array<Object> worldObjects, out string containersJson, 
 
 		string itemsJson = "";
 		bool containerHasItems = false;
+		int containerId = 0;
 
 		EntityAI containerEntity = EntityAI.Cast(candidateObject);
 		if (containerEntity)
 		{
+			containerId = containerEntity.GetID();
 			CargoBase containerCargo = containerEntity.GetInventory().GetCargo();
 			if (containerCargo)
 			{
@@ -143,7 +145,7 @@ void BuildContainersData(array<Object> worldObjects, out string containersJson, 
 		if (containerHasItems)
 		{
 			totalContainersWithItems++;
-			string containerJson = "{\"container_type\":\"" + objectType + "\",\"position\":{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "},\"orientation\":{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "},\"items\":[" + itemsJson + "]}";
+			string containerJson = "{\"container_id\":\"" + containerId.ToString() + "\",\"container_type\":\"" + objectType + "\",\"position\":{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "},\"orientation\":{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "},\"items\":[" + itemsJson + "]}";
 			if (containersJson != "")
 				containersJson += ",";
 			containersJson += containerJson;
@@ -282,6 +284,7 @@ void CheckContainersForLoot()
 		containersTotal++;
 
 		string containerType = container.GetType();
+		int containerId = container.GetID();
 		vector containerPosition = container.GetPosition();
 		vector containerOrientation = container.GetOrientation();
 
@@ -329,7 +332,7 @@ void CheckContainersForLoot()
 			containersWithItems++;
 		}
 
-		string containerJson = "{\"container_type\":\"" + containerType + "\",\"position\":{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "},\"orientation\":{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "},\"items\":[" + itemsJson + "]}";
+		string containerJson = "{\"container_id\":\"" + containerId.ToString() + "\",\"container_type\":\"" + containerType + "\",\"position\":{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "},\"orientation\":{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "},\"items\":[" + itemsJson + "]}";
 		if (containersJson != "")
 			containersJson += ",";
 		containersJson += containerJson;

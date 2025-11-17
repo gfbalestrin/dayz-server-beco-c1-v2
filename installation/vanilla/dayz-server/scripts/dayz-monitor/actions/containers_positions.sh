@@ -54,12 +54,17 @@ EOF
         fi
 
         local container_type coord_x coord_z coord_y container_id container_name
+        container_id=$(echo "$container_data" | jq -r '.container_id')
         container_type=$(echo "$container_data" | jq -r '.container_type')
         coord_x=$(echo "$container_data" | jq -r '.position.x')
         coord_z=$(echo "$container_data" | jq -r '.position.z')
         coord_y=$(echo "$container_data" | jq -r '.position.y')
 
-        container_id="${container_type}_${coord_x}_${coord_y}_${coord_z}"
+        if [[ -z "$container_id" || "$container_id" == "null" ]]; then
+            echo ">> Aviso: container_id não encontrado no JSON, pulando container"
+            continue
+        fi
+
         container_name="$container_type"
 
         local current_items current_items_str
@@ -97,9 +102,11 @@ EOF
             local prev_name prev_x prev_z prev_y prev_items_str
             IFS='|' read -r prev_name prev_x prev_z prev_y prev_items_str <<< "$prev_data"
             local diff_message=""
+            local container_moved=false
 
             if [[ "$coord_x" != "$prev_x" || "$coord_z" != "$prev_z" || "$coord_y" != "$prev_y" ]]; then
-                diff_message+="coords((${prev_x},${prev_z},${prev_y})->(${coord_x},${coord_z},${coord_y})); "
+                container_moved=true
+                diff_message+="movido((${prev_x},${prev_z},${prev_y})->(${coord_x},${coord_z},${coord_y})); "
             fi
 
             local prev_items_array current_items_array
@@ -195,7 +202,14 @@ EOF
                 fi
 
                 diff_message="${diff_message%??}"
-                INSERT_CUSTOM_LOG "Container atualizado (ID=$container_id) - Alterações: $diff_message" "INFO" "$ScriptName"
+                
+                if [[ "$container_moved" == true ]]; then
+                    INSERT_CUSTOM_LOG "Container movido (ID=$container_id) - De (${prev_x},${prev_z},${prev_y}) para (${coord_x},${coord_z},${coord_y}) - Tipo=$container_type" "INFO" "$ScriptName"
+                fi
+                
+                if [[ -n "$items_added" || -n "$items_removed" || -n "$items_changed" ]]; then
+                    INSERT_CUSTOM_LOG "Container atualizado (ID=$container_id) - Alterações: $diff_message" "INFO" "$ScriptName"
+                fi
 
                 if [[ -n "$items_added" || -n "$items_changed" ]]; then
                     local Content
