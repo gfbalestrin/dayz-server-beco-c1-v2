@@ -5,6 +5,7 @@ TStringArray GetContainerTypes()
 	containerTypes.Insert("Barrel_Yellow");
 	containerTypes.Insert("Barrel_Red");
 	containerTypes.Insert("Barrel_Blue");
+	containerTypes.Insert("Barrel_Green");
 	containerTypes.Insert("CarTent");
 	containerTypes.Insert("LargeTent");
 	containerTypes.Insert("MediumTent");
