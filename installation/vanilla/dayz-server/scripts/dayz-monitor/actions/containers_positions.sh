@@ -281,8 +281,14 @@ EOF
                     rem_items_summary+="$item_type_key(${rem_items_map[$item_type_key]})"
                 done
             fi
-            INSERT_CUSTOM_LOG "Container removido (ID=$removed_id) - Última posição=($rem_x,$rem_z,$rem_y) - Tipo=$rem_name - Itens=$rem_item_count - Detalhes: $rem_items_summary" "INFO" "$ScriptName"
-            Content="Container removido (ID=$removed_id) do mapa - Última posição=($rem_x,$rem_z,$rem_y) - Tipo: $rem_name"
+            
+            if [[ $rem_item_count -gt 0 ]]; then
+                INSERT_CUSTOM_LOG "Container destruído (ID=$removed_id) - Última posição=($rem_x,$rem_z,$rem_y) - Tipo=$rem_name - Itens=$rem_item_count - Detalhes: $rem_items_summary" "INFO" "$ScriptName"
+                Content="Container destruído (ID=$removed_id) do mapa - Última posição=($rem_x,$rem_z,$rem_y) - Tipo: $rem_name - $rem_item_count item(s)"
+            else
+                INSERT_CUSTOM_LOG "Container removido (ID=$removed_id) - Última posição=($rem_x,$rem_z,$rem_y) - Tipo=$rem_name" "INFO" "$ScriptName"
+                Content="Container removido (ID=$removed_id) do mapa - Última posição=($rem_x,$rem_z,$rem_y) - Tipo: $rem_name"
+            fi
             #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
         done
     fi
