@@ -1762,10 +1762,6 @@ function updateVehicles(data) {
             maxWidth: 300
         });
         
-        marker.on('click', function() {
-            toggleVehicleTrail(vehicleId);
-        });
-        
         vehicleMarkers[vehicleId] = marker;
     });
     
@@ -1944,10 +1940,6 @@ function updateContainers(data) {
             maxWidth: 300
         });
         
-        marker.on('click', function() {
-            toggleContainerTrail(containerId);
-        });
-        
         containerMarkers[containerId] = marker;
     });
     
@@ -2112,10 +2104,6 @@ function updateFences(data) {
             autoPan: true,
             autoPanPadding: [50, 50],
             maxWidth: 300
-        });
-        
-        marker.on('click', function() {
-            toggleFenceTrail(fenceId);
         });
         
         fenceMarkers[fenceId] = marker;
