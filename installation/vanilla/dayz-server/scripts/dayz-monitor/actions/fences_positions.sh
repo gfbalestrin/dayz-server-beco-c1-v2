@@ -15,19 +15,21 @@ handle_fences_positions() {
         return
     fi
 
-    local prev_snapshot_timestamp
-    prev_snapshot_timestamp=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT MAX(TimeStamp) FROM fences_tracking;")
     declare -A prev_fences=()
 
-    if [[ -n "$prev_snapshot_timestamp" ]]; then
-        while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_has_base prev_lower_panel prev_upper_panel; do
-            prev_fences["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_has_base|$prev_lower_panel|$prev_upper_panel"
-        done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "SELECT FenceId, FenceName, PositionX, PositionZ, PositionY, IFNULL(HasBase,''), IFNULL(LowerPanelBuilt,''), IFNULL(UpperPanelBuilt,'') FROM fences_tracking WHERE TimeStamp = '$prev_snapshot_timestamp';")
-    fi
-
-    sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "DELETE FROM fences_tracking;"
-    echo ">> Tabela de fences limpa para novo snapshot"
-    INSERT_CUSTOM_LOG "Tabela fences_tracking limpa para registrar novo snapshot" "INFO" "$ScriptName"
+    # Buscar último registro de cada fence
+    while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_has_base prev_lower_panel prev_upper_panel; do
+        prev_fences["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_has_base|$prev_lower_panel|$prev_upper_panel"
+    done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "
+        SELECT ft.FenceId, ft.FenceName, ft.PositionX, ft.PositionZ, ft.PositionY, 
+               IFNULL(ft.HasBase,''), IFNULL(ft.LowerPanelBuilt,''), IFNULL(ft.UpperPanelBuilt,'')
+        FROM fences_tracking ft
+        WHERE ft.TimeStamp = (
+            SELECT MAX(ft2.TimeStamp) 
+            FROM fences_tracking ft2 
+            WHERE ft2.FenceId = ft.FenceId
+        )
+    ")
 
     local fences fence_count processed_count
     fences=$(echo "$line" | jq -c '.fence_data[]')

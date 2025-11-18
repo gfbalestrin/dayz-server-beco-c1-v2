@@ -8,23 +8,24 @@ handle_vehicles_positions() {
     local current_timestamp
     current_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
-    local prev_snapshot_timestamp
-    prev_snapshot_timestamp=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT MAX(TimeStamp) FROM vehicles_tracking;")
     declare -A prev_vehicles=()
 
-    if [[ -n "$prev_snapshot_timestamp" ]]; then
-        while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y; do
-            local prev_x_fmt prev_z_fmt prev_y_fmt
-            prev_x_fmt=$(format_coord "$prev_x")
-            prev_z_fmt=$(format_coord "$prev_z")
-            prev_y_fmt=$(format_coord "$prev_y")
-            prev_vehicles["$prev_id"]="$prev_name|$prev_x_fmt|$prev_z_fmt|$prev_y_fmt"
-        done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "SELECT VehicleId, VehicleName, PositionX, PositionZ, PositionY FROM vehicles_tracking WHERE TimeStamp = '$prev_snapshot_timestamp';")
-    fi
-
-    sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "DELETE FROM vehicles_tracking;"
-    echo ">> Tabela de vehicles limpa para novo snapshot"
-    INSERT_CUSTOM_LOG "Tabela vehicles_tracking limpa para registrar novo snapshot" "INFO" "$ScriptName"
+    # Buscar último registro de cada veículo
+    while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y; do
+        local prev_x_fmt prev_z_fmt prev_y_fmt
+        prev_x_fmt=$(format_coord "$prev_x")
+        prev_z_fmt=$(format_coord "$prev_z")
+        prev_y_fmt=$(format_coord "$prev_y")
+        prev_vehicles["$prev_id"]="$prev_name|$prev_x_fmt|$prev_z_fmt|$prev_y_fmt"
+    done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "
+        SELECT VehicleId, VehicleName, PositionX, PositionZ, PositionY 
+        FROM vehicles_tracking v1
+        WHERE v1.TimeStamp = (
+            SELECT MAX(v2.TimeStamp) 
+            FROM vehicles_tracking v2 
+            WHERE v2.VehicleId = v1.VehicleId
+        )
+    ")
 
     local vehicles
     vehicles=$(echo "$line" | jq -c '.vehicles[]?')

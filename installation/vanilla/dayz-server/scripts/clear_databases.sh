@@ -2,9 +2,10 @@
 
 export TZ=America/Sao_Paulo
 
-# Configurações de retenção (hardcoded)
-RETENTION_DAYS_SHORT=1   # Para coords e vehicles
-RETENTION_DAYS_LONG=7   # Para logs
+# Configuração de retenção de histórico (em dias)
+# Para alterar, modifique o valor abaixo:
+RETENTION_DAYS_SHORT=1   # Para coords, vehicles, containers e fences (24 horas)
+RETENTION_DAYS_LONG=7    # Para logs
 
 # Importar configurações do config.sh
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

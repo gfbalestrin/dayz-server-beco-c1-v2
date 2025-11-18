@@ -128,6 +128,20 @@ def get_vehicles_map_positions() -> List[Dict]:
         """)
         return [dict(row) for row in cursor.fetchall()]
 
+def get_vehicle_trail(vehicle_id: str, limit: int = 100) -> List[Dict]:
+    """Retorna histórico de posições de um veículo"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT IdVehicleTracking, VehicleId, VehicleName,
+                   PositionX, PositionY, PositionZ, TimeStamp
+            FROM vehicles_tracking
+            WHERE VehicleId = ?
+            ORDER BY TimeStamp DESC
+            LIMIT ?
+        """, (vehicle_id, limit))
+        return [dict(row) for row in cursor.fetchall()]
+
 def get_containers_last_position() -> List[Dict]:
     """Retorna containers do último timestamp de rastreamento com seus items"""
     with DatabaseConnection(config.DB_LOGS) as conn:
@@ -157,6 +171,34 @@ def get_containers_last_position() -> List[Dict]:
         
         return containers
 
+def get_container_trail(container_id: str, limit: int = 100) -> List[Dict]:
+    """Retorna histórico de posições e items de um container"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT ct.IdContainerTracking, ct.ContainerId, ct.ContainerName,
+                   ct.PositionX, ct.PositionY, ct.PositionZ, ct.TimeStamp
+            FROM containers_tracking ct
+            WHERE ct.ContainerId = ?
+            ORDER BY ct.TimeStamp DESC
+            LIMIT ?
+        """, (container_id, limit))
+        containers = [dict(row) for row in cursor.fetchall()]
+        
+        # Para cada container, buscar seus items
+        for container in containers:
+            container_tracking_id = container['IdContainerTracking']
+            cursor.execute("""
+                SELECT ItemType, ItemHealth, TimeStamp
+                FROM container_items_tracking
+                WHERE ContainerTrackingId = ?
+                ORDER BY TimeStamp
+            """, (container_tracking_id,))
+            items = [dict(row) for row in cursor.fetchall()]
+            container['items'] = items
+        
+        return containers
+
 def get_fences_last_position() -> List[Dict]:
     """Retorna fences do último timestamp de rastreamento"""
     with DatabaseConnection(config.DB_LOGS) as conn:
@@ -171,6 +213,21 @@ def get_fences_last_position() -> List[Dict]:
             )
             ORDER BY ft.FenceName
         """)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_fence_trail(fence_id: str, limit: int = 100) -> List[Dict]:
+    """Retorna histórico de mudanças de uma fence"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT ft.IdFenceTracking, ft.FenceId, ft.FenceName,
+                   ft.PositionX, ft.PositionY, ft.PositionZ, ft.TimeStamp,
+                   ft.HasBase, ft.LowerPanelBuilt, ft.UpperPanelBuilt
+            FROM fences_tracking ft
+            WHERE ft.FenceId = ?
+            ORDER BY ft.TimeStamp DESC
+            LIMIT ?
+        """, (fence_id, limit))
         return [dict(row) for row in cursor.fetchall()]
 
 def get_item_details_from_items_db(name_type: str) -> Optional[Dict]:

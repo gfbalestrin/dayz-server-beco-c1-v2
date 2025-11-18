@@ -431,11 +431,14 @@ Group=${LinuxUserName}
 
 # Política de reinício
 Restart=on-failure
-RestartSec=30s
+RestartSec=600s
 
 # Logs dedicados
 StandardOutput=append:${DayzFolder}/profiles/dayz-server.log
 StandardError=append:${DayzFolder}/profiles/dayz-server.err
+
+# Timeout
+TimeoutStartSec=300s
 
 [Install]
 WantedBy=multi-user.target
@@ -458,12 +461,21 @@ set -euo pipefail
 
 echo "[INFO] Iniciando update do servidor DayZ..."
 
-echo > "$DayzFolder/mpmissions/$DayzMpmission/admin/files/commands_to_execute.txt"
-echo > "$DayzFolder/mpmissions/$DayzMpmission/admin/files/external_actions.txt"
-echo > "$DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_to_send.txt"
-echo > "$DayzFolder/mpmissions/$DayzMpmission/admin/files/messages_private_to_send.txt"
-echo > "$DayzFolder/profiles/dayz-server.log"
-echo > "$DayzFolder/profiles/dayz-server.err"
+
+files=(
+"${DayzFolder}/mpmissions/${DayzMpmission}/admin/files/commands_to_execute.txt"
+"${DayzFolder}/mpmissions/${DayzMpmission}/admin/files/external_actions.txt"
+"${DayzFolder}/mpmissions/${DayzMpmission}/admin/files/messages_to_send.txt"
+"${DayzFolder}/mpmissions/${DayzMpmission}/admin/files/messages_private_to_send.txt"
+"${DayzFolder}/profiles/dayz-server.log"
+"${DayzFolder}/profiles/dayz-server.err"
+)
+
+for file in "\${files[@]}"; do
+    if [ -f "\$file" ]; then
+        echo > "\$file"
+    fi
+done
 
 # Limpa logs de banco antigos (se o script existir)
 if [ -f "$DayzFolder/scripts/clear_databases.sh" ]; then
@@ -508,8 +520,9 @@ fi
 cd "$DayzFolder/mpmissions/$DayzMpmission/"
 
 # Remove arquivos existentes para evitar conflitos (cuidar para não apagar arquivos importantes do deathmatch)
-cp -Rap admin/files /tmp/
-cp -Rap admin/loadouts /tmp/
+[ -d admin/files ] && cp -Rap admin/files /tmp/
+[ -d admin/loadouts ] && cp -Rap admin/loadouts /tmp/
+[ -d admin ] && rm -rf admin
 rm -f init.c
 rm -rf admin
 

@@ -7,6 +7,7 @@
 source ./config.sh
 
 ScriptName=$(basename "$0")
+CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
 
 # ============================================================================
 # CONFIGURAÇÕES DE DATAS DOS EVENTOS
@@ -68,11 +69,13 @@ update_repository() {
     if [ ! -d "$REPO_DIR" ]; then
         LOG_INFO "Repositório não encontrado. Clonando do GitHub..."
         
-        if git clone "$REPO_URL" "$REPO_DIR"; then
+        if timeout 30 git clone "$REPO_URL" "$REPO_DIR"; then
             LOG_INFO "Repositório clonado com sucesso!"
             return 0
         else
             LOG_ERROR "Falha ao clonar repositório do GitHub!"
+            SEND_DISCORD_WEBHOOK "🚨 **ERRO CRÍTICO**: falha na conexão com o github. O servidor será desligado." "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+            systemctl stop dayz-server
             return 1
         fi
     else
@@ -80,12 +83,14 @@ update_repository() {
         
         cd "$REPO_DIR" || return 1
         
-        if git pull; then
+        if timeout 10 git pull; then
             LOG_INFO "Repositório atualizado com sucesso!"
             cd - > /dev/null || return 1
             return 0
         else
             LOG_ERROR "Falha ao atualizar repositório com git pull!"
+            SEND_DISCORD_WEBHOOK "🚨 **ERRO CRÍTICO**: falha na conexão com o github. O servidor será desligado." "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+            systemctl stop dayz-server
             cd - > /dev/null || return 1
             return 1
         fi

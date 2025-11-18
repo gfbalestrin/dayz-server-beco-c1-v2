@@ -16,6 +16,7 @@ from database import (
     get_containers_last_position, get_item_details_from_items_db,
     get_fences_last_position,
     get_player_trail, get_online_players_positions,
+    get_vehicle_trail, get_container_trail, get_fence_trail,
     get_players_positions_by_timerange, dayz_to_pixel,
     get_vehicles_last_position, get_recent_kills, parse_position,
     check_backup_exists, check_backup_exists_any_player, get_backup_info, get_online_players,
@@ -1118,6 +1119,32 @@ def api_vehicles_map_positions():
     
     return jsonify(result)
 
+@app.route('/api/vehicles/<vehicle_id>/trail')
+@admin_required
+def api_vehicle_trail(vehicle_id):
+    """API com trail de um veículo específico"""
+    limit = request.args.get('limit', 100, type=int)
+    trail = get_vehicle_trail(vehicle_id, limit)
+    
+    result = {
+        'vehicle_id': vehicle_id,
+        'trail': []
+    }
+    
+    for point in trail:
+        pixel_coords = dayz_to_pixel(point['PositionX'], point['PositionY'])
+        result['trail'].append({
+            'vehicle_tracking_id': point['IdVehicleTracking'],
+            'vehicle_name': point['VehicleName'],
+            'coord_x': point['PositionX'],
+            'coord_y': point['PositionY'],
+            'coord_z': point['PositionZ'],
+            'pixel_coords': pixel_coords,
+            'timestamp': point['TimeStamp'] or ''
+        })
+    
+    return jsonify(result)
+
 @app.route('/api/containers/positions')
 @admin_required
 def api_containers_positions():
@@ -1161,6 +1188,45 @@ def api_containers_positions():
     
     return jsonify(result)
 
+@app.route('/api/containers/<container_id>/trail')
+@admin_required
+def api_container_trail(container_id):
+    """API com trail de um container específico"""
+    limit = request.args.get('limit', 100, type=int)
+    trail = get_container_trail(container_id, limit)
+    
+    result = {
+        'container_id': container_id,
+        'trail': []
+    }
+    
+    for point in trail:
+        pixel_coords = dayz_to_pixel(point['PositionX'], point['PositionY'])
+        
+        # Processar items do container
+        items = []
+        for item in point.get('items', []):
+            item_details = get_item_details_from_items_db(item['ItemType'])
+            items.append({
+                'type': item['ItemType'],
+                'health': item.get('ItemHealth'),
+                'name': item_details['name'] if item_details else item['ItemType'],
+                'img': item_details['img'] if item_details else ''
+            })
+        
+        result['trail'].append({
+            'container_tracking_id': point['IdContainerTracking'],
+            'container_name': point['ContainerName'],
+            'coord_x': point['PositionX'],
+            'coord_y': point['PositionY'],
+            'coord_z': point['PositionZ'],
+            'pixel_coords': pixel_coords,
+            'items': items,
+            'timestamp': point['TimeStamp'] or ''
+        })
+    
+    return jsonify(result)
+
 @app.route('/api/fences/positions')
 @admin_required
 def api_fences_positions():
@@ -1190,6 +1256,35 @@ def api_fences_positions():
             'has_base': (has_base == 1) if has_base is not None else None,
             'lower_panel_built': (lower_panel_built == 1) if lower_panel_built is not None else None,
             'upper_panel_built': (upper_panel_built == 1) if upper_panel_built is not None else None
+        })
+    
+    return jsonify(result)
+
+@app.route('/api/fences/<fence_id>/trail')
+@admin_required
+def api_fence_trail(fence_id):
+    """API com trail de uma fence específica"""
+    limit = request.args.get('limit', 100, type=int)
+    trail = get_fence_trail(fence_id, limit)
+    
+    result = {
+        'fence_id': fence_id,
+        'trail': []
+    }
+    
+    for point in trail:
+        pixel_coords = dayz_to_pixel(point['PositionX'], point['PositionY'])
+        result['trail'].append({
+            'fence_tracking_id': point['IdFenceTracking'],
+            'fence_name': point['FenceName'],
+            'coord_x': point['PositionX'],
+            'coord_y': point['PositionY'],
+            'coord_z': point['PositionZ'],
+            'pixel_coords': pixel_coords,
+            'has_base': point.get('HasBase'),
+            'lower_panel_built': point.get('LowerPanelBuilt'),
+            'upper_panel_built': point.get('UpperPanelBuilt'),
+            'timestamp': point['TimeStamp'] or ''
         })
     
     return jsonify(result)

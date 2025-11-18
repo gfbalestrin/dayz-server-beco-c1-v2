@@ -15,14 +15,12 @@ handle_containers_positions() {
         return
     fi
 
-    local prev_snapshot_timestamp
-    prev_snapshot_timestamp=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT MAX(TimeStamp) FROM containers_tracking;")
     declare -A prev_containers=()
 
-    if [[ -n "$prev_snapshot_timestamp" ]]; then
-        while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_items; do
-            prev_containers["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_items"
-        done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' <<EOF
+    # Buscar último registro de cada container com items
+    while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_items; do
+        prev_containers["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_items"
+    done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' <<EOF
 SELECT 
     ct.ContainerId,
     ct.ContainerName,
@@ -32,15 +30,14 @@ SELECT
     IFNULL(GROUP_CONCAT(cit.ItemType || ':' || IFNULL(cit.ItemHealth, ''), ','), '')
 FROM containers_tracking ct
 LEFT JOIN container_items_tracking cit ON ct.IdContainerTracking = cit.ContainerTrackingId
-WHERE ct.TimeStamp = '$prev_snapshot_timestamp'
+WHERE ct.TimeStamp = (
+    SELECT MAX(ct2.TimeStamp) 
+    FROM containers_tracking ct2 
+    WHERE ct2.ContainerId = ct.ContainerId
+)
 GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.PositionY;
 EOF
 )
-    fi
-
-    sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "DELETE FROM containers_tracking;"
-    echo ">> Tabela de containers limpa para novo snapshot"
-    INSERT_CUSTOM_LOG "Tabela containers_tracking limpa para registrar novo snapshot" "INFO" "$ScriptName"
 
     local containers container_count processed_count
     containers=$(echo "$line" | jq -c '.container_data[]')

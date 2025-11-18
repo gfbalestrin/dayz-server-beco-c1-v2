@@ -6,11 +6,17 @@
 let map;
 let playerMarkers = {};
 let playerTrails = {};
+let vehicleTrails = {};
+let containerTrails = {};
+let fenceTrails = {};
 let vehicleMarkers = {};
 let containerMarkers = {};
 let fenceMarkers = {};
 let killMarkers = [];
 let playersData = {}; // Armazenar dados dos jogadores
+let vehiclesData = {}; // Armazenar dados dos veículos
+let containersData = {}; // Armazenar dados dos containers
+let fencesData = {}; // Armazenar dados das fences
 let currentPointContext = null; // Contexto do ponto para ações
 let selectedPlayerFilters = []; // Array de player IDs selecionados
 let autoRefreshInterval = null;
@@ -384,6 +390,36 @@ function clearMapLayers() {
         }
     });
     playerTrails = {};
+    
+    Object.keys(vehicleTrails).forEach(function(key) {
+        const trail = vehicleTrails[key];
+        if (Array.isArray(trail)) {
+            trail.forEach(item => map.removeLayer(item));
+        } else if (trail) {
+            map.removeLayer(trail);
+        }
+    });
+    vehicleTrails = {};
+    
+    Object.keys(containerTrails).forEach(function(key) {
+        const trail = containerTrails[key];
+        if (Array.isArray(trail)) {
+            trail.forEach(item => map.removeLayer(item));
+        } else if (trail) {
+            map.removeLayer(trail);
+        }
+    });
+    containerTrails = {};
+    
+    Object.keys(fenceTrails).forEach(function(key) {
+        const trail = fenceTrails[key];
+        if (Array.isArray(trail)) {
+            trail.forEach(item => map.removeLayer(item));
+        } else if (trail) {
+            map.removeLayer(trail);
+        }
+    });
+    fenceTrails = {};
     
     killMarkers.forEach(function(item) {
         if (item.killerMarker) {
@@ -790,6 +826,57 @@ function loadPlayerTrail(playerId) {
 }
 
 /**
+ * Carregar trail de um veículo
+ */
+function loadVehicleTrail(vehicleId) {
+    if (vehicleTrails[vehicleId]) {
+        return; // Trail já carregado
+    }
+    
+    $.get(`/api/vehicles/${vehicleId}/trail`, { limit: 100 })
+        .done(function(data) {
+            drawVehicleTrail(vehicleId, data.trail);
+        })
+        .fail(function() {
+            console.error('Erro ao carregar trail do veículo');
+        });
+}
+
+/**
+ * Carregar trail de um container
+ */
+function loadContainerTrail(containerId) {
+    if (containerTrails[containerId]) {
+        return; // Trail já carregado
+    }
+    
+    $.get(`/api/containers/${containerId}/trail`, { limit: 100 })
+        .done(function(data) {
+            drawContainerTrail(containerId, data.trail);
+        })
+        .fail(function() {
+            console.error('Erro ao carregar trail do container');
+        });
+}
+
+/**
+ * Carregar trail de uma fence
+ */
+function loadFenceTrail(fenceId) {
+    if (fenceTrails[fenceId]) {
+        return; // Trail já carregado
+    }
+    
+    $.get(`/api/fences/${fenceId}/trail`, { limit: 100 })
+        .done(function(data) {
+            drawFenceTrail(fenceId, data.trail);
+        })
+        .fail(function() {
+            console.error('Erro ao carregar trail da fence');
+        });
+}
+
+/**
  * Desenhar trail de um jogador
  */
 function drawTrail(playerId, trail) {
@@ -938,6 +1025,319 @@ function drawTrail(playerId, trail) {
         });
         
         playerTrails[playerId].push(circleMarker);
+    }
+}
+
+/**
+ * Desenhar trail de um veículo
+ */
+function drawVehicleTrail(vehicleId, trail) {
+    // Remover trail antigo se existir
+    if (vehicleTrails[vehicleId]) {
+        if (Array.isArray(vehicleTrails[vehicleId])) {
+            vehicleTrails[vehicleId].forEach(item => map.removeLayer(item));
+        } else {
+            map.removeLayer(vehicleTrails[vehicleId]);
+        }
+    }
+    
+    vehicleTrails[vehicleId] = [];
+    
+    if (trail.length === 0) return;
+    
+    // Converter pontos para coordenadas do mapa
+    const processedTrail = [];
+    trail.forEach(function(point) {
+        const coords = convertToMapCoords(point.pixel_coords);
+        if (coords) {
+            processedTrail.push({
+                data: point,
+                mapCoords: coords
+            });
+        }
+    });
+    
+    if (processedTrail.length === 0) {
+        return;
+    }
+    
+    // Criar linha do trail (cor verde para veículos)
+    const latlngs = processedTrail.map(item => item.mapCoords);
+    const polyline = L.polyline(latlngs, {
+        color: '#28a745',
+        weight: 3,
+        opacity: 0.7
+    }).addTo(map);
+    
+    vehicleTrails[vehicleId].push(polyline);
+    
+    // Adicionar marcadores em cada ponto
+    for (let i = 0; i < processedTrail.length; i++) {
+        const point = processedTrail[i].data;
+        const pointLat = processedTrail[i].mapCoords[0];
+        const pointLng = processedTrail[i].mapCoords[1];
+        
+        let tooltipText = `<strong>🚗 ${point.vehicle_name || 'Veículo'}</strong><br>`;
+        tooltipText += `<strong>📍 Ponto ${processedTrail.length - i}</strong><br>`;
+        tooltipText += `⏰ Tempo: <span class="value">${point.timestamp}</span><br>`;
+        tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
+        
+        // Calcular velocidade se houver ponto anterior
+        if (i > 0) {
+            const prevPoint = processedTrail[i - 1].data;
+            const dx = point.coord_x - prevPoint.coord_x;
+            const dy = point.coord_y - prevPoint.coord_y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            const time1 = new Date(point.timestamp);
+            const time2 = new Date(prevPoint.timestamp);
+            const timeDiff = Math.abs(time2 - time1) / 1000;
+            
+            if (timeDiff > 0) {
+                const speed = (distance / timeDiff) * 3.6;
+                tooltipText += `<br><br><strong>📊 Desde último ponto:</strong><br>`;
+                tooltipText += `📏 Distância: <span class="value">${distance.toFixed(1)}m</span><br>`;
+                tooltipText += `⏱️ Tempo: <span class="value">${timeDiff.toFixed(1)}s</span><br>`;
+                tooltipText += `🚀 Velocidade: <span class="value">${speed.toFixed(1)} km/h</span>`;
+            }
+        }
+        
+        const circleMarker = L.circleMarker(processedTrail[i].mapCoords, {
+            radius: 4,
+            fillColor: '#28a745',
+            color: 'white',
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+        }).addTo(map);
+        
+        const tooltipDirection = getTooltipDirectionForPoint(pointLat, pointLng);
+        circleMarker.bindTooltip(tooltipText, {
+            permanent: false,
+            direction: tooltipDirection,
+            className: 'trail-tooltip'
+        });
+        
+        vehicleTrails[vehicleId].push(circleMarker);
+    }
+}
+
+/**
+ * Desenhar trail de um container
+ */
+function drawContainerTrail(containerId, trail) {
+    // Remover trail antigo se existir
+    if (containerTrails[containerId]) {
+        if (Array.isArray(containerTrails[containerId])) {
+            containerTrails[containerId].forEach(item => map.removeLayer(item));
+        } else {
+            map.removeLayer(containerTrails[containerId]);
+        }
+    }
+    
+    containerTrails[containerId] = [];
+    
+    if (trail.length === 0) return;
+    
+    // Converter pontos para coordenadas do mapa
+    const processedTrail = [];
+    trail.forEach(function(point) {
+        const coords = convertToMapCoords(point.pixel_coords);
+        if (coords) {
+            processedTrail.push({
+                data: point,
+                mapCoords: coords
+            });
+        }
+    });
+    
+    if (processedTrail.length === 0) {
+        return;
+    }
+    
+    // Criar linha do trail (cor azul para containers)
+    const latlngs = processedTrail.map(item => item.mapCoords);
+    const polyline = L.polyline(latlngs, {
+        color: '#007bff',
+        weight: 3,
+        opacity: 0.7
+    }).addTo(map);
+    
+    containerTrails[containerId].push(polyline);
+    
+    // Adicionar marcadores em cada ponto
+    for (let i = 0; i < processedTrail.length; i++) {
+        const point = processedTrail[i].data;
+        const pointLat = processedTrail[i].mapCoords[0];
+        const pointLng = processedTrail[i].mapCoords[1];
+        
+        let tooltipText = `<strong>📦 ${point.container_name || 'Container'}</strong><br>`;
+        tooltipText += `<strong>📍 Ponto ${processedTrail.length - i}</strong><br>`;
+        tooltipText += `⏰ Tempo: <span class="value">${point.timestamp}</span><br>`;
+        tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
+        
+        // Mostrar quantidade de itens se disponível
+        if (point.items && point.items.length > 0) {
+            tooltipText += `<br>📦 Itens: <span class="value">${point.items.length}</span>`;
+        }
+        
+        // Calcular distância se houver ponto anterior
+        if (i > 0) {
+            const prevPoint = processedTrail[i - 1].data;
+            const dx = point.coord_x - prevPoint.coord_x;
+            const dy = point.coord_y - prevPoint.coord_y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance > 0) {
+                tooltipText += `<br><br><strong>📊 Desde último ponto:</strong><br>`;
+                tooltipText += `📏 Distância: <span class="value">${distance.toFixed(1)}m</span>`;
+            }
+        }
+        
+        const circleMarker = L.circleMarker(processedTrail[i].mapCoords, {
+            radius: 4,
+            fillColor: '#007bff',
+            color: 'white',
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+        }).addTo(map);
+        
+        const tooltipDirection = getTooltipDirectionForPoint(pointLat, pointLng);
+        circleMarker.bindTooltip(tooltipText, {
+            permanent: false,
+            direction: tooltipDirection,
+            className: 'trail-tooltip'
+        });
+        
+        containerTrails[containerId].push(circleMarker);
+    }
+}
+
+/**
+ * Desenhar trail de uma fence
+ */
+function drawFenceTrail(fenceId, trail) {
+    // Remover trail antigo se existir
+    if (fenceTrails[fenceId]) {
+        if (Array.isArray(fenceTrails[fenceId])) {
+            fenceTrails[fenceId].forEach(item => map.removeLayer(item));
+        } else {
+            map.removeLayer(fenceTrails[fenceId]);
+        }
+    }
+    
+    fenceTrails[fenceId] = [];
+    
+    if (trail.length === 0) return;
+    
+    // Converter pontos para coordenadas do mapa
+    const processedTrail = [];
+    trail.forEach(function(point) {
+        const coords = convertToMapCoords(point.pixel_coords);
+        if (coords) {
+            processedTrail.push({
+                data: point,
+                mapCoords: coords
+            });
+        }
+    });
+    
+    if (processedTrail.length === 0) {
+        return;
+    }
+    
+    // Criar linha do trail (cor amarela para fences)
+    const latlngs = processedTrail.map(item => item.mapCoords);
+    const polyline = L.polyline(latlngs, {
+        color: '#ffc107',
+        weight: 3,
+        opacity: 0.7
+    }).addTo(map);
+    
+    fenceTrails[fenceId].push(polyline);
+    
+    // Adicionar marcadores em cada ponto
+    for (let i = 0; i < processedTrail.length; i++) {
+        const point = processedTrail[i].data;
+        const pointLat = processedTrail[i].mapCoords[0];
+        const pointLng = processedTrail[i].mapCoords[1];
+        
+        let tooltipText = `<strong>🏠 ${point.fence_name || 'Fence'}</strong><br>`;
+        tooltipText += `<strong>📍 Ponto ${processedTrail.length - i}</strong><br>`;
+        tooltipText += `⏰ Tempo: <span class="value">${point.timestamp}</span><br>`;
+        tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
+        
+        // Mostrar estado da construção se disponível
+        if (point.has_base !== null && point.has_base !== undefined) {
+            tooltipText += `<br>🏗️ Base: <span class="value">${point.has_base ? 'Sim' : 'Não'}</span>`;
+        }
+        if (point.lower_panel_built !== null && point.lower_panel_built !== undefined) {
+            tooltipText += `<br>🔨 Painel Inf: <span class="value">${point.lower_panel_built ? 'Sim' : 'Não'}</span>`;
+        }
+        if (point.upper_panel_built !== null && point.upper_panel_built !== undefined) {
+            tooltipText += `<br>🔨 Painel Sup: <span class="value">${point.upper_panel_built ? 'Sim' : 'Não'}</span>`;
+        }
+        
+        const circleMarker = L.circleMarker(processedTrail[i].mapCoords, {
+            radius: 4,
+            fillColor: '#ffc107',
+            color: 'white',
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+        }).addTo(map);
+        
+        const tooltipDirection = getTooltipDirectionForPoint(pointLat, pointLng);
+        circleMarker.bindTooltip(tooltipText, {
+            permanent: false,
+            direction: tooltipDirection,
+            className: 'trail-tooltip'
+        });
+        
+        fenceTrails[fenceId].push(circleMarker);
+    }
+}
+
+/**
+ * Remover trail de um veículo
+ */
+function removeVehicleTrail(vehicleId) {
+    if (vehicleTrails[vehicleId]) {
+        if (Array.isArray(vehicleTrails[vehicleId])) {
+            vehicleTrails[vehicleId].forEach(item => map.removeLayer(item));
+        } else {
+            map.removeLayer(vehicleTrails[vehicleId]);
+        }
+        delete vehicleTrails[vehicleId];
+    }
+}
+
+/**
+ * Remover trail de um container
+ */
+function removeContainerTrail(containerId) {
+    if (containerTrails[containerId]) {
+        if (Array.isArray(containerTrails[containerId])) {
+            containerTrails[containerId].forEach(item => map.removeLayer(item));
+        } else {
+            map.removeLayer(containerTrails[containerId]);
+        }
+        delete containerTrails[containerId];
+    }
+}
+
+/**
+ * Remover trail de uma fence
+ */
+function removeFenceTrail(fenceId) {
+    if (fenceTrails[fenceId]) {
+        if (Array.isArray(fenceTrails[fenceId])) {
+            fenceTrails[fenceId].forEach(item => map.removeLayer(item));
+        } else {
+            map.removeLayer(fenceTrails[fenceId]);
+        }
+        delete fenceTrails[fenceId];
     }
 }
 
@@ -1326,6 +1726,8 @@ function updateVehicles(data) {
             return;
         }
         
+        vehiclesData[vehicleId] = vehicle;
+        
         const marker = L.marker(coords, {
             icon: createVehicleIcon(),
             opacity: 1.0
@@ -1346,6 +1748,11 @@ function updateVehicles(data) {
                     <span class="info-label">Atualizado:</span>
                     <span class="info-value">${vehicle.last_update || 'Desconhecido'}</span>
                 </div>
+                <div class="info-row mt-2">
+                    <button type="button" class="btn btn-sm btn-success" onclick="toggleVehicleTrail('${vehicleId}')">
+                        <i class="fas fa-route me-1"></i><span id="vehicleTrailBtn_${vehicleId}">${vehicleTrails[vehicleId] ? 'Ocultar Trail' : 'Mostrar Trail'}</span>
+                    </button>
+                </div>
             </div>
         `;
         
@@ -1354,10 +1761,66 @@ function updateVehicles(data) {
             autoPanPadding: [50, 50],
             maxWidth: 300
         });
+        
+        marker.on('click', function() {
+            toggleVehicleTrail(vehicleId);
+        });
+        
         vehicleMarkers[vehicleId] = marker;
     });
     
     console.log(`Veículos atualizados: ${data.vehicles.length} veículos`);
+}
+
+/**
+ * Toggle trail de veículo
+ */
+function toggleVehicleTrail(vehicleId) {
+    if (vehicleTrails[vehicleId]) {
+        removeVehicleTrail(vehicleId);
+        $(`#vehicleTrailBtn_${vehicleId}`).text('Mostrar Trail');
+        updateVehiclePopup(vehicleId);
+    } else {
+        loadVehicleTrail(vehicleId);
+        $(`#vehicleTrailBtn_${vehicleId}`).text('Ocultar Trail');
+        updateVehiclePopup(vehicleId);
+    }
+}
+
+/**
+ * Atualizar popup de veículo
+ */
+function updateVehiclePopup(vehicleId) {
+    const marker = vehicleMarkers[vehicleId];
+    if (!marker || !vehiclesData[vehicleId]) return;
+    
+    const vehicle = vehiclesData[vehicleId];
+    const popupContent = `
+        <div class="player-popup">
+            <strong><i class="fas fa-car me-2"></i>${vehicle.vehicle_name}</strong>
+            <div class="info-row">
+                <span class="info-label">ID:</span>
+                <span class="info-value">${vehicle.vehicle_id}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Coords:</span>
+                <span class="info-value">X: ${vehicle.coord_x.toFixed(2)}, Y: ${vehicle.coord_y.toFixed(2)} (altura: ${vehicle.coord_z ? vehicle.coord_z.toFixed(2) : 'N/A'})</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Atualizado:</span>
+                <span class="info-value">${vehicle.last_update || 'Desconhecido'}</span>
+            </div>
+            <div class="info-row mt-2">
+                <button type="button" class="btn btn-sm btn-success" onclick="toggleVehicleTrail('${vehicleId}')">
+                    <i class="fas fa-route me-1"></i><span id="vehicleTrailBtn_${vehicleId}">${vehicleTrails[vehicleId] ? 'Ocultar Trail' : 'Mostrar Trail'}</span>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    if (marker.isPopupOpen()) {
+        marker.setPopupContent(popupContent);
+    }
 }
 
 /**
@@ -1376,6 +1839,17 @@ function toggleVehiclesDisplay() {
             map.removeLayer(vehicleMarkers[key]);
         });
         vehicleMarkers = {};
+        
+        // Limpar trails de veículos
+        Object.keys(vehicleTrails).forEach(function(key) {
+            const trail = vehicleTrails[key];
+            if (Array.isArray(trail)) {
+                trail.forEach(item => map.removeLayer(item));
+            } else {
+                map.removeLayer(trail);
+            }
+        });
+        vehicleTrails = {};
         
         // Resetar contador de veículos
         $('#vehicleCount').text('0');
@@ -1397,6 +1871,36 @@ function loadContainers() {
         .fail(function() {
             console.error('Erro ao carregar containers');
         });
+}
+
+/**
+ * Toggle trail de container
+ */
+function toggleContainerTrail(containerId) {
+    if (containerTrails[containerId]) {
+        removeContainerTrail(containerId);
+        $(`#containerTrailBtn_${containerId}`).text('Mostrar Trail');
+        updateContainerPopup(containerId);
+    } else {
+        loadContainerTrail(containerId);
+        $(`#containerTrailBtn_${containerId}`).text('Ocultar Trail');
+        updateContainerPopup(containerId);
+    }
+}
+
+/**
+ * Atualizar popup de container
+ */
+function updateContainerPopup(containerId) {
+    const marker = containerMarkers[containerId];
+    if (!marker || !containersData[containerId]) return;
+    
+    const container = containersData[containerId];
+    const popupContent = createContainerPopup(container);
+    
+    if (marker.isPopupOpen()) {
+        marker.setPopupContent(popupContent);
+    }
 }
 
 /**
@@ -1425,6 +1929,8 @@ function updateContainers(data) {
             return;
         }
         
+        containersData[containerId] = container;
+        
         const marker = L.marker(coords, {
             icon: createContainerIcon(container.container_type),
             opacity: 1.0
@@ -1437,6 +1943,11 @@ function updateContainers(data) {
             autoPanPadding: [50, 50],
             maxWidth: 300
         });
+        
+        marker.on('click', function() {
+            toggleContainerTrail(containerId);
+        });
+        
         containerMarkers[containerId] = marker;
     });
     
@@ -1499,6 +2010,17 @@ function toggleContainersDisplay() {
         });
         containerMarkers = {};
         
+        // Limpar trails de containers
+        Object.keys(containerTrails).forEach(function(key) {
+            const trail = containerTrails[key];
+            if (Array.isArray(trail)) {
+                trail.forEach(item => map.removeLayer(item));
+            } else {
+                map.removeLayer(trail);
+            }
+        });
+        containerTrails = {};
+        
         // Resetar contador de containers
         $('#containerCount').text('0');
     }
@@ -1519,6 +2041,36 @@ function loadFences() {
         .fail(function() {
             console.error('Erro ao carregar fences');
         });
+}
+
+/**
+ * Toggle trail de fence
+ */
+function toggleFenceTrail(fenceId) {
+    if (fenceTrails[fenceId]) {
+        removeFenceTrail(fenceId);
+        $(`#fenceTrailBtn_${fenceId}`).text('Mostrar Trail');
+        updateFencePopup(fenceId);
+    } else {
+        loadFenceTrail(fenceId);
+        $(`#fenceTrailBtn_${fenceId}`).text('Ocultar Trail');
+        updateFencePopup(fenceId);
+    }
+}
+
+/**
+ * Atualizar popup de fence
+ */
+function updateFencePopup(fenceId) {
+    const marker = fenceMarkers[fenceId];
+    if (!marker || !fencesData[fenceId]) return;
+    
+    const fence = fencesData[fenceId];
+    const popupContent = createFencePopup(fence);
+    
+    if (marker.isPopupOpen()) {
+        marker.setPopupContent(popupContent);
+    }
 }
 
 /**
@@ -1547,6 +2099,8 @@ function updateFences(data) {
             return;
         }
         
+        fencesData[fenceId] = fence;
+        
         const marker = L.marker(coords, {
             icon: createFenceIcon(fence.fence_name),
             opacity: 1.0
@@ -1559,6 +2113,11 @@ function updateFences(data) {
             autoPanPadding: [50, 50],
             maxWidth: 300
         });
+        
+        marker.on('click', function() {
+            toggleFenceTrail(fenceId);
+        });
+        
         fenceMarkers[fenceId] = marker;
     });
     
@@ -1630,6 +2189,11 @@ function createFencePopup(fence) {
                 <span class="info-value">${fence.last_update || 'Desconhecido'}</span>
             </div>
             ${constructionDetails}
+            <div class="info-row mt-2">
+                <button type="button" class="btn btn-sm btn-warning" onclick="toggleFenceTrail('${fence.fence_id}')">
+                    <i class="fas fa-route me-1"></i><span id="fenceTrailBtn_${fence.fence_id}">${fenceTrails[fence.fence_id] ? 'Ocultar Trail' : 'Mostrar Trail'}</span>
+                </button>
+            </div>
         </div>
     `;
 }
@@ -1650,6 +2214,17 @@ function toggleFencesDisplay() {
             map.removeLayer(fenceMarkers[key]);
         });
         fenceMarkers = {};
+        
+        // Limpar trails de fences
+        Object.keys(fenceTrails).forEach(function(key) {
+            const trail = fenceTrails[key];
+            if (Array.isArray(trail)) {
+                trail.forEach(item => map.removeLayer(item));
+            } else {
+                map.removeLayer(trail);
+            }
+        });
+        fenceTrails = {};
         
         // Resetar contador de fences
         $('#fenceCount').text('0');
