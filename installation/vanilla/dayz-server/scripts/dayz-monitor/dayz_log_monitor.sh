@@ -73,8 +73,12 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
         continue
     fi
 
+    if [[ -z "$HANDLER_CONTENT" ]]; then
+        HANDLER_CONTENT="$Content"
+    fi
+
     Content="$HANDLER_CONTENT"
-    Content=$(echo "$Content" | tr -d '\r\n' | sed "s/   */ /g")
+    Content=$(echo "$Content" | tr -d '\r\n' | sed "s/[[:space:]]\+/ /g" | sed "s/^ //; s/ $//")
 
     # Envia $Content para discord
     SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"

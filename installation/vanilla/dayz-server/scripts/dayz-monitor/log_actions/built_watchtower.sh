@@ -22,8 +22,9 @@ handle_built_watchtower() {
         SafePlayerInfo="Jogador \"$(sanitize_discord_markdown "$PlayerName")\" (id=$PlayerId)"
     fi
 
-    local Message PosCommand
-    Message="Construção detectada: $SafePlayerInfo construiu uma watchtower em $Position"
+    local Message PosCommand StructureName
+    StructureName="watchtower"
+    Message="Construção detectada: $SafePlayerInfo construiu uma $StructureName em $Position"
 
     INSERT_CUSTOM_LOG "$Message" "INFO" "$ScriptName"
     HANDLER_CONTENT="$Message"
