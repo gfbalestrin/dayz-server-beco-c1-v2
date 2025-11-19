@@ -17,19 +17,37 @@ handle_fences_positions() {
 
     declare -A prev_fences=()
 
-    # Buscar último registro de cada fence
-    while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_has_base prev_lower_panel prev_upper_panel; do
-        prev_fences["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_has_base|$prev_lower_panel|$prev_upper_panel"
-    done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "
-        SELECT ft.FenceId, ft.FenceName, ft.PositionX, ft.PositionZ, ft.PositionY, 
+    # Verificar se coluna IsDestroyed existe
+    local has_is_destroyed
+    has_is_destroyed=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('fences_tracking') WHERE name='IsDestroyed';")
+    
+    # Buscar último registro de cada fence (excluindo destruídas)
+    local sql_query
+    if [[ "$has_is_destroyed" -eq 1 ]]; then
+        sql_query="SELECT ft.FenceId, ft.FenceName, ft.PositionX, ft.PositionZ, ft.PositionY, 
                IFNULL(ft.HasBase,''), IFNULL(ft.LowerPanelBuilt,''), IFNULL(ft.UpperPanelBuilt,'')
         FROM fences_tracking ft
         WHERE ft.TimeStamp = (
             SELECT MAX(ft2.TimeStamp) 
             FROM fences_tracking ft2 
             WHERE ft2.FenceId = ft.FenceId
+            AND (ft2.IsDestroyed = 0 OR ft2.IsDestroyed IS NULL)
         )
-    ")
+        AND (ft.IsDestroyed = 0 OR ft.IsDestroyed IS NULL)"
+    else
+        sql_query="SELECT ft.FenceId, ft.FenceName, ft.PositionX, ft.PositionZ, ft.PositionY, 
+               IFNULL(ft.HasBase,''), IFNULL(ft.LowerPanelBuilt,''), IFNULL(ft.UpperPanelBuilt,'')
+        FROM fences_tracking ft
+        WHERE ft.TimeStamp = (
+            SELECT MAX(ft2.TimeStamp) 
+            FROM fences_tracking ft2 
+            WHERE ft2.FenceId = ft.FenceId
+        )"
+    fi
+    
+    while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_has_base prev_lower_panel prev_upper_panel; do
+        prev_fences["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_has_base|$prev_lower_panel|$prev_upper_panel"
+    done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "$sql_query")
 
     local fences fence_count processed_count
     fences=$(echo "$line" | jq -c '.fence_data[]')
@@ -140,14 +158,14 @@ handle_fences_positions() {
             
             # Marcar último registro da fence como destruída
             sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
-            UPDATE fences_tracking
-            SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
-            WHERE FenceId = '$removed_id'
-            AND TimeStamp = (
-                SELECT MAX(TimeStamp) FROM fences_tracking
-                WHERE FenceId = '$removed_id'
-            );
-            EOF
+UPDATE fences_tracking
+SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
+WHERE FenceId = '$removed_id'
+AND TimeStamp = (
+    SELECT MAX(TimeStamp) FROM fences_tracking
+    WHERE FenceId = '$removed_id'
+);
+EOF
         done
     fi
 

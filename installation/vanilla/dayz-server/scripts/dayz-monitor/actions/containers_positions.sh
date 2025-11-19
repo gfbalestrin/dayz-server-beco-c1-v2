@@ -17,11 +17,32 @@ handle_containers_positions() {
 
     declare -A prev_containers=()
 
-    # Buscar último registro de cada container com items
-    while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_items; do
-        prev_containers["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_items"
-    done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' <<EOF
-SELECT 
+    # Verificar se coluna IsDestroyed existe
+    local has_is_destroyed
+    has_is_destroyed=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('containers_tracking') WHERE name='IsDestroyed';")
+    
+    # Buscar último registro de cada container com items (excluindo destruídos)
+    local sql_query
+    if [[ "$has_is_destroyed" -eq 1 ]]; then
+        sql_query="SELECT 
+    ct.ContainerId,
+    ct.ContainerName,
+    ct.PositionX,
+    ct.PositionZ,
+    ct.PositionY,
+    IFNULL(GROUP_CONCAT(cit.ItemType || ':' || IFNULL(cit.ItemHealth, ''), ','), '')
+FROM containers_tracking ct
+LEFT JOIN container_items_tracking cit ON ct.IdContainerTracking = cit.ContainerTrackingId
+WHERE ct.TimeStamp = (
+    SELECT MAX(ct2.TimeStamp) 
+    FROM containers_tracking ct2 
+    WHERE ct2.ContainerId = ct.ContainerId
+    AND (ct2.IsDestroyed = 0 OR ct2.IsDestroyed IS NULL)
+)
+AND (ct.IsDestroyed = 0 OR ct.IsDestroyed IS NULL)
+GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.PositionY;"
+    else
+        sql_query="SELECT 
     ct.ContainerId,
     ct.ContainerName,
     ct.PositionX,
@@ -35,9 +56,12 @@ WHERE ct.TimeStamp = (
     FROM containers_tracking ct2 
     WHERE ct2.ContainerId = ct.ContainerId
 )
-GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.PositionY;
-EOF
-)
+GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.PositionY;"
+    fi
+    
+    while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_items; do
+        prev_containers["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_items"
+    done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "$sql_query")
 
     local containers container_count processed_count
     containers=$(echo "$line" | jq -c '.container_data[]')
@@ -227,6 +251,10 @@ EOF
             unset "prev_containers[$container_id]"
         fi
 
+        # Nota: Containers vazios não são salvos no banco (apenas containers com items são rastreados)
+        # Se um container tinha items e foi esvaziado, ele ainda estará no snapshot anterior
+        # Quando removido do mapa, será detectado como removido e marcado como destruído
+        # Containers vazios que nunca tiveram items nunca serão rastreados (comportamento esperado)
         if [[ -n "$current_items_str" ]]; then
             local ContainerTrackingId
             ContainerTrackingId=$(INSERT_CONTAINER_POSITION "$container_id" "$container_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp")
@@ -303,14 +331,14 @@ EOF
             
             # Marcar último registro do container como destruído
             sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
-            UPDATE containers_tracking
-            SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
-            WHERE ContainerId = '$removed_id'
-            AND TimeStamp = (
-                SELECT MAX(TimeStamp) FROM containers_tracking
-                WHERE ContainerId = '$removed_id'
-            );
-            EOF
+UPDATE containers_tracking
+SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
+WHERE ContainerId = '$removed_id'
+AND TimeStamp = (
+    SELECT MAX(TimeStamp) FROM containers_tracking
+    WHERE ContainerId = '$removed_id'
+);
+EOF
             
             #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
         done

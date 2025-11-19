@@ -10,22 +10,39 @@ handle_vehicles_positions() {
 
     declare -A prev_vehicles=()
 
-    # Buscar último registro de cada veículo
+    # Verificar se coluna IsDestroyed existe
+    local has_is_destroyed
+    has_is_destroyed=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='IsDestroyed';")
+    
+    # Buscar último registro de cada veículo (excluindo destruídos)
+    local sql_query
+    if [[ "$has_is_destroyed" -eq 1 ]]; then
+        sql_query="SELECT VehicleId, VehicleName, PositionX, PositionZ, PositionY 
+        FROM vehicles_tracking v1
+        WHERE v1.TimeStamp = (
+            SELECT MAX(v2.TimeStamp) 
+            FROM vehicles_tracking v2 
+            WHERE v2.VehicleId = v1.VehicleId
+            AND (v2.IsDestroyed = 0 OR v2.IsDestroyed IS NULL)
+        )
+        AND (v1.IsDestroyed = 0 OR v1.IsDestroyed IS NULL)"
+    else
+        sql_query="SELECT VehicleId, VehicleName, PositionX, PositionZ, PositionY 
+        FROM vehicles_tracking v1
+        WHERE v1.TimeStamp = (
+            SELECT MAX(v2.TimeStamp) 
+            FROM vehicles_tracking v2 
+            WHERE v2.VehicleId = v1.VehicleId
+        )"
+    fi
+    
     while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y; do
         local prev_x_fmt prev_z_fmt prev_y_fmt
         prev_x_fmt=$(format_coord "$prev_x")
         prev_z_fmt=$(format_coord "$prev_z")
         prev_y_fmt=$(format_coord "$prev_y")
         prev_vehicles["$prev_id"]="$prev_name|$prev_x_fmt|$prev_z_fmt|$prev_y_fmt"
-    done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "
-        SELECT VehicleId, VehicleName, PositionX, PositionZ, PositionY 
-        FROM vehicles_tracking v1
-        WHERE v1.TimeStamp = (
-            SELECT MAX(v2.TimeStamp) 
-            FROM vehicles_tracking v2 
-            WHERE v2.VehicleId = v1.VehicleId
-        )
-    ")
+    done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "$sql_query")
 
     local vehicles
     vehicles=$(echo "$line" | jq -c '.vehicles[]?')
@@ -95,14 +112,14 @@ handle_vehicles_positions() {
             
             # Marcar último registro do veículo como destruído
             sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
-            UPDATE vehicles_tracking
-            SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
-            WHERE VehicleId = '$removed_id'
-            AND TimeStamp = (
-                SELECT MAX(TimeStamp) FROM vehicles_tracking
-                WHERE VehicleId = '$removed_id'
-            );
-            EOF
+UPDATE vehicles_tracking
+SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
+WHERE VehicleId = '$removed_id'
+AND TimeStamp = (
+    SELECT MAX(TimeStamp) FROM vehicles_tracking
+    WHERE VehicleId = '$removed_id'
+);
+EOF
             
             #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
         done
