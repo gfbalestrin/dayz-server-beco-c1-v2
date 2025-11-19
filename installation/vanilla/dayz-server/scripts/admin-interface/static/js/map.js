@@ -847,15 +847,18 @@ function loadVehicleTrail(vehicleId) {
  */
 function loadContainerTrail(containerId) {
     if (containerTrails[containerId]) {
+        console.log('Container trail já carregado:', containerId);
         return; // Trail já carregado
     }
     
+    console.log('Carregando trail do container:', containerId);
     $.get(`/api/containers/${containerId}/trail`, { limit: 100 })
         .done(function(data) {
+            console.log('Trail do container recebido:', containerId, data);
             drawContainerTrail(containerId, data.trail);
         })
-        .fail(function() {
-            console.error('Erro ao carregar trail do container');
+        .fail(function(xhr, status, error) {
+            console.error('Erro ao carregar trail do container:', containerId, status, error, xhr.responseText);
         });
 }
 
@@ -1029,6 +1032,86 @@ function drawTrail(playerId, trail) {
 }
 
 /**
+ * Verificar se todos os pontos do trail estão na mesma posição
+ */
+function areAllPointsSame(trail) {
+    if (trail.length <= 1) return true;
+    
+    const firstPoint = trail[0];
+    const firstCoords = firstPoint.mapCoords;
+    
+    for (let i = 1; i < trail.length; i++) {
+        const currentCoords = trail[i].mapCoords;
+        // Comparar com pequena tolerância para erros de ponto flutuante
+        const tolerance = 0.0001;
+        if (Math.abs(firstCoords[0] - currentCoords[0]) > tolerance ||
+            Math.abs(firstCoords[1] - currentCoords[1]) > tolerance) {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+/**
+ * Gerar tooltip consolidado para objetos estáticos
+ */
+function generateConsolidatedTooltip(trail, objectType, objectName) {
+    const icon = objectType === 'vehicle' ? '🚗' : '📦';
+    let tooltip = `<strong>${icon} ${objectName || objectType}</strong><br>`;
+    tooltip += `<strong>📍 ${trail.length} atualizações no mesmo local</strong><br>`;
+    tooltip += `<div style="max-height: 300px; overflow-y: auto;">`;
+    
+    // Timeline reversa (mais recente primeiro)
+    for (let i = trail.length - 1; i >= 0; i--) {
+        const point = trail[i].data;
+        tooltip += `<div style="border-left: 3px solid #${i === trail.length - 1 ? '4caf50' : '007bff'}; padding-left: 8px; margin-bottom: 8px;">`;
+        tooltip += `<strong>${point.timestamp || 'Sem data'}</strong><br>`;
+        tooltip += `📍 Coords: X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}`;
+        
+        if (objectType === 'container' && point.items && point.items.length > 0) {
+            tooltip += `<br>📦 Itens: ${point.items.length}`;
+        }
+        
+        tooltip += `</div>`;
+    }
+    
+    tooltip += `</div>`;
+    return tooltip;
+}
+
+/**
+ * Gerar tooltip consolidado para fence com histórico de alterações
+ */
+function generateFenceConsolidatedTooltip(trail) {
+    let tooltip = `<strong>🏠 ${trail[0].data.fence_name || 'Fence'}</strong><br>`;
+    tooltip += `<strong>📍 ${trail.length} atualizações no mesmo local</strong><br>`;
+    tooltip += `<div style="max-height: 300px; overflow-y: auto;">`;
+    
+    // Timeline reversa (mais recente primeiro)
+    for (let i = trail.length - 1; i >= 0; i--) {
+        const point = trail[i].data;
+        tooltip += `<div style="border-left: 3px solid #${i === trail.length - 1 ? '4caf50' : 'ffc107'}; padding-left: 8px; margin-bottom: 8px;">`;
+        tooltip += `<strong>${point.timestamp || 'Sem data'}</strong><br>`;
+        
+        if (point.has_base !== null && point.has_base !== undefined) {
+            tooltip += `🏗️ Base: <span class="value">${point.has_base ? 'Sim' : 'Não'}</span> `;
+        }
+        if (point.lower_panel_built !== null && point.lower_panel_built !== undefined) {
+            tooltip += `🔨 Inf: <span class="value">${point.lower_panel_built ? 'Sim' : 'Não'}</span> `;
+        }
+        if (point.upper_panel_built !== null && point.upper_panel_built !== undefined) {
+            tooltip += `🔨 Sup: <span class="value">${point.upper_panel_built ? 'Sim' : 'Não'}</span>`;
+        }
+        
+        tooltip += `</div>`;
+    }
+    
+    tooltip += `</div>`;
+    return tooltip;
+}
+
+/**
  * Desenhar trail de um veículo
  */
 function drawVehicleTrail(vehicleId, trail) {
@@ -1043,11 +1126,18 @@ function drawVehicleTrail(vehicleId, trail) {
     
     vehicleTrails[vehicleId] = [];
     
-    if (trail.length === 0) return;
+    if (!trail || trail.length === 0) {
+        console.warn('drawVehicleTrail: trail vazio ou inválido para veículo:', vehicleId);
+        return;
+    }
     
     // Converter pontos para coordenadas do mapa
     const processedTrail = [];
     trail.forEach(function(point) {
+        if (!point || !point.pixel_coords) {
+            console.warn('Ponto do veículo sem pixel_coords:', point);
+            return;
+        }
         const coords = convertToMapCoords(point.pixel_coords);
         if (coords) {
             processedTrail.push({
@@ -1061,64 +1151,98 @@ function drawVehicleTrail(vehicleId, trail) {
         return;
     }
     
-    // Criar linha do trail (cor verde para veículos)
-    const latlngs = processedTrail.map(item => item.mapCoords);
-    const polyline = L.polyline(latlngs, {
-        color: '#28a745',
-        weight: 3,
-        opacity: 0.7
-    }).addTo(map);
+    // Verificar se todos os pontos estão na mesma posição
+    const allPointsSame = areAllPointsSame(processedTrail);
     
-    vehicleTrails[vehicleId].push(polyline);
-    
-    // Adicionar marcadores em cada ponto
-    for (let i = 0; i < processedTrail.length; i++) {
-        const point = processedTrail[i].data;
-        const pointLat = processedTrail[i].mapCoords[0];
-        const pointLng = processedTrail[i].mapCoords[1];
+    if (allPointsSame) {
+        // Objeto estático: criar um único círculo maior com tooltip consolidado
+        const firstPoint = processedTrail[0].data;
+        const firstCoords = processedTrail[0].mapCoords;
+        const pointLat = firstCoords[0];
+        const pointLng = firstCoords[1];
         
-        let tooltipText = `<strong>🚗 ${point.vehicle_name || 'Veículo'}</strong><br>`;
-        tooltipText += `<strong>📍 Ponto ${processedTrail.length - i}</strong><br>`;
-        tooltipText += `⏰ Tempo: <span class="value">${point.timestamp}</span><br>`;
-        tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
+        // Calcular raio baseado na quantidade de pontos
+        const radius = Math.min(8 + Math.log(processedTrail.length) * 2, 15);
         
-        // Calcular velocidade se houver ponto anterior
-        if (i > 0) {
-            const prevPoint = processedTrail[i - 1].data;
-            const dx = point.coord_x - prevPoint.coord_x;
-            const dy = point.coord_y - prevPoint.coord_y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            const time1 = new Date(point.timestamp);
-            const time2 = new Date(prevPoint.timestamp);
-            const timeDiff = Math.abs(time2 - time1) / 1000;
-            
-            if (timeDiff > 0) {
-                const speed = (distance / timeDiff) * 3.6;
-                tooltipText += `<br><br><strong>📊 Desde último ponto:</strong><br>`;
-                tooltipText += `📏 Distância: <span class="value">${distance.toFixed(1)}m</span><br>`;
-                tooltipText += `⏱️ Tempo: <span class="value">${timeDiff.toFixed(1)}s</span><br>`;
-                tooltipText += `🚀 Velocidade: <span class="value">${speed.toFixed(1)} km/h</span>`;
-            }
-        }
-        
-        const circleMarker = L.circleMarker(processedTrail[i].mapCoords, {
-            radius: 4,
+        const circleMarker = L.circleMarker(firstCoords, {
+            radius: radius,
             fillColor: '#28a745',
             color: 'white',
-            weight: 1,
+            weight: 2,
             opacity: 1,
             fillOpacity: 0.8
         }).addTo(map);
         
+        const tooltipText = generateConsolidatedTooltip(processedTrail, 'vehicle', firstPoint.vehicle_name);
         const tooltipDirection = getTooltipDirectionForPoint(pointLat, pointLng);
         circleMarker.bindTooltip(tooltipText, {
             permanent: false,
             direction: tooltipDirection,
-            className: 'trail-tooltip'
+            className: 'trail-tooltip',
+            maxWidth: 400
         });
         
         vehicleTrails[vehicleId].push(circleMarker);
+    } else {
+        // Objeto em movimento: criar polyline e círculos individuais
+        const latlngs = processedTrail.map(item => item.mapCoords);
+        const polyline = L.polyline(latlngs, {
+            color: '#28a745',
+            weight: 3,
+            opacity: 0.7
+        }).addTo(map);
+        
+        vehicleTrails[vehicleId].push(polyline);
+        
+        // Adicionar marcadores em cada ponto
+        for (let i = 0; i < processedTrail.length; i++) {
+            const point = processedTrail[i].data;
+            const pointLat = processedTrail[i].mapCoords[0];
+            const pointLng = processedTrail[i].mapCoords[1];
+            
+            let tooltipText = `<strong>🚗 ${point.vehicle_name || 'Veículo'}</strong><br>`;
+            tooltipText += `<strong>📍 Ponto ${processedTrail.length - i}</strong><br>`;
+            tooltipText += `⏰ Tempo: <span class="value">${point.timestamp}</span><br>`;
+            tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
+            
+            // Calcular velocidade se houver ponto anterior
+            if (i > 0) {
+                const prevPoint = processedTrail[i - 1].data;
+                const dx = point.coord_x - prevPoint.coord_x;
+                const dy = point.coord_y - prevPoint.coord_y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                const time1 = new Date(point.timestamp);
+                const time2 = new Date(prevPoint.timestamp);
+                const timeDiff = Math.abs(time2 - time1) / 1000;
+                
+                if (timeDiff > 0) {
+                    const speed = (distance / timeDiff) * 3.6;
+                    tooltipText += `<br><br><strong>📊 Desde último ponto:</strong><br>`;
+                    tooltipText += `📏 Distância: <span class="value">${distance.toFixed(1)}m</span><br>`;
+                    tooltipText += `⏱️ Tempo: <span class="value">${timeDiff.toFixed(1)}s</span><br>`;
+                    tooltipText += `🚀 Velocidade: <span class="value">${speed.toFixed(1)} km/h</span>`;
+                }
+            }
+            
+            const circleMarker = L.circleMarker(processedTrail[i].mapCoords, {
+                radius: 4,
+                fillColor: '#28a745',
+                color: 'white',
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).addTo(map);
+            
+            const tooltipDirection = getTooltipDirectionForPoint(pointLat, pointLng);
+            circleMarker.bindTooltip(tooltipText, {
+                permanent: false,
+                direction: tooltipDirection,
+                className: 'trail-tooltip'
+            });
+            
+            vehicleTrails[vehicleId].push(circleMarker);
+        }
     }
 }
 
@@ -1126,6 +1250,8 @@ function drawVehicleTrail(vehicleId, trail) {
  * Desenhar trail de um container
  */
 function drawContainerTrail(containerId, trail) {
+    console.log('drawContainerTrail chamado:', containerId, 'trail length:', trail ? trail.length : 0);
+    
     // Remover trail antigo se existir
     if (containerTrails[containerId]) {
         if (Array.isArray(containerTrails[containerId])) {
@@ -1137,11 +1263,18 @@ function drawContainerTrail(containerId, trail) {
     
     containerTrails[containerId] = [];
     
-    if (trail.length === 0) return;
+    if (!trail || trail.length === 0) {
+        console.warn('drawContainerTrail: trail vazio ou inválido para container:', containerId);
+        return;
+    }
     
     // Converter pontos para coordenadas do mapa
     const processedTrail = [];
     trail.forEach(function(point) {
+        if (!point || !point.pixel_coords) {
+            console.warn('Ponto do container sem pixel_coords:', point);
+            return;
+        }
         const coords = convertToMapCoords(point.pixel_coords);
         if (coords) {
             processedTrail.push({
@@ -1152,65 +1285,109 @@ function drawContainerTrail(containerId, trail) {
     });
     
     if (processedTrail.length === 0) {
+        console.warn('drawContainerTrail: processedTrail vazio após conversão para container:', containerId);
         return;
     }
     
-    // Criar linha do trail (cor azul para containers)
-    const latlngs = processedTrail.map(item => item.mapCoords);
-    const polyline = L.polyline(latlngs, {
-        color: '#007bff',
-        weight: 3,
-        opacity: 0.7
-    }).addTo(map);
+    console.log('drawContainerTrail: processedTrail criado com', processedTrail.length, 'pontos para container:', containerId);
     
-    containerTrails[containerId].push(polyline);
+    // Verificar se todos os pontos estão na mesma posição
+    const allPointsSame = areAllPointsSame(processedTrail);
     
-    // Adicionar marcadores em cada ponto
-    for (let i = 0; i < processedTrail.length; i++) {
-        const point = processedTrail[i].data;
-        const pointLat = processedTrail[i].mapCoords[0];
-        const pointLng = processedTrail[i].mapCoords[1];
+    console.log('drawContainerTrail: allPointsSame =', allPointsSame, 'para container:', containerId);
+    
+    if (allPointsSame) {
+        // Objeto estático: criar um único círculo maior com tooltip consolidado
+        const firstPoint = processedTrail[0].data;
+        const firstCoords = processedTrail[0].mapCoords;
+        const pointLat = firstCoords[0];
+        const pointLng = firstCoords[1];
         
-        let tooltipText = `<strong>📦 ${point.container_name || 'Container'}</strong><br>`;
-        tooltipText += `<strong>📍 Ponto ${processedTrail.length - i}</strong><br>`;
-        tooltipText += `⏰ Tempo: <span class="value">${point.timestamp}</span><br>`;
-        tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
+        // Calcular raio baseado na quantidade de pontos
+        const radius = Math.min(8 + Math.log(processedTrail.length) * 2, 15);
         
-        // Mostrar quantidade de itens se disponível
-        if (point.items && point.items.length > 0) {
-            tooltipText += `<br>📦 Itens: <span class="value">${point.items.length}</span>`;
-        }
+        console.log('drawContainerTrail: criando círculo único (estático) para container:', containerId, 'radius:', radius);
         
-        // Calcular distância se houver ponto anterior
-        if (i > 0) {
-            const prevPoint = processedTrail[i - 1].data;
-            const dx = point.coord_x - prevPoint.coord_x;
-            const dy = point.coord_y - prevPoint.coord_y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance > 0) {
-                tooltipText += `<br><br><strong>📊 Desde último ponto:</strong><br>`;
-                tooltipText += `📏 Distância: <span class="value">${distance.toFixed(1)}m</span>`;
-            }
-        }
-        
-        const circleMarker = L.circleMarker(processedTrail[i].mapCoords, {
-            radius: 4,
+        const circleMarker = L.circleMarker(firstCoords, {
+            radius: radius,
             fillColor: '#007bff',
             color: 'white',
-            weight: 1,
+            weight: 2,
             opacity: 1,
             fillOpacity: 0.8
         }).addTo(map);
         
+        const tooltipText = generateConsolidatedTooltip(processedTrail, 'container', firstPoint.container_name || firstPoint.container_type);
         const tooltipDirection = getTooltipDirectionForPoint(pointLat, pointLng);
         circleMarker.bindTooltip(tooltipText, {
             permanent: false,
             direction: tooltipDirection,
-            className: 'trail-tooltip'
+            className: 'trail-tooltip',
+            maxWidth: 400
         });
         
         containerTrails[containerId].push(circleMarker);
+        console.log('drawContainerTrail: círculo único criado para container:', containerId);
+    } else {
+        // Objeto em movimento: criar polyline e círculos individuais
+        console.log('drawContainerTrail: criando polyline e círculos (em movimento) para container:', containerId);
+        const latlngs = processedTrail.map(item => item.mapCoords);
+        const polyline = L.polyline(latlngs, {
+            color: '#007bff',
+            weight: 3,
+            opacity: 0.7
+        }).addTo(map);
+        
+        containerTrails[containerId].push(polyline);
+        
+        // Adicionar marcadores em cada ponto
+        for (let i = 0; i < processedTrail.length; i++) {
+            const point = processedTrail[i].data;
+            const pointLat = processedTrail[i].mapCoords[0];
+            const pointLng = processedTrail[i].mapCoords[1];
+            
+            let tooltipText = `<strong>📦 ${point.container_name || 'Container'}</strong><br>`;
+            tooltipText += `<strong>📍 Ponto ${processedTrail.length - i}</strong><br>`;
+            tooltipText += `⏰ Tempo: <span class="value">${point.timestamp}</span><br>`;
+            tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
+            
+            // Mostrar quantidade de itens se disponível
+            if (point.items && point.items.length > 0) {
+                tooltipText += `<br>📦 Itens: <span class="value">${point.items.length}</span>`;
+            }
+            
+            // Calcular distância se houver ponto anterior
+            if (i > 0) {
+                const prevPoint = processedTrail[i - 1].data;
+                const dx = point.coord_x - prevPoint.coord_x;
+                const dy = point.coord_y - prevPoint.coord_y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance > 0) {
+                    tooltipText += `<br><br><strong>📊 Desde último ponto:</strong><br>`;
+                    tooltipText += `📏 Distância: <span class="value">${distance.toFixed(1)}m</span>`;
+                }
+            }
+            
+            const circleMarker = L.circleMarker(processedTrail[i].mapCoords, {
+                radius: 4,
+                fillColor: '#007bff',
+                color: 'white',
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).addTo(map);
+            
+            const tooltipDirection = getTooltipDirectionForPoint(pointLat, pointLng);
+            circleMarker.bindTooltip(tooltipText, {
+                permanent: false,
+                direction: tooltipDirection,
+                className: 'trail-tooltip'
+            });
+            
+            containerTrails[containerId].push(circleMarker);
+        }
+        console.log('drawContainerTrail: polyline e', processedTrail.length, 'círculos criados para container:', containerId);
     }
 }
 
@@ -1247,55 +1424,117 @@ function drawFenceTrail(fenceId, trail) {
         return;
     }
     
-    // Criar linha do trail (cor amarela para fences)
-    const latlngs = processedTrail.map(item => item.mapCoords);
-    const polyline = L.polyline(latlngs, {
-        color: '#ffc107',
-        weight: 3,
-        opacity: 0.7
-    }).addTo(map);
+    // Verificar se todos os pontos estão na mesma posição
+    const allPointsSame = areAllPointsSame(processedTrail);
     
-    fenceTrails[fenceId].push(polyline);
-    
-    // Adicionar marcadores em cada ponto
-    for (let i = 0; i < processedTrail.length; i++) {
-        const point = processedTrail[i].data;
-        const pointLat = processedTrail[i].mapCoords[0];
-        const pointLng = processedTrail[i].mapCoords[1];
+    if (allPointsSame) {
+        // Objeto estático: criar um único círculo com cor baseada no estado mais recente
+        const lastPoint = processedTrail[processedTrail.length - 1].data;
+        const firstCoords = processedTrail[0].mapCoords;
+        const pointLat = firstCoords[0];
+        const pointLng = firstCoords[1];
         
-        let tooltipText = `<strong>🏠 ${point.fence_name || 'Fence'}</strong><br>`;
-        tooltipText += `<strong>📍 Ponto ${processedTrail.length - i}</strong><br>`;
-        tooltipText += `⏰ Tempo: <span class="value">${point.timestamp}</span><br>`;
-        tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
+        // Determinar cor baseada no estado de construção mais recente
+        let fillColor = '#ffc107'; // Amarelo padrão
+        const hasBase = lastPoint.has_base === true;
+        const hasLowerPanel = lastPoint.lower_panel_built === true;
+        const hasUpperPanel = lastPoint.upper_panel_built === true;
         
-        // Mostrar estado da construção se disponível
-        if (point.has_base !== null && point.has_base !== undefined) {
-            tooltipText += `<br>🏗️ Base: <span class="value">${point.has_base ? 'Sim' : 'Não'}</span>`;
-        }
-        if (point.lower_panel_built !== null && point.lower_panel_built !== undefined) {
-            tooltipText += `<br>🔨 Painel Inf: <span class="value">${point.lower_panel_built ? 'Sim' : 'Não'}</span>`;
-        }
-        if (point.upper_panel_built !== null && point.upper_panel_built !== undefined) {
-            tooltipText += `<br>🔨 Painel Sup: <span class="value">${point.upper_panel_built ? 'Sim' : 'Não'}</span>`;
+        if (hasBase && hasLowerPanel && hasUpperPanel) {
+            fillColor = '#28a745'; // Verde: completamente construída
+        } else if (hasBase && (hasLowerPanel || hasUpperPanel)) {
+            fillColor = '#ffc107'; // Amarelo: parcialmente construída
+        } else if (hasBase) {
+            fillColor = '#ff9800'; // Laranja: só tem base
         }
         
-        const circleMarker = L.circleMarker(processedTrail[i].mapCoords, {
-            radius: 4,
-            fillColor: '#ffc107',
+        // Calcular raio baseado na quantidade de pontos
+        const radius = Math.min(8 + Math.log(processedTrail.length) * 2, 15);
+        
+        const circleMarker = L.circleMarker(firstCoords, {
+            radius: radius,
+            fillColor: fillColor,
             color: 'white',
-            weight: 1,
+            weight: 2,
             opacity: 1,
             fillOpacity: 0.8
         }).addTo(map);
         
+        const tooltipText = generateFenceConsolidatedTooltip(processedTrail);
         const tooltipDirection = getTooltipDirectionForPoint(pointLat, pointLng);
         circleMarker.bindTooltip(tooltipText, {
             permanent: false,
             direction: tooltipDirection,
-            className: 'trail-tooltip'
+            className: 'trail-tooltip',
+            maxWidth: 400
         });
         
         fenceTrails[fenceId].push(circleMarker);
+    } else {
+        // Objeto em movimento: criar polyline e círculos individuais com cores baseadas no estado
+        const latlngs = processedTrail.map(item => item.mapCoords);
+        const polyline = L.polyline(latlngs, {
+            color: '#ffc107',
+            weight: 3,
+            opacity: 0.7
+        }).addTo(map);
+        
+        fenceTrails[fenceId].push(polyline);
+        
+        // Adicionar marcadores em cada ponto
+        for (let i = 0; i < processedTrail.length; i++) {
+            const point = processedTrail[i].data;
+            const pointLat = processedTrail[i].mapCoords[0];
+            const pointLng = processedTrail[i].mapCoords[1];
+            
+            let tooltipText = `<strong>🏠 ${point.fence_name || 'Fence'}</strong><br>`;
+            tooltipText += `<strong>📍 Ponto ${processedTrail.length - i}</strong><br>`;
+            tooltipText += `⏰ Tempo: <span class="value">${point.timestamp}</span><br>`;
+            tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
+            
+            // Mostrar estado da construção se disponível
+            if (point.has_base !== null && point.has_base !== undefined) {
+                tooltipText += `<br>🏗️ Base: <span class="value">${point.has_base ? 'Sim' : 'Não'}</span>`;
+            }
+            if (point.lower_panel_built !== null && point.lower_panel_built !== undefined) {
+                tooltipText += `<br>🔨 Painel Inf: <span class="value">${point.lower_panel_built ? 'Sim' : 'Não'}</span>`;
+            }
+            if (point.upper_panel_built !== null && point.upper_panel_built !== undefined) {
+                tooltipText += `<br>🔨 Painel Sup: <span class="value">${point.upper_panel_built ? 'Sim' : 'Não'}</span>`;
+            }
+            
+            // Determinar cor baseada no estado de construção
+            let fillColor = '#ffc107'; // Amarelo padrão
+            const hasBase = point.has_base === true;
+            const hasLowerPanel = point.lower_panel_built === true;
+            const hasUpperPanel = point.upper_panel_built === true;
+            
+            if (hasBase && hasLowerPanel && hasUpperPanel) {
+                fillColor = '#28a745'; // Verde: completamente construída
+            } else if (hasBase && (hasLowerPanel || hasUpperPanel)) {
+                fillColor = '#ffc107'; // Amarelo: parcialmente construída
+            } else if (hasBase) {
+                fillColor = '#ff9800'; // Laranja: só tem base
+            }
+            
+            const circleMarker = L.circleMarker(processedTrail[i].mapCoords, {
+                radius: 4,
+                fillColor: fillColor,
+                color: 'white',
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).addTo(map);
+            
+            const tooltipDirection = getTooltipDirectionForPoint(pointLat, pointLng);
+            circleMarker.bindTooltip(tooltipText, {
+                permanent: false,
+                direction: tooltipDirection,
+                className: 'trail-tooltip'
+            });
+            
+            fenceTrails[fenceId].push(circleMarker);
+        }
     }
 }
 
@@ -1980,6 +2219,11 @@ function createContainerPopup(container) {
             <div class="info-row mt-2">
                 <span class="info-label">Atualizado:</span>
                 <span class="info-value">${container.last_update || 'Desconhecido'}</span>
+            </div>
+            <div class="info-row mt-2">
+                <button type="button" class="btn btn-sm btn-primary" onclick="toggleContainerTrail('${container.container_id}')">
+                    <i class="fas fa-route me-1"></i><span id="containerTrailBtn_${container.container_id}">${containerTrails[container.container_id] ? 'Ocultar Trail' : 'Mostrar Trail'}</span>
+                </button>
             </div>
         </div>
     `;
