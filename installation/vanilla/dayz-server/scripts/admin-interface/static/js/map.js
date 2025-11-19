@@ -860,7 +860,8 @@ function loadContainerTrail(containerId) {
     }
     
     console.log('Carregando trail do container:', containerId);
-    $.get(`/api/containers/${containerId}/trail`, { limit: 100 })
+    // Para o trail no mapa, não filtrar apenas por itens (mostrar todas as posições)
+    $.get(`/api/containers/${containerId}/trail`, { limit: 100, filter_by_items_only: false })
         .done(function(data) {
             console.log('Trail do container recebido:', containerId, data);
             drawContainerTrail(containerId, data.trail);
@@ -899,7 +900,8 @@ function loadContainerHistory(containerId, offset = 0, dateFrom = null, dateTo =
     
     const params = {
         limit: currentHistoryPagination.limit,
-        offset: offset
+        offset: offset,
+        filter_by_items_only: true  // Para histórico, filtrar apenas por mudanças nos itens
     };
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;

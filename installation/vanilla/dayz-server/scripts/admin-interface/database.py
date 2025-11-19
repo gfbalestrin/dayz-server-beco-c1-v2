@@ -278,10 +278,14 @@ def get_containers_last_position(include_destroyed: bool = False) -> List[Dict]:
         
         return containers
 
-def get_container_trail(container_id: str, limit: int = 100, offset: int = 0, date_from: str = None, date_to: str = None) -> tuple:
+def get_container_trail(container_id: str, limit: int = 100, offset: int = 0, date_from: str = None, date_to: str = None, filter_by_items_only: bool = False) -> tuple:
     """
     Retorna histórico de posições e items de um container com filtros
     Retorna: (trail, total_count)
+    
+    Args:
+        filter_by_items_only: Se True, filtra apenas por mudanças nos itens (ignora mudanças de posição).
+                              Se False, filtra por mudanças em posição E itens (comportamento original para trail).
     """
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
@@ -339,31 +343,34 @@ def get_container_trail(container_id: str, limit: int = 100, offset: int = 0, da
         for container in all_containers:
             container['items'] = items_map.get(container['IdContainerTracking'], [])
         
-        # Filtrar eventos duplicados (mesma posição e mesmos items)
+        # Filtrar eventos duplicados
         filtered_containers = []
         prev_state = None
         
         for container in all_containers:
-            # Criar hash do estado atual (posição + items)
+            # Criar hash dos itens
             items_sorted = sorted(container['items'], key=lambda x: (x['ItemType'], x.get('ItemHealth', 0) or 0))
             items_tuple = tuple((item['ItemType'], item.get('ItemHealth')) for item in items_sorted)
-            current_state_key = (
-                round(container['PositionX'], 1),
-                round(container['PositionY'], 1),
-                round(container['PositionZ'], 1),
-                items_tuple
-            )
             
-            current_state = {
-                'key': current_state_key,
-                'position': (container['PositionX'], container['PositionY'], container['PositionZ']),
-                'items': items_sorted
-            }
-            
-            # Se mudou, adicionar à lista
-            if prev_state is None or prev_state['key'] != current_state['key']:
-                filtered_containers.append(container)
-                prev_state = current_state
+            if filter_by_items_only:
+                # Filtrar apenas por mudanças nos itens (ignorar mudanças de posição)
+                # Mudanças de posição são visíveis no "Mostrar Trail", então não precisam aparecer no histórico
+                if prev_state is None or prev_state != items_tuple:
+                    filtered_containers.append(container)
+                    prev_state = items_tuple
+            else:
+                # Filtrar por mudanças em posição E itens (comportamento original para trail)
+                # Isso garante que o trail no mapa mostre todas as posições onde o container esteve
+                current_state_key = (
+                    round(container['PositionX'], 1),
+                    round(container['PositionY'], 1),
+                    round(container['PositionZ'], 1),
+                    items_tuple
+                )
+                
+                if prev_state is None or prev_state != current_state_key:
+                    filtered_containers.append(container)
+                    prev_state = current_state_key
         
         # Aplicar paginação após filtrar
         paginated_containers = filtered_containers[offset:offset + limit]

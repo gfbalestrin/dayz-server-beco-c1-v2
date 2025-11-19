@@ -1208,8 +1208,9 @@ def api_container_trail(container_id):
     offset = request.args.get('offset', 0, type=int)
     date_from = request.args.get('date_from', None)
     date_to = request.args.get('date_to', None)
+    filter_by_items_only = request.args.get('filter_by_items_only', 'false').lower() == 'true'
     
-    trail, total_count = get_container_trail(container_id, limit, offset, date_from, date_to)
+    trail, total_count = get_container_trail(container_id, limit, offset, date_from, date_to, filter_by_items_only)
     
     result = {
         'container_id': container_id,
