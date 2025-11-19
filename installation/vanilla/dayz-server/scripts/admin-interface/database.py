@@ -150,9 +150,11 @@ def get_containers_last_position() -> List[Dict]:
             SELECT ct.IdContainerTracking, ct.ContainerId, ct.ContainerName, 
                    ct.PositionX, ct.PositionY, ct.PositionZ, ct.TimeStamp
             FROM containers_tracking ct
-            WHERE ct.TimeStamp = (
-                SELECT MAX(TimeStamp) FROM containers_tracking
-            )
+            INNER JOIN (
+                SELECT ContainerId, MAX(TimeStamp) as MaxTimeStamp
+                FROM containers_tracking
+                GROUP BY ContainerId
+            ) AS latest_ct ON ct.ContainerId = latest_ct.ContainerId AND ct.TimeStamp = latest_ct.MaxTimeStamp
             ORDER BY ct.ContainerName
         """)
         containers = [dict(row) for row in cursor.fetchall()]
@@ -168,6 +170,12 @@ def get_containers_last_position() -> List[Dict]:
             """, (container_id,))
             items = [dict(row) for row in cursor.fetchall()]
             container['items'] = items
+            
+            # Debug: log para WoodenCrate
+            if 'WoodenCrate' in container.get('ContainerName', ''):
+                print(f"DEBUG DB WoodenCrate {container.get('ContainerId')}: {len(items)} items")
+                for item in items:
+                    print(f"  - ItemType: {item.get('ItemType')}, ItemHealth: {item.get('ItemHealth')}")
         
         return containers
 

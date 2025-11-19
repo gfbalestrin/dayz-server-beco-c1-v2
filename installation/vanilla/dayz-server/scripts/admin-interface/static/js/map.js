@@ -866,17 +866,124 @@ function loadContainerTrail(containerId) {
  * Carregar trail de uma fence
  */
 function loadFenceTrail(fenceId) {
-    if (fenceTrails[fenceId]) {
-        return; // Trail já carregado
-    }
-    
+    console.log('Carregando trail da fence:', fenceId);
     $.get(`/api/fences/${fenceId}/trail`, { limit: 100 })
         .done(function(data) {
-            drawFenceTrail(fenceId, data.trail);
+            console.log('Trail da fence recebido:', fenceId, data);
+            showFenceHistoryModal(fenceId, data.trail);
         })
         .fail(function() {
-            console.error('Erro ao carregar trail da fence');
+            console.error('Erro ao carregar trail da fence:', fenceId);
         });
+}
+
+/**
+ * Mostrar histórico de loot do container
+ */
+function showContainerLootHistory(containerId) {
+    console.log('Carregando histórico de loot do container:', containerId);
+    $.get(`/api/containers/${containerId}/trail`, { limit: 100 })
+        .done(function(data) {
+            console.log('Trail do container recebido para histórico:', containerId, data);
+            showContainerHistoryModal(containerId, data.trail);
+        })
+        .fail(function(xhr, status, error) {
+            console.error('Erro ao carregar histórico de loot do container:', containerId, status, error, xhr.responseText);
+        });
+}
+
+/**
+ * Exibir modal com histórico de loot do container
+ */
+function showContainerHistoryModal(containerId, trail) {
+    const container = containersData[containerId];
+    if (!container) return;
+    
+    const modalTitle = document.getElementById('trailHistoryModalTitle');
+    const modalBody = document.getElementById('trailHistoryModalBody');
+    
+    modalTitle.innerHTML = `<i class="fas fa-box me-2"></i>Histórico de Loot - ${container.container_type || 'Container'}`;
+    
+    let html = `<div class="trail-history-container">`;
+    html += `<div class="mb-3"><strong>ID:</strong> ${containerId}</div>`;
+    html += `<div class="mb-3"><strong>Coordenadas:</strong> X=${container.coord_x.toFixed(1)}, Y=${container.coord_y.toFixed(1)}</div>`;
+    html += `<div class="mb-3"><strong>Total de atualizações:</strong> ${trail.length}</div>`;
+    html += `<div class="trail-timeline" style="max-height: 500px; overflow-y: auto;">`;
+    
+    // Timeline reversa (mais recente primeiro)
+    for (let i = trail.length - 1; i >= 0; i--) {
+        const point = trail[i];
+        html += `<div class="trail-timeline-item" style="border-left: 3px solid #${i === trail.length - 1 ? '4caf50' : '007bff'}; padding-left: 15px; margin-bottom: 20px;">`;
+        html += `<strong>${point.timestamp || 'Sem data'}</strong><br>`;
+        html += `📍 Coords: X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}`;
+        
+        if (point.items && point.items.length > 0) {
+            html += `<br><strong>📦 Itens (${point.items.length}):</strong><br>`;
+            html += `<div class="container-items-list" style="margin-top: 8px;">`;
+            point.items.forEach(function(item) {
+                const imgTag = item.img ? `<img src="${item.img}" onerror="this.style.display='none'" style="width: 24px; height: 24px; margin-right: 4px; vertical-align: middle;">` : '';
+                const healthText = item.health ? ` (HP: ${item.health})` : '';
+                html += `<div class="mb-1">${imgTag}<span>${item.name || item.type}${healthText}</span></div>`;
+            });
+            html += `</div>`;
+        } else {
+            html += `<br><span class="text-muted">Container vazio</span>`;
+        }
+        
+        html += `</div>`;
+    }
+    
+    html += `</div></div>`;
+    modalBody.innerHTML = html;
+    
+    // Abrir modal usando Bootstrap 5
+    const modal = new bootstrap.Modal(document.getElementById('trailHistoryModal'));
+    modal.show();
+}
+
+/**
+ * Exibir modal com histórico da fence
+ */
+function showFenceHistoryModal(fenceId, trail) {
+    const fence = fencesData[fenceId];
+    if (!fence) return;
+    
+    const modalTitle = document.getElementById('trailHistoryModalTitle');
+    const modalBody = document.getElementById('trailHistoryModalBody');
+    
+    modalTitle.innerHTML = `<i class="fas fa-home me-2"></i>Histórico - ${fence.fence_name || 'Fence'}`;
+    
+    let html = `<div class="trail-history-container">`;
+    html += `<div class="mb-3"><strong>ID:</strong> ${fenceId}</div>`;
+    html += `<div class="mb-3"><strong>Coordenadas:</strong> X=${fence.coord_x.toFixed(1)}, Y=${fence.coord_y.toFixed(1)}</div>`;
+    html += `<div class="mb-3"><strong>Total de atualizações:</strong> ${trail.length}</div>`;
+    html += `<div class="trail-timeline" style="max-height: 500px; overflow-y: auto;">`;
+    
+    // Timeline reversa (mais recente primeiro)
+    for (let i = trail.length - 1; i >= 0; i--) {
+        const point = trail[i];
+        html += `<div class="trail-timeline-item" style="border-left: 3px solid #${i === trail.length - 1 ? '4caf50' : 'ffc107'}; padding-left: 15px; margin-bottom: 20px;">`;
+        html += `<strong>${point.timestamp || 'Sem data'}</strong><br>`;
+        
+        if (point.has_base !== null && point.has_base !== undefined) {
+            html += `🏗️ Base: <span class="value">${point.has_base ? 'Sim' : 'Não'}</span> `;
+        }
+        if (point.lower_panel_built !== null && point.lower_panel_built !== undefined) {
+            html += `🔨 Inf: <span class="value">${point.lower_panel_built ? 'Sim' : 'Não'}</span> `;
+        }
+        if (point.upper_panel_built !== null && point.upper_panel_built !== undefined) {
+            html += `🔨 Sup: <span class="value">${point.upper_panel_built ? 'Sim' : 'Não'}</span>`;
+        }
+        
+        html += `</div>`;
+    }
+    
+    html += `</div></div>`;
+    modalBody.innerHTML = html;
+    
+    // Abrir modal usando Bootstrap 5
+    const modal = new bootstrap.Modal(document.getElementById('trailHistoryModal'));
+    modal.show();
 }
 
 /**
@@ -1395,147 +1502,8 @@ function drawContainerTrail(containerId, trail) {
  * Desenhar trail de uma fence
  */
 function drawFenceTrail(fenceId, trail) {
-    // Remover trail antigo se existir
-    if (fenceTrails[fenceId]) {
-        if (Array.isArray(fenceTrails[fenceId])) {
-            fenceTrails[fenceId].forEach(item => map.removeLayer(item));
-        } else {
-            map.removeLayer(fenceTrails[fenceId]);
-        }
-    }
-    
-    fenceTrails[fenceId] = [];
-    
-    if (trail.length === 0) return;
-    
-    // Converter pontos para coordenadas do mapa
-    const processedTrail = [];
-    trail.forEach(function(point) {
-        const coords = convertToMapCoords(point.pixel_coords);
-        if (coords) {
-            processedTrail.push({
-                data: point,
-                mapCoords: coords
-            });
-        }
-    });
-    
-    if (processedTrail.length === 0) {
-        return;
-    }
-    
-    // Verificar se todos os pontos estão na mesma posição
-    const allPointsSame = areAllPointsSame(processedTrail);
-    
-    if (allPointsSame) {
-        // Objeto estático: criar um único círculo com cor baseada no estado mais recente
-        const lastPoint = processedTrail[processedTrail.length - 1].data;
-        const firstCoords = processedTrail[0].mapCoords;
-        const pointLat = firstCoords[0];
-        const pointLng = firstCoords[1];
-        
-        // Determinar cor baseada no estado de construção mais recente
-        let fillColor = '#ffc107'; // Amarelo padrão
-        const hasBase = lastPoint.has_base === true;
-        const hasLowerPanel = lastPoint.lower_panel_built === true;
-        const hasUpperPanel = lastPoint.upper_panel_built === true;
-        
-        if (hasBase && hasLowerPanel && hasUpperPanel) {
-            fillColor = '#28a745'; // Verde: completamente construída
-        } else if (hasBase && (hasLowerPanel || hasUpperPanel)) {
-            fillColor = '#ffc107'; // Amarelo: parcialmente construída
-        } else if (hasBase) {
-            fillColor = '#ff9800'; // Laranja: só tem base
-        }
-        
-        // Calcular raio baseado na quantidade de pontos
-        const radius = Math.min(8 + Math.log(processedTrail.length) * 2, 15);
-        
-        const circleMarker = L.circleMarker(firstCoords, {
-            radius: radius,
-            fillColor: fillColor,
-            color: 'white',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.8
-        }).addTo(map);
-        
-        const tooltipText = generateFenceConsolidatedTooltip(processedTrail);
-        const tooltipDirection = getTooltipDirectionForPoint(pointLat, pointLng);
-        circleMarker.bindTooltip(tooltipText, {
-            permanent: false,
-            direction: tooltipDirection,
-            className: 'trail-tooltip',
-            maxWidth: 400
-        });
-        
-        fenceTrails[fenceId].push(circleMarker);
-    } else {
-        // Objeto em movimento: criar polyline e círculos individuais com cores baseadas no estado
-        const latlngs = processedTrail.map(item => item.mapCoords);
-        const polyline = L.polyline(latlngs, {
-            color: '#ffc107',
-            weight: 3,
-            opacity: 0.7
-        }).addTo(map);
-        
-        fenceTrails[fenceId].push(polyline);
-        
-        // Adicionar marcadores em cada ponto
-        for (let i = 0; i < processedTrail.length; i++) {
-            const point = processedTrail[i].data;
-            const pointLat = processedTrail[i].mapCoords[0];
-            const pointLng = processedTrail[i].mapCoords[1];
-            
-            let tooltipText = `<strong>🏠 ${point.fence_name || 'Fence'}</strong><br>`;
-            tooltipText += `<strong>📍 Ponto ${processedTrail.length - i}</strong><br>`;
-            tooltipText += `⏰ Tempo: <span class="value">${point.timestamp}</span><br>`;
-            tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
-            
-            // Mostrar estado da construção se disponível
-            if (point.has_base !== null && point.has_base !== undefined) {
-                tooltipText += `<br>🏗️ Base: <span class="value">${point.has_base ? 'Sim' : 'Não'}</span>`;
-            }
-            if (point.lower_panel_built !== null && point.lower_panel_built !== undefined) {
-                tooltipText += `<br>🔨 Painel Inf: <span class="value">${point.lower_panel_built ? 'Sim' : 'Não'}</span>`;
-            }
-            if (point.upper_panel_built !== null && point.upper_panel_built !== undefined) {
-                tooltipText += `<br>🔨 Painel Sup: <span class="value">${point.upper_panel_built ? 'Sim' : 'Não'}</span>`;
-            }
-            
-            // Determinar cor baseada no estado de construção
-            let fillColor = '#ffc107'; // Amarelo padrão
-            const hasBase = point.has_base === true;
-            const hasLowerPanel = point.lower_panel_built === true;
-            const hasUpperPanel = point.upper_panel_built === true;
-            
-            if (hasBase && hasLowerPanel && hasUpperPanel) {
-                fillColor = '#28a745'; // Verde: completamente construída
-            } else if (hasBase && (hasLowerPanel || hasUpperPanel)) {
-                fillColor = '#ffc107'; // Amarelo: parcialmente construída
-            } else if (hasBase) {
-                fillColor = '#ff9800'; // Laranja: só tem base
-            }
-            
-            const circleMarker = L.circleMarker(processedTrail[i].mapCoords, {
-                radius: 4,
-                fillColor: fillColor,
-                color: 'white',
-                weight: 1,
-                opacity: 1,
-                fillOpacity: 0.8
-            }).addTo(map);
-            
-            const tooltipDirection = getTooltipDirectionForPoint(pointLat, pointLng);
-            circleMarker.bindTooltip(tooltipText, {
-                permanent: false,
-                direction: tooltipDirection,
-                className: 'trail-tooltip'
-            });
-            
-            fenceTrails[fenceId].push(circleMarker);
-        }
-    }
+    // Fences nunca se movem, então não precisam desenhar trail no mapa
+    // O histórico é exibido em modal através de showFenceHistoryModal()
 }
 
 /**
@@ -2192,6 +2160,14 @@ function createContainerPopup(container) {
     let itemsHtml = '';
     const items = container.items || [];
     
+    // Debug: log para WoodenCrate
+    if (container.container_type === 'WoodenCrate' || (container.container_type && container.container_type.includes('WoodenCrate'))) {
+        console.log('DEBUG WoodenCrate popup:', container.container_id, 'items:', items);
+        items.forEach(function(item) {
+            console.log('  - Item:', item.type, 'img:', item.img, 'name:', item.name);
+        });
+    }
+    
     if (items.length > 0) {
         itemsHtml += '<div class="mt-2"><strong>Items:</strong><div class="mt-1">';
         items.forEach(function(item) {
@@ -2221,6 +2197,9 @@ function createContainerPopup(container) {
                 <span class="info-value">${container.last_update || 'Desconhecido'}</span>
             </div>
             <div class="info-row mt-2">
+                <button type="button" class="btn btn-sm btn-info me-2" onclick="showContainerLootHistory('${container.container_id}')">
+                    <i class="fas fa-history me-1"></i>Histórico de Loot
+                </button>
                 <button type="button" class="btn btn-sm btn-primary" onclick="toggleContainerTrail('${container.container_id}')">
                     <i class="fas fa-route me-1"></i><span id="containerTrailBtn_${container.container_id}">${containerTrails[container.container_id] ? 'Ocultar Trail' : 'Mostrar Trail'}</span>
                 </button>
@@ -2283,15 +2262,8 @@ function loadFences() {
  * Toggle trail de fence
  */
 function toggleFenceTrail(fenceId) {
-    if (fenceTrails[fenceId]) {
-        removeFenceTrail(fenceId);
-        $(`#fenceTrailBtn_${fenceId}`).text('Mostrar Trail');
-        updateFencePopup(fenceId);
-    } else {
-        loadFenceTrail(fenceId);
-        $(`#fenceTrailBtn_${fenceId}`).text('Ocultar Trail');
-        updateFencePopup(fenceId);
-    }
+    // Fences sempre abrem modal, não desenham no mapa
+    loadFenceTrail(fenceId);
 }
 
 /**
@@ -2423,7 +2395,7 @@ function createFencePopup(fence) {
             ${constructionDetails}
             <div class="info-row mt-2">
                 <button type="button" class="btn btn-sm btn-warning" onclick="toggleFenceTrail('${fence.fence_id}')">
-                    <i class="fas fa-route me-1"></i><span id="fenceTrailBtn_${fence.fence_id}">${fenceTrails[fence.fence_id] ? 'Ocultar Trail' : 'Mostrar Trail'}</span>
+                    <i class="fas fa-history me-1"></i>Histórico de Alterações
                 </button>
             </div>
         </div>
