@@ -422,15 +422,18 @@ WorkingDirectory=${DayzFolder}/
 LimitNOFILE=100000
 
 # Comandos de reload e parada
-ExecReload=/bin/kill -s HUP \$MAINPID
-ExecStop=/bin/kill -s INT \$MAINPID
+ExecReload= 
+ExecStop=                         
+
+# Em vez disso, diga qual sinal você quer que o systemd use:
+KillSignal=INT
 
 # Usuário e grupo que rodam o serviço
 User=${LinuxUserName}
 Group=${LinuxUserName}
 
 # Política de reinício
-Restart=on-failure
+Restart=always
 RestartSec=600s
 
 # Logs dedicados

@@ -296,12 +296,6 @@ def get_containers_last_position(include_destroyed: bool = False) -> List[Dict]:
             """, (container_id,))
             items = [dict(row) for row in cursor.fetchall()]
             container['items'] = items
-            
-            # Debug: log para WoodenCrate
-            if 'WoodenCrate' in container.get('ContainerName', ''):
-                print(f"DEBUG DB WoodenCrate {container.get('ContainerId')}: {len(items)} items")
-                for item in items:
-                    print(f"  - ItemType: {item.get('ItemType')}, ItemHealth: {item.get('ItemHealth')}")
         
         return containers
 
@@ -417,8 +411,6 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
         except:
             has_is_destroyed = False
         
-        print(f"[DEBUG FENCES] has_is_destroyed: {has_is_destroyed}, include_destroyed: {include_destroyed}")
-        
         # Buscar último registro de cada fence
         # Usar uma abordagem mais simples e direta: pegar o registro com maior IdFenceTracking para cada FenceId
         # que tenha o timestamp máximo (não destruído se aplicável)
@@ -445,57 +437,6 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
                 WHERE ft.IsDestroyed = 0 OR ft.IsDestroyed IS NULL
                 ORDER BY ft.FenceName
             """
-            print(f"[DEBUG FENCES] Executando query (has_is_destroyed=True, include_destroyed=False)")
-            cursor.execute(query)
-            
-            # Debug: Verificar registros para a fence específica mencionada pelo usuário
-            debug_fence_id = "Fence_4169.54_10870.1_338.986"
-            cursor.execute("""
-                SELECT IdFenceTracking, FenceId, TimeStamp, LowerPanelBuilt, UpperPanelBuilt, HasBase, IsDestroyed
-                FROM fences_tracking
-                WHERE FenceId = ?
-                ORDER BY TimeStamp DESC, IdFenceTracking DESC
-                LIMIT 5
-            """, (debug_fence_id,))
-            debug_records = cursor.fetchall()
-            print(f"[DEBUG FENCES] Últimos 5 registros para {debug_fence_id}:")
-            for record in debug_records:
-                print(f"  - IdFenceTracking: {record[0]}, TimeStamp: {record[2]}, LowerPanelBuilt: {record[3]}, UpperPanelBuilt: {record[4]}, HasBase: {record[5]}, IsDestroyed: {record[6]}")
-            
-            # Verificar qual registro a subquery está pegando
-            cursor.execute("""
-                SELECT ft1.FenceId, ft1.TimeStamp as MaxTimeStamp, MAX(ft1.IdFenceTracking) as MaxId
-                FROM fences_tracking ft1
-                INNER JOIN (
-                    SELECT FenceId, MAX(TimeStamp) as MaxTimeStamp
-                    FROM fences_tracking
-                    WHERE IsDestroyed = 0 OR IsDestroyed IS NULL
-                    GROUP BY FenceId
-                ) AS max_ts ON ft1.FenceId = max_ts.FenceId AND ft1.TimeStamp = max_ts.MaxTimeStamp
-                WHERE ft1.IsDestroyed = 0 OR ft1.IsDestroyed IS NULL
-                    AND ft1.FenceId = ?
-                GROUP BY ft1.FenceId, ft1.TimeStamp
-            """, (debug_fence_id,))
-            subquery_result = cursor.fetchall()
-            print(f"[DEBUG FENCES] Resultado da subquery para {debug_fence_id}:")
-            for row in subquery_result:
-                print(f"  - FenceId: {row[0]}, MaxTimeStamp: {row[1]}, MaxId: {row[2]}")
-            
-            # Verificar se há múltiplos registros com o mesmo timestamp máximo
-            cursor.execute("""
-                SELECT IdFenceTracking, TimeStamp, LowerPanelBuilt, UpperPanelBuilt
-                FROM fences_tracking
-                WHERE FenceId = ?
-                    AND TimeStamp = (SELECT MAX(TimeStamp) FROM fences_tracking WHERE FenceId = ? AND (IsDestroyed = 0 OR IsDestroyed IS NULL))
-                    AND (IsDestroyed = 0 OR IsDestroyed IS NULL)
-                ORDER BY IdFenceTracking DESC
-            """, (debug_fence_id, debug_fence_id))
-            same_timestamp_records = cursor.fetchall()
-            print(f"[DEBUG FENCES] Registros com mesmo timestamp máximo para {debug_fence_id}:")
-            for record in same_timestamp_records:
-                print(f"  - IdFenceTracking: {record[0]}, TimeStamp: {record[1]}, LowerPanelBuilt: {record[2]}, UpperPanelBuilt: {record[3]}")
-            
-            # Re-executar a query principal
             cursor.execute(query)
         else:
             if has_is_destroyed:
@@ -518,7 +459,6 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
                         AND ft.IdFenceTracking = latest_ft.MaxId
                     ORDER BY ft.FenceName
                 """
-                print(f"[DEBUG FENCES] Executando query (has_is_destroyed=True, include_destroyed=True)")
                 cursor.execute(query)
             else:
                 query = """
@@ -540,22 +480,9 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
                         AND ft.IdFenceTracking = latest_ft.MaxId
                     ORDER BY ft.FenceName
                 """
-                print(f"[DEBUG FENCES] Executando query (has_is_destroyed=False)")
                 cursor.execute(query)
         
         fences = [dict(row) for row in cursor.fetchall()]
-        
-        # Debug: Verificar resultado para a fence específica
-        debug_fence_id = "Fence_4169.54_10870.1_338.986"
-        for fence in fences:
-            if fence.get('FenceId') == debug_fence_id:
-                print(f"[DEBUG FENCES] Resultado retornado para {debug_fence_id}:")
-                print(f"  - IdFenceTracking: {fence.get('IdFenceTracking')}")
-                print(f"  - TimeStamp: {fence.get('TimeStamp')}")
-                print(f"  - LowerPanelBuilt: {fence.get('LowerPanelBuilt')}")
-                print(f"  - UpperPanelBuilt: {fence.get('UpperPanelBuilt')}")
-                print(f"  - HasBase: {fence.get('HasBase')}")
-                break
         
         # Função auxiliar para normalizar valores booleanos/inteiros para 0 ou 1
         def normalize_bool_value(value):
@@ -574,7 +501,6 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
             fence_id = fence['FenceId']
             current_timestamp = fence.get('TimeStamp')
             
-            # Debug: valores brutos do registro atual
             raw_lower = fence.get('LowerPanelBuilt', 0)
             raw_upper = fence.get('UpperPanelBuilt', 0)
             
@@ -582,44 +508,10 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
             current_lower = normalize_bool_value(raw_lower)
             current_upper = normalize_bool_value(raw_upper)
             
-            print(f"[DEBUG FENCE ATTACK] FenceId: {fence_id}")
-            print(f"[DEBUG FENCE ATTACK] Current Timestamp: {current_timestamp}")
-            print(f"[DEBUG FENCE ATTACK] Raw LowerPanelBuilt: {raw_lower} (type: {type(raw_lower)})")
-            print(f"[DEBUG FENCE ATTACK] Raw UpperPanelBuilt: {raw_upper} (type: {type(raw_upper)})")
-            print(f"[DEBUG FENCE ATTACK] Normalized current_lower: {current_lower}")
-            print(f"[DEBUG FENCE ATTACK] Normalized current_upper: {current_upper}")
-            
             has_recent_attack = False
             
             # Só buscar registro anterior se tiver timestamp atual
             if current_timestamp:
-                # Debug: Verificar todos os registros antes do timestamp atual (sem filtro de painel)
-                if fence_id == "Fence_4169.54_10870.1_338.986":
-                    cursor.execute("""
-                        SELECT IdFenceTracking, TimeStamp, LowerPanelBuilt, UpperPanelBuilt, IsDestroyed
-                        FROM fences_tracking
-                        WHERE FenceId = ?
-                        AND TimeStamp < ?
-                        ORDER BY TimeStamp DESC, IdFenceTracking DESC
-                        LIMIT 20
-                    """, (fence_id, current_timestamp))
-                    debug_all_prev = cursor.fetchall()
-                    print(f"[DEBUG FENCE ATTACK] Todos os registros anteriores (últimos 20) para {fence_id}:")
-                    for rec in debug_all_prev:
-                        print(f"  - IdFenceTracking: {rec[0]}, TimeStamp: {rec[1]}, LowerPanelBuilt: {rec[2]}, UpperPanelBuilt: {rec[3]}, IsDestroyed: {rec[4]}")
-                    
-                    # Verificar especificamente o registro 1294
-                    cursor.execute("""
-                        SELECT IdFenceTracking, TimeStamp, LowerPanelBuilt, UpperPanelBuilt, IsDestroyed
-                        FROM fences_tracking
-                        WHERE IdFenceTracking = 1294
-                    """)
-                    rec_1294 = cursor.fetchone()
-                    if rec_1294:
-                        print(f"[DEBUG FENCE ATTACK] Registro 1294 encontrado: TimeStamp={rec_1294[1]}, LowerPanelBuilt={rec_1294[2]}, UpperPanelBuilt={rec_1294[3]}, IsDestroyed={rec_1294[4]}")
-                    else:
-                        print(f"[DEBUG FENCE ATTACK] Registro 1294 NÃO encontrado no banco!")
-                
                 # Buscar último registro anterior onde o painel inferior estava construído (para detectar ataque no painel inferior)
                 # E último registro anterior onde o painel superior estava construído (para detectar ataque no painel superior)
                 # Isso garante que estamos comparando com o último estado onde cada painel específico estava construído
@@ -691,16 +583,6 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
                 elif prev_upper_row:
                     prev_row = prev_upper_row
                 
-                # Debug: mostrar qual registro foi encontrado
-                if prev_lower_row:
-                    print(f"[DEBUG FENCE ATTACK] Registro anterior com LowerPanelBuilt=1: TimeStamp={prev_lower_row[2]}, IdFenceTracking={prev_lower_row[3]}")
-                else:
-                    print(f"[DEBUG FENCE ATTACK] Nenhum registro anterior com LowerPanelBuilt=1 encontrado")
-                if prev_upper_row:
-                    print(f"[DEBUG FENCE ATTACK] Registro anterior com UpperPanelBuilt=1: TimeStamp={prev_upper_row[2]}, IdFenceTracking={prev_upper_row[3]}")
-                else:
-                    print(f"[DEBUG FENCE ATTACK] Nenhum registro anterior com UpperPanelBuilt=1 encontrado")
-                
                 # Detectar se um painel foi perdido (tinha antes e não tem mais)
                 # Para o painel inferior: verificar se havia um registro anterior com LowerPanelBuilt=1
                 # Para o painel superior: verificar se havia um registro anterior com UpperPanelBuilt=1
@@ -711,28 +593,14 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
                 if current_lower == 0 and prev_lower_row:
                     prev_lower_check = normalize_bool_value(prev_lower_row[0])
                     lower_attack = (prev_lower_check == 1)
-                    print(f"[DEBUG FENCE ATTACK] Lower attack check: prev_lower_row existe e LowerPanelBuilt={prev_lower_check}, current_lower={current_lower} => {lower_attack}")
-                elif current_lower == 0:
-                    print(f"[DEBUG FENCE ATTACK] Lower attack check: current_lower=0 mas nenhum registro anterior com LowerPanelBuilt=1 encontrado => False")
                 
                 # Verificar ataque no painel superior
                 if current_upper == 0 and prev_upper_row:
                     prev_upper_check = normalize_bool_value(prev_upper_row[1])
                     upper_attack = (prev_upper_check == 1)
-                    print(f"[DEBUG FENCE ATTACK] Upper attack check: prev_upper_row existe e UpperPanelBuilt={prev_upper_check}, current_upper={current_upper} => {upper_attack}")
-                elif current_upper == 0:
-                    print(f"[DEBUG FENCE ATTACK] Upper attack check: current_upper=0 mas nenhum registro anterior com UpperPanelBuilt=1 encontrado => False")
                 
                 if lower_attack or upper_attack:
                     has_recent_attack = True
-                    print(f"[DEBUG FENCE ATTACK] *** ATTACK DETECTED! Lower: {lower_attack}, Upper: {upper_attack} ***")
-                else:
-                    print(f"[DEBUG FENCE ATTACK] No attack detected")
-            else:
-                print(f"[DEBUG FENCE ATTACK] No current_timestamp, skipping")
-            
-            print(f"[DEBUG FENCE ATTACK] Final has_recent_attack: {has_recent_attack}")
-            print(f"[DEBUG FENCE ATTACK] " + "="*60)
             
             fence['has_recent_attack'] = has_recent_attack
         
