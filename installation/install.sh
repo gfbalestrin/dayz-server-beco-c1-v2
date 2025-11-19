@@ -434,7 +434,7 @@ Group=${LinuxUserName}
 
 # Política de reinício
 Restart=always
-RestartSec=600s
+RestartSec=10s
 
 # Logs dedicados
 StandardOutput=append:${DayzFolder}/profiles/dayz-server.log
@@ -508,6 +508,11 @@ if [[ "\$DayzWipeOnRestart" == "1" ]]; then
     sqlite3 "\$AppFolder/\$AppServerBecoC1LogsDbFile" "DELETE FROM container_items_tracking"
     sqlite3 "\$AppFolder/\$AppServerBecoC1LogsDbFile" "DELETE FROM containers_tracking"
     sqlite3 "\$AppFolder/\$AppServerBecoC1LogsDbFile" "DELETE FROM fences_tracking"
+    sqlite3 "\$AppFolder/\$AppPlayerBecoC1DbFile" "DELETE FROM players_damage"
+    sqlite3 "\$AppFolder/\$AppPlayerBecoC1DbFile" "DELETE FROM players_killfeed"
+    sqlite3 "\$AppFolder/\$AppPlayerBecoC1DbFile" "DELETE FROM players_coord_backup"
+    sqlite3 "\$AppFolder/\$AppPlayerBecoC1DbFile" "DELETE FROM players_coord"
+
     echo "Wipe realizado!"
     SEND_DISCORD_WEBHOOK "Wipe realizado!" "\$DiscordWebhookLogs" "\$CurrentDate" "\$ScriptName"
 fi

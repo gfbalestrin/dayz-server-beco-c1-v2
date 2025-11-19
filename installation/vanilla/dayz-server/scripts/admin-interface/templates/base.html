@@ -97,6 +97,11 @@
                             <i class="fas fa-crosshairs me-1"></i>Deathmatch
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'cheat_detection' %}active{% endif %}" href="{{ url_for('cheat_detection') }}">
+                            <i class="fas fa-shield-alt me-1"></i>Detecção de Cheaters
+                        </a>
+                    </li>
                     {% endif %}
                     {% if session.user_type != 'player' %}
                     <li class="nav-item">

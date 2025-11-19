@@ -4017,3 +4017,443 @@ def remove_admin_id(player_id: str) -> bool:
     except Exception as e:
         print(f"Erro ao remover admin ID: {str(e)}")
         return False
+
+# ============================================================================
+# FUNÇÕES DE DETECÇÃO DE CHEATERS
+# ============================================================================
+
+def calculate_risk_level(score: float) -> str:
+    """Calcula o nível de risco baseado na pontuação"""
+    if score <= 50:
+        return 'normal'
+    elif score <= 100:
+        return 'suspicious'
+    elif score <= 200:
+        return 'high_risk'
+    else:
+        return 'critical'
+
+def update_player_score(player_id: str, event_type: str, score: float, details: Dict = None) -> bool:
+    """
+    Atualiza a pontuação de um jogador e registra o evento
+    Aplica decaimento diário (10% por dia sem eventos)
+    """
+    import json
+    from datetime import datetime, timedelta
+    
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        
+        # Verificar se o jogador já tem registro
+        cursor.execute("""
+            SELECT TotalScore, LastUpdated FROM cheat_detection_scores
+            WHERE PlayerID = ?
+        """, (player_id,))
+        existing = cursor.fetchone()
+        
+        current_score = 0.0
+        if existing:
+            current_score = existing[0] or 0.0
+            last_updated = existing[1]
+            
+            # Aplicar decaimento diário (10% por dia sem eventos)
+            if last_updated:
+                try:
+                    last_date = datetime.strptime(last_updated, '%Y-%m-%d %H:%M:%S')
+                    days_passed = (datetime.now() - last_date).days
+                    if days_passed > 0:
+                        # Reduzir 10% por dia, mínimo 0
+                        decay_factor = (0.9 ** days_passed)
+                        current_score = max(0.0, current_score * decay_factor)
+                except:
+                    pass
+        
+        # Adicionar nova pontuação
+        new_score = current_score + score
+        risk_level = calculate_risk_level(new_score)
+        
+        # Atualizar ou inserir pontuação
+        if existing:
+            cursor.execute("""
+                UPDATE cheat_detection_scores
+                SET TotalScore = ?, RiskLevel = ?, LastUpdated = CURRENT_TIMESTAMP
+                WHERE PlayerID = ?
+            """, (new_score, risk_level, player_id))
+        else:
+            cursor.execute("""
+                INSERT INTO cheat_detection_scores (PlayerID, TotalScore, RiskLevel, LastUpdated)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            """, (player_id, new_score, risk_level))
+        
+        # Registrar evento
+        details_json = json.dumps(details, ensure_ascii=False) if details else None
+        cursor.execute("""
+            INSERT INTO cheat_detection_events (PlayerID, EventType, Score, Details, TimeStamp)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """, (player_id, event_type, score, details_json))
+        
+        conn.commit()
+        return True
+
+def detect_teleportation(player_id: str, hours_back: int = 2) -> List[Dict]:
+    """
+    Detecta teleportação/speed hack analisando movimentos consecutivos
+    Retorna lista de eventos suspeitos detectados
+    """
+    from datetime import datetime, timedelta
+    import math
+    
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        
+        # Buscar coordenadas das últimas horas
+        time_threshold = (datetime.now() - timedelta(hours=hours_back)).strftime('%Y-%m-%d %H:%M:%S')
+        
+        cursor.execute("""
+            SELECT PlayerCoordId, CoordX, CoordY, CoordZ, Data
+            FROM players_coord
+            WHERE PlayerID = ? AND Data >= ?
+            ORDER BY Data ASC
+        """, (player_id, time_threshold))
+        
+        coords = [dict(row) for row in cursor.fetchall()]
+        
+        if len(coords) < 2:
+            return []
+        
+        suspicious_events = []
+        
+        for i in range(1, len(coords)):
+            prev = coords[i-1]
+            curr = coords[i]
+            
+            # Calcular distância
+            dx = curr['CoordX'] - prev['CoordX']
+            dy = curr['CoordY'] - prev['CoordY']
+            dz = curr['CoordZ'] - prev['CoordZ']
+            distance = math.sqrt(dx*dx + dy*dy + dz*dz)
+            
+            # Calcular tempo em segundos
+            try:
+                prev_time = datetime.strptime(prev['Data'], '%Y-%m-%d %H:%M:%S')
+                curr_time = datetime.strptime(curr['Data'], '%Y-%m-%d %H:%M:%S')
+                time_diff = (curr_time - prev_time).total_seconds()
+            except:
+                continue
+            
+            if time_diff <= 0:
+                continue
+            
+            # Calcular velocidade (m/s)
+            speed = distance / time_diff if time_diff > 0 else 0
+            
+            # Detectar suspeita
+            event_score = 0
+            event_type = None
+            severity = None
+            
+            if speed > 100:  # Crítico: > 100 m/s instantâneo
+                event_score = 50
+                event_type = 'teleport'
+                severity = 'critical'
+            elif speed > 50:  # Suspeito: > 50 m/s
+                event_score = 30
+                event_type = 'speed_hack'
+                severity = 'suspicious'
+            
+            if event_score > 0:
+                suspicious_events.append({
+                    'player_id': player_id,
+                    'event_type': event_type,
+                    'score': event_score,
+                    'details': {
+                        'distance': round(distance, 2),
+                        'time_seconds': round(time_diff, 2),
+                        'speed_mps': round(speed, 2),
+                        'from_pos': (prev['CoordX'], prev['CoordY'], prev['CoordZ']),
+                        'to_pos': (curr['CoordX'], curr['CoordY'], curr['CoordZ']),
+                        'from_time': prev['Data'],
+                        'to_time': curr['Data'],
+                        'severity': severity
+                    }
+                })
+        
+        return suspicious_events
+
+def detect_aimbot(player_id: str, hours_back: int = 2) -> List[Dict]:
+    """
+    Detecta aimbot analisando precisão anormal em kills e damage
+    Retorna lista de eventos suspeitos detectados
+    """
+    from datetime import datetime, timedelta
+    
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        
+        time_threshold = (datetime.now() - timedelta(hours=hours_back)).strftime('%Y-%m-%d %H:%M:%S')
+        
+        suspicious_events = []
+        
+        # Analisar kills (players_killfeed)
+        cursor.execute("""
+            SELECT k.Id, k.PlayerIDKilled, k.Weapon, k.DistanceMeter, k.Data,
+                   k.PosKiller, k.PosKilled
+            FROM players_killfeed k
+            WHERE k.PlayerIDKiller = ? AND k.Data >= ?
+            ORDER BY k.Data DESC
+        """, (player_id, time_threshold))
+        
+        kills = [dict(row) for row in cursor.fetchall()]
+        
+        if len(kills) > 0:
+            # Analisar headshots em longas distâncias
+            long_range_kills = [k for k in kills if k.get('DistanceMeter', 0) > 200]
+            
+            if len(long_range_kills) >= 3:
+                # Verificar se há padrão suspeito de precisão
+                # Se mais de 60% dos kills em longa distância são headshots (assumindo que HitType seria 'Head')
+                # Por enquanto, vamos considerar múltiplos kills consecutivos em longa distância como suspeito
+                event_score = 30
+                suspicious_events.append({
+                    'player_id': player_id,
+                    'event_type': 'aimbot',
+                    'score': event_score,
+                    'details': {
+                        'total_kills': len(kills),
+                        'long_range_kills': len(long_range_kills),
+                        'long_range_percentage': round((len(long_range_kills) / len(kills)) * 100, 2),
+                        'time_period_hours': hours_back,
+                        'reason': 'Múltiplos kills em longa distância (>200m)'
+                    }
+                })
+        
+        # Analisar damage events (players_damage)
+        cursor.execute("""
+            SELECT d.Id, d.PlayerIDVictim, d.Weapon, d.DistanceMeter, d.HitType,
+                   d.Damage, d.Data, d.PosAttacker, d.PosVictim
+            FROM players_damage d
+            WHERE d.PlayerIDAttacker = ? AND d.Data >= ?
+            ORDER BY d.Data DESC
+        """, (player_id, time_threshold))
+        
+        damages = [dict(row) for row in cursor.fetchall()]
+        
+        if len(damages) > 0:
+            # Analisar taxa de acerto em longas distâncias
+            long_range_damages = [d for d in damages if d.get('DistanceMeter', 0) > 300]
+            
+            if len(long_range_damages) >= 5:
+                # Calcular taxa de acerto (assumindo que todos os registros são hits)
+                hit_rate = (len(long_range_damages) / len(damages)) * 100 if len(damages) > 0 else 0
+                
+                if hit_rate > 80:  # Taxa de acerto > 80% em longa distância
+                    event_score = 30
+                    suspicious_events.append({
+                        'player_id': player_id,
+                        'event_type': 'aimbot',
+                        'score': event_score,
+                        'details': {
+                            'total_damages': len(damages),
+                            'long_range_damages': len(long_range_damages),
+                            'hit_rate_percentage': round(hit_rate, 2),
+                            'time_period_hours': hours_back,
+                            'reason': 'Taxa de acerto > 80% em distâncias > 300m'
+                        }
+                    })
+        
+        return suspicious_events
+
+def detect_loot_hack(player_id: str, hours_back: int = 2) -> List[Dict]:
+    """
+    Detecta loot hack correlacionando posições de jogadores com containers
+    Retorna lista de eventos suspeitos detectados
+    """
+    from datetime import datetime, timedelta
+    import math
+    
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        
+        time_threshold = (datetime.now() - timedelta(hours=hours_back)).strftime('%Y-%m-%d %H:%M:%S')
+        
+        suspicious_events = []
+        
+        # Buscar posições do jogador
+        cursor.execute("""
+            SELECT PlayerCoordId, CoordX, CoordY, CoordZ, Data
+            FROM players_coord
+            WHERE PlayerID = ? AND Data >= ?
+            ORDER BY Data ASC
+        """, (player_id, time_threshold))
+        
+        player_positions = [dict(row) for row in cursor.fetchall()]
+        
+        if len(player_positions) == 0:
+            return []
+        
+        # Buscar containers que foram modificados no período
+        with DatabaseConnection(config.DB_LOGS) as logs_conn:
+            logs_cursor = logs_conn.cursor()
+            
+            logs_cursor.execute("""
+                SELECT DISTINCT ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionY, ct.PositionZ, ct.TimeStamp
+                FROM containers_tracking ct
+                WHERE ct.TimeStamp >= ?
+                ORDER BY ct.TimeStamp ASC
+            """, (time_threshold,))
+            
+            containers = [dict(row) for row in logs_cursor.fetchall()]
+            
+            # Para cada container modificado, verificar se o jogador esteve próximo
+            for container in containers:
+                container_pos = (container['PositionX'], container['PositionY'], container['PositionZ'])
+                container_time = container['TimeStamp']
+                
+                # Encontrar posição do jogador mais próxima no tempo (dentro de 5 minutos)
+                try:
+                    container_datetime = datetime.strptime(container_time, '%Y-%m-%d %H:%M:%S')
+                except:
+                    continue
+                
+                min_distance = float('inf')
+                closest_position = None
+                
+                for player_pos in player_positions:
+                    try:
+                        player_datetime = datetime.strptime(player_pos['Data'], '%Y-%m-%d %H:%M:%S')
+                        time_diff = abs((container_datetime - player_datetime).total_seconds())
+                        
+                        # Verificar apenas posições dentro de 5 minutos
+                        if time_diff <= 300:  # 5 minutos
+                            player_pos_coords = (player_pos['CoordX'], player_pos['CoordY'], player_pos['CoordZ'])
+                            
+                            # Calcular distância
+                            dx = container_pos[0] - player_pos_coords[0]
+                            dy = container_pos[1] - player_pos_coords[1]
+                            dz = container_pos[2] - player_pos_coords[2]
+                            distance = math.sqrt(dx*dx + dy*dy + dz*dz)
+                            
+                            if distance < min_distance:
+                                min_distance = distance
+                                closest_position = player_pos
+                    except:
+                        continue
+                
+                # Se a distância mínima for > 2m, é suspeito
+                if min_distance > 2.0:
+                    suspicious_events.append({
+                        'player_id': player_id,
+                        'event_type': 'loot_hack',
+                        'score': 35,
+                        'details': {
+                            'container_id': container['ContainerId'],
+                            'container_name': container['ContainerName'],
+                            'container_pos': container_pos,
+                            'container_time': container_time,
+                            'min_distance': round(min_distance, 2),
+                            'closest_player_pos': (closest_position['CoordX'], closest_position['CoordY'], closest_position['CoordZ']) if closest_position else None,
+                            'closest_player_time': closest_position['Data'] if closest_position else None,
+                            'reason': f'Container acessado sem estar próximo (distância mínima: {round(min_distance, 2)}m)'
+                        }
+                    })
+        
+        return suspicious_events
+
+def get_cheat_detection_scores(limit: int = 100, risk_level: str = None) -> List[Dict]:
+    """Retorna lista de jogadores com pontuação de suspeição"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        
+        query = """
+            SELECT cds.PlayerID, cds.TotalScore, cds.RiskLevel, cds.LastUpdated, cds.IsBanned, cds.BannedAt,
+                   pd.PlayerName, pd.SteamID, pd.SteamName
+            FROM cheat_detection_scores cds
+            LEFT JOIN players_database pd ON cds.PlayerID = pd.PlayerID
+            WHERE 1=1
+        """
+        params = []
+        
+        if risk_level:
+            query += " AND cds.RiskLevel = ?"
+            params.append(risk_level)
+        
+        query += " ORDER BY cds.TotalScore DESC LIMIT ?"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_cheat_detection_events(player_id: str = None, limit: int = 100, event_type: str = None) -> List[Dict]:
+    """Retorna lista de eventos de detecção de cheaters"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        
+        query = """
+            SELECT cde.Id, cde.PlayerID, cde.EventType, cde.Score, cde.Details, cde.TimeStamp,
+                   cde.Reviewed, cde.ReviewedBy, cde.ReviewResult,
+                   pd.PlayerName, pd.SteamID, pd.SteamName
+            FROM cheat_detection_events cde
+            LEFT JOIN players_database pd ON cde.PlayerID = pd.PlayerID
+            WHERE 1=1
+        """
+        params = []
+        
+        if player_id:
+            query += " AND cde.PlayerID = ?"
+            params.append(player_id)
+        
+        if event_type:
+            query += " AND cde.EventType = ?"
+            params.append(event_type)
+        
+        query += " ORDER BY cde.TimeStamp DESC LIMIT ?"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_player_cheat_details(player_id: str) -> Dict:
+    """Retorna detalhes completos de suspeição de um jogador"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        
+        # Buscar pontuação
+        cursor.execute("""
+            SELECT cds.PlayerID, cds.TotalScore, cds.RiskLevel, cds.LastUpdated, cds.IsBanned, cds.BannedAt,
+                   pd.PlayerName, pd.SteamID, pd.SteamName
+            FROM cheat_detection_scores cds
+            LEFT JOIN players_database pd ON cds.PlayerID = pd.PlayerID
+            WHERE cds.PlayerID = ?
+        """, (player_id,))
+        
+        score_data = cursor.fetchone()
+        
+        if not score_data:
+            return None
+        
+        result = dict(score_data)
+        
+        # Buscar eventos recentes
+        cursor.execute("""
+            SELECT Id, EventType, Score, Details, TimeStamp, Reviewed, ReviewedBy, ReviewResult
+            FROM cheat_detection_events
+            WHERE PlayerID = ?
+            ORDER BY TimeStamp DESC
+            LIMIT 50
+        """, (player_id,))
+        
+        result['events'] = [dict(row) for row in cursor.fetchall()]
+        
+        return result
+
+def review_cheat_event(event_id: int, reviewed_by: str, review_result: str) -> bool:
+    """Marca um evento como revisado"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE cheat_detection_events
+            SET Reviewed = 1, ReviewedBy = ?, ReviewResult = ?
+            WHERE Id = ?
+        """, (reviewed_by, review_result, event_id))
+        conn.commit()
+        return cursor.rowcount > 0

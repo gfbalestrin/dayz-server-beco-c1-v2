@@ -21,6 +21,7 @@ from database import (
     get_vehicles_last_position, get_recent_kills, get_recent_damages, parse_position,
     check_backup_exists, check_backup_exists_any_player, get_backup_info, get_online_players,
     get_all_players_with_status,
+    get_cheat_detection_scores, get_cheat_detection_events, get_player_cheat_details, review_cheat_event,
     get_weapons, get_weapons_with_calibers, get_all_calibers, get_items, get_item_types,
     get_explosives, get_ammunitions, get_calibers,
     get_magazines, get_attachments, get_attachment_types,
@@ -1777,6 +1778,115 @@ def api_damages():
         })
     
     return jsonify(result)
+
+# ============================================================================
+# API - CHEAT DETECTION
+# ============================================================================
+
+@app.route('/api/cheat-detection/scores', methods=['GET'])
+@admin_required
+def api_cheat_detection_scores():
+    """Lista jogadores suspeitos ordenados por pontuação"""
+    try:
+        limit = int(request.args.get('limit', 100))
+        risk_level = request.args.get('risk_level')
+        
+        scores = get_cheat_detection_scores(limit=limit, risk_level=risk_level if risk_level else None)
+        
+        return jsonify({
+            'success': True,
+            'scores': scores,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/cheat-detection/player/<player_id>', methods=['GET'])
+@admin_required
+def api_cheat_detection_player(player_id):
+    """Retorna detalhes completos de suspeição de um jogador"""
+    try:
+        details = get_player_cheat_details(player_id)
+        
+        if not details:
+            return jsonify({'success': False, 'message': 'Jogador não encontrado'}), 404
+        
+        # Parse JSON details dos eventos
+        for event in details.get('events', []):
+            if event.get('Details'):
+                try:
+                    event['details_parsed'] = json.loads(event['Details'])
+                except:
+                    event['details_parsed'] = None
+        
+        return jsonify({
+            'success': True,
+            'player': details,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/cheat-detection/events', methods=['GET'])
+@admin_required
+def api_cheat_detection_events():
+    """Lista eventos de detecção de cheaters"""
+    try:
+        limit = int(request.args.get('limit', 100))
+        player_id = request.args.get('player_id')
+        event_type = request.args.get('event_type')
+        
+        events = get_cheat_detection_events(
+            player_id=player_id if player_id else None,
+            limit=limit,
+            event_type=event_type if event_type else None
+        )
+        
+        # Parse JSON details
+        for event in events:
+            if event.get('Details'):
+                try:
+                    event['details_parsed'] = json.loads(event['Details'])
+                except:
+                    event['details_parsed'] = None
+        
+        return jsonify({
+            'success': True,
+            'events': events,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/cheat-detection/review-event/<int:event_id>', methods=['POST'])
+@admin_required
+def api_cheat_detection_review_event(event_id):
+    """Marca um evento como revisado"""
+    try:
+        data = request.get_json()
+        review_result = data.get('review_result')  # 'confirmed' ou 'false_positive'
+        reviewed_by = session.get('username', 'Unknown')
+        
+        if review_result not in ['confirmed', 'false_positive']:
+            return jsonify({'success': False, 'message': 'review_result deve ser "confirmed" ou "false_positive"'}), 400
+        
+        success = review_cheat_event(event_id, reviewed_by, review_result)
+        
+        if not success:
+            return jsonify({'success': False, 'message': 'Evento não encontrado'}), 404
+        
+        return jsonify({
+            'success': True,
+            'message': 'Evento marcado como revisado'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/cheat-detection')
+@admin_required
+def cheat_detection():
+    """Página de detecção de cheaters"""
+    return render_template('cheat_detection.html')
 
 @app.route('/api/players/online')
 @admin_required
