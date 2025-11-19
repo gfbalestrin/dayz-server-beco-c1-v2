@@ -9,6 +9,17 @@ normalize_coordinate() {
     LC_NUMERIC=C printf "%.3f\n" "$coord"
 }
 
+is_shelter_container_type() {
+    case "$1" in
+        ShelterStick|ShelterFabric|ShelterLeather)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 handle_containers_positions() {
     local line="$1"
 
@@ -97,6 +108,11 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
 
         container_name="$container_type"
 
+        local is_shelter_type=false
+        if is_shelter_container_type "$container_type"; then
+            is_shelter_type=true
+        fi
+
         local coord_x_norm coord_z_norm coord_y_norm coord_x_cmp coord_z_cmp coord_y_cmp
         local coord_x_log coord_z_log coord_y_log
         coord_x_norm=$(normalize_coordinate "$coord_x")
@@ -121,9 +137,10 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
         coord_z_cmp="$coord_z_log"
         coord_y_cmp="$coord_y_log"
 
-        local current_items current_items_str
+        local current_items current_items_str item_count
         current_items=$(echo "$container_data" | jq -c '.items[]?' 2>/dev/null)
         current_items_str=""
+        item_count=$(echo "$container_data" | jq '.items | length' 2>/dev/null || echo "0")
         if [[ -n "$current_items" ]]; then
             while IFS= read -r item_data; do
                 if [[ -z "$item_data" ]]; then
@@ -145,12 +162,14 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
         prev_data="${prev_containers[$container_id]}"
         local should_save_empty=false
         if [[ -z "$prev_data" ]]; then
-            if [[ -n "$current_items_str" ]]; then
-                local item_count
-                item_count=$(echo "$container_data" | jq '.items | length' 2>/dev/null || echo "0")
+            if [[ -n "$current_items_str" || "$is_shelter_type" == true ]]; then
                 INSERT_CUSTOM_LOG "Container novo detectado (ID=$container_id) - Coords=($coord_x_log,$coord_z_log,$coord_y_log) - Tipo=$container_type - Itens=$item_count" "INFO" "$ScriptName"
                 local Content
-                Content="Container novo com loot (ID=$container_id) em (${coord_x_log},${coord_z_log},${coord_y_log}) - Tipo: $container_type - $item_count item(s)"
+                if [[ "$item_count" -gt 0 ]]; then
+                    Content="Container novo com loot (ID=$container_id) em (${coord_x_log},${coord_z_log},${coord_y_log}) - Tipo: $container_type - $item_count item(s)"
+                else
+                    Content="Container novo registrado (ID=$container_id) em (${coord_x_log},${coord_z_log},${coord_y_log}) - Tipo: $container_type - Sem itens"
+                fi
                 #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             fi
         else
@@ -316,7 +335,7 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
         # Salvar container no banco se:
         # 1. Tem items atualmente (comportamento normal)
         # 2. Foi esvaziado (tinha items antes, agora está vazio) - para atualizar timestamp e evitar logs repetidos
-        if [[ -n "$current_items_str" || "$should_save_empty" == true ]]; then
+        if [[ -n "$current_items_str" || "$should_save_empty" == true || "$is_shelter_type" == true ]]; then
             local ContainerTrackingId
             ContainerTrackingId=$(INSERT_CONTAINER_POSITION "$container_id" "$container_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp")
 
@@ -324,8 +343,8 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
                 processed_count=$((processed_count + 1))
 
                 if [[ -n "$current_items" ]]; then
-                    local item_count item_data item_type item_health
-                    item_count=0
+                    local inserted_item_count item_data item_type item_health
+                    inserted_item_count=0
                     while IFS= read -r item_data; do
                         if [[ -z "$item_data" ]]; then
                             continue
@@ -336,12 +355,12 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
 
                         if [[ -n "$item_type" ]]; then
                             INSERT_CONTAINER_ITEM "$ContainerTrackingId" "$item_type" "$item_health" "$current_timestamp" >/dev/null
-                            item_count=$((item_count + 1))
+                            inserted_item_count=$((inserted_item_count + 1))
                         fi
                     done <<< "$current_items"
 
-                    if [[ $item_count -gt 0 ]]; then
-                        echo "  -> $item_count item(s) inseridos no container $container_id"
+                    if [[ $inserted_item_count -gt 0 ]]; then
+                        echo "  -> $inserted_item_count item(s) inseridos no container $container_id"
                     fi
                 fi
             fi

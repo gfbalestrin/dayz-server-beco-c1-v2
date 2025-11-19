@@ -79,6 +79,10 @@ function createContainerIcon(containerType) {
         // Tents - Verde
         color = '#28a745';
         iconClass = 'fas fa-campground';
+    } else if (containerType && containerType.startsWith('Shelter')) {
+        // Shelters - Marrom escuro
+        color = '#795548';
+        iconClass = 'fas fa-home';
     } else {
         // Default - Cinza
         color = '#6c757d';

@@ -841,7 +841,7 @@ bool ExecuteCreateContainer(TStringArray tokens, PlayerBase player = null)
     string containerType = tokens[2];
     
     // Validar tipo de container
-    if (containerType != "WoodenCrate" && containerType != "Barrel_Yellow" && containerType != "Barrel_Red" && containerType != "Barrel_Green" && containerType != "Barrel_Blue" && containerType != "SeaChest")
+	if (!IsContainerType(containerType) && containerType != "SeaChest")
     {
         WriteToLog("ExecuteCreateContainer(): Tipo de container inválido: " + containerType, LogFile.INIT, false, LogType.ERROR);
         return false;

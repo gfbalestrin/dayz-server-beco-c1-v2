@@ -37,6 +37,7 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
           "$Line" != *"Built base on Fence"* && \
           "$Line" != *"Built level_1_base on Watchtower"* && \
           "$Line" != *"Dismantled Base from Fence"* && \
+          "$Line" != *"built Shelter"* && \
           "$Line" != *"Chat("* ]]; then
         continue
     fi
@@ -65,6 +66,8 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
         handle_built_watchtower "$Line" "$Content"
     elif [[ "$Content" == *"Dismantled Base from Fence"* ]]; then
         handle_dismantled_fence "$Line" "$Content"
+    elif [[ "$Content" == *"built Shelter"* ]]; then
+        handle_built_shelter "$Line" "$Content"
     else
         handle_death_event "$Line" "$Content"
     fi

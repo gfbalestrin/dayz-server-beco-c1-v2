@@ -10,6 +10,9 @@ TStringArray GetContainerTypes()
 	containerTypes.Insert("LargeTent");
 	containerTypes.Insert("MediumTent");
 	containerTypes.Insert("PartyTent");
+	containerTypes.Insert("ShelterStick");
+	containerTypes.Insert("ShelterFabric");
+	containerTypes.Insert("ShelterLeather");
 	return containerTypes;
 }
 
@@ -143,9 +146,18 @@ void BuildContainersData(array<Object> worldObjects, out string containersJson, 
 			}
 		}
 
-		if (containerHasItems)
+		bool isShelterType = objectType.Contains("Shelter");
+		if (containerHasItems || isShelterType)
 		{
-			totalContainersWithItems++;
+			if (containerHasItems)
+			{
+				totalContainersWithItems++;
+			}
+			else
+			{
+				totalContainersEmpty++;
+			}
+
 			string positionJson = "{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "}";
 			string orientationJson = "{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "}";
 			string containerJson = "{\"container_id\":\"" + containerId.ToString() + "\",\"container_type\":\"" + objectType + "\",\"position\":" + positionJson + ",\"orientation\":" + orientationJson + ",\"items\":[" + itemsJson + "]}";
