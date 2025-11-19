@@ -110,6 +110,7 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
 
         local prev_data
         prev_data="${prev_containers[$container_id]}"
+        local should_save_empty=false
         if [[ -z "$prev_data" ]]; then
             if [[ -n "$current_items_str" ]]; then
                 local item_count
@@ -122,6 +123,11 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
         else
             local prev_name prev_x prev_z prev_y prev_items_str
             IFS='|' read -r prev_name prev_x prev_z prev_y prev_items_str <<< "$prev_data"
+            
+            # Detectar se container foi esvaziado (tinha items, agora está vazio)
+            if [[ -n "$prev_items_str" && -z "$current_items_str" ]]; then
+                should_save_empty=true
+            fi
             local diff_message=""
             local container_moved=false
 
@@ -251,11 +257,10 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
             unset "prev_containers[$container_id]"
         fi
 
-        # Nota: Containers vazios não são salvos no banco (apenas containers com items são rastreados)
-        # Se um container tinha items e foi esvaziado, ele ainda estará no snapshot anterior
-        # Quando removido do mapa, será detectado como removido e marcado como destruído
-        # Containers vazios que nunca tiveram items nunca serão rastreados (comportamento esperado)
-        if [[ -n "$current_items_str" ]]; then
+        # Salvar container no banco se:
+        # 1. Tem items atualmente (comportamento normal)
+        # 2. Foi esvaziado (tinha items antes, agora está vazio) - para atualizar timestamp e evitar logs repetidos
+        if [[ -n "$current_items_str" || "$should_save_empty" == true ]]; then
             local ContainerTrackingId
             ContainerTrackingId=$(INSERT_CONTAINER_POSITION "$container_id" "$container_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp")
 
