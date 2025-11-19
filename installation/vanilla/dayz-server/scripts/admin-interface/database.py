@@ -432,49 +432,104 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
         
         fences = [dict(row) for row in cursor.fetchall()]
         
+        # Função auxiliar para normalizar valores booleanos/inteiros para 0 ou 1
+        def normalize_bool_value(value):
+            """Normaliza valores para 0 ou 1 (inteiro)"""
+            if value is None:
+                return 0
+            if isinstance(value, bool):
+                return 1 if value else 0
+            if isinstance(value, str):
+                return 1 if value.lower() in ('true', '1', 'yes') else 0
+            # Para inteiros ou outros tipos numéricos
+            return 1 if int(value) == 1 else 0
+        
         # Detectar ataques recentes (perda de painel)
         for fence in fences:
             fence_id = fence['FenceId']
-            current_lower = fence.get('LowerPanelBuilt', 0)
-            current_upper = fence.get('UpperPanelBuilt', 0)
+            current_timestamp = fence.get('TimeStamp')
             
-            # Buscar registro anterior (não destruído) do mesmo fence
-            if has_is_destroyed and not include_destroyed:
-                cursor.execute("""
-                    SELECT LowerPanelBuilt, UpperPanelBuilt
-                    FROM fences_tracking
-                    WHERE FenceId = ?
-                    AND TimeStamp < (
-                        SELECT MAX(TimeStamp) FROM fences_tracking
-                        WHERE FenceId = ? AND (IsDestroyed = 0 OR IsDestroyed IS NULL)
-                    )
-                    AND (IsDestroyed = 0 OR IsDestroyed IS NULL)
-                    ORDER BY TimeStamp DESC
-                    LIMIT 1
-                """, (fence_id, fence_id))
-            else:
-                cursor.execute("""
-                    SELECT LowerPanelBuilt, UpperPanelBuilt
-                    FROM fences_tracking
-                    WHERE FenceId = ?
-                    AND TimeStamp < (
-                        SELECT MAX(TimeStamp) FROM fences_tracking
-                        WHERE FenceId = ?
-                    )
-                    ORDER BY TimeStamp DESC
-                    LIMIT 1
-                """, (fence_id, fence_id))
+            # Debug: valores brutos do registro atual
+            raw_lower = fence.get('LowerPanelBuilt', 0)
+            raw_upper = fence.get('UpperPanelBuilt', 0)
             
-            prev_row = cursor.fetchone()
+            # Normalizar valores atuais
+            current_lower = normalize_bool_value(raw_lower)
+            current_upper = normalize_bool_value(raw_upper)
+            
+            print(f"[DEBUG FENCE ATTACK] FenceId: {fence_id}")
+            print(f"[DEBUG FENCE ATTACK] Current Timestamp: {current_timestamp}")
+            print(f"[DEBUG FENCE ATTACK] Raw LowerPanelBuilt: {raw_lower} (type: {type(raw_lower)})")
+            print(f"[DEBUG FENCE ATTACK] Raw UpperPanelBuilt: {raw_upper} (type: {type(raw_upper)})")
+            print(f"[DEBUG FENCE ATTACK] Normalized current_lower: {current_lower}")
+            print(f"[DEBUG FENCE ATTACK] Normalized current_upper: {current_upper}")
+            
             has_recent_attack = False
             
-            if prev_row:
-                prev_lower = prev_row[0] if prev_row[0] is not None else 0
-                prev_upper = prev_row[1] if prev_row[1] is not None else 0
+            # Só buscar registro anterior se tiver timestamp atual
+            if current_timestamp:
+                # Buscar último registro anterior onde pelo menos um painel estava construído
+                # Isso garante que estamos comparando com o último estado onde a fence tinha painéis
+                if has_is_destroyed and not include_destroyed:
+                    cursor.execute("""
+                        SELECT LowerPanelBuilt, UpperPanelBuilt
+                        FROM fences_tracking
+                        WHERE FenceId = ?
+                        AND TimeStamp < ?
+                        AND (LowerPanelBuilt = 1 OR UpperPanelBuilt = 1)
+                        AND (IsDestroyed = 0 OR IsDestroyed IS NULL)
+                        ORDER BY TimeStamp DESC
+                        LIMIT 1
+                    """, (fence_id, current_timestamp))
+                else:
+                    cursor.execute("""
+                        SELECT LowerPanelBuilt, UpperPanelBuilt
+                        FROM fences_tracking
+                        WHERE FenceId = ?
+                        AND TimeStamp < ?
+                        AND (LowerPanelBuilt = 1 OR UpperPanelBuilt = 1)
+                        ORDER BY TimeStamp DESC
+                        LIMIT 1
+                    """, (fence_id, current_timestamp))
                 
-                # Detectar se um painel foi perdido (tinha antes e não tem mais)
-                if (prev_lower == 1 and current_lower != 1) or (prev_upper == 1 and current_upper != 1):
-                    has_recent_attack = True
+                prev_row = cursor.fetchone()
+                
+                if prev_row:
+                    # Debug: valores brutos do registro anterior
+                    raw_prev_lower = prev_row[0]
+                    raw_prev_upper = prev_row[1]
+                    
+                    # Normalizar valores anteriores
+                    prev_lower = normalize_bool_value(raw_prev_lower)
+                    prev_upper = normalize_bool_value(raw_prev_upper)
+                    
+                    print(f"[DEBUG FENCE ATTACK] Previous row found!")
+                    print(f"[DEBUG FENCE ATTACK] Raw prev_lower: {raw_prev_lower} (type: {type(raw_prev_lower)})")
+                    print(f"[DEBUG FENCE ATTACK] Raw prev_upper: {raw_prev_upper} (type: {type(raw_prev_upper)})")
+                    print(f"[DEBUG FENCE ATTACK] Normalized prev_lower: {prev_lower}")
+                    print(f"[DEBUG FENCE ATTACK] Normalized prev_upper: {prev_upper}")
+                    
+                    # Detectar se um painel foi perdido (tinha antes e não tem mais)
+                    # prev_lower == 1 significa que tinha o painel inferior
+                    # current_lower == 0 significa que não tem mais
+                    lower_attack = (prev_lower == 1 and current_lower == 0)
+                    upper_attack = (prev_upper == 1 and current_upper == 0)
+                    
+                    print(f"[DEBUG FENCE ATTACK] Lower attack check: prev_lower==1 ({prev_lower==1}) AND current_lower==0 ({current_lower==0}) = {lower_attack}")
+                    print(f"[DEBUG FENCE ATTACK] Upper attack check: prev_upper==1 ({prev_upper==1}) AND current_upper==0 ({current_upper==0}) = {upper_attack}")
+                    
+                    if lower_attack or upper_attack:
+                        has_recent_attack = True
+                        print(f"[DEBUG FENCE ATTACK] *** ATTACK DETECTED! ***")
+                    else:
+                        print(f"[DEBUG FENCE ATTACK] No attack detected")
+                else:
+                    print(f"[DEBUG FENCE ATTACK] No previous row found")
+            else:
+                print(f"[DEBUG FENCE ATTACK] No current_timestamp, skipping")
+            
+            print(f"[DEBUG FENCE ATTACK] Final has_recent_attack: {has_recent_attack}")
+            print(f"[DEBUG FENCE ATTACK] " + "="*60)
             
             fence['has_recent_attack'] = has_recent_attack
         
