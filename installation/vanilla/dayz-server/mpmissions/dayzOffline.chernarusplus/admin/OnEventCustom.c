@@ -126,29 +126,16 @@ void OnEventCustom(EventType eventTypeId, Param params)
         if (identity)
         {
             string playerId = identity.GetId();
-            WriteToLog("  -> Jogador desconectando: " + identity.GetName() + " | ID: " + playerId, LogFile.INIT, false, LogType.INFO);
+            WriteToLog("  -> Jogador iniciando desconexão: " + identity.GetName() + " | ID: " + playerId, LogFile.INIT, false, LogType.INFO);
             
-            // Verifica se o jogador morreu recentemente (dentro de 10 segundos)
-            ActivePlayer disconnectingPlayer = GetActivePlayerById(playerId);
-            bool shouldSendDisconnect = true;
+            // Marca como desconexão pendente (aguarda confirmação via ScriptLogEventTypeID)
+            // Não remove da lista ainda e não envia evento ainda
+            if (!PendingDisconnects)
+                PendingDisconnects = new map<string, int>();
             
-            if (disconnectingPlayer)
-            {
-                if (disconnectingPlayer.IsRecentlyDead(10.0))
-                {
-                    WriteToLog("  -> Jogador morreu recentemente, não enviando player_disconnected", LogFile.INIT, false, LogType.DEBUG);
-                    shouldSendDisconnect = false;
-                }
-            }
-            
-            // Remove o jogador da lista e envia evento de desconexão se necessário
-            RemoveActivePlayerById(playerId);
-            
-            if (shouldSendDisconnect)
-            {
-                AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + playerId + "\"}");
-                WriteToLog("  -> Evento player_disconnected enviado para: " + identity.GetName(), LogFile.INIT, false, LogType.INFO);
-            }
+            int currentTime = GetGame().GetTime();
+            PendingDisconnects.Set(playerId, currentTime);
+            WriteToLog("  -> Desconexão marcada como pendente, aguardando confirmação", LogFile.INIT, false, LogType.DEBUG);
         }
     }
     
@@ -321,10 +308,18 @@ void OnEventCustom(EventType eventTypeId, Param params)
         {
             player = logoutCancelParams.param1;
             playerBase = PlayerBase.Cast(player);
-            //if (playerBase && playerBase.GetIdentity())
-            //{
-            //    WriteToLog("  -> Logout cancelado para: " + playerBase.GetIdentity().GetName(), LogFile.INIT, false, LogType.DEBUG);
-            //}
+            if (playerBase && playerBase.GetIdentity())
+            {
+                string playerId = playerBase.GetIdentity().GetId();
+                WriteToLog("  -> Logout cancelado para: " + playerBase.GetIdentity().GetName() + " | ID: " + playerId, LogFile.INIT, false, LogType.INFO);
+                
+                // Remove da lista de desconexões pendentes
+                if (PendingDisconnects && PendingDisconnects.Contains(playerId))
+                {
+                    PendingDisconnects.Remove(playerId);
+                    WriteToLog("  -> Desconexão pendente cancelada", LogFile.INIT, false, LogType.DEBUG);
+                }
+            }
         }
     }
     
@@ -538,34 +533,71 @@ void OnEventCustom(EventType eventTypeId, Param params)
             string msg = scriptParams.param1;
             if (msg.Contains("[Logout]"))
             {
-                int playerStart = msg.IndexOf("Player ");
-                int playerEnd = msg.IndexOf(" finished");
-                if (playerStart != -1 && playerEnd != -1 && playerEnd > playerStart)
+                // Verifica se é logout cancelado
+                if (msg.Contains("cancelled"))
                 {
-                    playerStart += 7; // Pular "Player "
-                    string playerUID = msg.Substring(playerStart, playerEnd - playerStart).Trim();
-                    WriteToLog("  -> EVENTO DE LOGOUT DETECTADO | UID: " + playerUID, LogFile.INIT, false, LogType.INFO);
-                    
-                    // Verifica se o jogador morreu recentemente antes de enviar desconexão
-                    ActivePlayer loggingOutPlayer = GetActivePlayerById(playerUID);
-                    bool shouldSendDisconnectLog = true;
-                    
-                    if (loggingOutPlayer)
+                    int playerStart = msg.IndexOf("Player ");
+                    int playerEnd = msg.IndexOf(" cancelled");
+                    if (playerStart != -1 && playerEnd != -1 && playerEnd > playerStart)
                     {
-                        if (loggingOutPlayer.IsRecentlyDead(10.0))
+                        playerStart += 7; // Pular "Player "
+                        string playerUID = msg.Substring(playerStart, playerEnd - playerStart).Trim();
+                        WriteToLog("  -> LOGOUT CANCELADO DETECTADO | UID: " + playerUID, LogFile.INIT, false, LogType.INFO);
+                        
+                        // Remove da lista de desconexões pendentes
+                        if (PendingDisconnects && PendingDisconnects.Contains(playerUID))
                         {
-                            WriteToLog("  -> Jogador morreu recentemente, não enviando player_disconnected", LogFile.INIT, false, LogType.DEBUG);
-                            shouldSendDisconnectLog = false;
+                            PendingDisconnects.Remove(playerUID);
+                            WriteToLog("  -> Desconexão pendente cancelada via ScriptLogEventTypeID", LogFile.INIT, false, LogType.DEBUG);
                         }
                     }
-                    
-                    RemoveActivePlayerById(playerUID);
-                    
-                    if (shouldSendDisconnectLog)
+                }
+                // Verifica se é logout confirmado (finished)
+                else if (msg.Contains("finished"))
+                {
+                    int playerStart = msg.IndexOf("Player ");
+                    int playerEnd = msg.IndexOf(" finished");
+                    if (playerStart != -1 && playerEnd != -1 && playerEnd > playerStart)
                     {
-                        AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + playerUID + "\"}");
-                        WriteToLog("  -> Evento player_disconnected enviado via ScriptLogEventTypeID", LogFile.INIT, false, LogType.INFO);
+                        playerStart += 7; // Pular "Player "
+                        string playerUID = msg.Substring(playerStart, playerEnd - playerStart).Trim();
+                        WriteToLog("  -> LOGOUT CONFIRMADO (finished) | UID: " + playerUID, LogFile.INIT, false, LogType.INFO);
+                        
+                        // Verifica se estava pendente ou se o jogador morreu recentemente
+                        ActivePlayer loggingOutPlayer = GetActivePlayerById(playerUID);
+                        bool shouldSendDisconnectLog = true;
+                        bool wasPending = false;
+                        
+                        if (PendingDisconnects && PendingDisconnects.Contains(playerUID))
+                        {
+                            wasPending = true;
+                            PendingDisconnects.Remove(playerUID);
+                            WriteToLog("  -> Desconexão pendente confirmada", LogFile.INIT, false, LogType.DEBUG);
+                        }
+                        
+                        if (loggingOutPlayer)
+                        {
+                            if (loggingOutPlayer.IsRecentlyDead(10.0))
+                            {
+                                WriteToLog("  -> Jogador morreu recentemente, não enviando player_disconnected", LogFile.INIT, false, LogType.DEBUG);
+                                shouldSendDisconnectLog = false;
+                            }
+                        }
+                        
+                        RemoveActivePlayerById(playerUID);
+                        
+                        if (shouldSendDisconnectLog)
+                        {
+                            AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + playerUID + "\"}");
+                            WriteToLog("  -> Evento player_disconnected enviado via ScriptLogEventTypeID (logout confirmado)", LogFile.INIT, false, LogType.INFO);
+                        }
                     }
+                }
+                // Logout iniciado (New player ... with logout time)
+                else if (msg.Contains("New player") && msg.Contains("with logout time"))
+                {
+                    // Apenas loga, a desconexão pendente já foi marcada em ClientDisconnectedEventTypeID
+                    WriteToLog("  -> Logout iniciado detectado no log", LogFile.INIT, false, LogType.DEBUG);
                 }
             }
         }

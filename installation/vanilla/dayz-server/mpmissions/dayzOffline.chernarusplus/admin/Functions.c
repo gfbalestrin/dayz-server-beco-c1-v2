@@ -1522,6 +1522,28 @@ void CleanupInvalidActivePlayers()
         return;
     }
     
+    // Limpa desconexões pendentes antigas (timeout de 30 segundos)
+    if (PendingDisconnects)
+    {
+        int currentTime = GetGame().GetTime();
+        array<string> staleDisconnects = new array<string>();
+        
+        foreach (string playerId, int pendingTime : PendingDisconnects)
+        {
+            float timeSincePending = (currentTime - pendingTime) / 1000.0;
+            if (timeSincePending > 30.0)
+            {
+                staleDisconnects.Insert(playerId);
+            }
+        }
+        
+        foreach (string staleId : staleDisconnects)
+        {
+            PendingDisconnects.Remove(staleId);
+            WriteToLog("CleanupInvalidActivePlayers(): Removida desconexão pendente antiga (timeout) para: " + staleId, LogFile.INIT, false, LogType.DEBUG);
+        }
+    }
+    
     // Pega lista de jogadores ativos no mundo
     array<Man> activeWorldPlayers = new array<Man>();
     GetGame().GetPlayers(activeWorldPlayers);
@@ -1560,10 +1582,22 @@ void CleanupInvalidActivePlayers()
         {
             WriteToLog("CleanupInvalidActivePlayers(): Removendo jogador sem Identity - Nome: " + storedName + " | PlayerID: " + storedPlayerId + " | SteamID: " + storedSteamId, LogFile.INIT, false, LogType.DEBUG);
             
-            // Verifica se deve enviar player_disconnected (não enviar se morreu recentemente)
+            // Verifica se está na lista de desconexões pendentes (não enviar, já será enviado quando confirmado)
+            bool isPendingDisconnect = false;
+            if (PendingDisconnects && PendingDisconnects.Contains(storedPlayerId))
+            {
+                isPendingDisconnect = true;
+                WriteToLog("CleanupInvalidActivePlayers(): Jogador tem desconexão pendente, não enviando player_disconnected agora", LogFile.INIT, false, LogType.DEBUG);
+            }
+            
+            // Verifica se deve enviar player_disconnected (não enviar se morreu recentemente ou está pendente)
             if (activePlayerItem.IsRecentlyDead(10.0))
             {
                 WriteToLog("CleanupInvalidActivePlayers(): Jogador morreu recentemente, não enviando player_disconnected", LogFile.INIT, false, LogType.DEBUG);
+                shouldSendDisconnect = false;
+            }
+            else if (isPendingDisconnect)
+            {
                 shouldSendDisconnect = false;
             }
             
@@ -1583,9 +1617,22 @@ void CleanupInvalidActivePlayers()
         {
             // É um ghost! Verifica se deve enviar desconexão
             shouldSendDisconnect = true;
+            
+            // Verifica se está na lista de desconexões pendentes
+            bool isPendingDisconnect = false;
+            if (PendingDisconnects && PendingDisconnects.Contains(storedPlayerId))
+            {
+                isPendingDisconnect = true;
+                WriteToLog("CleanupInvalidActivePlayers(): Ghost tem desconexão pendente, não enviando player_disconnected agora", LogFile.INIT, false, LogType.DEBUG);
+            }
+            
             if (activePlayerItem.IsRecentlyDead(10.0))
             {
                 WriteToLog("CleanupInvalidActivePlayers(): Ghost morreu recentemente, não enviando player_disconnected", LogFile.INIT, false, LogType.DEBUG);
+                shouldSendDisconnect = false;
+            }
+            else if (isPendingDisconnect)
+            {
                 shouldSendDisconnect = false;
             }
             

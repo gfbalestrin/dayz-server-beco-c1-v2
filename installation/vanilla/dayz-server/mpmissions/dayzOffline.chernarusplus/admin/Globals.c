@@ -55,7 +55,11 @@ ref array<string> ALLOWED_HOLSTERS;
 // Lista de pistolas permitidas para anexar em coldres
 ref array<string> ALLOWED_PISTOLS;
 // Lista de jogadores ativos/conectados
-ref array<ref ActivePlayer> ActivePlayers;  
+ref array<ref ActivePlayer> ActivePlayers;
+
+// Mapa de desconexões pendentes (aguardando confirmação de logout)
+// Key: PlayerID, Value: timestamp quando logout foi iniciado
+ref map<string, int> PendingDisconnects;  
 
 void InitializeVestGrenadeSlots()
 {
