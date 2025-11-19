@@ -18,7 +18,7 @@ from database import (
     get_player_trail, get_online_players_positions,
     get_vehicle_trail, get_container_trail, get_fence_trail,
     get_players_positions_by_timerange, dayz_to_pixel,
-    get_vehicles_last_position, get_recent_kills, parse_position,
+    get_vehicles_last_position, get_recent_kills, get_recent_damages, parse_position,
     check_backup_exists, check_backup_exists_any_player, get_backup_info, get_online_players,
     get_all_players_with_status,
     get_weapons, get_weapons_with_calibers, get_all_calibers, get_items, get_item_types,
@@ -1706,6 +1706,73 @@ def api_kills():
             'distance': kill['DistanceMeter'] or 0,
             'timestamp': kill['Data'],
             'killer_pos': killer_pos,
+            'victim_pos': victim_pos
+        })
+    
+    return jsonify(result)
+
+@app.route('/api/events/damages')
+@admin_required
+def api_damages():
+    """API com eventos de danos recentes entre jogadores"""
+    limit = request.args.get('limit', 100, type=int)
+    damages = get_recent_damages(limit)
+    
+    result = {
+        'timestamp': datetime.now().isoformat(),
+        'events': []
+    }
+    
+    for damage in damages:
+        # Parse posições (pode retornar None se não puder ser parseada)
+        pos_attacker = parse_position(damage['PosAttacker'])
+        pos_victim = parse_position(damage['PosVictim'])
+        
+        # Processar posição do atacante
+        if pos_attacker:
+            # Converter coordenadas para pixel
+            pixel_attacker = dayz_to_pixel(pos_attacker[0], pos_attacker[1])
+            attacker_pos = {
+                'x': pos_attacker[0],  # Leste-Oeste
+                'y': pos_attacker[1],  # Sul-Norte (Y do mapa)
+                'z': pos_attacker[2],  # Altitude
+                'pixel_coords': pixel_attacker
+            }
+        else:
+            pixel_attacker = None
+            attacker_pos = None
+        
+        # Processar posição da vítima
+        if pos_victim:
+            # Converter coordenadas para pixel
+            pixel_victim = dayz_to_pixel(pos_victim[0], pos_victim[1])
+            victim_pos = {
+                'x': pos_victim[0],  # Leste-Oeste
+                'y': pos_victim[1],  # Sul-Norte (Y do mapa)
+                'z': pos_victim[2],  # Altitude
+                'pixel_coords': pixel_victim
+            }
+        else:
+            pixel_victim = None
+            victim_pos = None
+        
+        # Sempre adicionar evento ao resultado (mesmo se posições não puderem ser parseadas)
+        result['events'].append({
+            'id': damage['Id'],
+            'attacker_id': damage['PlayerIDAttacker'],
+            'attacker_name': damage['AttackerName'] or 'Desconhecido',
+            'attacker_steam_name': damage.get('AttackerSteamName') or None,
+            'victim_id': damage['PlayerIDVictim'],
+            'victim_name': damage['VictimName'] or 'Desconhecido',
+            'victim_steam_name': damage.get('VictimSteamName') or None,
+            'local_damage': damage.get('LocalDamage') or None,
+            'hit_type': damage.get('HitType') or None,
+            'damage': damage.get('Damage') or 0,
+            'health': damage.get('Health') or None,
+            'weapon': damage['Weapon'] or 'Desconhecido',
+            'distance': damage['DistanceMeter'] or 0,
+            'timestamp': damage['Data'],
+            'attacker_pos': attacker_pos,
             'victim_pos': victim_pos
         })
     

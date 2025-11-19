@@ -811,6 +811,36 @@ def get_recent_kills(limit: int = 100) -> List[Dict]:
         """, (limit,))
         return [dict(row) for row in cursor.fetchall()]
 
+def get_recent_damages(limit: int = 100) -> List[Dict]:
+    """Retorna danos recentes entre jogadores com posições"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                d.Id,
+                d.PlayerIDAttacker,
+                d.PlayerIDVictim,
+                d.PosAttacker,
+                d.PosVictim,
+                d.LocalDamage,
+                d.HitType,
+                d.Damage,
+                d.Health,
+                d.Data,
+                d.Weapon,
+                d.DistanceMeter,
+                attacker.PlayerName as AttackerName,
+                attacker.SteamName as AttackerSteamName,
+                victim.PlayerName as VictimName,
+                victim.SteamName as VictimSteamName
+            FROM players_damage d
+            LEFT JOIN players_database attacker ON d.PlayerIDAttacker = attacker.PlayerID
+            LEFT JOIN players_database victim ON d.PlayerIDVictim = victim.PlayerID
+            ORDER BY d.Data DESC
+            LIMIT ?
+        """, (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
 def parse_position(pos_string: str):
     """Parse string de posição '<X, Y, Z>' para tupla"""
     if not pos_string:
