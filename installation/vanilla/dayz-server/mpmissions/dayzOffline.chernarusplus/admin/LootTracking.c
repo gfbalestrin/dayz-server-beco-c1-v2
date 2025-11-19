@@ -13,6 +13,7 @@ TStringArray GetContainerTypes()
 	containerTypes.Insert("ShelterStick");
 	containerTypes.Insert("ShelterFabric");
 	containerTypes.Insert("ShelterLeather");
+	containerTypes.Insert("SeaChest");
 	return containerTypes;
 }
 

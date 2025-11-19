@@ -71,7 +71,7 @@ function createContainerIcon(containerType) {
         // Barrels - Azul
         color = '#007bff';
         iconClass = 'fas fa-drum';
-    } else if (containerType === 'WoodenCrate' || containerType === 'CargoNet') {
+    } else if (containerType === 'WoodenCrate' || containerType === 'CargoNet' || containerType === 'SeaChest') {
         // Crates - Marrom
         color = '#8b4513';
         iconClass = 'fas fa-box';
