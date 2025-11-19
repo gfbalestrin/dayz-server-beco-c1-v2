@@ -1577,16 +1577,20 @@ void CleanupInvalidActivePlayers()
             storedName = storedPlayerId;
         
         bool shouldSendDisconnect = true;
+        bool isPendingDisconnect = false;
+        
+        // Verifica se está na lista de desconexões pendentes
+        if (PendingDisconnects && PendingDisconnects.Contains(storedPlayerId))
+        {
+            isPendingDisconnect = true;
+        }
         
         if (!activePlayerItem.HasIdentity())
         {
             WriteToLog("CleanupInvalidActivePlayers(): Removendo jogador sem Identity - Nome: " + storedName + " | PlayerID: " + storedPlayerId + " | SteamID: " + storedSteamId, LogFile.INIT, false, LogType.DEBUG);
             
-            // Verifica se está na lista de desconexões pendentes (não enviar, já será enviado quando confirmado)
-            bool isPendingDisconnect = false;
-            if (PendingDisconnects && PendingDisconnects.Contains(storedPlayerId))
+            if (isPendingDisconnect)
             {
-                isPendingDisconnect = true;
                 WriteToLog("CleanupInvalidActivePlayers(): Jogador tem desconexão pendente, não enviando player_disconnected agora", LogFile.INIT, false, LogType.DEBUG);
             }
             
@@ -1618,11 +1622,8 @@ void CleanupInvalidActivePlayers()
             // É um ghost! Verifica se deve enviar desconexão
             shouldSendDisconnect = true;
             
-            // Verifica se está na lista de desconexões pendentes
-            bool isPendingDisconnect = false;
-            if (PendingDisconnects && PendingDisconnects.Contains(storedPlayerId))
+            if (isPendingDisconnect)
             {
-                isPendingDisconnect = true;
                 WriteToLog("CleanupInvalidActivePlayers(): Ghost tem desconexão pendente, não enviando player_disconnected agora", LogFile.INIT, false, LogType.DEBUG);
             }
             
