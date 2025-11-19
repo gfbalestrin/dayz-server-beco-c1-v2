@@ -1088,7 +1088,8 @@ def api_vehicles_positions():
             'pixel_coords': pixel_coords,
             'last_update': veh['TimeStamp'] or '',
             'is_destroyed': bool(veh.get('IsDestroyed', 0)) if include_destroyed else False,
-            'destroyed_at': veh.get('DestroyedAt') if include_destroyed else None
+            'destroyed_at': veh.get('DestroyedAt') if include_destroyed else None,
+            'has_moved': bool(veh.get('has_moved', False))
         })
     
     return jsonify(result)

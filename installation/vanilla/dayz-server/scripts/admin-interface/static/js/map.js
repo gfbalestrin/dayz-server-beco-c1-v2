@@ -48,10 +48,14 @@ const iconColors = [
 ];
 
 // Ícone customizado para veículos
-function createVehicleIcon() {
+function createVehicleIcon(hasMoved = false) {
+    // Cor verde para veículos estáticos, laranja para veículos que se moveram
+    const backgroundColor = hasMoved ? '#ff9800' : '#28a745';
+    const borderColor = hasMoved ? '#ff6f00' : 'white';
+    
     return L.divIcon({
         className: 'vehicle-marker',
-        html: `<div style="background-color: #28a745; border: 2px solid white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><i class="fas fa-car" style="color: white; font-size: 12px;"></i></div>`,
+        html: `<div style="background-color: ${backgroundColor}; border: 2px solid ${borderColor}; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><i class="fas fa-car" style="color: white; font-size: 12px;"></i></div>`,
         iconSize: [20, 20]
     });
 }
@@ -2172,8 +2176,9 @@ function updateVehicles(data) {
         vehiclesData[vehicleId] = vehicle;
         
         const isDestroyed = vehicle.is_destroyed || false;
+        const hasMoved = vehicle.has_moved || false;
         const marker = L.marker(coords, {
-            icon: createVehicleIcon(),
+            icon: createVehicleIcon(hasMoved),
             opacity: isDestroyed ? 0.5 : 1.0
         }).addTo(map);
         

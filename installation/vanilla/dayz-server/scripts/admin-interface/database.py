@@ -167,7 +167,27 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
                     ) AS latest_vt ON vt.VehicleId = latest_vt.VehicleId AND vt.TimeStamp = latest_vt.MaxTimeStamp
                     ORDER BY vt.VehicleName
                 """)
-        return [dict(row) for row in cursor.fetchall()]
+        
+        vehicles = [dict(row) for row in cursor.fetchall()]
+        
+        # Detectar se cada veículo se moveu (tem múltiplas posições diferentes no histórico)
+        for vehicle in vehicles:
+            vehicle_id = vehicle['VehicleId']
+            
+            # Verificar se há pelo menos 2 posições diferentes para este veículo
+            cursor.execute("""
+                SELECT COUNT(DISTINCT PositionX || ',' || PositionY) as distinct_positions
+                FROM vehicles_tracking
+                WHERE VehicleId = ?
+            """, (vehicle_id,))
+            
+            result = cursor.fetchone()
+            distinct_positions = result[0] if result else 0
+            
+            # Se há mais de 1 posição distinta, o veículo se moveu
+            vehicle['has_moved'] = distinct_positions > 1
+        
+        return vehicles
 
 def get_vehicle_trail(vehicle_id: str, limit: int = 100) -> List[Dict]:
     """Retorna histórico de posições de um veículo, filtrando pontos duplicados"""
