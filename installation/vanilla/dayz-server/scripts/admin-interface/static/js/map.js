@@ -11,6 +11,7 @@ let containerTrails = {};
 let fenceTrails = {};
 let vehicleMarkers = {};
 let containerMarkers = {};
+let containerClusterGroup = null;
 let fenceMarkers = {};
 let killMarkers = [];
 let damageMarkers = [];
@@ -88,6 +89,57 @@ function createContainerIcon(containerType) {
         className: 'container-marker',
         html: `<div style="background-color: ${color}; border: 2px solid white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><i class="${iconClass}" style="color: white; font-size: 12px;"></i></div>`,
         iconSize: [20, 20]
+    });
+}
+
+/**
+ * Criar ícone personalizado para clusters de containers
+ */
+function createContainerClusterIcon(cluster) {
+    const count = cluster.getChildCount();
+    let size = 'small';
+    let backgroundColor = '#ff9800';
+    
+    if (count < 10) {
+        size = 'small';
+        backgroundColor = '#ff9800';
+    } else if (count < 50) {
+        size = 'medium';
+        backgroundColor = '#ff5722';
+    } else {
+        size = 'large';
+        backgroundColor = '#d32f2f';
+    }
+    
+    const sizeMap = {
+        small: 40,
+        medium: 50,
+        large: 60
+    };
+    
+    const fontSizeMap = {
+        small: 10,
+        medium: 12,
+        large: 14
+    };
+    
+    const iconSizeMap = {
+        small: 14,
+        medium: 16,
+        large: 18
+    };
+    
+    const sizePx = sizeMap[size];
+    const fontSize = fontSizeMap[size];
+    const iconSize = iconSizeMap[size];
+    
+    return L.divIcon({
+        html: `<div style="background-color: ${backgroundColor}; border: 3px solid white; width: ${sizePx}px; height: ${sizePx}px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+            <i class="fas fa-boxes" style="font-size: ${iconSize}px; margin-bottom: 2px;"></i>
+            <span style="font-size: ${fontSize}px; line-height: 1;">${count}</span>
+        </div>`,
+        className: 'container-cluster-marker',
+        iconSize: L.point(sizePx, sizePx)
     });
 }
 
@@ -380,8 +432,17 @@ function clearMapLayers() {
     });
     vehicleMarkers = {};
     
+    // Remover cluster group do mapa se existir
+    if (containerClusterGroup && map.hasLayer(containerClusterGroup)) {
+        map.removeLayer(containerClusterGroup);
+    }
+    if (containerClusterGroup) {
+        containerClusterGroup.clearLayers();
+    }
     Object.keys(containerMarkers).forEach(function(key) {
-        map.removeLayer(containerMarkers[key]);
+        if (containerMarkers[key] && map.hasLayer(containerMarkers[key])) {
+            map.removeLayer(containerMarkers[key]);
+        }
     });
     containerMarkers = {};
     
@@ -2449,8 +2510,13 @@ function updateContainerPopup(containerId) {
  */
 function updateContainers(data) {
     // Limpar containers antigos
+    if (containerClusterGroup) {
+        containerClusterGroup.clearLayers();
+    }
     Object.keys(containerMarkers).forEach(function(key) {
-        map.removeLayer(containerMarkers[key]);
+        if (containerMarkers[key] && map.hasLayer(containerMarkers[key])) {
+            map.removeLayer(containerMarkers[key]);
+        }
     });
     containerMarkers = {};
     
@@ -2461,7 +2527,18 @@ function updateContainers(data) {
         return;
     }
     
-    // Adicionar containers
+    // Criar ou reutilizar cluster group
+    if (!containerClusterGroup) {
+        containerClusterGroup = L.markerClusterGroup({
+            maxClusterRadius: 60, // Raio máximo para agrupar (em pixels)
+            spiderfyOnMaxZoom: true, // Separar ao fazer zoom máximo
+            showCoverageOnHover: true, // Mostrar área coberta ao passar mouse
+            zoomToBoundsOnClick: true, // Fazer zoom ao clicar no cluster
+            iconCreateFunction: createContainerClusterIcon
+        });
+    }
+    
+    // Adicionar containers ao cluster group
     data.containers.forEach(function(container) {
         const containerId = container.container_id;
         const coords = convertToMapCoords(container.pixel_coords);
@@ -2476,7 +2553,7 @@ function updateContainers(data) {
         const marker = L.marker(coords, {
             icon: createContainerIcon(container.container_type),
             opacity: isDestroyed ? 0.5 : 1.0
-        }).addTo(map);
+        });
         
         const popupContent = createContainerPopup(container);
         
@@ -2487,7 +2564,13 @@ function updateContainers(data) {
         });
         
         containerMarkers[containerId] = marker;
+        containerClusterGroup.addLayer(marker);
     });
+    
+    // Adicionar cluster group ao mapa se ainda não estiver
+    if (!map.hasLayer(containerClusterGroup)) {
+        containerClusterGroup.addTo(map);
+    }
     
     console.log(`Containers atualizados: ${data.containers.length} containers`);
 }
@@ -2571,9 +2654,15 @@ function toggleContainersDisplay() {
         loadContainers();
     } else {
         $('#toggleContainersBtn').html('<i class="fas fa-box me-1"></i>Mostrar Containers');
+        // Remover cluster group do mapa se existir
+        if (containerClusterGroup && map.hasLayer(containerClusterGroup)) {
+            map.removeLayer(containerClusterGroup);
+        }
         // Remover todos os containers
         Object.keys(containerMarkers).forEach(function(key) {
-            map.removeLayer(containerMarkers[key]);
+            if (containerMarkers[key] && map.hasLayer(containerMarkers[key])) {
+                map.removeLayer(containerMarkers[key]);
+            }
         });
         containerMarkers = {};
         
