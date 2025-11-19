@@ -1280,7 +1280,8 @@ def api_fences_positions():
             'lower_panel_built': (lower_panel_built == 1) if lower_panel_built is not None else None,
             'upper_panel_built': (upper_panel_built == 1) if upper_panel_built is not None else None,
             'is_destroyed': bool(fence.get('IsDestroyed', 0)) if include_destroyed else False,
-            'destroyed_at': fence.get('DestroyedAt') if include_destroyed else None
+            'destroyed_at': fence.get('DestroyedAt') if include_destroyed else None,
+            'has_recent_attack': bool(fence.get('has_recent_attack', False))
         })
     
     return jsonify(result)

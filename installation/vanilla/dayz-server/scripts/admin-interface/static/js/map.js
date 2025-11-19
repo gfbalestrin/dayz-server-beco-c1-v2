@@ -86,30 +86,33 @@ function createContainerIcon(containerType) {
 }
 
 // Ícone customizado para fences baseado no FenceName
-function createFenceIcon(fenceName) {
+function createFenceIcon(fenceName, hasRecentAttack = false) {
     let color, iconClass;
     
     if (fenceName && fenceName.includes('Gate')) {
-        // Fence com Gate - Verde
-        color = '#28a745';
+        // Fence com Gate - Verde (ou laranja/vermelho se houver ataque)
+        color = hasRecentAttack ? '#ff6b35' : '#28a745';
         iconClass = 'fas fa-door-open';
     } else if (fenceName && fenceName.includes('Open')) {
-        // Fence aberto - Amarelo
-        color = '#ffc107';
+        // Fence aberto - Amarelo (ou laranja/vermelho se houver ataque)
+        color = hasRecentAttack ? '#ff6b35' : '#ffc107';
         iconClass = 'fas fa-unlock';
     } else if (fenceName && fenceName.includes('Locked')) {
-        // Fence trancado - Vermelho
-        color = '#dc3545';
+        // Fence trancado - Vermelho (ou laranja mais escuro se houver ataque)
+        color = hasRecentAttack ? '#c82333' : '#dc3545';
         iconClass = 'fas fa-lock';
     } else {
-        // Fence padrão - Cinza
-        color = '#6c757d';
+        // Fence padrão - Cinza (ou laranja se houver ataque)
+        color = hasRecentAttack ? '#ff6b35' : '#6c757d';
         iconClass = 'fas fa-border-all';
     }
     
+    // Adicionar ícone de alerta se houver ataque recente
+    const alertIcon = hasRecentAttack ? '<i class="fas fa-exclamation-triangle" style="position: absolute; top: -5px; right: -5px; color: #dc3545; font-size: 10px; background: white; border-radius: 50%; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;"></i>' : '';
+    
     return L.divIcon({
         className: 'fence-marker',
-        html: `<div style="background-color: ${color}; border: 2px solid white; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><i class="${iconClass}" style="color: white; font-size: 12px;"></i></div>`,
+        html: `<div style="position: relative; background-color: ${color}; border: 2px solid ${hasRecentAttack ? '#dc3545' : 'white'}; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><i class="${iconClass}" style="color: white; font-size: 12px;"></i>${alertIcon}</div>`,
         iconSize: [22, 22]
     });
 }
@@ -1018,10 +1021,28 @@ function applyHistoryFilters() {
     const dateFrom = document.getElementById('historyDateFrom').value || null;
     const dateTo = document.getElementById('historyDateTo').value || null;
     
-    if (currentHistoryType === 'container') {
-        loadContainerHistory(currentHistoryId, 0, dateFrom, dateTo);
-    } else if (currentHistoryType === 'fence') {
-        loadFenceHistory(currentHistoryId, 0, dateFrom, dateTo);
+    // Fechar modal antes de recarregar para evitar overlay preso
+    const modalElement = document.getElementById('trailHistoryModal');
+    const modal = bootstrap.Modal.getInstance(modalElement);
+    const isModalOpen = modal && modal._isShown;
+    
+    if (isModalOpen) {
+        // Aguardar o modal fechar completamente antes de recarregar
+        $(modalElement).one('hidden.bs.modal', function() {
+            if (currentHistoryType === 'container') {
+                loadContainerHistory(currentHistoryId, 0, dateFrom, dateTo);
+            } else if (currentHistoryType === 'fence') {
+                loadFenceHistory(currentHistoryId, 0, dateFrom, dateTo);
+            }
+        });
+        modal.hide();
+    } else {
+        // Se o modal não estava aberto, executar diretamente
+        if (currentHistoryType === 'container') {
+            loadContainerHistory(currentHistoryId, 0, dateFrom, dateTo);
+        } else if (currentHistoryType === 'fence') {
+            loadFenceHistory(currentHistoryId, 0, dateFrom, dateTo);
+        }
     }
 }
 
@@ -1127,17 +1148,55 @@ function showFenceHistoryModal(fenceId, trail, pagination) {
         // Timeline reversa (mais recente primeiro)
         for (let i = 0; i < trail.length; i++) {
             const point = trail[i];
-            html += `<div class="trail-timeline-item" style="border-left: 3px solid #${i === 0 ? '4caf50' : 'ffc107'}; padding-left: 15px; margin-bottom: 20px;">`;
-            html += `<strong>${point.timestamp || 'Sem data'}</strong><br>`;
+            const prevPoint = i < trail.length - 1 ? trail[i + 1] : null;
+            
+            // Detectar se houve perda de painel (ataque)
+            let hasAttack = false;
+            let attackMessage = '';
+            if (prevPoint) {
+                const prevLower = prevPoint.lower_panel_built === true || prevPoint.lower_panel_built === 1;
+                const prevUpper = prevPoint.upper_panel_built === true || prevPoint.upper_panel_built === 1;
+                const currentLower = point.lower_panel_built === true || point.lower_panel_built === 1;
+                const currentUpper = point.upper_panel_built === true || point.upper_panel_built === 1;
+                
+                if (prevLower && !currentLower) {
+                    hasAttack = true;
+                    attackMessage += 'Painel inferior perdido; ';
+                }
+                if (prevUpper && !currentUpper) {
+                    hasAttack = true;
+                    attackMessage += 'Painel superior perdido; ';
+                }
+            }
+            
+            // Cor da borda: verde para mais recente, laranja para normal, vermelho para ataque
+            let borderColor = i === 0 ? '4caf50' : 'ffc107';
+            if (hasAttack) {
+                borderColor = 'dc3545'; // Vermelho para ataque
+            }
+            
+            html += `<div class="trail-timeline-item" style="border-left: 3px solid #${borderColor}; padding-left: 15px; margin-bottom: 20px; ${hasAttack ? 'background-color: #fff5f5;' : ''}">`;
+            html += `<strong>${point.timestamp || 'Sem data'}</strong>`;
+            
+            if (hasAttack) {
+                html += ` <span style="color: #dc3545; font-weight: bold;">⚠️ Possível ataque detectado</span>`;
+            }
+            html += `<br>`;
             
             if (point.has_base !== null && point.has_base !== undefined) {
                 html += `🏗️ Base: <span class="value">${point.has_base ? 'Sim' : 'Não'}</span> `;
             }
             if (point.lower_panel_built !== null && point.lower_panel_built !== undefined) {
-                html += `🔨 Inf: <span class="value">${point.lower_panel_built ? 'Sim' : 'Não'}</span> `;
+                const prevLower = prevPoint && (prevPoint.lower_panel_built === true || prevPoint.lower_panel_built === 1);
+                const currentLower = point.lower_panel_built === true || point.lower_panel_built === 1;
+                const lostLower = prevLower && !currentLower;
+                html += `🔨 Inf: <span class="value" style="${lostLower ? 'color: #dc3545; font-weight: bold;' : ''}">${point.lower_panel_built ? 'Sim' : 'Não'}</span> `;
             }
             if (point.upper_panel_built !== null && point.upper_panel_built !== undefined) {
-                html += `🔨 Sup: <span class="value">${point.upper_panel_built ? 'Sim' : 'Não'}</span>`;
+                const prevUpper = prevPoint && (prevPoint.upper_panel_built === true || prevPoint.upper_panel_built === 1);
+                const currentUpper = point.upper_panel_built === true || point.upper_panel_built === 1;
+                const lostUpper = prevUpper && !currentUpper;
+                html += `🔨 Sup: <span class="value" style="${lostUpper ? 'color: #dc3545; font-weight: bold;' : ''}">${point.upper_panel_built ? 'Sim' : 'Não'}</span>`;
             }
             
             html += `</div>`;
@@ -2514,8 +2573,9 @@ function updateFences(data) {
         fencesData[fenceId] = fence;
         
         const isDestroyed = fence.is_destroyed || false;
+        const hasRecentAttack = fence.has_recent_attack || false;
         const marker = L.marker(coords, {
-            icon: createFenceIcon(fence.fence_name),
+            icon: createFenceIcon(fence.fence_name, hasRecentAttack),
             opacity: isDestroyed ? 0.5 : 1.0
         }).addTo(map);
         
@@ -2590,6 +2650,14 @@ function createFencePopup(fence) {
         </div>
     ` : '';
     
+    const hasRecentAttack = fence.has_recent_attack || false;
+    const attackWarning = hasRecentAttack ? `
+        <div class="alert alert-danger mt-2 mb-2" style="padding: 8px; font-size: 12px;">
+            <i class="fas fa-exclamation-triangle me-1"></i><strong>⚠️ Possível Ataque Detectado</strong><br>
+            <small>Um painel foi perdido recentemente. Verifique o histórico para mais detalhes.</small>
+        </div>
+    ` : '';
+    
     return `
         <div class="player-popup">
             <strong><i class="fas fa-home me-2"></i>Construção (${fence.fence_name})</strong>
@@ -2611,6 +2679,7 @@ function createFencePopup(fence) {
             </div>
             ${constructionDetails}
             ${destroyedInfo}
+            ${attackWarning}
             <div class="info-row mt-2">
                 <button type="button" class="btn btn-sm btn-warning" onclick="toggleFenceTrail('${fence.fence_id}')">
                     <i class="fas fa-history me-1"></i>Histórico de Alterações

@@ -371,7 +371,7 @@ def get_container_trail(container_id: str, limit: int = 100, offset: int = 0, da
         return paginated_containers, len(filtered_containers)
 
 def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
-    """Retorna fences do último timestamp de rastreamento"""
+    """Retorna fences do último timestamp de rastreamento com detecção de ataques"""
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
         
@@ -383,6 +383,7 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
         except:
             has_is_destroyed = False
         
+        # Buscar último registro de cada fence
         if has_is_destroyed and not include_destroyed:
             cursor.execute("""
                 SELECT ft.IdFenceTracking, ft.FenceId, ft.FenceName,
@@ -390,11 +391,13 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
                        ft.HasBase, ft.LowerPanelBuilt, ft.UpperPanelBuilt,
                        0 as IsDestroyed, NULL as DestroyedAt
                 FROM fences_tracking ft
-                WHERE ft.TimeStamp = (
-                    SELECT MAX(TimeStamp) FROM fences_tracking
+                INNER JOIN (
+                    SELECT FenceId, MAX(TimeStamp) as MaxTimeStamp
+                    FROM fences_tracking
                     WHERE IsDestroyed = 0 OR IsDestroyed IS NULL
-                )
-                AND (ft.IsDestroyed = 0 OR ft.IsDestroyed IS NULL)
+                    GROUP BY FenceId
+                ) AS latest_ft ON ft.FenceId = latest_ft.FenceId AND ft.TimeStamp = latest_ft.MaxTimeStamp
+                WHERE ft.IsDestroyed = 0 OR ft.IsDestroyed IS NULL
                 ORDER BY ft.FenceName
             """)
         else:
@@ -405,9 +408,11 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
                            ft.HasBase, ft.LowerPanelBuilt, ft.UpperPanelBuilt,
                            IFNULL(ft.IsDestroyed, 0) as IsDestroyed, ft.DestroyedAt
                     FROM fences_tracking ft
-                    WHERE ft.TimeStamp = (
-                        SELECT MAX(TimeStamp) FROM fences_tracking
-                    )
+                    INNER JOIN (
+                        SELECT FenceId, MAX(TimeStamp) as MaxTimeStamp
+                        FROM fences_tracking
+                        GROUP BY FenceId
+                    ) AS latest_ft ON ft.FenceId = latest_ft.FenceId AND ft.TimeStamp = latest_ft.MaxTimeStamp
                     ORDER BY ft.FenceName
                 """)
             else:
@@ -417,12 +422,63 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
                            ft.HasBase, ft.LowerPanelBuilt, ft.UpperPanelBuilt,
                            0 as IsDestroyed, NULL as DestroyedAt
                     FROM fences_tracking ft
-                    WHERE ft.TimeStamp = (
-                        SELECT MAX(TimeStamp) FROM fences_tracking
-                    )
+                    INNER JOIN (
+                        SELECT FenceId, MAX(TimeStamp) as MaxTimeStamp
+                        FROM fences_tracking
+                        GROUP BY FenceId
+                    ) AS latest_ft ON ft.FenceId = latest_ft.FenceId AND ft.TimeStamp = latest_ft.MaxTimeStamp
                     ORDER BY ft.FenceName
                 """)
-        return [dict(row) for row in cursor.fetchall()]
+        
+        fences = [dict(row) for row in cursor.fetchall()]
+        
+        # Detectar ataques recentes (perda de painel)
+        for fence in fences:
+            fence_id = fence['FenceId']
+            current_lower = fence.get('LowerPanelBuilt', 0)
+            current_upper = fence.get('UpperPanelBuilt', 0)
+            
+            # Buscar registro anterior (não destruído) do mesmo fence
+            if has_is_destroyed and not include_destroyed:
+                cursor.execute("""
+                    SELECT LowerPanelBuilt, UpperPanelBuilt
+                    FROM fences_tracking
+                    WHERE FenceId = ?
+                    AND TimeStamp < (
+                        SELECT MAX(TimeStamp) FROM fences_tracking
+                        WHERE FenceId = ? AND (IsDestroyed = 0 OR IsDestroyed IS NULL)
+                    )
+                    AND (IsDestroyed = 0 OR IsDestroyed IS NULL)
+                    ORDER BY TimeStamp DESC
+                    LIMIT 1
+                """, (fence_id, fence_id))
+            else:
+                cursor.execute("""
+                    SELECT LowerPanelBuilt, UpperPanelBuilt
+                    FROM fences_tracking
+                    WHERE FenceId = ?
+                    AND TimeStamp < (
+                        SELECT MAX(TimeStamp) FROM fences_tracking
+                        WHERE FenceId = ?
+                    )
+                    ORDER BY TimeStamp DESC
+                    LIMIT 1
+                """, (fence_id, fence_id))
+            
+            prev_row = cursor.fetchone()
+            has_recent_attack = False
+            
+            if prev_row:
+                prev_lower = prev_row[0] if prev_row[0] is not None else 0
+                prev_upper = prev_row[1] if prev_row[1] is not None else 0
+                
+                # Detectar se um painel foi perdido (tinha antes e não tem mais)
+                if (prev_lower == 1 and current_lower != 1) or (prev_upper == 1 and current_upper != 1):
+                    has_recent_attack = True
+            
+            fence['has_recent_attack'] = has_recent_attack
+        
+        return fences
 
 def get_fence_trail(fence_id: str, limit: int = 100, offset: int = 0, date_from: str = None, date_to: str = None) -> tuple:
     """
