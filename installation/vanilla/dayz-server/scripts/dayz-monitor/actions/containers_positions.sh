@@ -334,15 +334,12 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
                 Content="Container removido (ID=$removed_id) do mapa - Última posição=($rem_x,$rem_z,$rem_y) - Tipo: $rem_name"
             fi
             
-            # Marcar último registro do container como destruído
+            # Marcar todos os registros do container como destruído (garantir que não apareça no mapa)
             sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
 UPDATE containers_tracking
 SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
 WHERE ContainerId = '$removed_id'
-AND TimeStamp = (
-    SELECT MAX(TimeStamp) FROM containers_tracking
-    WHERE ContainerId = '$removed_id'
-);
+AND (IsDestroyed = 0 OR IsDestroyed IS NULL);
 EOF
             
             #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"

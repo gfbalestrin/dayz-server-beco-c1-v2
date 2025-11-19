@@ -156,15 +156,12 @@ handle_fences_positions() {
             Content="Fence destruída (ID=$removed_id) removida do mapa - Última posição=($rem_x,$rem_z,$rem_y)"
             SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             
-            # Marcar último registro da fence como destruída
+            # Marcar todos os registros da fence como destruída (garantir que não apareça no mapa)
             sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
 UPDATE fences_tracking
 SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
 WHERE FenceId = '$removed_id'
-AND TimeStamp = (
-    SELECT MAX(TimeStamp) FROM fences_tracking
-    WHERE FenceId = '$removed_id'
-);
+AND (IsDestroyed = 0 OR IsDestroyed IS NULL);
 EOF
         done
     fi

@@ -110,15 +110,12 @@ handle_vehicles_positions() {
             Content="Veículo removido (ID=$removed_id) - Nome=\"$rem_name\" - Última posição=($rem_x,$rem_z,$rem_y)"
             INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
             
-            # Marcar último registro do veículo como destruído
+            # Marcar todos os registros do veículo como destruído (garantir que não apareça no mapa)
             sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
 UPDATE vehicles_tracking
 SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
 WHERE VehicleId = '$removed_id'
-AND TimeStamp = (
-    SELECT MAX(TimeStamp) FROM vehicles_tracking
-    WHERE VehicleId = '$removed_id'
-);
+AND (IsDestroyed = 0 OR IsDestroyed IS NULL);
 EOF
             
             #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
