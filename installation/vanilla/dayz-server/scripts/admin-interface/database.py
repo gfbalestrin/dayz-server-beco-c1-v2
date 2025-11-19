@@ -163,9 +163,10 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
         return [dict(row) for row in cursor.fetchall()]
 
 def get_vehicle_trail(vehicle_id: str, limit: int = 100) -> List[Dict]:
-    """Retorna histórico de posições de um veículo"""
+    """Retorna histórico de posições de um veículo, filtrando pontos duplicados"""
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
+        # Buscar todos os registros ordenados
         cursor.execute("""
             SELECT IdVehicleTracking, VehicleId, VehicleName,
                    PositionX, PositionY, PositionZ, TimeStamp
@@ -174,7 +175,31 @@ def get_vehicle_trail(vehicle_id: str, limit: int = 100) -> List[Dict]:
             ORDER BY TimeStamp DESC
             LIMIT ?
         """, (vehicle_id, limit))
-        return [dict(row) for row in cursor.fetchall()]
+        all_vehicles = [dict(row) for row in cursor.fetchall()]
+        
+        # Filtrar eventos duplicados (mesma posição)
+        filtered_vehicles = []
+        prev_state = None
+        
+        for vehicle in all_vehicles:
+            # Criar hash do estado atual (posição arredondada)
+            current_state_key = (
+                round(vehicle['PositionX'], 1),
+                round(vehicle['PositionY'], 1),
+                round(vehicle['PositionZ'], 1)
+            )
+            
+            current_state = {
+                'key': current_state_key,
+                'position': (vehicle['PositionX'], vehicle['PositionY'], vehicle['PositionZ'])
+            }
+            
+            # Se mudou, adicionar à lista
+            if prev_state is None or prev_state['key'] != current_state['key']:
+                filtered_vehicles.append(vehicle)
+                prev_state = current_state
+        
+        return filtered_vehicles
 
 def get_containers_last_position(include_destroyed: bool = False) -> List[Dict]:
     """Retorna containers do último timestamp de rastreamento com seus items"""

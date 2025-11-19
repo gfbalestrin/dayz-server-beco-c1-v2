@@ -1434,10 +1434,17 @@ function drawVehicleTrail(vehicleId, trail) {
         const pointLat = firstCoords[0];
         const pointLng = firstCoords[1];
         
+        // Deslocar ligeiramente o círculo do trail para evitar sobreposição com o marcador do veículo
+        // O marcador do veículo tem 20x20px, então deslocamos o trail ~15px para baixo e direita
+        // Converter pixels para coordenadas lat/lng (aproximadamente 0.0001 grau por pixel no zoom padrão)
+        const offsetLat = -0.00015; // Deslocar para baixo (sul)
+        const offsetLng = 0.00015; // Deslocar para direita (leste)
+        const offsetCoords = [pointLat + offsetLat, pointLng + offsetLng];
+        
         // Calcular raio baseado na quantidade de pontos
         const radius = Math.min(8 + Math.log(processedTrail.length) * 2, 15);
         
-        const circleMarker = L.circleMarker(firstCoords, {
+        const circleMarker = L.circleMarker(offsetCoords, {
             radius: radius,
             fillColor: '#28a745',
             color: 'white',
@@ -1446,6 +1453,7 @@ function drawVehicleTrail(vehicleId, trail) {
             fillOpacity: 0.8
         }).addTo(map);
         
+        // Usar coordenadas originais para o tooltip
         const tooltipText = generateConsolidatedTooltip(processedTrail, 'vehicle', firstPoint.vehicle_name);
         const tooltipDirection = getTooltipDirectionForPoint(pointLat, pointLng);
         circleMarker.bindTooltip(tooltipText, {
