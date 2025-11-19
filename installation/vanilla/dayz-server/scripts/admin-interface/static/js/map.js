@@ -1172,6 +1172,8 @@ function applyHistoryFilters() {
             loadContainerHistory(currentHistoryId, 0, dateFrom, dateTo);
         } else if (currentHistoryType === 'fence') {
             loadFenceHistory(currentHistoryId, 0, dateFrom, dateTo);
+        } else if (currentHistoryType === 'watchtower') {
+            loadWatchtowerHistory(currentHistoryId, 0, dateFrom, dateTo);
         }
     }
 }
@@ -1184,6 +1186,8 @@ function loadHistoryPage(offset) {
         loadContainerHistory(currentHistoryId, offset, currentHistoryPagination.date_from, currentHistoryPagination.date_to);
     } else if (currentHistoryType === 'fence') {
         loadFenceHistory(currentHistoryId, offset, currentHistoryPagination.date_from, currentHistoryPagination.date_to);
+    } else if (currentHistoryType === 'watchtower') {
+        loadWatchtowerHistory(currentHistoryId, offset, currentHistoryPagination.date_from, currentHistoryPagination.date_to);
     }
 }
 
@@ -1216,6 +1220,32 @@ function loadFenceHistory(fenceId, offset = 0, dateFrom = null, dateTo = null) {
 }
 
 /**
+ * Carregar histórico da watchtower com filtros e paginação
+ */
+function loadWatchtowerHistory(watchtowerId, offset = 0, dateFrom = null, dateTo = null) {
+    currentHistoryType = 'watchtower';
+    currentHistoryId = watchtowerId;
+    currentHistoryPagination.offset = offset;
+    currentHistoryPagination.date_from = dateFrom;
+    currentHistoryPagination.date_to = dateTo;
+
+    const params = {
+        limit: currentHistoryPagination.limit,
+        offset: offset
+    };
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+
+    $.get(`/api/watchtowers/${watchtowerId}/trail`, params)
+        .done(function(data) {
+            showFenceHistoryModal(watchtowerId, data.trail, data.pagination);
+        })
+        .fail(function() {
+            console.error('Erro ao carregar histórico da watchtower:', watchtowerId);
+        });
+}
+
+/**
  * Exibir modal com histórico da fence
  */
 function showFenceHistoryModal(fenceId, trail, pagination) {
@@ -1224,21 +1254,30 @@ function showFenceHistoryModal(fenceId, trail, pagination) {
     
     const modalTitle = document.getElementById('trailHistoryModalTitle');
     const modalBody = document.getElementById('trailHistoryModalBody');
+    const isWatchtower = fence.structure_type === 'watchtower';
+    const modalIcon = isWatchtower ? 'fa-chess-rook' : 'fa-home';
+    modalTitle.innerHTML = `<i class="fas ${modalIcon} me-2"></i>Histórico - ${fence.fence_name || (isWatchtower ? 'Watchtower' : 'Fence')}`;
     
-    modalTitle.innerHTML = `<i class="fas fa-home me-2"></i>Histórico - ${fence.fence_name || 'Fence'}`;
-    
-    // Formatar data para input type="date"
     function formatDateForInput(dateStr) {
         if (!dateStr) return '';
         const date = new Date(dateStr);
         return date.toISOString().split('T')[0];
     }
     
+    const formatStatusLabel = (value) => {
+        if (value === null || value === undefined) return 'Desconhecido';
+        return value ? 'Sim' : 'Não';
+    };
+    const formatWatchtowerStatus = (value) => {
+        if (value === null || value === undefined) return 'Desconhecido';
+        return value ? 'Construído' : 'Não construído';
+    };
+    const normalizeFlag = (value) => value === true || value === 1;
+    
     let html = `<div class="trail-history-container">`;
     html += `<div class="mb-3"><strong>ID:</strong> ${fenceId}</div>`;
     html += `<div class="mb-3"><strong>Coordenadas:</strong> X=${fence.coord_x.toFixed(1)}, Y=${fence.coord_y.toFixed(1)}</div>`;
     
-    // Filtros de data
     html += `<div class="row mb-3">`;
     html += `<div class="col-md-5">`;
     html += `<label class="form-label small">Data inicial:</label>`;
@@ -1253,7 +1292,6 @@ function showFenceHistoryModal(fenceId, trail, pagination) {
     html += `</div>`;
     html += `</div>`;
     
-    // Paginação
     const totalPages = Math.ceil(pagination.total / pagination.limit);
     const currentPage = Math.floor(pagination.offset / pagination.limit) + 1;
     
@@ -1275,58 +1313,103 @@ function showFenceHistoryModal(fenceId, trail, pagination) {
     if (trail.length === 0) {
         html += `<div class="text-muted text-center py-4">Nenhum evento encontrado</div>`;
     } else {
-        // Timeline reversa (mais recente primeiro)
         for (let i = 0; i < trail.length; i++) {
             const point = trail[i];
             const prevPoint = i < trail.length - 1 ? trail[i + 1] : null;
             
-            // Detectar se houve perda de painel (ataque)
-            let hasAttack = false;
-            let attackMessage = '';
-            if (prevPoint) {
-                const prevLower = prevPoint.lower_panel_built === true || prevPoint.lower_panel_built === 1;
-                const prevUpper = prevPoint.upper_panel_built === true || prevPoint.upper_panel_built === 1;
-                const currentLower = point.lower_panel_built === true || point.lower_panel_built === 1;
-                const currentUpper = point.upper_panel_built === true || point.upper_panel_built === 1;
-                
-                if (prevLower && !currentLower) {
-                    hasAttack = true;
-                    attackMessage += 'Painel inferior perdido; ';
-                }
-                if (prevUpper && !currentUpper) {
-                    hasAttack = true;
-                    attackMessage += 'Painel superior perdido; ';
-                }
-            }
-            
-            // Cor da borda: verde para mais recente, laranja para normal, vermelho para ataque
             let borderColor = i === 0 ? '4caf50' : 'ffc107';
-            if (hasAttack) {
-                borderColor = 'dc3545'; // Vermelho para ataque
+            if (isWatchtower) {
+                borderColor = i === 0 ? '4e73df' : '36b9cc';
+            } else if (prevPoint) {
+                const prevLower = normalizeFlag(prevPoint.lower_panel_built);
+                const prevUpper = normalizeFlag(prevPoint.upper_panel_built);
+                const currentLower = normalizeFlag(point.lower_panel_built);
+                const currentUpper = normalizeFlag(point.upper_panel_built);
+                if ((prevLower && !currentLower) || (prevUpper && !currentUpper)) {
+                    borderColor = 'dc3545';
+                }
             }
             
-            html += `<div class="trail-timeline-item" style="border-left: 3px solid #${borderColor}; padding-left: 15px; margin-bottom: 20px; ${hasAttack ? 'background-color: #fff5f5;' : ''}">`;
-            html += `<strong>${point.timestamp || 'Sem data'}</strong>`;
+            html += `<div class="trail-timeline-item" style="border-left: 3px solid #${borderColor}; padding-left: 15px; margin-bottom: 20px;">`;
+            html += `<strong>${point.timestamp || 'Sem data'}</strong><br>`;
+            html += `📍 Coords: X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}`;
             
-            if (hasAttack) {
-                html += ` <span style="color: #dc3545; font-weight: bold;">⚠️ Possível ataque detectado</span>`;
-            }
-            html += `<br>`;
-            
-            if (point.has_base !== null && point.has_base !== undefined) {
-                html += `🏗️ Base: <span class="value">${point.has_base ? 'Sim' : 'Não'}</span> `;
-            }
-            if (point.lower_panel_built !== null && point.lower_panel_built !== undefined) {
-                const prevLower = prevPoint && (prevPoint.lower_panel_built === true || prevPoint.lower_panel_built === 1);
-                const currentLower = point.lower_panel_built === true || point.lower_panel_built === 1;
-                const lostLower = prevLower && !currentLower;
-                html += `🔨 Inf: <span class="value" style="${lostLower ? 'color: #dc3545; font-weight: bold;' : ''}">${point.lower_panel_built ? 'Sim' : 'Não'}</span> `;
-            }
-            if (point.upper_panel_built !== null && point.upper_panel_built !== undefined) {
-                const prevUpper = prevPoint && (prevPoint.upper_panel_built === true || prevPoint.upper_panel_built === 1);
-                const currentUpper = point.upper_panel_built === true || point.upper_panel_built === 1;
-                const lostUpper = prevUpper && !currentUpper;
-                html += `🔨 Sup: <span class="value" style="${lostUpper ? 'color: #dc3545; font-weight: bold;' : ''}">${point.upper_panel_built ? 'Sim' : 'Não'}</span>`;
+            if (isWatchtower) {
+                const flagDefs = [
+                    { key: 'has_base', label: 'Base' },
+                    { key: 'level_1_base', label: 'Nível 1' },
+                    { key: 'level_2_base', label: 'Nível 2' },
+                    { key: 'level_3_base', label: 'Nível 3' },
+                    { key: 'level_1_stairs', label: 'Escadas Nível 1' },
+                    { key: 'level_2_stairs', label: 'Escadas Nível 2' },
+                    { key: 'has_roof', label: 'Telhado' }
+                ];
+                let lostFlags = [];
+                html += `<div class="mt-2">`;
+                flagDefs.forEach(def => {
+                    const currentVal = normalizeFlag(point[def.key]);
+                    const prevVal = prevPoint ? normalizeFlag(prevPoint[def.key]) : null;
+                    let changeIndicator = '';
+                    if (prevVal !== null && prevVal !== currentVal) {
+                        changeIndicator = currentVal ? ' <span class="text-success">(+)</span>' : ' <span class="text-danger">(-)</span>';
+                        if (!currentVal) {
+                            lostFlags.push(def.label);
+                        }
+                    }
+                    html += `
+                        <div class="info-row">
+                            <span class="info-label">${def.label}:</span>
+                            <span class="info-value">${formatWatchtowerStatus(point[def.key])}${changeIndicator}</span>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+                
+                if (point.orientation && (point.orientation.x !== null || point.orientation.y !== null)) {
+                    const pitch = point.orientation.x !== null && point.orientation.x !== undefined ? Number(point.orientation.x).toFixed(1) : 'N/A';
+                    const yaw = point.orientation.y !== null && point.orientation.y !== undefined ? Number(point.orientation.y).toFixed(1) : 'N/A';
+                    html += `<div class="info-row mt-2"><span class="info-label">Orientação:</span><span class="info-value">Pitch: ${pitch}°, Yaw: ${yaw}°</span></div>`;
+                }
+                
+                if (lostFlags.length > 0) {
+                    html += `<div class="alert alert-danger mt-2 mb-0" style="padding: 6px; font-size: 12px;">
+                        <i class="fas fa-exclamation-triangle me-1"></i><strong>Componentes perdidos:</strong> ${lostFlags.join(', ')}
+                    </div>`;
+                }
+            } else {
+                let hasAttack = false;
+                let attackMessage = '';
+                if (prevPoint) {
+                    const prevLower = normalizeFlag(prevPoint.lower_panel_built);
+                    const prevUpper = normalizeFlag(prevPoint.upper_panel_built);
+                    const currentLower = normalizeFlag(point.lower_panel_built);
+                    const currentUpper = normalizeFlag(point.upper_panel_built);
+                    
+                    if (prevLower && !currentLower) {
+                        hasAttack = true;
+                        attackMessage += 'Painel inferior perdido; ';
+                    }
+                    if (prevUpper && !currentUpper) {
+                        hasAttack = true;
+                        attackMessage += 'Painel superior perdido; ';
+                    }
+                }
+                
+                if (hasAttack) {
+                    html += ` <span style="color: #dc3545; font-weight: bold;">⚠️ Possível ataque detectado</span>`;
+                }
+                
+                html += `<div class="mt-2">`;
+                html += `<span class="badge bg-secondary me-1">Base: ${formatStatusLabel(point.has_base)}</span>`;
+                html += `<span class="badge bg-secondary me-1">Painel Inferior: ${formatStatusLabel(point.lower_panel_built)}</span>`;
+                html += `<span class="badge bg-secondary me-1">Painel Superior: ${formatStatusLabel(point.upper_panel_built)}</span>`;
+                html += `</div>`;
+                
+                if (hasAttack) {
+                    html += `<div class="alert alert-danger mt-2 mb-0" style="padding: 6px; font-size: 12px;">
+                        <i class="fas fa-exclamation-triangle me-1"></i><strong>Possível ataque detectado:</strong> ${attackMessage}
+                    </div>`;
+                }
             }
             
             html += `</div>`;
@@ -1336,7 +1419,6 @@ function showFenceHistoryModal(fenceId, trail, pagination) {
     html += `</div></div>`;
     modalBody.innerHTML = html;
     
-    // Abrir modal usando Bootstrap 5
     const modal = new bootstrap.Modal(document.getElementById('trailHistoryModal'));
     modal.show();
 }
@@ -2856,6 +2938,11 @@ function createFencePopup(fence) {
                 <div class="info-row mt-2">
                     <span class="info-label">Atualizado:</span>
                     <span class="info-value">${fence.last_update || 'Desconhecido'}</span>
+                </div>
+                <div class="info-row mt-2">
+                    <button type="button" class="btn btn-sm btn-warning" onclick="loadWatchtowerHistory('${fence.fence_id}')">
+                        <i class="fas fa-history me-1"></i>Histórico de Alterações
+                    </button>
                 </div>
             </div>
         `;

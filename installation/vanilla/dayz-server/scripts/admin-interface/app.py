@@ -15,7 +15,7 @@ from database import (
     get_logs_adm, get_logs_custom,     get_vehicles_tracking, get_vehicles_map_positions,
     get_player_by_id, search_players, get_players_last_position,
     get_containers_last_position, get_item_details_from_items_db,
-    get_fences_last_position, get_watchtowers_last_position,
+    get_fences_last_position, get_watchtowers_last_position, get_watchtower_trail,
     get_player_trail, get_online_players_positions,
     get_vehicle_trail, get_container_trail, get_fence_trail,
     get_players_positions_by_timerange, dayz_to_pixel,
@@ -1419,6 +1419,86 @@ def api_fence_trail(fence_id):
         })
     
     return jsonify(result)
+
+@app.route('/api/watchtowers/<watchtower_id>/trail')
+@admin_required
+def api_watchtower_trail(watchtower_id):
+    """API com histórico de watchtower"""
+    limit = request.args.get('limit', 50, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+
+    trail, total_count = get_watchtower_trail(
+        watchtower_id,
+        limit=limit,
+        offset=offset,
+        date_from=date_from,
+        date_to=date_to
+    )
+
+    def normalize_bool(value):
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in ('true', '1', 'yes'):
+                return True
+            if lowered in ('false', '0', 'no'):
+                return False
+        try:
+            return bool(int(value))
+        except (TypeError, ValueError):
+            return bool(value)
+
+    def safe_float(value):
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    result_trail = []
+    for point in trail:
+        pixel_coords = dayz_to_pixel(point.get('PositionX') or 0, point.get('PositionY') or 0)
+        result_trail.append({
+            'tracking_id': point.get('WatchtowerTrackingId'),
+            'watchtower_id': point.get('WatchtowerId'),
+            'watchtower_name': point.get('WatchtowerName') or 'Watchtower',
+            'coord_x': point.get('PositionX') or 0,
+            'coord_y': point.get('PositionY') or 0,
+            'coord_z': point.get('PositionZ'),
+            'pixel_coords': pixel_coords,
+            'timestamp': convert_timestamp_to_br(point.get('TimeStamp')),
+            'has_base': normalize_bool(point.get('HasBase')),
+            'level_1_base': normalize_bool(point.get('Level1BaseBuilt')),
+            'level_2_base': normalize_bool(point.get('Level2BaseBuilt')),
+            'level_3_base': normalize_bool(point.get('Level3BaseBuilt')),
+            'level_1_stairs': normalize_bool(point.get('Level1StairsBuilt')),
+            'level_2_stairs': normalize_bool(point.get('Level2StairsBuilt')),
+            'has_roof': normalize_bool(point.get('HasRoof')),
+            'orientation': {
+                'x': safe_float(point.get('OrientationX')),
+                'y': safe_float(point.get('OrientationY')),
+                'z': safe_float(point.get('OrientationZ'))
+            }
+        })
+
+    pagination = {
+        'limit': limit,
+        'offset': offset,
+        'total': total_count,
+        'has_more': (offset + limit) < total_count
+    }
+
+    return jsonify({
+        'watchtower_id': watchtower_id,
+        'trail': result_trail,
+        'pagination': pagination
+    })
 
 @app.route('/api/players/search')
 @admin_required
