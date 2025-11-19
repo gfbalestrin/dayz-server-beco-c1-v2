@@ -306,7 +306,7 @@ void KickPlayerById(string playerId)
 
 array<string> LoadAdminIDs(string filePath)
 {
-    WriteToLog("LoadAdminIDs(): Carregando IDs do arquivo: " + filePath, LogFile.INIT, false, LogType.DEBUG);
+    //WriteToLog("LoadAdminIDs(): Carregando IDs do arquivo: " + filePath, LogFile.INIT, false, LogType.DEBUG);
     array<string> ids = new array<string>;
     FileHandle file = OpenFile(filePath, FileMode.READ);
 
@@ -320,7 +320,7 @@ array<string> LoadAdminIDs(string filePath)
                 ids.Insert(line);
         }
         CloseFile(file);
-        WriteToLog("LoadAdminIDs(): IDs carregados: " + ids.Count(), LogFile.INIT, false, LogType.DEBUG);
+        //WriteToLog("LoadAdminIDs(): IDs carregados: " + ids.Count(), LogFile.INIT, false, LogType.DEBUG);
     }
     else
     {
