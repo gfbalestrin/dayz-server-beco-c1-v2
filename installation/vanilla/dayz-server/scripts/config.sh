@@ -889,6 +889,140 @@ EOF
     return 1
 }
 
+INSERT_WATCHTOWER_POSITION() {
+    local WatchtowerId="$1"
+    local WatchtowerName="$2"
+    local CoordX="$3"
+    local CoordZ="$4"
+    local CoordY="$5"
+    local OriX="$6"
+    local OriY="$7"
+    local OriZ="$8"
+    local CustomTimestamp="$9"
+    local HasBase="${10}"
+    local Level1Base="${11}"
+    local Level2Base="${12}"
+    local Level3Base="${13}"
+    local Level1Stairs="${14}"
+    local Level2Stairs="${15}"
+    local HasRoof="${16}"
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+
+    if [[ -z "$WatchtowerId" ]]; then
+        echo "Error: WatchtowerId is required."
+        echo ""
+        return 1
+    fi
+
+    sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<'EOF'
+CREATE TABLE IF NOT EXISTS watchtowers_tracking (
+    WatchtowerTrackingId INTEGER PRIMARY KEY AUTOINCREMENT,
+    WatchtowerId TEXT NOT NULL,
+    WatchtowerName TEXT,
+    PositionX REAL,
+    PositionZ REAL,
+    PositionY REAL,
+    OrientationX REAL,
+    OrientationY REAL,
+    OrientationZ REAL,
+    TimeStamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    HasBase INTEGER,
+    Level1BaseBuilt INTEGER,
+    Level2BaseBuilt INTEGER,
+    Level3BaseBuilt INTEGER,
+    Level1StairsBuilt INTEGER,
+    Level2StairsBuilt INTEGER,
+    HasRoof INTEGER,
+    IsDestroyed INTEGER DEFAULT 0,
+    DestroyedAt DATETIME
+);
+CREATE INDEX IF NOT EXISTS idx_watchtowers_tracking_watchtower_id ON watchtowers_tracking(WatchtowerId);
+CREATE INDEX IF NOT EXISTS idx_watchtowers_tracking_timestamp ON watchtowers_tracking(TimeStamp);
+EOF
+
+    local EscapedWatchtowerId
+    local EscapedWatchtowerName
+    local TimestampValue
+
+    EscapedWatchtowerId=$(echo "$WatchtowerId" | sed "s/'/''/g")
+    EscapedWatchtowerName=$(echo "$WatchtowerName" | sed "s/'/''/g")
+
+    if [[ -n "$CustomTimestamp" ]]; then
+        TimestampValue="'$CustomTimestamp'"
+    else
+        TimestampValue="datetime('now', 'localtime')"
+    fi
+
+    local HasBaseValue Level1BaseValue Level2BaseValue Level3BaseValue
+    local Level1StairsValue Level2StairsValue HasRoofValue
+
+    if [[ -n "$HasBase" ]]; then HasBaseValue="$HasBase"; else HasBaseValue="NULL"; fi
+    if [[ -n "$Level1Base" ]]; then Level1BaseValue="$Level1Base"; else Level1BaseValue="NULL"; fi
+    if [[ -n "$Level2Base" ]]; then Level2BaseValue="$Level2Base"; else Level2BaseValue="NULL"; fi
+    if [[ -n "$Level3Base" ]]; then Level3BaseValue="$Level3Base"; else Level3BaseValue="NULL"; fi
+    if [[ -n "$Level1Stairs" ]]; then Level1StairsValue="$Level1Stairs"; else Level1StairsValue="NULL"; fi
+    if [[ -n "$Level2Stairs" ]]; then Level2StairsValue="$Level2Stairs"; else Level2StairsValue="NULL"; fi
+    if [[ -n "$HasRoof" ]]; then HasRoofValue="$HasRoof"; else HasRoofValue="NULL"; fi
+
+    while (( attempt <= max_retries )); do
+        local WatchtowerTrackingId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+INSERT INTO watchtowers_tracking (
+    WatchtowerId,
+    WatchtowerName,
+    PositionX,
+    PositionZ,
+    PositionY,
+    OrientationX,
+    OrientationY,
+    OrientationZ,
+    TimeStamp,
+    HasBase,
+    Level1BaseBuilt,
+    Level2BaseBuilt,
+    Level3BaseBuilt,
+    Level1StairsBuilt,
+    Level2StairsBuilt,
+    HasRoof
+)
+VALUES (
+    '$EscapedWatchtowerId',
+    '$EscapedWatchtowerName',
+    '$CoordX',
+    '$CoordZ',
+    '$CoordY',
+    '$OriX',
+    '$OriY',
+    '$OriZ',
+    $TimestampValue,
+    $HasBaseValue,
+    $Level1BaseValue,
+    $Level2BaseValue,
+    $Level3BaseValue,
+    $Level1StairsValue,
+    $Level2StairsValue,
+    $HasRoofValue
+);
+SELECT last_insert_rowid();
+EOF
+)
+
+        if [[ $? -eq 0 ]]; then
+            echo "$WatchtowerTrackingId"
+            return 0
+        else
+            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
+            sleep "$retry_delay"
+            attempt=$((attempt + 1))
+        fi
+    done
+
+    echo "Failed to insert watchtower after $max_retries attempts."
+    echo ""
+    return 1
+}
+
 GET_DAYZ_PLAYER_POSITION(){
     local PlayerID="$1"
     local player=$(sqlite3 "$DayzServerFolder/$DayzPlayerDbFile" "SELECT hex(Data) FROM Players where UID = '$PlayerId';")    

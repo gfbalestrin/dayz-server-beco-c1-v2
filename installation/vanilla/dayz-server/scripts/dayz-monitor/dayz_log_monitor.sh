@@ -35,6 +35,7 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
           "$Line" != *"died. Stats"* && \
           "$Line" != *"hit by Player"* && \
           "$Line" != *"Built base on Fence"* && \
+          "$Line" != *"Built level_1_base on Watchtower"* && \
           "$Line" != *"Dismantled Base from Fence"* && \
           "$Line" != *"Chat("* ]]; then
         continue
@@ -60,6 +61,8 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
         handle_killed_by_player "$Line" "$Content"
     elif [[ "$Content" == *"Built base on Fence"* ]]; then
         handle_built_fence "$Line" "$Content"
+    elif [[ "$Content" == *"Built level_1_base on Watchtower"* ]]; then
+        handle_built_watchtower "$Line" "$Content"
     elif [[ "$Content" == *"Dismantled Base from Fence"* ]]; then
         handle_dismantled_fence "$Line" "$Content"
     else

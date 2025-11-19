@@ -319,3 +319,254 @@ void ScanFences()
     CleanTrackedFences();
     SendFencesStatus();
 }
+
+string BoolToJson(bool value)
+{
+    if (value)
+        return "true";
+    return "false";
+}
+
+bool IsWatchtowerPartBuilt(Construction construction, string partName)
+{
+    if (!construction || partName == "")
+        return false;
+
+    ConstructionPart towerPart = construction.GetConstructionPart(partName);
+    if (!towerPart)
+        return false;
+
+    return towerPart.IsBuilt();
+}
+
+void PopulateTrackedWatchtowers(array<Object> worldObjects)
+{
+    if (!GetGame() || !GetGame().IsServer())
+        return;
+
+    if (!m_TrackedWatchtowers)
+    {
+        WriteToLog("PopulateTrackedWatchtowers(): Inicializando array m_TrackedWatchtowers...", LogFile.INIT, false, LogType.DEBUG);
+        m_TrackedWatchtowers = new array<Watchtower>();
+    }
+    else
+    {
+        WriteToLog("PopulateTrackedWatchtowers(): Array m_TrackedWatchtowers já existe, limpando conteúdo...", LogFile.INIT, false, LogType.DEBUG);
+        m_TrackedWatchtowers.Clear();
+    }
+
+    if (!worldObjects)
+    {
+        WriteToLog("PopulateTrackedWatchtowers(): Lista de objetos vazia recebida.", LogFile.INIT, false, LogType.WARNING);
+        return;
+    }
+
+    foreach (Object candidateObject : worldObjects)
+    {
+        Watchtower candidateWatchtower = Watchtower.Cast(candidateObject);
+        if (!candidateWatchtower)
+            continue;
+
+        if (!candidateWatchtower.HasBase())
+            continue;
+
+        m_TrackedWatchtowers.Insert(candidateWatchtower);
+    }
+
+    WriteToLog("PopulateTrackedWatchtowers(): Total de watchtowers em rastreamento: " + m_TrackedWatchtowers.Count().ToString(), LogFile.INIT, false, LogType.INFO);
+}
+
+void RegisterWatchtower(Watchtower newWatchtower)
+{
+    if (!GetGame() || !GetGame().IsServer())
+        return;
+
+    if (!newWatchtower)
+        return;
+
+    if (!newWatchtower.HasBase())
+        return;
+
+    if (!m_TrackedWatchtowers)
+        m_TrackedWatchtowers = new array<Watchtower>();
+
+    int trackedCount = m_TrackedWatchtowers.Count();
+    for (int trackedIndex = 0; trackedIndex < trackedCount; trackedIndex++)
+    {
+        Watchtower trackedWatchtower = m_TrackedWatchtowers.Get(trackedIndex);
+        if (!trackedWatchtower)
+            continue;
+
+        if (trackedWatchtower == newWatchtower)
+        {
+            WriteToLog("RegisterWatchtower(): Watchtower já está rastreada, ignorando.", LogFile.INIT, false, LogType.DEBUG);
+            return;
+        }
+    }
+
+    m_TrackedWatchtowers.Insert(newWatchtower);
+
+    vector watchtowerPosition = newWatchtower.GetPosition();
+    vector watchtowerOrientation = newWatchtower.GetOrientation();
+    WriteToLog("RegisterWatchtower(): Watchtower adicionada em " + watchtowerPosition.ToString() + " orientação " + watchtowerOrientation.ToString(), LogFile.INIT, false, LogType.INFO);
+}
+
+bool RegisterWatchtowerAtPosition(vector targetPosition, float searchRadius = 3.0)
+{
+    if (!GetGame() || !GetGame().IsServer())
+        return false;
+
+    if (searchRadius <= 0)
+        searchRadius = 3.0;
+
+    array<Object> nearbyObjects = new array<Object>();
+    GetGame().GetObjectsAtPosition(targetPosition, searchRadius, nearbyObjects, null);
+
+    if (!nearbyObjects || nearbyObjects.Count() == 0)
+    {
+        WriteToLog("RegisterWatchtowerAtPosition(): Nenhum objeto encontrado próximo a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+        return false;
+    }
+
+    Watchtower closestWatchtower;
+    float closestDistance = searchRadius + 1.0;
+
+    foreach (Object candidateObject : nearbyObjects)
+    {
+        Watchtower candidateWatchtower = Watchtower.Cast(candidateObject);
+        if (!candidateWatchtower)
+            continue;
+
+        if (!candidateWatchtower.HasBase())
+            continue;
+
+        vector candidatePosition = candidateWatchtower.GetPosition();
+        float candidateDistance = vector.Distance(candidatePosition, targetPosition);
+        if (candidateDistance > searchRadius)
+            continue;
+
+        if (!closestWatchtower || candidateDistance < closestDistance)
+        {
+            closestWatchtower = candidateWatchtower;
+            closestDistance = candidateDistance;
+        }
+    }
+
+    if (!closestWatchtower)
+    {
+        WriteToLog("RegisterWatchtowerAtPosition(): Nenhuma watchtower válida encontrada próxima a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+        return false;
+    }
+
+    RegisterWatchtower(closestWatchtower);
+
+    WriteToLog("RegisterWatchtowerAtPosition(): Watchtower registrada a " + closestDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
+    return true;
+}
+
+void CleanTrackedWatchtowers()
+{
+    if (!m_TrackedWatchtowers)
+        return;
+
+    int removedCount = 0;
+    for (int i = m_TrackedWatchtowers.Count() - 1; i >= 0; i--)
+    {
+        Watchtower trackedWatchtower = m_TrackedWatchtowers.Get(i);
+        if (!trackedWatchtower)
+        {
+            m_TrackedWatchtowers.Remove(i);
+            removedCount++;
+            continue;
+        }
+
+        if (!trackedWatchtower.HasBase())
+        {
+            m_TrackedWatchtowers.Remove(i);
+            removedCount++;
+        }
+    }
+
+    if (removedCount > 0)
+    {
+        WriteToLog("CleanTrackedWatchtowers(): " + removedCount.ToString() + " watchtowers inválidas removidas do rastreamento", LogFile.INIT, false, LogType.DEBUG);
+    }
+}
+
+void SendWatchtowersStatus()
+{
+    int count = 0;
+    string watchtowersJson = "";
+
+    if (m_TrackedWatchtowers)
+    {
+        foreach (Watchtower trackedWatchtower : m_TrackedWatchtowers)
+        {
+            if (!trackedWatchtower)
+                continue;
+
+            bool hasBase = trackedWatchtower.HasBase();
+            Construction construction = trackedWatchtower.GetConstruction();
+
+            bool level1BaseBuilt = IsWatchtowerPartBuilt(construction, "level_1_base");
+            bool level2BaseBuilt = IsWatchtowerPartBuilt(construction, "level_2_base");
+            bool level3BaseBuilt = IsWatchtowerPartBuilt(construction, "level_3_base");
+            bool level1StairsBuilt = IsWatchtowerPartBuilt(construction, "level_1_stairs");
+            bool level2StairsBuilt = IsWatchtowerPartBuilt(construction, "level_2_stairs");
+            bool hasRoof = IsWatchtowerPartBuilt(construction, "roof");
+
+            vector pos = trackedWatchtower.GetPosition();
+            vector ori = trackedWatchtower.GetOrientation();
+
+            string posX = pos[0].ToString();
+            string posZ = pos[1].ToString();
+            string posY = pos[2].ToString();
+            string oriX = ori[0].ToString();
+            string oriY = ori[1].ToString();
+            string oriZ = ori[2].ToString();
+
+            if (watchtowersJson != "")
+                watchtowersJson += ",";
+
+            watchtowersJson += "{\"position\":{\"x\":" + posX + ",\"z\":" + posZ + ",\"y\":" + posY + "}";
+            watchtowersJson += ",\"orientation\":{\"x\":" + oriX + ",\"y\":" + oriY + ",\"z\":" + oriZ + "}";
+            watchtowersJson += ",\"has_base\":" + BoolToJson(hasBase);
+            watchtowersJson += ",\"level_1_base\":" + BoolToJson(level1BaseBuilt);
+            watchtowersJson += ",\"level_2_base\":" + BoolToJson(level2BaseBuilt);
+            watchtowersJson += ",\"level_3_base\":" + BoolToJson(level3BaseBuilt);
+            watchtowersJson += ",\"level_1_stairs\":" + BoolToJson(level1StairsBuilt);
+            watchtowersJson += ",\"level_2_stairs\":" + BoolToJson(level2StairsBuilt);
+            watchtowersJson += ",\"has_roof\":" + BoolToJson(hasRoof);
+            watchtowersJson += "}";
+
+            string logMsg = "[WATCHTOWER] Posição=(" + posX + ", " + posZ + ", " + posY + ") | Nível1=" + level1BaseBuilt.ToString() + " | Nível2=" + level2BaseBuilt.ToString() + " | Nível3=" + level3BaseBuilt.ToString() + " | Escadas L1=" + level1StairsBuilt.ToString() + " | Escadas L2=" + level2StairsBuilt.ToString();
+            if (hasRoof)
+                logMsg += " | Telhado=1";
+            WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
+
+            count++;
+        }
+    }
+
+    string jsonAction = "{\"action\":\"watchtowers_positions\",\"watchtower_data\":[" + watchtowersJson + "]}";
+    AppendExternalAction(jsonAction);
+    WriteToLog("SendWatchtowersStatus(): JSON com " + count.ToString() + " watchtowers enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
+}
+
+void InitWatchtowerTracking()
+{
+    WriteToLog("InitWatchtowerTracking(): Iniciando rastreamento de watchtowers...", LogFile.INIT, false, LogType.INFO);
+
+    array<Object> trackedObjects = new array<Object>();
+    GatherWorldObjects(trackedObjects);
+    PopulateTrackedWatchtowers(trackedObjects);
+}
+
+void ScanWatchtowers()
+{
+    if (!m_TrackedWatchtowers || m_TrackedWatchtowers.Count() == 0)
+        InitWatchtowerTracking();
+
+    CleanTrackedWatchtowers();
+    SendWatchtowersStatus();
+}

@@ -31,6 +31,7 @@ void InitWorldTracking()
 	}
 
 	PopulateTrackedFences(worldObjects);
+	PopulateTrackedWatchtowers(worldObjects);
 	PopulateTrackedVehicles(worldObjects);
 	PopulateTrackedContainers(worldObjects);
 
@@ -42,9 +43,11 @@ void InitWorldTracking()
 	BuildContainersData(worldObjects, containersJson, totalContainers, totalContainersWithItems, totalContainersEmpty, totalItems);
 
 	CleanTrackedFences();
+	CleanTrackedWatchtowers();
 	CleanTrackedVehicles();
 
 	SendFencesStatus();
+	SendWatchtowersStatus();
 	SendVehiclesPositions();
 
 	string payloadContainers = containersJson;

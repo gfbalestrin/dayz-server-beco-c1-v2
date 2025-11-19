@@ -78,6 +78,31 @@ CREATE TABLE IF NOT EXISTS fences_tracking (
 CREATE INDEX IF NOT EXISTS idx_fences_tracking_fence_id ON fences_tracking(FenceId);
 CREATE INDEX IF NOT EXISTS idx_fences_tracking_timestamp ON fences_tracking(TimeStamp);
 
+CREATE TABLE IF NOT EXISTS watchtowers_tracking (
+    WatchtowerTrackingId INTEGER PRIMARY KEY AUTOINCREMENT,
+    WatchtowerId TEXT NOT NULL,
+    WatchtowerName TEXT,
+    PositionX REAL,
+    PositionZ REAL,
+    PositionY REAL,
+    OrientationX REAL,
+    OrientationY REAL,
+    OrientationZ REAL,
+    TimeStamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    HasBase INTEGER,
+    Level1BaseBuilt INTEGER,
+    Level2BaseBuilt INTEGER,
+    Level3BaseBuilt INTEGER,
+    Level1StairsBuilt INTEGER,
+    Level2StairsBuilt INTEGER,
+    HasRoof INTEGER,
+    IsDestroyed INTEGER DEFAULT 0,
+    DestroyedAt DATETIME
+);
+
+CREATE INDEX IF NOT EXISTS idx_watchtowers_tracking_watchtower_id ON watchtowers_tracking(WatchtowerId);
+CREATE INDEX IF NOT EXISTS idx_watchtowers_tracking_timestamp ON watchtowers_tracking(TimeStamp);
+
 CREATE TABLE IF NOT EXISTS user_audit_logs (
     IdAuditLog INTEGER PRIMARY KEY AUTOINCREMENT,
     UserID INTEGER,
@@ -101,9 +126,12 @@ CREATE INDEX IF NOT EXISTS idx_user_audit_logs_timestamp ON user_audit_logs(Time
 -- ALTER TABLE vehicles_tracking ADD COLUMN DestroyedAt DATETIME;
 -- ALTER TABLE fences_tracking ADD COLUMN IsDestroyed INTEGER DEFAULT 0;
 -- ALTER TABLE fences_tracking ADD COLUMN DestroyedAt DATETIME;
+-- ALTER TABLE watchtowers_tracking ADD COLUMN IsDestroyed INTEGER DEFAULT 0;
+-- ALTER TABLE watchtowers_tracking ADD COLUMN DestroyedAt DATETIME;
 
 -- Criar índices para melhor performance nas queries de filtro
 CREATE INDEX IF NOT EXISTS idx_containers_tracking_destroyed ON containers_tracking(IsDestroyed);
 CREATE INDEX IF NOT EXISTS idx_vehicles_tracking_destroyed ON vehicles_tracking(IsDestroyed);
 CREATE INDEX IF NOT EXISTS idx_fences_tracking_destroyed ON fences_tracking(IsDestroyed);
+CREATE INDEX IF NOT EXISTS idx_watchtowers_tracking_destroyed ON watchtowers_tracking(IsDestroyed);
 

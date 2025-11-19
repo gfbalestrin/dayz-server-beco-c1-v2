@@ -45,6 +45,7 @@ bool m_IsProcessingCommands = false;
 const float PLAYER_TIMEOUT = 15.0; // tempo em segundos para considerar desconexão
 ref array<CarScript> m_TrackedVehicles;
 ref array<Fence> m_TrackedFences;
+ref array<Watchtower> m_TrackedWatchtowers;
 ref array<EntityAI> m_TrackedContainers;
 
 // Lista de tipos de granadas a serem inseridas automaticamente (modo sem slots)
