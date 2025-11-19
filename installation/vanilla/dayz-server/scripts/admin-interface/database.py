@@ -114,18 +114,52 @@ def get_vehicles_last_position() -> List[Dict]:
         """)
         return [dict(row) for row in cursor.fetchall()]
 
-def get_vehicles_map_positions() -> List[Dict]:
+def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
     """Retorna apenas veículos do último timestamp de rastreamento para exibição no mapa"""
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT VehicleId, VehicleName, PositionX, PositionY, PositionZ, TimeStamp, IdVehicleTracking
-            FROM vehicles_tracking
-            WHERE TimeStamp = (
-                SELECT MAX(TimeStamp) FROM vehicles_tracking
-            )
-            ORDER BY VehicleName
-        """)
+        
+        # Verificar se coluna IsDestroyed existe (migração)
+        try:
+            cursor.execute("PRAGMA table_info(vehicles_tracking)")
+            columns = [row[1] for row in cursor.fetchall()]
+            has_is_destroyed = 'IsDestroyed' in columns
+        except:
+            has_is_destroyed = False
+        
+        if has_is_destroyed and not include_destroyed:
+            cursor.execute("""
+                SELECT VehicleId, VehicleName, PositionX, PositionY, PositionZ, TimeStamp, IdVehicleTracking,
+                       0 as IsDestroyed, NULL as DestroyedAt
+                FROM vehicles_tracking
+                WHERE TimeStamp = (
+                    SELECT MAX(TimeStamp) FROM vehicles_tracking
+                    WHERE IsDestroyed = 0 OR IsDestroyed IS NULL
+                )
+                AND (IsDestroyed = 0 OR IsDestroyed IS NULL)
+                ORDER BY VehicleName
+            """)
+        else:
+            if has_is_destroyed:
+                cursor.execute("""
+                    SELECT VehicleId, VehicleName, PositionX, PositionY, PositionZ, TimeStamp, IdVehicleTracking,
+                           IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt
+                    FROM vehicles_tracking
+                    WHERE TimeStamp = (
+                        SELECT MAX(TimeStamp) FROM vehicles_tracking
+                    )
+                    ORDER BY VehicleName
+                """)
+            else:
+                cursor.execute("""
+                    SELECT VehicleId, VehicleName, PositionX, PositionY, PositionZ, TimeStamp, IdVehicleTracking,
+                           0 as IsDestroyed, NULL as DestroyedAt
+                    FROM vehicles_tracking
+                    WHERE TimeStamp = (
+                        SELECT MAX(TimeStamp) FROM vehicles_tracking
+                    )
+                    ORDER BY VehicleName
+                """)
         return [dict(row) for row in cursor.fetchall()]
 
 def get_vehicle_trail(vehicle_id: str, limit: int = 100) -> List[Dict]:
@@ -142,21 +176,61 @@ def get_vehicle_trail(vehicle_id: str, limit: int = 100) -> List[Dict]:
         """, (vehicle_id, limit))
         return [dict(row) for row in cursor.fetchall()]
 
-def get_containers_last_position() -> List[Dict]:
+def get_containers_last_position(include_destroyed: bool = False) -> List[Dict]:
     """Retorna containers do último timestamp de rastreamento com seus items"""
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT ct.IdContainerTracking, ct.ContainerId, ct.ContainerName, 
-                   ct.PositionX, ct.PositionY, ct.PositionZ, ct.TimeStamp
-            FROM containers_tracking ct
-            INNER JOIN (
-                SELECT ContainerId, MAX(TimeStamp) as MaxTimeStamp
-                FROM containers_tracking
-                GROUP BY ContainerId
-            ) AS latest_ct ON ct.ContainerId = latest_ct.ContainerId AND ct.TimeStamp = latest_ct.MaxTimeStamp
-            ORDER BY ct.ContainerName
-        """)
+        
+        # Verificar se coluna IsDestroyed existe (migração)
+        try:
+            cursor.execute("PRAGMA table_info(containers_tracking)")
+            columns = [row[1] for row in cursor.fetchall()]
+            has_is_destroyed = 'IsDestroyed' in columns
+        except:
+            has_is_destroyed = False
+        
+        if has_is_destroyed and not include_destroyed:
+            cursor.execute("""
+                SELECT ct.IdContainerTracking, ct.ContainerId, ct.ContainerName, 
+                       ct.PositionX, ct.PositionY, ct.PositionZ, ct.TimeStamp,
+                       0 as IsDestroyed, NULL as DestroyedAt
+                FROM containers_tracking ct
+                INNER JOIN (
+                    SELECT ContainerId, MAX(TimeStamp) as MaxTimeStamp
+                    FROM containers_tracking
+                    WHERE IsDestroyed = 0 OR IsDestroyed IS NULL
+                    GROUP BY ContainerId
+                ) AS latest_ct ON ct.ContainerId = latest_ct.ContainerId AND ct.TimeStamp = latest_ct.MaxTimeStamp
+                WHERE ct.IsDestroyed = 0 OR ct.IsDestroyed IS NULL
+                ORDER BY ct.ContainerName
+            """)
+        else:
+            if has_is_destroyed:
+                cursor.execute("""
+                    SELECT ct.IdContainerTracking, ct.ContainerId, ct.ContainerName, 
+                           ct.PositionX, ct.PositionY, ct.PositionZ, ct.TimeStamp,
+                           IFNULL(ct.IsDestroyed, 0) as IsDestroyed, ct.DestroyedAt
+                    FROM containers_tracking ct
+                    INNER JOIN (
+                        SELECT ContainerId, MAX(TimeStamp) as MaxTimeStamp
+                        FROM containers_tracking
+                        GROUP BY ContainerId
+                    ) AS latest_ct ON ct.ContainerId = latest_ct.ContainerId AND ct.TimeStamp = latest_ct.MaxTimeStamp
+                    ORDER BY ct.ContainerName
+                """)
+            else:
+                cursor.execute("""
+                    SELECT ct.IdContainerTracking, ct.ContainerId, ct.ContainerName, 
+                           ct.PositionX, ct.PositionY, ct.PositionZ, ct.TimeStamp,
+                           0 as IsDestroyed, NULL as DestroyedAt
+                    FROM containers_tracking ct
+                    INNER JOIN (
+                        SELECT ContainerId, MAX(TimeStamp) as MaxTimeStamp
+                        FROM containers_tracking
+                        GROUP BY ContainerId
+                    ) AS latest_ct ON ct.ContainerId = latest_ct.ContainerId AND ct.TimeStamp = latest_ct.MaxTimeStamp
+                    ORDER BY ct.ContainerName
+                """)
         containers = [dict(row) for row in cursor.fetchall()]
         
         # Para cada container, buscar seus items
@@ -179,64 +253,224 @@ def get_containers_last_position() -> List[Dict]:
         
         return containers
 
-def get_container_trail(container_id: str, limit: int = 100) -> List[Dict]:
-    """Retorna histórico de posições e items de um container"""
+def get_container_trail(container_id: str, limit: int = 100, offset: int = 0, date_from: str = None, date_to: str = None) -> tuple:
+    """
+    Retorna histórico de posições e items de um container com filtros
+    Retorna: (trail, total_count)
+    """
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+        
+        # Query base com filtros de data
+        where_clauses = ["ct.ContainerId = ?"]
+        params = [container_id]
+        
+        if date_from:
+            where_clauses.append("ct.TimeStamp >= ?")
+            params.append(date_from)
+        if date_to:
+            where_clauses.append("ct.TimeStamp <= ?")
+            params.append(date_to)
+        
+        where_sql = " AND ".join(where_clauses)
+        
+        # Contar total (antes de filtrar duplicados)
+        cursor.execute(f"""
+            SELECT COUNT(DISTINCT ct.IdContainerTracking)
+            FROM containers_tracking ct
+            WHERE {where_sql}
+        """, params)
+        total_count = cursor.fetchone()[0]
+        
+        # Buscar todos os registros ordenados
+        cursor.execute(f"""
             SELECT ct.IdContainerTracking, ct.ContainerId, ct.ContainerName,
                    ct.PositionX, ct.PositionY, ct.PositionZ, ct.TimeStamp
             FROM containers_tracking ct
-            WHERE ct.ContainerId = ?
+            WHERE {where_sql}
             ORDER BY ct.TimeStamp DESC
-            LIMIT ?
-        """, (container_id, limit))
-        containers = [dict(row) for row in cursor.fetchall()]
+        """, params)
+        all_containers = [dict(row) for row in cursor.fetchall()]
         
-        # Para cada container, buscar seus items
-        for container in containers:
-            container_tracking_id = container['IdContainerTracking']
-            cursor.execute("""
-                SELECT ItemType, ItemHealth, TimeStamp
+        # Buscar items de todos os containers
+        container_ids = [c['IdContainerTracking'] for c in all_containers]
+        items_map = {}
+        if container_ids:
+            placeholders = ','.join(['?'] * len(container_ids))
+            cursor.execute(f"""
+                SELECT ContainerTrackingId, ItemType, ItemHealth, TimeStamp
                 FROM container_items_tracking
-                WHERE ContainerTrackingId = ?
+                WHERE ContainerTrackingId IN ({placeholders})
                 ORDER BY TimeStamp
-            """, (container_tracking_id,))
-            items = [dict(row) for row in cursor.fetchall()]
-            container['items'] = items
+            """, container_ids)
+            for row in cursor.fetchall():
+                item = dict(row)
+                cid = item['ContainerTrackingId']
+                if cid not in items_map:
+                    items_map[cid] = []
+                items_map[cid].append(item)
         
-        return containers
+        # Adicionar items aos containers
+        for container in all_containers:
+            container['items'] = items_map.get(container['IdContainerTracking'], [])
+        
+        # Filtrar eventos duplicados (mesma posição e mesmos items)
+        filtered_containers = []
+        prev_state = None
+        
+        for container in all_containers:
+            # Criar hash do estado atual (posição + items)
+            items_sorted = sorted(container['items'], key=lambda x: (x['ItemType'], x.get('ItemHealth', 0) or 0))
+            items_tuple = tuple((item['ItemType'], item.get('ItemHealth')) for item in items_sorted)
+            current_state_key = (
+                round(container['PositionX'], 1),
+                round(container['PositionY'], 1),
+                round(container['PositionZ'], 1),
+                items_tuple
+            )
+            
+            current_state = {
+                'key': current_state_key,
+                'position': (container['PositionX'], container['PositionY'], container['PositionZ']),
+                'items': items_sorted
+            }
+            
+            # Se mudou, adicionar à lista
+            if prev_state is None or prev_state['key'] != current_state['key']:
+                filtered_containers.append(container)
+                prev_state = current_state
+        
+        # Aplicar paginação após filtrar
+        paginated_containers = filtered_containers[offset:offset + limit]
+        
+        return paginated_containers, len(filtered_containers)
 
-def get_fences_last_position() -> List[Dict]:
+def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
     """Retorna fences do último timestamp de rastreamento"""
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT ft.IdFenceTracking, ft.FenceId, ft.FenceName,
-                   ft.PositionX, ft.PositionY, ft.PositionZ, ft.TimeStamp,
-                   ft.HasBase, ft.LowerPanelBuilt, ft.UpperPanelBuilt
-            FROM fences_tracking ft
-            WHERE ft.TimeStamp = (
-                SELECT MAX(TimeStamp) FROM fences_tracking
-            )
-            ORDER BY ft.FenceName
-        """)
+        
+        # Verificar se coluna IsDestroyed existe (migração)
+        try:
+            cursor.execute("PRAGMA table_info(fences_tracking)")
+            columns = [row[1] for row in cursor.fetchall()]
+            has_is_destroyed = 'IsDestroyed' in columns
+        except:
+            has_is_destroyed = False
+        
+        if has_is_destroyed and not include_destroyed:
+            cursor.execute("""
+                SELECT ft.IdFenceTracking, ft.FenceId, ft.FenceName,
+                       ft.PositionX, ft.PositionY, ft.PositionZ, ft.TimeStamp,
+                       ft.HasBase, ft.LowerPanelBuilt, ft.UpperPanelBuilt,
+                       0 as IsDestroyed, NULL as DestroyedAt
+                FROM fences_tracking ft
+                WHERE ft.TimeStamp = (
+                    SELECT MAX(TimeStamp) FROM fences_tracking
+                    WHERE IsDestroyed = 0 OR IsDestroyed IS NULL
+                )
+                AND (ft.IsDestroyed = 0 OR ft.IsDestroyed IS NULL)
+                ORDER BY ft.FenceName
+            """)
+        else:
+            if has_is_destroyed:
+                cursor.execute("""
+                    SELECT ft.IdFenceTracking, ft.FenceId, ft.FenceName,
+                           ft.PositionX, ft.PositionY, ft.PositionZ, ft.TimeStamp,
+                           ft.HasBase, ft.LowerPanelBuilt, ft.UpperPanelBuilt,
+                           IFNULL(ft.IsDestroyed, 0) as IsDestroyed, ft.DestroyedAt
+                    FROM fences_tracking ft
+                    WHERE ft.TimeStamp = (
+                        SELECT MAX(TimeStamp) FROM fences_tracking
+                    )
+                    ORDER BY ft.FenceName
+                """)
+            else:
+                cursor.execute("""
+                    SELECT ft.IdFenceTracking, ft.FenceId, ft.FenceName,
+                           ft.PositionX, ft.PositionY, ft.PositionZ, ft.TimeStamp,
+                           ft.HasBase, ft.LowerPanelBuilt, ft.UpperPanelBuilt,
+                           0 as IsDestroyed, NULL as DestroyedAt
+                    FROM fences_tracking ft
+                    WHERE ft.TimeStamp = (
+                        SELECT MAX(TimeStamp) FROM fences_tracking
+                    )
+                    ORDER BY ft.FenceName
+                """)
         return [dict(row) for row in cursor.fetchall()]
 
-def get_fence_trail(fence_id: str, limit: int = 100) -> List[Dict]:
-    """Retorna histórico de mudanças de uma fence"""
+def get_fence_trail(fence_id: str, limit: int = 100, offset: int = 0, date_from: str = None, date_to: str = None) -> tuple:
+    """
+    Retorna histórico de mudanças de uma fence com filtros
+    Retorna: (trail, total_count)
+    """
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+        
+        # Query base com filtros de data
+        where_clauses = ["ft.FenceId = ?"]
+        params = [fence_id]
+        
+        if date_from:
+            where_clauses.append("ft.TimeStamp >= ?")
+            params.append(date_from)
+        if date_to:
+            where_clauses.append("ft.TimeStamp <= ?")
+            params.append(date_to)
+        
+        where_sql = " AND ".join(where_clauses)
+        
+        # Contar total (antes de filtrar duplicados)
+        cursor.execute(f"""
+            SELECT COUNT(DISTINCT ft.IdFenceTracking)
+            FROM fences_tracking ft
+            WHERE {where_sql}
+        """, params)
+        total_count = cursor.fetchone()[0]
+        
+        # Buscar todos os registros ordenados
+        cursor.execute(f"""
             SELECT ft.IdFenceTracking, ft.FenceId, ft.FenceName,
                    ft.PositionX, ft.PositionY, ft.PositionZ, ft.TimeStamp,
                    ft.HasBase, ft.LowerPanelBuilt, ft.UpperPanelBuilt
             FROM fences_tracking ft
-            WHERE ft.FenceId = ?
+            WHERE {where_sql}
             ORDER BY ft.TimeStamp DESC
-            LIMIT ?
-        """, (fence_id, limit))
-        return [dict(row) for row in cursor.fetchall()]
+        """, params)
+        all_fences = [dict(row) for row in cursor.fetchall()]
+        
+        # Filtrar eventos duplicados (mesma posição e mesmo estado de construção)
+        filtered_fences = []
+        prev_state = None
+        
+        for fence in all_fences:
+            # Criar hash do estado atual (posição + estado de construção)
+            current_state_key = (
+                round(fence['PositionX'], 1),
+                round(fence['PositionY'], 1),
+                round(fence['PositionZ'], 1),
+                fence.get('HasBase'),
+                fence.get('LowerPanelBuilt'),
+                fence.get('UpperPanelBuilt')
+            )
+            
+            current_state = {
+                'key': current_state_key,
+                'position': (fence['PositionX'], fence['PositionY'], fence['PositionZ']),
+                'has_base': fence.get('HasBase'),
+                'lower_panel': fence.get('LowerPanelBuilt'),
+                'upper_panel': fence.get('UpperPanelBuilt')
+            }
+            
+            # Se mudou, adicionar à lista
+            if prev_state is None or prev_state['key'] != current_state['key']:
+                filtered_fences.append(fence)
+                prev_state = current_state
+        
+        # Aplicar paginação após filtrar
+        paginated_fences = filtered_fences[offset:offset + limit]
+        
+        return paginated_fences, len(filtered_fences)
 
 def get_item_details_from_items_db(name_type: str) -> Optional[Dict]:
     """Busca detalhes de um item no banco dayz_items.db por name_type"""

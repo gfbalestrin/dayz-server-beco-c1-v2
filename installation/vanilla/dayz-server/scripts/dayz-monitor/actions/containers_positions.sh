@@ -300,6 +300,18 @@ EOF
                 INSERT_CUSTOM_LOG "Container removido (ID=$removed_id) - Última posição=($rem_x,$rem_z,$rem_y) - Tipo=$rem_name" "INFO" "$ScriptName"
                 Content="Container removido (ID=$removed_id) do mapa - Última posição=($rem_x,$rem_z,$rem_y) - Tipo: $rem_name"
             fi
+            
+            # Marcar último registro do container como destruído
+            sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+            UPDATE containers_tracking
+            SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
+            WHERE ContainerId = '$removed_id'
+            AND TimeStamp = (
+                SELECT MAX(TimeStamp) FROM containers_tracking
+                WHERE ContainerId = '$removed_id'
+            );
+            EOF
+            
             #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
         done
     fi

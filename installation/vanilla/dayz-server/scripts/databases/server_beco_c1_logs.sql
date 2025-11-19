@@ -92,3 +92,18 @@ CREATE INDEX IF NOT EXISTS idx_user_audit_logs_user_id ON user_audit_logs(UserID
 CREATE INDEX IF NOT EXISTS idx_user_audit_logs_action ON user_audit_logs(Action);
 CREATE INDEX IF NOT EXISTS idx_user_audit_logs_timestamp ON user_audit_logs(TimeStamp);
 
+-- Adicionar colunas para marcar elementos como removidos/destruídos (migração)
+-- SQLite não suporta ALTER TABLE ADD COLUMN IF NOT EXISTS, então verificamos se a coluna existe
+-- Caso não exista, execute manualmente:
+-- ALTER TABLE containers_tracking ADD COLUMN IsDestroyed INTEGER DEFAULT 0;
+-- ALTER TABLE containers_tracking ADD COLUMN DestroyedAt DATETIME;
+-- ALTER TABLE vehicles_tracking ADD COLUMN IsDestroyed INTEGER DEFAULT 0;
+-- ALTER TABLE vehicles_tracking ADD COLUMN DestroyedAt DATETIME;
+-- ALTER TABLE fences_tracking ADD COLUMN IsDestroyed INTEGER DEFAULT 0;
+-- ALTER TABLE fences_tracking ADD COLUMN DestroyedAt DATETIME;
+
+-- Criar índices para melhor performance nas queries de filtro
+CREATE INDEX IF NOT EXISTS idx_containers_tracking_destroyed ON containers_tracking(IsDestroyed);
+CREATE INDEX IF NOT EXISTS idx_vehicles_tracking_destroyed ON vehicles_tracking(IsDestroyed);
+CREATE INDEX IF NOT EXISTS idx_fences_tracking_destroyed ON fences_tracking(IsDestroyed);
+

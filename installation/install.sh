@@ -501,6 +501,10 @@ if [[ "\$DayzWipeOnRestart" == "1" ]]; then
     rm -rf "\$PROFILE_DIR/players.db"
     rm -rf "\$PROFILE_DIR/spawnpoints.bin"
     rm -rf "\$PROFILE_DIR/data"
+    sqlite3 "\$AppFolder/\$AppServerBecoC1LogsDbFile" "DELETE FROM vehicles_tracking"
+    sqlite3 "\$AppFolder/\$AppServerBecoC1LogsDbFile" "DELETE FROM container_items_tracking"
+    sqlite3 "\$AppFolder/\$AppServerBecoC1LogsDbFile" "DELETE FROM containers_tracking"
+    sqlite3 "\$AppFolder/\$AppServerBecoC1LogsDbFile" "DELETE FROM fences_tracking"
     echo "Wipe realizado!"
     SEND_DISCORD_WEBHOOK "Wipe realizado!" "\$DiscordWebhookLogs" "\$CurrentDate" "\$ScriptName"
 fi

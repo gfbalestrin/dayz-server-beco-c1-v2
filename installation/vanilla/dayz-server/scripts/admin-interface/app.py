@@ -1065,7 +1065,8 @@ def api_online_positions():
 @admin_required
 def api_vehicles_positions():
     """API com posições atuais de todos os veículos"""
-    vehicles = get_vehicles_last_position()
+    include_destroyed = request.args.get('include_destroyed', 'false').lower() == 'true'
+    vehicles = get_vehicles_map_positions(include_destroyed=include_destroyed)
     
     result = {
         'timestamp': datetime.now().isoformat(),
@@ -1085,7 +1086,9 @@ def api_vehicles_positions():
             'coord_y': veh['PositionY'],  # Sul-Norte (Y do mapa)
             'coord_z': veh['PositionZ'],  # Altitude
             'pixel_coords': pixel_coords,
-            'last_update': veh['TimeStamp'] or ''
+            'last_update': veh['TimeStamp'] or '',
+            'is_destroyed': bool(veh.get('IsDestroyed', 0)) if include_destroyed else False,
+            'destroyed_at': veh.get('DestroyedAt') if include_destroyed else None
         })
     
     return jsonify(result)
@@ -1149,7 +1152,8 @@ def api_vehicle_trail(vehicle_id):
 @admin_required
 def api_containers_positions():
     """API com posições atuais dos containers com seus items"""
-    containers = get_containers_last_position()
+    include_destroyed = request.args.get('include_destroyed', 'false').lower() == 'true'
+    containers = get_containers_last_position(include_destroyed=include_destroyed)
     
     result = {
         'timestamp': datetime.now().isoformat(),
@@ -1189,7 +1193,9 @@ def api_containers_positions():
             'coord_z': container['PositionZ'],  # Altitude
             'pixel_coords': pixel_coords,
             'items': items,
-            'last_update': container['TimeStamp'] or ''
+            'last_update': container['TimeStamp'] or '',
+            'is_destroyed': bool(container.get('IsDestroyed', 0)) if include_destroyed else False,
+            'destroyed_at': container.get('DestroyedAt') if include_destroyed else None
         })
     
     return jsonify(result)
@@ -1198,12 +1204,22 @@ def api_containers_positions():
 @admin_required
 def api_container_trail(container_id):
     """API com trail de um container específico"""
-    limit = request.args.get('limit', 100, type=int)
-    trail = get_container_trail(container_id, limit)
+    limit = request.args.get('limit', 50, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    date_from = request.args.get('date_from', None)
+    date_to = request.args.get('date_to', None)
+    
+    trail, total_count = get_container_trail(container_id, limit, offset, date_from, date_to)
     
     result = {
         'container_id': container_id,
-        'trail': []
+        'trail': [],
+        'pagination': {
+            'limit': limit,
+            'offset': offset,
+            'total': total_count,
+            'has_more': (offset + limit) < total_count
+        }
     }
     
     for point in trail:
@@ -1237,7 +1253,8 @@ def api_container_trail(container_id):
 @admin_required
 def api_fences_positions():
     """API com posições atuais dos fences (construções)"""
-    fences = get_fences_last_position()
+    include_destroyed = request.args.get('include_destroyed', 'false').lower() == 'true'
+    fences = get_fences_last_position(include_destroyed=include_destroyed)
     
     result = {
         'timestamp': datetime.now().isoformat(),
@@ -1261,7 +1278,9 @@ def api_fences_positions():
             'last_update': fence['TimeStamp'] or '',
             'has_base': (has_base == 1) if has_base is not None else None,
             'lower_panel_built': (lower_panel_built == 1) if lower_panel_built is not None else None,
-            'upper_panel_built': (upper_panel_built == 1) if upper_panel_built is not None else None
+            'upper_panel_built': (upper_panel_built == 1) if upper_panel_built is not None else None,
+            'is_destroyed': bool(fence.get('IsDestroyed', 0)) if include_destroyed else False,
+            'destroyed_at': fence.get('DestroyedAt') if include_destroyed else None
         })
     
     return jsonify(result)
@@ -1270,12 +1289,22 @@ def api_fences_positions():
 @admin_required
 def api_fence_trail(fence_id):
     """API com trail de uma fence específica"""
-    limit = request.args.get('limit', 100, type=int)
-    trail = get_fence_trail(fence_id, limit)
+    limit = request.args.get('limit', 50, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    date_from = request.args.get('date_from', None)
+    date_to = request.args.get('date_to', None)
+    
+    trail, total_count = get_fence_trail(fence_id, limit, offset, date_from, date_to)
     
     result = {
         'fence_id': fence_id,
-        'trail': []
+        'trail': [],
+        'pagination': {
+            'limit': limit,
+            'offset': offset,
+            'total': total_count,
+            'has_more': (offset + limit) < total_count
+        }
     }
     
     for point in trail:

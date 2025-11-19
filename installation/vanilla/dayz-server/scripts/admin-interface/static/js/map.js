@@ -453,6 +453,11 @@ $(document).ready(function() {
     $('#refreshBtn').on('click', loadPositions);
     $('#autoRefreshCheck').on('change', toggleAutoRefresh);
     $('#onlineOnlyCheck').on('change', filterPlayers);
+    $('#showDestroyedCheck').on('change', function() {
+        if (showVehicles) loadVehicles();
+        if (showContainers) loadContainers();
+        if (showFences) loadFences();
+    });
     $('#toggleTrailsBtn').on('click', toggleTrails);
     $('#togglePlayersBtn').on('click', togglePlayersDisplay);
     $('#toggleVehiclesBtn').on('click', toggleVehiclesDisplay);
@@ -866,26 +871,41 @@ function loadContainerTrail(containerId) {
  * Carregar trail de uma fence
  */
 function loadFenceTrail(fenceId) {
-    console.log('Carregando trail da fence:', fenceId);
-    $.get(`/api/fences/${fenceId}/trail`, { limit: 100 })
-        .done(function(data) {
-            console.log('Trail da fence recebido:', fenceId, data);
-            showFenceHistoryModal(fenceId, data.trail);
-        })
-        .fail(function() {
-            console.error('Erro ao carregar trail da fence:', fenceId);
-        });
+    loadFenceHistory(fenceId, 0, null, null);
 }
 
+// Variáveis globais para histórico
+let currentHistoryType = null; // 'container' ou 'fence'
+let currentHistoryId = null;
+let currentHistoryPagination = {
+    limit: 50,
+    offset: 0,
+    date_from: null,
+    date_to: null
+};
+
 /**
- * Mostrar histórico de loot do container
+ * Carregar histórico de loot do container com filtros e paginação
  */
-function showContainerLootHistory(containerId) {
-    console.log('Carregando histórico de loot do container:', containerId);
-    $.get(`/api/containers/${containerId}/trail`, { limit: 100 })
+function loadContainerHistory(containerId, offset = 0, dateFrom = null, dateTo = null) {
+    currentHistoryType = 'container';
+    currentHistoryId = containerId;
+    currentHistoryPagination.offset = offset;
+    currentHistoryPagination.date_from = dateFrom;
+    currentHistoryPagination.date_to = dateTo;
+    
+    const params = {
+        limit: currentHistoryPagination.limit,
+        offset: offset
+    };
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    
+    console.log('Carregando histórico de loot do container:', containerId, params);
+    $.get(`/api/containers/${containerId}/trail`, params)
         .done(function(data) {
             console.log('Trail do container recebido para histórico:', containerId, data);
-            showContainerHistoryModal(containerId, data.trail);
+            showContainerHistoryModal(containerId, data.trail, data.pagination);
         })
         .fail(function(xhr, status, error) {
             console.error('Erro ao carregar histórico de loot do container:', containerId, status, error, xhr.responseText);
@@ -893,9 +913,16 @@ function showContainerLootHistory(containerId) {
 }
 
 /**
+ * Mostrar histórico de loot do container
+ */
+function showContainerLootHistory(containerId) {
+    loadContainerHistory(containerId, 0, null, null);
+}
+
+/**
  * Exibir modal com histórico de loot do container
  */
-function showContainerHistoryModal(containerId, trail) {
+function showContainerHistoryModal(containerId, trail, pagination) {
     const container = containersData[containerId];
     if (!container) return;
     
@@ -904,33 +931,76 @@ function showContainerHistoryModal(containerId, trail) {
     
     modalTitle.innerHTML = `<i class="fas fa-box me-2"></i>Histórico de Loot - ${container.container_type || 'Container'}`;
     
+    // Formatar data para input type="date"
+    function formatDateForInput(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        return date.toISOString().split('T')[0];
+    }
+    
     let html = `<div class="trail-history-container">`;
     html += `<div class="mb-3"><strong>ID:</strong> ${containerId}</div>`;
     html += `<div class="mb-3"><strong>Coordenadas:</strong> X=${container.coord_x.toFixed(1)}, Y=${container.coord_y.toFixed(1)}</div>`;
-    html += `<div class="mb-3"><strong>Total de atualizações:</strong> ${trail.length}</div>`;
+    
+    // Filtros de data
+    html += `<div class="row mb-3">`;
+    html += `<div class="col-md-5">`;
+    html += `<label class="form-label small">Data inicial:</label>`;
+    html += `<input type="date" class="form-control form-control-sm" id="historyDateFrom" value="${formatDateForInput(currentHistoryPagination.date_from)}">`;
+    html += `</div>`;
+    html += `<div class="col-md-5">`;
+    html += `<label class="form-label small">Data final:</label>`;
+    html += `<input type="date" class="form-control form-control-sm" id="historyDateTo" value="${formatDateForInput(currentHistoryPagination.date_to)}">`;
+    html += `</div>`;
+    html += `<div class="col-md-2 d-flex align-items-end">`;
+    html += `<button type="button" class="btn btn-sm btn-primary w-100" onclick="applyHistoryFilters()">Filtrar</button>`;
+    html += `</div>`;
+    html += `</div>`;
+    
+    // Paginação
+    const totalPages = Math.ceil(pagination.total / pagination.limit);
+    const currentPage = Math.floor(pagination.offset / pagination.limit) + 1;
+    
+    html += `<div class="d-flex justify-content-between align-items-center mb-3">`;
+    html += `<div><strong>Total de eventos (sem duplicados):</strong> ${pagination.total}</div>`;
+    html += `<div>`;
+    if (pagination.offset > 0) {
+        html += `<button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="loadHistoryPage(${pagination.offset - pagination.limit})">Anterior</button>`;
+    }
+    html += `<span class="mx-2">Página ${currentPage} de ${totalPages || 1}</span>`;
+    if (pagination.has_more) {
+        html += `<button type="button" class="btn btn-sm btn-outline-primary ms-1" onclick="loadHistoryPage(${pagination.offset + pagination.limit})">Próxima</button>`;
+    }
+    html += `</div>`;
+    html += `</div>`;
+    
     html += `<div class="trail-timeline" style="max-height: 500px; overflow-y: auto;">`;
     
-    // Timeline reversa (mais recente primeiro)
-    for (let i = trail.length - 1; i >= 0; i--) {
-        const point = trail[i];
-        html += `<div class="trail-timeline-item" style="border-left: 3px solid #${i === trail.length - 1 ? '4caf50' : '007bff'}; padding-left: 15px; margin-bottom: 20px;">`;
-        html += `<strong>${point.timestamp || 'Sem data'}</strong><br>`;
-        html += `📍 Coords: X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}`;
-        
-        if (point.items && point.items.length > 0) {
-            html += `<br><strong>📦 Itens (${point.items.length}):</strong><br>`;
-            html += `<div class="container-items-list" style="margin-top: 8px;">`;
-            point.items.forEach(function(item) {
-                const imgTag = item.img ? `<img src="${item.img}" onerror="this.style.display='none'" style="width: 24px; height: 24px; margin-right: 4px; vertical-align: middle;">` : '';
-                const healthText = item.health ? ` (HP: ${item.health})` : '';
-                html += `<div class="mb-1">${imgTag}<span>${item.name || item.type}${healthText}</span></div>`;
-            });
+    if (trail.length === 0) {
+        html += `<div class="text-muted text-center py-4">Nenhum evento encontrado</div>`;
+    } else {
+        // Timeline reversa (mais recente primeiro)
+        for (let i = 0; i < trail.length; i++) {
+            const point = trail[i];
+            html += `<div class="trail-timeline-item" style="border-left: 3px solid #${i === 0 ? '4caf50' : '007bff'}; padding-left: 15px; margin-bottom: 20px;">`;
+            html += `<strong>${point.timestamp || 'Sem data'}</strong><br>`;
+            html += `📍 Coords: X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}`;
+            
+            if (point.items && point.items.length > 0) {
+                html += `<br><strong>📦 Itens (${point.items.length}):</strong><br>`;
+                html += `<div class="container-items-list" style="margin-top: 8px;">`;
+                point.items.forEach(function(item) {
+                    const imgTag = item.img ? `<img src="${item.img}" onerror="this.style.display='none'" style="width: 24px; height: 24px; margin-right: 4px; vertical-align: middle;">` : '';
+                    const healthText = item.health ? ` (HP: ${item.health})` : '';
+                    html += `<div class="mb-1">${imgTag}<span>${item.name || item.type}${healthText}</span></div>`;
+                });
+                html += `</div>`;
+            } else {
+                html += `<br><span class="text-muted">Container vazio</span>`;
+            }
+            
             html += `</div>`;
-        } else {
-            html += `<br><span class="text-muted">Container vazio</span>`;
         }
-        
-        html += `</div>`;
     }
     
     html += `</div></div>`;
@@ -942,9 +1012,62 @@ function showContainerHistoryModal(containerId, trail) {
 }
 
 /**
+ * Aplicar filtros de data no histórico
+ */
+function applyHistoryFilters() {
+    const dateFrom = document.getElementById('historyDateFrom').value || null;
+    const dateTo = document.getElementById('historyDateTo').value || null;
+    
+    if (currentHistoryType === 'container') {
+        loadContainerHistory(currentHistoryId, 0, dateFrom, dateTo);
+    } else if (currentHistoryType === 'fence') {
+        loadFenceHistory(currentHistoryId, 0, dateFrom, dateTo);
+    }
+}
+
+/**
+ * Carregar página do histórico
+ */
+function loadHistoryPage(offset) {
+    if (currentHistoryType === 'container') {
+        loadContainerHistory(currentHistoryId, offset, currentHistoryPagination.date_from, currentHistoryPagination.date_to);
+    } else if (currentHistoryType === 'fence') {
+        loadFenceHistory(currentHistoryId, offset, currentHistoryPagination.date_from, currentHistoryPagination.date_to);
+    }
+}
+
+/**
+ * Carregar histórico da fence com filtros e paginação
+ */
+function loadFenceHistory(fenceId, offset = 0, dateFrom = null, dateTo = null) {
+    currentHistoryType = 'fence';
+    currentHistoryId = fenceId;
+    currentHistoryPagination.offset = offset;
+    currentHistoryPagination.date_from = dateFrom;
+    currentHistoryPagination.date_to = dateTo;
+    
+    const params = {
+        limit: currentHistoryPagination.limit,
+        offset: offset
+    };
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    
+    console.log('Carregando histórico da fence:', fenceId, params);
+    $.get(`/api/fences/${fenceId}/trail`, params)
+        .done(function(data) {
+            console.log('Trail da fence recebido:', fenceId, data);
+            showFenceHistoryModal(fenceId, data.trail, data.pagination);
+        })
+        .fail(function() {
+            console.error('Erro ao carregar histórico da fence:', fenceId);
+        });
+}
+
+/**
  * Exibir modal com histórico da fence
  */
-function showFenceHistoryModal(fenceId, trail) {
+function showFenceHistoryModal(fenceId, trail, pagination) {
     const fence = fencesData[fenceId];
     if (!fence) return;
     
@@ -953,29 +1076,72 @@ function showFenceHistoryModal(fenceId, trail) {
     
     modalTitle.innerHTML = `<i class="fas fa-home me-2"></i>Histórico - ${fence.fence_name || 'Fence'}`;
     
+    // Formatar data para input type="date"
+    function formatDateForInput(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        return date.toISOString().split('T')[0];
+    }
+    
     let html = `<div class="trail-history-container">`;
     html += `<div class="mb-3"><strong>ID:</strong> ${fenceId}</div>`;
     html += `<div class="mb-3"><strong>Coordenadas:</strong> X=${fence.coord_x.toFixed(1)}, Y=${fence.coord_y.toFixed(1)}</div>`;
-    html += `<div class="mb-3"><strong>Total de atualizações:</strong> ${trail.length}</div>`;
+    
+    // Filtros de data
+    html += `<div class="row mb-3">`;
+    html += `<div class="col-md-5">`;
+    html += `<label class="form-label small">Data inicial:</label>`;
+    html += `<input type="date" class="form-control form-control-sm" id="historyDateFrom" value="${formatDateForInput(currentHistoryPagination.date_from)}">`;
+    html += `</div>`;
+    html += `<div class="col-md-5">`;
+    html += `<label class="form-label small">Data final:</label>`;
+    html += `<input type="date" class="form-control form-control-sm" id="historyDateTo" value="${formatDateForInput(currentHistoryPagination.date_to)}">`;
+    html += `</div>`;
+    html += `<div class="col-md-2 d-flex align-items-end">`;
+    html += `<button type="button" class="btn btn-sm btn-primary w-100" onclick="applyHistoryFilters()">Filtrar</button>`;
+    html += `</div>`;
+    html += `</div>`;
+    
+    // Paginação
+    const totalPages = Math.ceil(pagination.total / pagination.limit);
+    const currentPage = Math.floor(pagination.offset / pagination.limit) + 1;
+    
+    html += `<div class="d-flex justify-content-between align-items-center mb-3">`;
+    html += `<div><strong>Total de eventos (sem duplicados):</strong> ${pagination.total}</div>`;
+    html += `<div>`;
+    if (pagination.offset > 0) {
+        html += `<button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="loadHistoryPage(${pagination.offset - pagination.limit})">Anterior</button>`;
+    }
+    html += `<span class="mx-2">Página ${currentPage} de ${totalPages || 1}</span>`;
+    if (pagination.has_more) {
+        html += `<button type="button" class="btn btn-sm btn-outline-primary ms-1" onclick="loadHistoryPage(${pagination.offset + pagination.limit})">Próxima</button>`;
+    }
+    html += `</div>`;
+    html += `</div>`;
+    
     html += `<div class="trail-timeline" style="max-height: 500px; overflow-y: auto;">`;
     
-    // Timeline reversa (mais recente primeiro)
-    for (let i = trail.length - 1; i >= 0; i--) {
-        const point = trail[i];
-        html += `<div class="trail-timeline-item" style="border-left: 3px solid #${i === trail.length - 1 ? '4caf50' : 'ffc107'}; padding-left: 15px; margin-bottom: 20px;">`;
-        html += `<strong>${point.timestamp || 'Sem data'}</strong><br>`;
-        
-        if (point.has_base !== null && point.has_base !== undefined) {
-            html += `🏗️ Base: <span class="value">${point.has_base ? 'Sim' : 'Não'}</span> `;
+    if (trail.length === 0) {
+        html += `<div class="text-muted text-center py-4">Nenhum evento encontrado</div>`;
+    } else {
+        // Timeline reversa (mais recente primeiro)
+        for (let i = 0; i < trail.length; i++) {
+            const point = trail[i];
+            html += `<div class="trail-timeline-item" style="border-left: 3px solid #${i === 0 ? '4caf50' : 'ffc107'}; padding-left: 15px; margin-bottom: 20px;">`;
+            html += `<strong>${point.timestamp || 'Sem data'}</strong><br>`;
+            
+            if (point.has_base !== null && point.has_base !== undefined) {
+                html += `🏗️ Base: <span class="value">${point.has_base ? 'Sim' : 'Não'}</span> `;
+            }
+            if (point.lower_panel_built !== null && point.lower_panel_built !== undefined) {
+                html += `🔨 Inf: <span class="value">${point.lower_panel_built ? 'Sim' : 'Não'}</span> `;
+            }
+            if (point.upper_panel_built !== null && point.upper_panel_built !== undefined) {
+                html += `🔨 Sup: <span class="value">${point.upper_panel_built ? 'Sim' : 'Não'}</span>`;
+            }
+            
+            html += `</div>`;
         }
-        if (point.lower_panel_built !== null && point.lower_panel_built !== undefined) {
-            html += `🔨 Inf: <span class="value">${point.lower_panel_built ? 'Sim' : 'Não'}</span> `;
-        }
-        if (point.upper_panel_built !== null && point.upper_panel_built !== undefined) {
-            html += `🔨 Sup: <span class="value">${point.upper_panel_built ? 'Sim' : 'Não'}</span>`;
-        }
-        
-        html += `</div>`;
     }
     
     html += `</div></div>`;
@@ -1898,7 +2064,8 @@ function toggleAutoRefresh() {
  * Carregar posições de veículos
  */
 function loadVehicles() {
-    $.get('/api/vehicles/positions')
+    const includeDestroyed = $('#showDestroyedCheck').is(':checked');
+    $.get('/api/vehicles/positions', { include_destroyed: includeDestroyed })
         .done(function(data) {
             updateVehicles(data);
         })
@@ -1935,10 +2102,22 @@ function updateVehicles(data) {
         
         vehiclesData[vehicleId] = vehicle;
         
+        const isDestroyed = vehicle.is_destroyed || false;
         const marker = L.marker(coords, {
             icon: createVehicleIcon(),
-            opacity: 1.0
+            opacity: isDestroyed ? 0.5 : 1.0
         }).addTo(map);
+        
+        const destroyedInfo = isDestroyed ? `
+            <div class="info-row">
+                <span class="info-label"><i class="fas fa-exclamation-triangle text-warning me-1"></i>Status:</span>
+                <span class="info-value text-warning">Destruído</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Destruído em:</span>
+                <span class="info-value">${vehicle.destroyed_at || 'Desconhecido'}</span>
+            </div>
+        ` : '';
         
         const popupContent = `
             <div class="player-popup">
@@ -1955,6 +2134,7 @@ function updateVehicles(data) {
                     <span class="info-label">Atualizado:</span>
                     <span class="info-value">${vehicle.last_update || 'Desconhecido'}</span>
                 </div>
+                ${destroyedInfo}
                 <div class="info-row mt-2">
                     <button type="button" class="btn btn-sm btn-success" onclick="toggleVehicleTrail('${vehicleId}')">
                         <i class="fas fa-route me-1"></i><span id="vehicleTrailBtn_${vehicleId}">${vehicleTrails[vehicleId] ? 'Ocultar Trail' : 'Mostrar Trail'}</span>
@@ -2067,7 +2247,8 @@ function loadContainers() {
         return;
     }
     
-    $.get('/api/containers/positions')
+    const includeDestroyed = $('#showDestroyedCheck').is(':checked');
+    $.get('/api/containers/positions', { include_destroyed: includeDestroyed })
         .done(function(data) {
             updateContainers(data);
         })
@@ -2134,9 +2315,10 @@ function updateContainers(data) {
         
         containersData[containerId] = container;
         
+        const isDestroyed = container.is_destroyed || false;
         const marker = L.marker(coords, {
             icon: createContainerIcon(container.container_type),
-            opacity: 1.0
+            opacity: isDestroyed ? 0.5 : 1.0
         }).addTo(map);
         
         const popupContent = createContainerPopup(container);
@@ -2180,6 +2362,18 @@ function createContainerPopup(container) {
         itemsHtml = '<div class="text-muted mt-2">Container vazio</div>';
     }
     
+    const isDestroyed = container.is_destroyed || false;
+    const destroyedInfo = isDestroyed ? `
+        <div class="info-row">
+            <span class="info-label"><i class="fas fa-exclamation-triangle text-warning me-1"></i>Status:</span>
+            <span class="info-value text-warning">Destruído</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Destruído em:</span>
+            <span class="info-value">${container.destroyed_at || 'Desconhecido'}</span>
+        </div>
+    ` : '';
+    
     return `
         <div class="player-popup">
             <strong><i class="fas fa-box me-2"></i>${container.container_type}</strong>
@@ -2196,6 +2390,7 @@ function createContainerPopup(container) {
                 <span class="info-label">Atualizado:</span>
                 <span class="info-value">${container.last_update || 'Desconhecido'}</span>
             </div>
+            ${destroyedInfo}
             <div class="info-row mt-2">
                 <button type="button" class="btn btn-sm btn-info me-2" onclick="showContainerLootHistory('${container.container_id}')">
                     <i class="fas fa-history me-1"></i>Histórico de Loot
@@ -2249,7 +2444,8 @@ function loadFences() {
         return;
     }
     
-    $.get('/api/fences/positions')
+    const includeDestroyed = $('#showDestroyedCheck').is(':checked');
+    $.get('/api/fences/positions', { include_destroyed: includeDestroyed })
         .done(function(data) {
             updateFences(data);
         })
@@ -2309,9 +2505,10 @@ function updateFences(data) {
         
         fencesData[fenceId] = fence;
         
+        const isDestroyed = fence.is_destroyed || false;
         const marker = L.marker(coords, {
             icon: createFenceIcon(fence.fence_name),
-            opacity: 1.0
+            opacity: isDestroyed ? 0.5 : 1.0
         }).addTo(map);
         
         const popupContent = createFencePopup(fence);
@@ -2373,6 +2570,18 @@ function createFencePopup(fence) {
         `;
     }
     
+    const isDestroyed = fence.is_destroyed || false;
+    const destroyedInfo = isDestroyed ? `
+        <div class="info-row">
+            <span class="info-label"><i class="fas fa-exclamation-triangle text-warning me-1"></i>Status:</span>
+            <span class="info-value text-warning">Destruído</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Destruído em:</span>
+            <span class="info-value">${fence.destroyed_at || 'Desconhecido'}</span>
+        </div>
+    ` : '';
+    
     return `
         <div class="player-popup">
             <strong><i class="fas fa-home me-2"></i>Construção (${fence.fence_name})</strong>
@@ -2393,6 +2602,7 @@ function createFencePopup(fence) {
                 <span class="info-value">${fence.last_update || 'Desconhecido'}</span>
             </div>
             ${constructionDetails}
+            ${destroyedInfo}
             <div class="info-row mt-2">
                 <button type="button" class="btn btn-sm btn-warning" onclick="toggleFenceTrail('${fence.fence_id}')">
                     <i class="fas fa-history me-1"></i>Histórico de Alterações
