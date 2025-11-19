@@ -143,19 +143,40 @@ function createContainerClusterIcon(cluster) {
     });
 }
 
-// Ícone customizado para fences baseado no FenceName
-function createFenceIcon(fenceName, hasRecentAttack = false) {
+// Ícone customizado para construções (fences e watchtowers)
+function createFenceIcon(fence, hasRecentAttack = false) {
+    const structureType = fence?.structure_type || 'fence';
+    if (structureType === 'watchtower') {
+        const details = fence.watchtower_details || {};
+        const completionScore = ['level_1_base', 'level_2_base', 'level_3_base', 'has_roof']
+            .reduce((sum, key) => sum + (details[key] ? 1 : 0), 0);
+        let color = '#4e73df';
+        if (completionScore >= 4) {
+            color = '#1cc88a';
+        } else if (completionScore >= 2) {
+            color = '#36b9cc';
+        }
+        return L.divIcon({
+            className: 'fence-marker watchtower-marker',
+            html: `<div style="position: relative; background-color: ${color}; border: 2px solid white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-chess-rook" style="color: white; font-size: 13px;"></i>
+            </div>`,
+            iconSize: [24, 24]
+        });
+    }
+
+    const fenceName = fence?.fence_name || '';
     let color, iconClass;
     
-    if (fenceName && fenceName.includes('Gate')) {
+    if (fenceName.includes('Gate')) {
         // Fence com Gate - Verde (ou laranja/vermelho se houver ataque)
         color = hasRecentAttack ? '#ff6b35' : '#28a745';
         iconClass = 'fas fa-door-open';
-    } else if (fenceName && fenceName.includes('Open')) {
+    } else if (fenceName.includes('Open')) {
         // Fence aberto - Amarelo (ou laranja/vermelho se houver ataque)
         color = hasRecentAttack ? '#ff6b35' : '#ffc107';
         iconClass = 'fas fa-unlock';
-    } else if (fenceName && fenceName.includes('Locked')) {
+    } else if (fenceName.includes('Locked')) {
         // Fence trancado - Vermelho (ou laranja mais escuro se houver ataque)
         color = hasRecentAttack ? '#c82333' : '#dc3545';
         iconClass = 'fas fa-lock';
@@ -170,7 +191,7 @@ function createFenceIcon(fenceName, hasRecentAttack = false) {
     
     return L.divIcon({
         className: 'fence-marker',
-        html: `<div style="position: relative; background-color: ${color}; border: 2px solid ${hasRecentAttack ? '#dc3545' : 'white'}; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><i class="${iconClass}" style="color: white; font-size: 12px;"></i>${alertIcon}</div>`,
+        html: `<div style="position: relative; background-color: ${color}; border: 2px solid ${hasRecentAttack ? '#dc3545' : 'white'}; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content:center;"><i class="${iconClass}" style="color: white; font-size: 12px;"></i>${alertIcon}</div>`,
         iconSize: [22, 22]
     });
 }
@@ -2754,7 +2775,7 @@ function updateFences(data) {
         const isDestroyed = fence.is_destroyed || false;
         const hasRecentAttack = fence.has_recent_attack || false;
         const marker = L.marker(coords, {
-            icon: createFenceIcon(fence.fence_name, hasRecentAttack),
+            icon: createFenceIcon(fence, hasRecentAttack),
             opacity: isDestroyed ? 0.5 : 1.0,
             zIndexOffset: hasRecentAttack ? 1000 : 0
         }).addTo(map);
@@ -2777,6 +2798,69 @@ function updateFences(data) {
  * Criar popup de fence
  */
 function createFencePopup(fence) {
+    const structureType = fence.structure_type || 'fence';
+    if (structureType === 'watchtower') {
+        const details = fence.watchtower_details || {};
+        const formatStatus = (value) => {
+            if (value === null || value === undefined) return 'Desconhecido';
+            return value ? 'Construído' : 'Não construído';
+        };
+        const orientation = fence.orientation || {};
+        const orientationText = (orientation.x !== undefined && orientation.y !== undefined)
+            ? `Pitch: ${orientation.x?.toFixed ? orientation.x.toFixed(1) : orientation.x || 0}°, Yaw: ${orientation.y?.toFixed ? orientation.y.toFixed(1) : orientation.y || 0}°`
+            : 'Desconhecido';
+
+        return `
+            <div class="player-popup">
+                <strong><i class="fas fa-chess-rook me-2"></i>Watchtower (${fence.fence_name})</strong>
+                <div class="info-row">
+                    <span class="info-label">ID:</span>
+                    <span class="info-value">${fence.fence_id}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Coords:</span>
+                    <span class="info-value">X: ${fence.coord_x.toFixed(2)}, Y: ${fence.coord_y.toFixed(2)} (altura: ${fence.coord_z ? fence.coord_z.toFixed(2) : 'N/A'})</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Orientação:</span>
+                    <span class="info-value">${orientationText}</span>
+                </div>
+                <div class="info-row mt-2">
+                    <span class="info-label">Base:</span>
+                    <span class="info-value">${formatStatus(details.has_base)}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Nível 1:</span>
+                    <span class="info-value">${formatStatus(details.level_1_base)}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Nível 2:</span>
+                    <span class="info-value">${formatStatus(details.level_2_base)}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Nível 3:</span>
+                    <span class="info-value">${formatStatus(details.level_3_base)}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Escadas Nível 1:</span>
+                    <span class="info-value">${formatStatus(details.level_1_stairs)}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Escadas Nível 2:</span>
+                    <span class="info-value">${formatStatus(details.level_2_stairs)}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Telhado:</span>
+                    <span class="info-value">${formatStatus(details.has_roof)}</span>
+                </div>
+                <div class="info-row mt-2">
+                    <span class="info-label">Atualizado:</span>
+                    <span class="info-value">${fence.last_update || 'Desconhecido'}</span>
+                </div>
+            </div>
+        `;
+    }
+
     const features = [];
     if (fence.fence_name.includes('Gate')) {
         features.push('Portão');

@@ -15,7 +15,7 @@ from database import (
     get_logs_adm, get_logs_custom,     get_vehicles_tracking, get_vehicles_map_positions,
     get_player_by_id, search_players, get_players_last_position,
     get_containers_last_position, get_item_details_from_items_db,
-    get_fences_last_position,
+    get_fences_last_position, get_watchtowers_last_position,
     get_player_trail, get_online_players_positions,
     get_vehicle_trail, get_container_trail, get_fence_trail,
     get_players_positions_by_timerange, dayz_to_pixel,
@@ -1291,6 +1291,7 @@ def api_fences_positions():
     """API com posições atuais dos fences (construções)"""
     include_destroyed = request.args.get('include_destroyed', 'false').lower() == 'true'
     fences = get_fences_last_position(include_destroyed=include_destroyed)
+    watchtowers = get_watchtowers_last_position()
     
     result = {
         'timestamp': datetime.now().isoformat(),
@@ -1317,7 +1318,65 @@ def api_fences_positions():
             'upper_panel_built': (upper_panel_built == 1) if upper_panel_built is not None else None,
             'is_destroyed': bool(fence.get('IsDestroyed', 0)) if include_destroyed else False,
             'destroyed_at': fence.get('DestroyedAt') if include_destroyed else None,
-            'has_recent_attack': bool(fence.get('has_recent_attack', False))
+            'has_recent_attack': bool(fence.get('has_recent_attack', False)),
+            'structure_type': 'fence',
+            'watchtower_details': None,
+            'orientation': None
+        })
+
+    def normalize_watchtower_bool(value):
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        try:
+            return bool(int(value))
+        except (TypeError, ValueError):
+            if isinstance(value, str):
+                return value.lower() in ('true', '1', 'yes')
+            return bool(value)
+
+    def safe_float(value):
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    for watchtower in watchtowers:
+        pixel_coords = dayz_to_pixel(watchtower['PositionX'], watchtower['PositionY'])
+        details = {
+            'has_base': normalize_watchtower_bool(watchtower.get('HasBase')),
+            'level_1_base': normalize_watchtower_bool(watchtower.get('Level1BaseBuilt')),
+            'level_2_base': normalize_watchtower_bool(watchtower.get('Level2BaseBuilt')),
+            'level_3_base': normalize_watchtower_bool(watchtower.get('Level3BaseBuilt')),
+            'level_1_stairs': normalize_watchtower_bool(watchtower.get('Level1StairsBuilt')),
+            'level_2_stairs': normalize_watchtower_bool(watchtower.get('Level2StairsBuilt')),
+            'has_roof': normalize_watchtower_bool(watchtower.get('HasRoof')),
+        }
+
+        result['fences'].append({
+            'fence_id': watchtower['WatchtowerId'],
+            'fence_name': watchtower.get('WatchtowerName') or 'Watchtower',
+            'coord_x': watchtower['PositionX'],
+            'coord_y': watchtower['PositionY'],
+            'coord_z': watchtower['PositionZ'],
+            'pixel_coords': pixel_coords,
+            'last_update': watchtower.get('TimeStamp') or '',
+            'has_base': details['has_base'],
+            'lower_panel_built': details['level_1_base'],
+            'upper_panel_built': details['level_2_base'],
+            'is_destroyed': False,
+            'destroyed_at': None,
+            'has_recent_attack': False,
+            'structure_type': 'watchtower',
+            'watchtower_details': details,
+            'orientation': {
+                'x': safe_float(watchtower.get('OrientationX')),
+                'y': safe_float(watchtower.get('OrientationY')),
+                'z': safe_float(watchtower.get('OrientationZ'))
+            }
         })
     
     return jsonify(result)

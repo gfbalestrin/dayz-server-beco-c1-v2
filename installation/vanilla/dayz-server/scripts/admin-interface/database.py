@@ -606,6 +606,50 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
         
         return fences
 
+def get_watchtowers_last_position() -> List[Dict]:
+    """Retorna watchtowers do último timestamp de rastreamento"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='watchtowers_tracking';")
+        if not cursor.fetchone():
+            return []
+
+        query = """
+            SELECT wt.WatchtowerTrackingId,
+                   wt.WatchtowerId,
+                   wt.WatchtowerName,
+                   wt.PositionX,
+                   wt.PositionY,
+                   wt.PositionZ,
+                   wt.OrientationX,
+                   wt.OrientationY,
+                   wt.OrientationZ,
+                   wt.TimeStamp,
+                   wt.HasBase,
+                   wt.Level1BaseBuilt,
+                   wt.Level2BaseBuilt,
+                   wt.Level3BaseBuilt,
+                   wt.Level1StairsBuilt,
+                   wt.Level2StairsBuilt,
+                   wt.HasRoof
+            FROM watchtowers_tracking wt
+            INNER JOIN (
+                SELECT WatchtowerId, MAX(WatchtowerTrackingId) AS MaxId
+                FROM watchtowers_tracking
+                WHERE TimeStamp = (
+                    SELECT MAX(TimeStamp)
+                    FROM watchtowers_tracking wt2
+                    WHERE wt2.WatchtowerId = watchtowers_tracking.WatchtowerId
+                )
+                GROUP BY WatchtowerId
+            ) latest ON wt.WatchtowerId = latest.WatchtowerId
+                AND wt.WatchtowerTrackingId = latest.MaxId
+            ORDER BY wt.TimeStamp DESC
+        """
+        cursor.execute(query)
+        return [dict(row) for row in cursor.fetchall()]
+
 def get_fence_trail(fence_id: str, limit: int = 100, offset: int = 0, date_from: str = None, date_to: str = None) -> tuple:
     """
     Retorna histórico de mudanças de uma fence com filtros
