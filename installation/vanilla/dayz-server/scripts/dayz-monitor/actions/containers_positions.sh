@@ -1,5 +1,14 @@
 #!/bin/bash
 
+normalize_coordinate() {
+    local coord="$1"
+    if [[ -z "$coord" || "$coord" == "null" ]]; then
+        echo ""
+        return
+    fi
+    LC_NUMERIC=C printf "%.3f\n" "$coord"
+}
+
 handle_containers_positions() {
     local line="$1"
 
@@ -88,6 +97,30 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
 
         container_name="$container_type"
 
+        local coord_x_norm coord_z_norm coord_y_norm coord_x_cmp coord_z_cmp coord_y_cmp
+        local coord_x_log coord_z_log coord_y_log
+        coord_x_norm=$(normalize_coordinate "$coord_x")
+        coord_z_norm=$(normalize_coordinate "$coord_z")
+        coord_y_norm=$(normalize_coordinate "$coord_y")
+
+        coord_x_log="$coord_x"
+        coord_z_log="$coord_z"
+        coord_y_log="$coord_y"
+
+        if [[ -n "$coord_x_norm" ]]; then
+            coord_x_log="$coord_x_norm"
+        fi
+        if [[ -n "$coord_z_norm" ]]; then
+            coord_z_log="$coord_z_norm"
+        fi
+        if [[ -n "$coord_y_norm" ]]; then
+            coord_y_log="$coord_y_norm"
+        fi
+
+        coord_x_cmp="$coord_x_log"
+        coord_z_cmp="$coord_z_log"
+        coord_y_cmp="$coord_y_log"
+
         local current_items current_items_str
         current_items=$(echo "$container_data" | jq -c '.items[]?' 2>/dev/null)
         current_items_str=""
@@ -115,14 +148,37 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
             if [[ -n "$current_items_str" ]]; then
                 local item_count
                 item_count=$(echo "$container_data" | jq '.items | length' 2>/dev/null || echo "0")
-                INSERT_CUSTOM_LOG "Container novo detectado (ID=$container_id) - Coords=($coord_x,$coord_z,$coord_y) - Tipo=$container_type - Itens=$item_count" "INFO" "$ScriptName"
+                INSERT_CUSTOM_LOG "Container novo detectado (ID=$container_id) - Coords=($coord_x_log,$coord_z_log,$coord_y_log) - Tipo=$container_type - Itens=$item_count" "INFO" "$ScriptName"
                 local Content
-                Content="Container novo com loot (ID=$container_id) em (${coord_x},${coord_z},${coord_y}) - Tipo: $container_type - $item_count item(s)"
+                Content="Container novo com loot (ID=$container_id) em (${coord_x_log},${coord_z_log},${coord_y_log}) - Tipo: $container_type - $item_count item(s)"
                 #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             fi
         else
             local prev_name prev_x prev_z prev_y prev_items_str
             IFS='|' read -r prev_name prev_x prev_z prev_y prev_items_str <<< "$prev_data"
+            local prev_x_norm prev_z_norm prev_y_norm prev_x_log prev_z_log prev_y_log
+            local prev_x_cmp prev_z_cmp prev_y_cmp
+            prev_x_norm=$(normalize_coordinate "$prev_x")
+            prev_z_norm=$(normalize_coordinate "$prev_z")
+            prev_y_norm=$(normalize_coordinate "$prev_y")
+
+            prev_x_log="$prev_x"
+            prev_z_log="$prev_z"
+            prev_y_log="$prev_y"
+
+            if [[ -n "$prev_x_norm" ]]; then
+                prev_x_log="$prev_x_norm"
+            fi
+            if [[ -n "$prev_z_norm" ]]; then
+                prev_z_log="$prev_z_norm"
+            fi
+            if [[ -n "$prev_y_norm" ]]; then
+                prev_y_log="$prev_y_norm"
+            fi
+
+            prev_x_cmp="$prev_x_log"
+            prev_z_cmp="$prev_z_log"
+            prev_y_cmp="$prev_y_log"
             
             # Detectar se container foi esvaziado (tinha items, agora está vazio)
             if [[ -n "$prev_items_str" && -z "$current_items_str" ]]; then
@@ -131,9 +187,9 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
             local diff_message=""
             local container_moved=false
 
-            if [[ "$coord_x" != "$prev_x" || "$coord_z" != "$prev_z" || "$coord_y" != "$prev_y" ]]; then
+            if [[ "$coord_x_cmp" != "$prev_x_cmp" || "$coord_z_cmp" != "$prev_z_cmp" || "$coord_y_cmp" != "$prev_y_cmp" ]]; then
                 container_moved=true
-                diff_message+="movido((${prev_x},${prev_z},${prev_y})->(${coord_x},${coord_z},${coord_y})); "
+                diff_message+="movido((${prev_x_log},${prev_z_log},${prev_y_log})->(${coord_x_log},${coord_z_log},${coord_y_log})); "
             fi
 
             local prev_items_array current_items_array
@@ -231,7 +287,7 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
                 diff_message="${diff_message%??}"
                 
                 if [[ "$container_moved" == true ]]; then
-                    INSERT_CUSTOM_LOG "Container movido (ID=$container_id) - De (${prev_x},${prev_z},${prev_y}) para (${coord_x},${coord_z},${coord_y}) - Tipo=$container_type" "INFO" "$ScriptName"
+                    INSERT_CUSTOM_LOG "Container movido (ID=$container_id) - De (${prev_x_log},${prev_z_log},${prev_y_log}) para (${coord_x_log},${coord_z_log},${coord_y_log}) - Tipo=$container_type" "INFO" "$ScriptName"
                 fi
                 
                 if [[ -n "$items_added" || -n "$items_removed" || -n "$items_changed" ]]; then
@@ -240,7 +296,7 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
 
                 if [[ -n "$items_added" || -n "$items_changed" ]]; then
                     local Content
-                    Content="Container recebeu loot (ID=$container_id) em (${coord_x},${coord_z},${coord_y})"
+                    Content="Container recebeu loot (ID=$container_id) em (${coord_x_log},${coord_z_log},${coord_y_log})"
                     if [[ -n "$items_added" ]]; then
                         Content+=" - Itens adicionados: $items_added"
                     fi
@@ -298,6 +354,24 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
         for removed_id in "${!prev_containers[@]}"; do
             removed_data="${prev_containers[$removed_id]}"
             IFS='|' read -r rem_name rem_x rem_z rem_y rem_items <<< "$removed_data"
+            local rem_x_norm rem_z_norm rem_y_norm rem_x_log rem_z_log rem_y_log
+            rem_x_norm=$(normalize_coordinate "$rem_x")
+            rem_z_norm=$(normalize_coordinate "$rem_z")
+            rem_y_norm=$(normalize_coordinate "$rem_y")
+
+            rem_x_log="$rem_x"
+            rem_z_log="$rem_z"
+            rem_y_log="$rem_y"
+
+            if [[ -n "$rem_x_norm" ]]; then
+                rem_x_log="$rem_x_norm"
+            fi
+            if [[ -n "$rem_z_norm" ]]; then
+                rem_z_log="$rem_z_norm"
+            fi
+            if [[ -n "$rem_y_norm" ]]; then
+                rem_y_log="$rem_y_norm"
+            fi
             local rem_item_count rem_items_summary
             rem_item_count=0
             rem_items_summary=""
@@ -327,11 +401,11 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
             fi
             
             if [[ $rem_item_count -gt 0 ]]; then
-                INSERT_CUSTOM_LOG "Container destruído (ID=$removed_id) - Última posição=($rem_x,$rem_z,$rem_y) - Tipo=$rem_name - Itens=$rem_item_count - Detalhes: $rem_items_summary" "INFO" "$ScriptName"
-                Content="Container destruído (ID=$removed_id) do mapa - Última posição=($rem_x,$rem_z,$rem_y) - Tipo: $rem_name - $rem_item_count item(s)"
+                INSERT_CUSTOM_LOG "Container destruído (ID=$removed_id) - Última posição=($rem_x_log,$rem_z_log,$rem_y_log) - Tipo=$rem_name - Itens=$rem_item_count - Detalhes: $rem_items_summary" "INFO" "$ScriptName"
+                Content="Container destruído (ID=$removed_id) do mapa - Última posição=($rem_x_log,$rem_z_log,$rem_y_log) - Tipo: $rem_name - $rem_item_count item(s)"
             else
-                INSERT_CUSTOM_LOG "Container removido (ID=$removed_id) - Última posição=($rem_x,$rem_z,$rem_y) - Tipo=$rem_name" "INFO" "$ScriptName"
-                Content="Container removido (ID=$removed_id) do mapa - Última posição=($rem_x,$rem_z,$rem_y) - Tipo: $rem_name"
+                INSERT_CUSTOM_LOG "Container removido (ID=$removed_id) - Última posição=($rem_x_log,$rem_z_log,$rem_y_log) - Tipo=$rem_name" "INFO" "$ScriptName"
+                Content="Container removido (ID=$removed_id) do mapa - Última posição=($rem_x_log,$rem_z_log,$rem_y_log) - Tipo: $rem_name"
             fi
             
             # Marcar todos os registros do container como destruído (garantir que não apareça no mapa)
