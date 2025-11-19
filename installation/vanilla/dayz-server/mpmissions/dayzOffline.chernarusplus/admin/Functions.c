@@ -1007,7 +1007,8 @@ void ProcessPlayerReady(PlayerIdentity identity, Man player)
         // Verifica estados do jogador adicionado
         bool hasIdentity = addedPlayer.HasIdentity();
         bool hasPlayer = addedPlayer.HasPlayer();
-        WriteToLog("  -> Estado do jogador - HasIdentity: " + hasIdentity + " | HasPlayer: " + hasPlayer, LogFile.INIT, false, LogType.DEBUG);
+        bool hasSentConnectedEvent = addedPlayer.HasConnectedEventBeenSent();
+        WriteToLog("  -> Estado do jogador - HasIdentity: " + hasIdentity + " | HasPlayer: " + hasPlayer + " | HasSentConnectedEvent: " + hasSentConnectedEvent, LogFile.INIT, false, LogType.DEBUG);
         
         if (hasPlayer)
         {
@@ -1027,9 +1028,21 @@ void ProcessPlayerReady(PlayerIdentity identity, Man player)
             if (playerNameToUpdate.Length() > 32)
                 playerNameToUpdate = playerNameToUpdate.Substring(0, 32);
 
-            WriteToLog("  -> Enviando ações externas: update_player e player_connected", LogFile.INIT, false, LogType.DEBUG);
+            // Sempre envia update_player
+            WriteToLog("  -> Enviando ação externa: update_player", LogFile.INIT, false, LogType.DEBUG);
             AppendExternalAction("{\"action\":\"update_player\",\"player_id\":\"" + identity.GetId() + "\",\"player_name\":\"" + playerNameToUpdate + "\",\"steam_id\":\"" + identity.GetPlainId() + "\"}");
-            AppendExternalAction("{\"action\":\"player_connected\",\"player_id\":\"" + identity.GetId() + "\"}");
+            
+            // Envia player_connected apenas se ainda não foi enviado (primeira conexão)
+            if (!hasSentConnectedEvent)
+            {
+                WriteToLog("  -> Enviando ação externa: player_connected (primeira conexão)", LogFile.INIT, false, LogType.INFO);
+                AppendExternalAction("{\"action\":\"player_connected\",\"player_id\":\"" + identity.GetId() + "\"}");
+                addedPlayer.MarkConnectedEventSent();
+            }
+            else
+            {
+                WriteToLog("  -> Jogador já tinha evento de conexão enviado, pulando player_connected (respawn/reconexão)", LogFile.INIT, false, LogType.DEBUG);
+            }
         }
         else
         {
@@ -1544,20 +1557,49 @@ void CleanupInvalidActivePlayers()
         if (!activePlayerItem.HasIdentity())
         {
             WriteToLog("CleanupInvalidActivePlayers(): Removendo jogador sem Identity - Nome: " + storedName + " | PlayerID: " + storedPlayerId + " | SteamID: " + storedSteamId, LogFile.INIT, false, LogType.DEBUG);
+            
+            // Verifica se deve enviar player_disconnected (não enviar se morreu recentemente)
+            bool shouldSendDisconnect = true;
+            if (activePlayerItem.IsRecentlyDead(10.0))
+            {
+                WriteToLog("CleanupInvalidActivePlayers(): Jogador morreu recentemente, não enviando player_disconnected", LogFile.INIT, false, LogType.DEBUG);
+                shouldSendDisconnect = false;
+            }
+            
             ActivePlayers.Remove(i);
             removedCount++;
+            
+            if (shouldSendDisconnect && storedPlayerId != "")
+            {
+                AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + storedPlayerId + "\"}");
+                WriteToLog("CleanupInvalidActivePlayers(): Evento player_disconnected enviado para jogador sem Identity", LogFile.INIT, false, LogType.INFO);
+            }
             continue;
         }
         
         // Verifica se jogador está em ActivePlayers mas NÃO está no mundo (GHOST!)
         if (validPlayerIds.Find(storedPlayerId) == -1)
         {
-            // É um ghost! Força desconexão
+            // É um ghost! Verifica se deve enviar desconexão
+            bool shouldSendDisconnect = true;
+            if (activePlayerItem.IsRecentlyDead(10.0))
+            {
+                WriteToLog("CleanupInvalidActivePlayers(): Ghost morreu recentemente, não enviando player_disconnected", LogFile.INIT, false, LogType.DEBUG);
+                shouldSendDisconnect = false;
+            }
+            
+            // Força desconexão
             ForceDisconnectGhost(activePlayerItem);
             ActivePlayers.Remove(i);
             disconnectedCount++;
             removedCount++;
             WriteToLog("CleanupInvalidActivePlayers(): Ghost desconectado e removido - " + storedName + " (ID: " + storedPlayerId + ")", LogFile.INIT, false, LogType.INFO);
+            
+            if (shouldSendDisconnect && storedPlayerId != "")
+            {
+                AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + storedPlayerId + "\"}");
+                WriteToLog("CleanupInvalidActivePlayers(): Evento player_disconnected enviado para ghost", LogFile.INIT, false, LogType.INFO);
+            }
         }
     }
     

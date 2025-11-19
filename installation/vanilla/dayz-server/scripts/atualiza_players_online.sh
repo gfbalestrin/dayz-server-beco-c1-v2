@@ -39,15 +39,15 @@ function AtualizaPlayersOnlineDiscord() {
 }
 
 function EnviaLogsDiscord() {
-    PlayerExists=$(sqlite3 -separator "|" "$AppFolder/$AppPlayerBecoC1DbFile" "SELECT PlayerName, SteamID, SteamName FROM players_database WHERE PlayerID = '$PLAYER_ID';")
+    PlayerExists=$(sqlite3 -separator $'\x1F' "$AppFolder/$AppPlayerBecoC1DbFile" "SELECT PlayerName, SteamID, SteamName FROM players_database WHERE PlayerID = '$PLAYER_ID';")
     if [[ -z "$PlayerExists" ]]; then
         echo "Ignorando pois player não consta no banco"
         INSERT_CUSTOM_LOG "Ignorando pois player não consta no banco" "INFO" "$ScriptName"
         return 1
     fi
-    PlayerName=$(echo "$PlayerExists" | cut -d'|' -f1 | tr -d '|' | sed 's/[^a-zA-Z0-9_ -]//g' | xargs)
-    SteamID=$(echo "$PlayerExists" | cut -d'|' -f2)
-    SteamName=$(echo "$PlayerExists" | cut -d'|' -f3 | tr -d '|' | sed 's/[^a-zA-Z0-9_ -]//g' | xargs)
+    PlayerName=$(echo "$PlayerExists" | cut -d$'\x1F' -f1 | sed 's/[^a-zA-Z0-9_ -]//g' | xargs)
+    SteamID=$(echo "$PlayerExists" | cut -d$'\x1F' -f2)
+    SteamName=$(echo "$PlayerExists" | cut -d$'\x1F' -f3 | sed 's/[^a-zA-Z0-9_ -]//g' | xargs)
 
     if [[ -f "$DayzServerFolder/$DayzAdminIdsFile" ]] && grep -q "$PLAYER_ID" "$DayzServerFolder/$DayzAdminIdsFile"; then
         echo "Ignorando conta do administrador e matando player para renascer com loot admin..."
@@ -206,7 +206,7 @@ if [[ $NUM_REGISTROS -eq 0 ]]; then
     exit 0
 fi
 
-while IFS="|" read -r PlayerId PlayerName SteamID SteamName DataConnect
+while IFS=$'\x1F' read -r PlayerId PlayerName SteamID SteamName DataConnect
 do
 
     link_steam="**NaoIdentificado**"
@@ -219,7 +219,7 @@ do
     echo "player_info: $player_info"
     CONTENT="${CONTENT}${player_info} \n"
     echo "CONTENT: $CONTENT"
-done < <(sqlite3 -separator "|" "$PLAYERS_BECO_C1_DB" "
+done < <(sqlite3 -separator $'\x1F' "$PLAYERS_BECO_C1_DB" "
 SELECT 
     p.PlayerId,
     p.PlayerName,

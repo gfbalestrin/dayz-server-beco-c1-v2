@@ -35,7 +35,7 @@ handle_update_player() {
     fi
 
     local PlayerExists
-    PlayerExists=$(sqlite3 -separator "|" "$AppFolder/$AppPlayerBecoC1DbFile" \
+    PlayerExists=$(sqlite3 -separator $'\x1F' "$AppFolder/$AppPlayerBecoC1DbFile" \
     "SELECT PlayerName, SteamID, SteamName FROM players_database WHERE PlayerID = '$PlayerId';")
 
     if [[ -z "$PlayerExists" ]]; then
@@ -47,9 +47,9 @@ handle_update_player() {
     fi
 
     local PlayerNameCurrent PlayerSteamIdCurrent PlayerSteamNameCurrent
-    PlayerNameCurrent=$(echo "$PlayerExists" | cut -d'|' -f1)
-    PlayerSteamIdCurrent=$(echo "$PlayerExists" | cut -d'|' -f2)
-    PlayerSteamNameCurrent=$(echo "$PlayerExists" | cut -d'|' -f3)
+    PlayerNameCurrent=$(echo "$PlayerExists" | cut -d$'\x1F' -f1)
+    PlayerSteamIdCurrent=$(echo "$PlayerExists" | cut -d$'\x1F' -f2)
+    PlayerSteamNameCurrent=$(echo "$PlayerExists" | cut -d$'\x1F' -f3)
 
     INSERT_CUSTOM_LOG "Player $PlayerId ($PlayerName) ($PlayerSteamId) ($PlayerSteamName) já consta no banco. O player será atualizado no banco de dados." "INFO" "$ScriptName"
     UPDATE_PLAYER_DATABASE "$PlayerId" "$PlayerName" "$PlayerSteamId" "$PlayerSteamName"

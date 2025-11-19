@@ -111,10 +111,6 @@ void OnEventCustom(EventType eventTypeId, Param params)
     // ============================================================================
     else if (eventTypeId == ClientDisconnectedEventTypeID)
     {
-        if (IsDeathmatchEnabled)
-        {
-            return;
-        }
         WriteToLog("EVENT: ClientDisconnectedEventTypeID - Cliente desconectando", LogFile.INIT, false, LogType.INFO);
         ClientDisconnectedEventParams disconnectedParams = ClientDisconnectedEventParams.Cast(params);
         if (!disconnectedParams) {
@@ -129,14 +125,31 @@ void OnEventCustom(EventType eventTypeId, Param params)
         
         if (identity)
         {
-            //WriteToLog("  -> Jogador: " + identity.GetName() + " | ID: " + identity.GetId(), LogFile.INIT, false, LogType.DEBUG);
-            //WriteToLog("  -> LogoutTime: " + logoutTime + " | AuthFailed: " + authFailed, LogFile.INIT, false, LogType.DEBUG);				
-            // Remove o jogador da lista de jogadores ativos
-            //steamId = identity.GetPlainId();
-            //RemoveActivePlayer(steamId);				
+            string playerId = identity.GetId();
+            WriteToLog("  -> Jogador desconectando: " + identity.GetName() + " | ID: " + playerId, LogFile.INIT, false, LogType.INFO);
+            
+            // Verifica se o jogador morreu recentemente (dentro de 10 segundos)
+            ActivePlayer disconnectingPlayer = GetActivePlayerById(playerId);
+            bool shouldSendDisconnect = true;
+            
+            if (disconnectingPlayer)
+            {
+                if (disconnectingPlayer.IsRecentlyDead(10.0))
+                {
+                    WriteToLog("  -> Jogador morreu recentemente, não enviando player_disconnected", LogFile.INIT, false, LogType.DEBUG);
+                    shouldSendDisconnect = false;
+                }
+            }
+            
+            // Remove o jogador da lista e envia evento de desconexão se necessário
+            RemoveActivePlayerById(playerId);
+            
+            if (shouldSendDisconnect)
+            {
+                AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + playerId + "\"}");
+                WriteToLog("  -> Evento player_disconnected enviado para: " + identity.GetName(), LogFile.INIT, false, LogType.INFO);
+            }
         }
-        
-        // Aqui você pode adicionar lógica de cleanup ou notificações
     }
     
     // ============================================================================
@@ -230,10 +243,20 @@ void OnEventCustom(EventType eventTypeId, Param params)
         if (respawnParams)
         {
             identity = respawnParams.param1;
-            //if (identity)
-            //{
-                //WriteToLog("  -> Jogador respawnou: " + identity.GetName(), LogFile.INIT, false, LogType.DEBUG);
-            //}
+            if (identity)
+            {
+                WriteToLog("  -> Jogador respawnou: " + identity.GetName() + " | PlayerID: " + identity.GetId(), LogFile.INIT, false, LogType.DEBUG);
+                
+                // Atualiza o jogador na lista (preserva HasSentConnectedEvent)
+                // Não envia player_connected pois é apenas um respawn
+                ActivePlayer respawnedPlayer = GetActivePlayerById(identity.GetId());
+                if (respawnedPlayer)
+                {
+                    // Limpa o flag de morte para permitir desconexão normal no futuro
+                    respawnedPlayer.ClearDeathFlag();
+                    WriteToLog("  -> Jogador respawnado encontrado em ActivePlayers, flag de morte limpo", LogFile.INIT, false, LogType.DEBUG);
+                }
+            }
         }
     }
     
@@ -469,12 +492,36 @@ void OnEventCustom(EventType eventTypeId, Param params)
             if (identityPlayerDead)
             {
                 WriteToLog("  -> Jogador morreu: " + identityPlayerDead.GetName() + " | PlayerID: " + identityPlayerDead.GetId() + " | SteamID: " + identityPlayerDead.GetPlainId(), LogFile.INIT, false, LogType.DEBUG);
+                
+                // Marca o jogador como morto recentemente para evitar enviar player_disconnected após morte
+                ActivePlayer deadPlayer = GetActivePlayerById(identityPlayerDead.GetId());
+                if (deadPlayer)
+                {
+                    deadPlayer.MarkAsDead();
+                    WriteToLog("  -> Jogador marcado como morto recentemente: " + identityPlayerDead.GetName(), LogFile.INIT, false, LogType.DEBUG);
+                }
             }
             if (killer)
             {
                 WriteToLog("  -> Killer: " + killer.GetName(), LogFile.INIT, false, LogType.DEBUG);
             }
         }
+    }
+    
+    // ============================================================================
+    // EVENTO: LogoutEventTypeID
+    // Disparado quando um jogador faz logout do servidor
+    // Nota: Este evento pode não ter parâmetros definidos, então a detecção
+    // principal de desconexão é feita via ScriptLogEventTypeID e ClientDisconnectedEventTypeID
+    // ============================================================================
+    else if (eventTypeId == LogoutEventTypeID)
+    {
+        WriteToLog("EVENT: LogoutEventTypeID - Jogador fazendo logout", LogFile.INIT, false, LogType.DEBUG);
+        // LogoutEventTypeID pode não ter parâmetros definidos na API
+        // A detecção de desconexão é feita principalmente via:
+        // - ScriptLogEventTypeID (parsing de log)
+        // - ClientDisconnectedEventTypeID (evento de desconexão)
+        // - CleanupInvalidActivePlayers (limpeza periódica)
     }
     
     // ScriptLogEventTypeID
@@ -498,8 +545,27 @@ void OnEventCustom(EventType eventTypeId, Param params)
                     playerStart += 7; // Pular "Player "
                     string playerUID = msg.Substring(playerStart, playerEnd - playerStart).Trim();
                     WriteToLog("  -> EVENTO DE LOGOUT DETECTADO | UID: " + playerUID, LogFile.INIT, false, LogType.INFO);
+                    
+                    // Verifica se o jogador morreu recentemente antes de enviar desconexão
+                    ActivePlayer loggingOutPlayer = GetActivePlayerById(playerUID);
+                    bool shouldSendDisconnect = true;
+                    
+                    if (loggingOutPlayer)
+                    {
+                        if (loggingOutPlayer.IsRecentlyDead(10.0))
+                        {
+                            WriteToLog("  -> Jogador morreu recentemente, não enviando player_disconnected", LogFile.INIT, false, LogType.DEBUG);
+                            shouldSendDisconnect = false;
+                        }
+                    }
+                    
                     RemoveActivePlayerById(playerUID);
-                    AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + playerUID + "\"}");
+                    
+                    if (shouldSendDisconnect)
+                    {
+                        AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + playerUID + "\"}");
+                        WriteToLog("  -> Evento player_disconnected enviado via ScriptLogEventTypeID", LogFile.INIT, false, LogType.INFO);
+                    }
                 }
             }
         }

@@ -4,6 +4,8 @@ class ActivePlayer
     PlayerIdentity Identity;  // PlayerIdentity do jogador (contém todas as informações)
     Man Player;              // Objeto Man/PlayerBase do jogador
     float ConnectedTime;     // Timestamp de quando conectou
+    float DeathTime;         // Timestamp de quando morreu (0 se não morreu)
+    bool HasSentConnectedEvent; // Flag para evitar enviar player_connected duplicado
     string SteamId;          // SteamID persistente
     string PlayerId;         // PlayerID persistente
     
@@ -12,6 +14,8 @@ class ActivePlayer
         Identity = identity;
         Player = player;
         ConnectedTime = GetGame().GetTime();
+        DeathTime = 0;
+        HasSentConnectedEvent = false;
         SyncIdentifiers();
     }
     
@@ -101,6 +105,39 @@ class ActivePlayer
     bool HasPlayer()
     {
         return Player != null;
+    }
+    
+    // Marca o jogador como morto
+    void MarkAsDead()
+    {
+        DeathTime = GetGame().GetTime();
+    }
+    
+    // Limpa o flag de morte (usado quando jogador respawna)
+    void ClearDeathFlag()
+    {
+        DeathTime = 0;
+    }
+    
+    // Verifica se o jogador morreu recentemente (dentro do timeout)
+    bool IsRecentlyDead(float timeoutSeconds = 10.0)
+    {
+        if (DeathTime <= 0)
+            return false;
+        float timeSinceDeath = (GetGame().GetTime() - DeathTime) / 1000.0;
+        return timeSinceDeath < timeoutSeconds;
+    }
+    
+    // Marca que o evento de conexão foi enviado
+    void MarkConnectedEventSent()
+    {
+        HasSentConnectedEvent = true;
+    }
+    
+    // Verifica se o evento de conexão já foi enviado
+    bool HasConnectedEventBeenSent()
+    {
+        return HasSentConnectedEvent;
     }
 
     void SyncIdentifiers()
