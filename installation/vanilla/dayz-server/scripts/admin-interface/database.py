@@ -4323,7 +4323,7 @@ def detect_loot_hack(player_id: str, hours_back: int = 2) -> List[Dict]:
                 container_pos = (container['PositionX'], container['PositionY'], container['PositionZ'])
                 container_time = container['TimeStamp']
                 
-                # Encontrar posição do jogador mais próxima no tempo (dentro de 5 minutos)
+                # Encontrar posição do jogador mais próxima no tempo (dentro de 10 minutos)
                 try:
                     container_datetime = datetime.strptime(container_time, '%Y-%m-%d %H:%M:%S')
                 except:
@@ -4333,13 +4333,15 @@ def detect_loot_hack(player_id: str, hours_back: int = 2) -> List[Dict]:
                 closest_position = None
                 closest_time_diff = None
                 
+                max_time_window = 600.0  # 10 minutos
+                
                 for player_pos in player_positions:
                     try:
                         player_datetime = datetime.strptime(player_pos['Data'], '%Y-%m-%d %H:%M:%S')
                         time_diff = abs((container_datetime - player_datetime).total_seconds())
                         
-                        # Verificar apenas posições dentro de 5 minutos
-                        if time_diff <= 300:  # 5 minutos
+                        # Verificar apenas posições dentro do intervalo definido
+                        if time_diff <= max_time_window:
                             player_pos_coords = (player_pos['CoordX'], player_pos['CoordY'], player_pos['CoordZ'])
                             
                             # Calcular distância
@@ -4355,18 +4357,28 @@ def detect_loot_hack(player_id: str, hours_back: int = 2) -> List[Dict]:
                     except:
                         continue
                 
-                distance_safe_threshold = 4.0
-                distance_extended_threshold = 8.0
-                extended_time_threshold = 30.0
+                base_threshold = 5.0
+                threshold_30s = 8.0
+                threshold_2min = 10.0
+                threshold_10min = 15.0
+                applied_threshold = base_threshold
                 
                 if closest_position:
-                    if min_distance <= distance_safe_threshold:
-                        continue
-                    if closest_time_diff is not None and closest_time_diff <= extended_time_threshold and min_distance <= distance_extended_threshold:
+                    if closest_time_diff is not None:
+                        if closest_time_diff <= 30:
+                            applied_threshold = threshold_30s
+                        elif closest_time_diff <= 120:
+                            applied_threshold = threshold_2min
+                        elif closest_time_diff <= max_time_window:
+                            applied_threshold = threshold_10min
+                        else:
+                            applied_threshold = base_threshold
+                    
+                    if min_distance <= applied_threshold:
                         continue
                 
                 # Se ainda não encontramos posição segura, registrar suspeita
-                if min_distance == float('inf') or min_distance > distance_safe_threshold:
+                if min_distance == float('inf') or min_distance > applied_threshold:
                     suspicious_events.append({
                         'player_id': player_id,
                         'event_type': 'loot_hack',
@@ -4380,7 +4392,9 @@ def detect_loot_hack(player_id: str, hours_back: int = 2) -> List[Dict]:
                             'closest_player_pos': (closest_position['CoordX'], closest_position['CoordY'], closest_position['CoordZ']) if closest_position else None,
                             'closest_player_time': closest_position['Data'] if closest_position else None,
                             'closest_time_diff_seconds': round(closest_time_diff, 2) if closest_time_diff is not None else None,
-                            'reason': f'Container acessado sem estar próximo (distância mínima aceitável: <= {distance_safe_threshold}m)'
+                            'allowed_distance_threshold': applied_threshold if closest_position else base_threshold,
+                            'max_time_window_seconds': max_time_window,
+                            'reason': 'Container acessado sem proximidade detectada'
                         }
                     })
         
