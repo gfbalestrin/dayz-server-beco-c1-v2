@@ -1554,12 +1554,13 @@ void CleanupInvalidActivePlayers()
         if (storedName == "")
             storedName = storedPlayerId;
         
+        bool shouldSendDisconnect = true;
+        
         if (!activePlayerItem.HasIdentity())
         {
             WriteToLog("CleanupInvalidActivePlayers(): Removendo jogador sem Identity - Nome: " + storedName + " | PlayerID: " + storedPlayerId + " | SteamID: " + storedSteamId, LogFile.INIT, false, LogType.DEBUG);
             
             // Verifica se deve enviar player_disconnected (não enviar se morreu recentemente)
-            bool shouldSendDisconnect = true;
             if (activePlayerItem.IsRecentlyDead(10.0))
             {
                 WriteToLog("CleanupInvalidActivePlayers(): Jogador morreu recentemente, não enviando player_disconnected", LogFile.INIT, false, LogType.DEBUG);
@@ -1581,7 +1582,7 @@ void CleanupInvalidActivePlayers()
         if (validPlayerIds.Find(storedPlayerId) == -1)
         {
             // É um ghost! Verifica se deve enviar desconexão
-            bool shouldSendDisconnect = true;
+            shouldSendDisconnect = true;
             if (activePlayerItem.IsRecentlyDead(10.0))
             {
                 WriteToLog("CleanupInvalidActivePlayers(): Ghost morreu recentemente, não enviando player_disconnected", LogFile.INIT, false, LogType.DEBUG);

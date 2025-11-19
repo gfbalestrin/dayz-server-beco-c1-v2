@@ -548,20 +548,20 @@ void OnEventCustom(EventType eventTypeId, Param params)
                     
                     // Verifica se o jogador morreu recentemente antes de enviar desconexão
                     ActivePlayer loggingOutPlayer = GetActivePlayerById(playerUID);
-                    bool shouldSendDisconnect = true;
+                    bool shouldSendDisconnectLog = true;
                     
                     if (loggingOutPlayer)
                     {
                         if (loggingOutPlayer.IsRecentlyDead(10.0))
                         {
                             WriteToLog("  -> Jogador morreu recentemente, não enviando player_disconnected", LogFile.INIT, false, LogType.DEBUG);
-                            shouldSendDisconnect = false;
+                            shouldSendDisconnectLog = false;
                         }
                     }
                     
                     RemoveActivePlayerById(playerUID);
                     
-                    if (shouldSendDisconnect)
+                    if (shouldSendDisconnectLog)
                     {
                         AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + playerUID + "\"}");
                         WriteToLog("  -> Evento player_disconnected enviado via ScriptLogEventTypeID", LogFile.INIT, false, LogType.INFO);
