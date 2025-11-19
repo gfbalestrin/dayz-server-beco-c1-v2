@@ -9,6 +9,7 @@ import os
 import time
 import re
 from packing_algorithm import can_fit_items_in_container, pack_items_ffdh
+from zoneinfo import ZoneInfo
 from database import (
     get_all_players, get_player_coords, get_player_coords_backup,
     get_logs_adm, get_logs_custom,     get_vehicles_tracking, get_vehicles_map_positions,
@@ -22,6 +23,7 @@ from database import (
     check_backup_exists, check_backup_exists_any_player, get_backup_info, get_online_players,
     get_all_players_with_status,
     get_cheat_detection_scores, get_cheat_detection_events, get_player_cheat_details, review_cheat_event,
+    clear_player_cheat_events,
     get_weapons, get_weapons_with_calibers, get_all_calibers, get_items, get_item_types,
     get_explosives, get_ammunitions, get_calibers,
     get_magazines, get_attachments, get_attachment_types,
@@ -81,6 +83,37 @@ except ImportError:
     from backports.zoneinfo import ZoneInfo
 
 app = Flask(__name__)
+UTC_TZ = ZoneInfo("UTC")
+SAO_PAULO_TZ = ZoneInfo("America/Sao_Paulo")
+
+def convert_timestamp_to_br(timestamp_str):
+    """Converte string de data/hora para America/Sao_Paulo"""
+    if not timestamp_str:
+        return None
+    value = str(timestamp_str).strip()
+    if value == "":
+        return None
+    
+    normalized = value
+    if value.endswith('Z'):
+        normalized = value[:-1] + '+00:00'
+    
+    try:
+        dt = datetime.fromisoformat(normalized)
+    except ValueError:
+        try:
+            cleaned = value.replace('T', ' ')
+            dt = datetime.strptime(cleaned, '%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            return value
+    
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC_TZ)
+    
+    return dt.astimezone(SAO_PAULO_TZ).strftime('%Y-%m-%d %H:%M:%S')
+
+def current_time_br():
+    return datetime.now(SAO_PAULO_TZ).strftime('%Y-%m-%d %H:%M:%S')
 app.secret_key = config.SECRET_KEY
 
 
@@ -1792,11 +1825,14 @@ def api_cheat_detection_scores():
         risk_level = request.args.get('risk_level')
         
         scores = get_cheat_detection_scores(limit=limit, risk_level=risk_level if risk_level else None)
+        for score in scores:
+            score['LastUpdated'] = convert_timestamp_to_br(score.get('LastUpdated'))
+            score['BannedAt'] = convert_timestamp_to_br(score.get('BannedAt'))
         
         return jsonify({
             'success': True,
             'scores': scores,
-            'timestamp': datetime.now().isoformat()
+            'timestamp': current_time_br()
         })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -1811,18 +1847,22 @@ def api_cheat_detection_player(player_id):
         if not details:
             return jsonify({'success': False, 'message': 'Jogador não encontrado'}), 404
         
-        # Parse JSON details dos eventos
+        details['LastUpdated'] = convert_timestamp_to_br(details.get('LastUpdated'))
+        details['BannedAt'] = convert_timestamp_to_br(details.get('BannedAt'))
+        
+        # Parse JSON details dos eventos e ajustar timezone
         for event in details.get('events', []):
             if event.get('Details'):
                 try:
                     event['details_parsed'] = json.loads(event['Details'])
                 except:
                     event['details_parsed'] = None
+            event['TimeStamp'] = convert_timestamp_to_br(event.get('TimeStamp'))
         
         return jsonify({
             'success': True,
             'player': details,
-            'timestamp': datetime.now().isoformat()
+            'timestamp': current_time_br()
         })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -1849,11 +1889,12 @@ def api_cheat_detection_events():
                     event['details_parsed'] = json.loads(event['Details'])
                 except:
                     event['details_parsed'] = None
+            event['TimeStamp'] = convert_timestamp_to_br(event.get('TimeStamp'))
         
         return jsonify({
             'success': True,
             'events': events,
-            'timestamp': datetime.now().isoformat()
+            'timestamp': current_time_br()
         })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -1879,6 +1920,28 @@ def api_cheat_detection_review_event(event_id):
             'success': True,
             'message': 'Evento marcado como revisado'
         })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/cheat-detection/player/<player_id>/clear', methods=['POST'])
+@admin_required
+def api_cheat_detection_clear_player(player_id):
+    """Remove eventos e reseta score de um jogador"""
+    try:
+        success = clear_player_cheat_events(player_id)
+        if success:
+            log_user_action(
+                session.get('user_id'),
+                session.get('username', 'Unknown'),
+                'CLEAR_CHEAT_EVENTS',
+                {'player_id': player_id},
+                get_client_ip()
+            )
+            message = 'Eventos e pontuação limpos com sucesso'
+        else:
+            message = 'Nenhum evento ou pontuação foi encontrado para este jogador'
+        
+        return jsonify({'success': True, 'message': message})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 

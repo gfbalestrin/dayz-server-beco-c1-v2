@@ -4123,6 +4123,14 @@ def detect_teleportation(player_id: str, hours_back: int = 2) -> List[Dict]:
         
         suspicious_events = []
         
+        suspicious_speed_threshold = 80.0      # ~288 km/h
+        critical_speed_threshold = 150.0       # ~540 km/h
+        min_distance_threshold = 200.0         # ignorar amostras muito curtas
+        critical_distance_threshold = 500.0
+        max_time_for_speed_check = 20.0
+        teleport_distance_threshold = 1000.0
+        teleport_time_threshold = 5.0
+        
         for i in range(1, len(coords)):
             prev = coords[i-1]
             curr = coords[i]
@@ -4152,14 +4160,20 @@ def detect_teleportation(player_id: str, hours_back: int = 2) -> List[Dict]:
             event_type = None
             severity = None
             
-            if speed > 100:  # Crítico: > 100 m/s instantâneo
-                event_score = 50
+            # Filtro rápido para movimentos extremos (teleporte)
+            if time_diff <= teleport_time_threshold and distance >= teleport_distance_threshold:
+                event_score = 60
                 event_type = 'teleport'
                 severity = 'critical'
-            elif speed > 50:  # Suspeito: > 50 m/s
-                event_score = 30
-                event_type = 'speed_hack'
-                severity = 'suspicious'
+            elif time_diff <= max_time_for_speed_check and distance >= min_distance_threshold:
+                if speed > critical_speed_threshold and distance >= critical_distance_threshold:
+                    event_score = 50
+                    event_type = 'teleport'
+                    severity = 'critical'
+                elif speed > suspicious_speed_threshold:
+                    event_score = 30
+                    event_type = 'speed_hack'
+                    severity = 'suspicious'
             
             if event_score > 0:
                 suspicious_events.append({
@@ -4317,6 +4331,7 @@ def detect_loot_hack(player_id: str, hours_back: int = 2) -> List[Dict]:
                 
                 min_distance = float('inf')
                 closest_position = None
+                closest_time_diff = None
                 
                 for player_pos in player_positions:
                     try:
@@ -4336,11 +4351,22 @@ def detect_loot_hack(player_id: str, hours_back: int = 2) -> List[Dict]:
                             if distance < min_distance:
                                 min_distance = distance
                                 closest_position = player_pos
+                                closest_time_diff = time_diff
                     except:
                         continue
                 
-                # Se a distância mínima for > 2m, é suspeito
-                if min_distance > 2.0:
+                distance_safe_threshold = 4.0
+                distance_extended_threshold = 8.0
+                extended_time_threshold = 30.0
+                
+                if closest_position:
+                    if min_distance <= distance_safe_threshold:
+                        continue
+                    if closest_time_diff is not None and closest_time_diff <= extended_time_threshold and min_distance <= distance_extended_threshold:
+                        continue
+                
+                # Se ainda não encontramos posição segura, registrar suspeita
+                if min_distance == float('inf') or min_distance > distance_safe_threshold:
                     suspicious_events.append({
                         'player_id': player_id,
                         'event_type': 'loot_hack',
@@ -4350,10 +4376,11 @@ def detect_loot_hack(player_id: str, hours_back: int = 2) -> List[Dict]:
                             'container_name': container['ContainerName'],
                             'container_pos': container_pos,
                             'container_time': container_time,
-                            'min_distance': round(min_distance, 2),
+                            'min_distance': round(min_distance, 2) if min_distance != float('inf') else None,
                             'closest_player_pos': (closest_position['CoordX'], closest_position['CoordY'], closest_position['CoordZ']) if closest_position else None,
                             'closest_player_time': closest_position['Data'] if closest_position else None,
-                            'reason': f'Container acessado sem estar próximo (distância mínima: {round(min_distance, 2)}m)'
+                            'closest_time_diff_seconds': round(closest_time_diff, 2) if closest_time_diff is not None else None,
+                            'reason': f'Container acessado sem estar próximo (distância mínima aceitável: <= {distance_safe_threshold}m)'
                         }
                     })
         
@@ -4457,3 +4484,28 @@ def review_cheat_event(event_id: int, reviewed_by: str, review_result: str) -> b
         """, (reviewed_by, review_result, event_id))
         conn.commit()
         return cursor.rowcount > 0
+
+def clear_player_cheat_events(player_id: str) -> bool:
+    """Remove eventos e reseta a pontuação de um jogador"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            DELETE FROM cheat_detection_events
+            WHERE PlayerID = ?
+        """, (player_id,))
+        events_deleted = cursor.rowcount
+        
+        cursor.execute("""
+            UPDATE cheat_detection_scores
+            SET TotalScore = 0,
+                RiskLevel = 'normal',
+                LastUpdated = CURRENT_TIMESTAMP,
+                IsBanned = 0,
+                BannedAt = NULL
+            WHERE PlayerID = ?
+        """, (player_id,))
+        scores_updated = cursor.rowcount
+        
+        conn.commit()
+        return events_deleted > 0 or scores_updated > 0

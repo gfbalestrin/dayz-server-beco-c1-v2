@@ -1,4 +1,5 @@
 let currentEventId = null;
+let currentPlayerId = null;
 
 function getRiskBadgeClass(riskLevel) {
     const classes = {
@@ -32,8 +33,14 @@ function getEventTypeLabel(eventType) {
 
 function formatDateTime(dateTimeStr) {
     if (!dateTimeStr) return '-';
-    const date = new Date(dateTimeStr);
-    return date.toLocaleString('pt-BR');
+    return dateTimeStr;
+}
+
+function toggleClearPlayerButton(disabled) {
+    const btn = document.getElementById('clearPlayerEventsBtn');
+    if (btn) {
+        btn.disabled = !!disabled || !currentPlayerId;
+    }
 }
 
 function loadScores() {
@@ -131,23 +138,32 @@ function renderEventsTable(events) {
 }
 
 function showPlayerDetails(playerId) {
+    currentPlayerId = playerId;
     const modal = new bootstrap.Modal(document.getElementById('playerDetailsModal'));
+    modal.show();
+    requestPlayerDetails(playerId);
+}
+
+function requestPlayerDetails(playerId) {
     const content = document.getElementById('playerDetailsContent');
     
+    toggleClearPlayerButton(true);
     content.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Carregando...';
-    modal.show();
     
     fetch(`/api/cheat-detection/player/${playerId}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 renderPlayerDetails(data.player);
+                toggleClearPlayerButton(false);
             } else {
                 content.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+                toggleClearPlayerButton(true);
             }
         })
         .catch(error => {
             content.innerHTML = `<div class="alert alert-danger">Erro ao carregar detalhes: ${error}</div>`;
+            toggleClearPlayerButton(true);
         });
 }
 
@@ -292,6 +308,35 @@ function reviewEvent(reviewResult) {
         });
 }
 
+function clearPlayerEvents() {
+    if (!currentPlayerId) return;
+    if (!confirm('Deseja realmente limpar os eventos e a pontuação deste jogador?')) {
+        return;
+    }
+    
+    toggleClearPlayerButton(true);
+    
+    fetch(`/api/cheat-detection/player/${currentPlayerId}/clear`, {
+        method: 'POST'
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                loadScores();
+                loadEvents();
+                requestPlayerDetails(currentPlayerId);
+            } else {
+                alert('Erro ao limpar eventos: ' + data.message);
+                toggleClearPlayerButton(false);
+            }
+        })
+        .catch(error => {
+            alert('Erro ao limpar eventos: ' + error);
+            toggleClearPlayerButton(false);
+        });
+}
+
 // Event listeners
 document.addEventListener('DOMContentLoaded', function() {
     loadScores();
@@ -299,5 +344,20 @@ document.addEventListener('DOMContentLoaded', function() {
     
     document.getElementById('riskLevelFilter').addEventListener('change', loadScores);
     document.getElementById('eventTypeFilter').addEventListener('change', loadEvents);
+    
+    const playerModalEl = document.getElementById('playerDetailsModal');
+    if (playerModalEl) {
+        playerModalEl.addEventListener('hidden.bs.modal', () => {
+            currentPlayerId = null;
+            toggleClearPlayerButton(true);
+        });
+    }
+    
+    const eventModalEl = document.getElementById('eventDetailsModal');
+    if (eventModalEl) {
+        eventModalEl.addEventListener('hidden.bs.modal', () => {
+            currentEventId = null;
+        });
+    }
 });
 
