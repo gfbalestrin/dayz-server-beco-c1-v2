@@ -21,16 +21,19 @@ confirm_step() {
 
 # Função de ajuda
 usage() {
-  echo "Uso: $0 [--skip-user] [--skip-steam] [--no-confirm]"
-  echo "  --skip-user     Pula a criação do usuário Linux"
-  echo "  --skip-steam    Pula a instalação do SteamCMD"
-  echo "  --no-confirm    Executa sem pedir confirmações (modo automático)"
+  echo "Uso: $0 [--skip-user] [--skip-steam] [--skip-server-config] [--skip-monitor] [--no-confirm]"
+  echo "  --skip-user          Pula a criação do usuário Linux"
+  echo "  --skip-steam         Pula a instalação do SteamCMD"
+  echo "  --skip-server-config Pula a configuração do servidor"
+  echo "  --skip-monitor       Pula a instalação do sistema de monitor e logs"
+  echo "  --no-confirm         Executa sem pedir confirmações (modo automático)"
   exit 1
 }
 
 SKIP_USER=0
 SKIP_STEAM=0
 SKIP_SERVER_CONFIG=0
+SKIP_MONITOR=0
 NO_CONFIRM=0
 
 # Processa os argumentos
@@ -46,6 +49,10 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --skip-server-config)
       SKIP_SERVER_CONFIG=1
+      shift
+      ;;
+    --skip-monitor)
+      SKIP_MONITOR=1
       shift
       ;;
     --no-confirm)
@@ -74,6 +81,7 @@ fi
 [[ "$SKIP_USER" -eq 1 ]] && echo "Flag --skip-user foi ativada"
 [[ "$SKIP_STEAM" -eq 1 ]] && echo "Flag --skip-steam foi ativada"
 [[ "$SKIP_SERVER_CONFIG" -eq 1 ]] && echo "Flag --skip-server-config foi ativada"
+[[ "$SKIP_MONITOR" -eq 1 ]] && echo "Flag --skip-monitor foi ativada"
 [[ "$NO_CONFIRM" -eq 1 ]] && echo "Flag --no-confirm foi ativada (modo automático)"
 
 echo "Iniciando em $DELAY segundos..."
@@ -148,6 +156,91 @@ export CONFIG_FILE
 
 # Executa config.sh
 source "$CONFIG_SCRIPT"
+
+# Função para substituir variáveis em scripts template
+substituir_variaveis_script() {
+    local template_file="$1"
+    local destino_file="$2"
+    
+    if [ ! -f "$template_file" ]; then
+        echo "Erro: Template não encontrado: $template_file" >&2
+        return 1
+    fi
+    
+    # Copia o template e substitui as variáveis
+    sed -e "s|__LINUX_USER_NAME__|${LinuxUserName}|g" \
+        -e "s|__DAYZ_FOLDER__|${DayzFolder}|g" \
+        -e "s|__DAYZ_MPMISSION__|${DayzMpmission}|g" \
+        -e "s|__STEAM_ACCOUNT__|${SteamAccount}|g" \
+        -e "s|__DAYZ_RESTART_MINUTES__|${DayzRestartMinutes}|g" \
+        -e "s|__DAY_ACCEL__|10|g" \
+        -e "s|__NIGHT_ACCEL__|3|g" \
+        -e "s|__DAYZ_SERVER_FOLDER__|${DayzServerFolder}|g" \
+        -e "s|__APP_FOLDER__|${AppFolder}|g" \
+        -e "s|__APP_SCRIPT_UPDATE_PLAYERS_ONLINE_FILE__|${AppScriptUpdatePlayersOnlineFile}|g" \
+        -e "s|__APP_SERVER_BECO_C1_LOGS_DB_FILE__|${AppServerBecoC1LogsDbFile}|g" \
+        -e "s|__APP_PLAYER_BECO_C1_DB_FILE__|${AppPlayerBecoC1DbFile}|g" \
+        "$template_file" > "$destino_file"
+    
+    chmod +x "$destino_file"
+}
+
+# Função para copiar scripts e pastas do repositório
+copiar_scripts_e_pastas() {
+    local source_dir="$1"
+    local dest_dir="$2"
+    
+    if [ ! -d "$source_dir" ]; then
+        echo "Erro: Diretório fonte não encontrado: $source_dir" >&2
+        return 1
+    fi
+    
+    # Cria diretório de destino se não existir
+    mkdir -p "$dest_dir"
+    
+    # Copia pastas completas
+    local folders=(
+        "admin-interface"
+        "cheat_detection"
+        "databases"
+        "dayz-monitor"
+    )
+    
+    for folder in "${folders[@]}"; do
+        if [ -d "$source_dir/$folder" ]; then
+            echo "Copiando pasta $folder..."
+            # Remove pasta destino se existir para evitar conflitos
+            [ -d "$dest_dir/$folder" ] && rm -rf "$dest_dir/$folder"
+            cp -Rap "$source_dir/$folder" "$dest_dir/"
+        fi
+    done
+    
+    # Copia arquivos de configuração
+    if [ -f "$source_dir/config.sh" ]; then
+        cp "$source_dir/config.sh" "$dest_dir/"
+    fi
+    
+    if [ -f "$source_dir/config.json" ]; then
+        cp "$source_dir/config.json" "$dest_dir/"
+    fi
+    
+    # Copia todos os scripts .sh da raiz (exceto os que já foram copiados como templates)
+    for script in "$source_dir"/*.sh; do
+        if [ -f "$script" ]; then
+            local script_name=$(basename "$script")
+            # Pula scripts que são templates (update.sh e execute_script_pos.sh são gerados)
+            if [[ "$script_name" != "update.sh" && "$script_name" != "execute_script_pos.sh" ]]; then
+                cp "$script" "$dest_dir/"
+            fi
+        fi
+    done
+    
+    # Aplica permissões de execução apenas em arquivos .sh
+    find "$dest_dir" -type f -name "*.sh" -exec chmod +x {} \;
+    
+    # Aplica permissões de propriedade recursivamente
+    chown -R "$LinuxUserName:$LinuxUserName" "$dest_dir"
+}
 
 confirm_step "Validação do Sistema Operacional"
 
@@ -457,313 +550,101 @@ confirm_step "Criação dos scripts de atualização e pós-inicialização"
 
 echo "Configurando script de update $DayzFolder/scripts/update.sh ..."
 
-cat <<EOF > "$DayzFolder/scripts/update.sh"
-#!/bin/bash
-export TZ=America/Sao_Paulo
-set -euo pipefail
+# Define o caminho do template
+TEMPLATE_UPDATE="$SCRIPT_DIR/vanilla/dayz-server/scripts/update.sh"
+TEMPLATE_EXECUTE_POS="$SCRIPT_DIR/vanilla/dayz-server/scripts/execute_script_pos.sh"
 
-echo "[INFO] Iniciando update do servidor DayZ..."
-
-
-files=(
-"${DayzFolder}/mpmissions/${DayzMpmission}/admin/files/commands_to_execute.txt"
-"${DayzFolder}/mpmissions/${DayzMpmission}/admin/files/external_actions.txt"
-"${DayzFolder}/mpmissions/${DayzMpmission}/admin/files/messages_to_send.txt"
-"${DayzFolder}/mpmissions/${DayzMpmission}/admin/files/messages_private_to_send.txt"
-"${DayzFolder}/profiles/dayz-server.log"
-"${DayzFolder}/profiles/dayz-server.err"
-)
-
-for file in "\${files[@]}"; do
-    if [ -f "\$file" ]; then
-        echo > "\$file"
-    fi
-done
-
-# Limpa logs de banco antigos (se o script existir)
-if [ -f "$DayzFolder/scripts/clear_databases.sh" ]; then
-    echo "[INFO] Limpar logs de banco antigos..."
-    cd "$DayzFolder/scripts" && source "$DayzFolder/scripts/config.sh"
+# Verifica se os templates existem
+if [ ! -f "$TEMPLATE_UPDATE" ]; then
+    echo "Erro: Template update.sh não encontrado em $TEMPLATE_UPDATE" >&2
+    exit 1
 fi
 
-cd "$DayzFolder/scripts" && source "$DayzFolder/scripts/config.sh"
-CurrentDate=\$(date "+%d/%m/%Y %H:%M:%S")
-ScriptName=\$(basename "\$0")
-SEND_DISCORD_WEBHOOK "⚠️ Servidor reiniciando e atualizando... Todos os jogadores foram desconectados!" "\$DiscordWebhookLogs" "\$CurrentDate" "\$ScriptName"
-INSERT_CUSTOM_LOG "⚠️ Servidor reiniciando e atualizando... Todos os jogadores foram desconectados!" "INFO" "\$ScriptName"
-
-
-"$AppFolder/$AppScriptUpdatePlayersOnlineFile" "RESET" 
-
-if [[ "\$DayzWipeOnRestart" == "1" ]]; then
-    echo "=== Realizando wipe do servidor DayZ ==="
-    INSERT_CUSTOM_LOG "Realizando wipe do servidor DayZ" "INFO" "\$ScriptName"
-    PROFILE_DIR="\$DayzServerFolder/mpmissions/$DayzMpmission/storage_1"
-    echo "PROFILE_DIR: \$PROFILE_DIR"
-    INSERT_CUSTOM_LOG "PROFILE_DIR: \$PROFILE_DIR" "INFO" "\$ScriptName"
-    rm -rf "\$PROFILE_DIR/players.db"
-    rm -rf "\$PROFILE_DIR/spawnpoints.bin"
-    rm -rf "\$PROFILE_DIR/data"
-    sqlite3 "\$AppFolder/\$AppServerBecoC1LogsDbFile" "DELETE FROM vehicles_tracking"
-    sqlite3 "\$AppFolder/\$AppServerBecoC1LogsDbFile" "DELETE FROM container_items_tracking"
-    sqlite3 "\$AppFolder/\$AppServerBecoC1LogsDbFile" "DELETE FROM containers_tracking"
-    sqlite3 "\$AppFolder/\$AppServerBecoC1LogsDbFile" "DELETE FROM fences_tracking"
-    sqlite3 "\$AppFolder/\$AppServerBecoC1LogsDbFile" "DELETE FROM watchtowers_tracking"
-    sqlite3 "\$AppFolder/\$AppPlayerBecoC1DbFile" "DELETE FROM players_damage"
-    sqlite3 "\$AppFolder/\$AppPlayerBecoC1DbFile" "DELETE FROM players_killfeed"
-    sqlite3 "\$AppFolder/\$AppPlayerBecoC1DbFile" "DELETE FROM players_coord_backup"
-    sqlite3 "\$AppFolder/\$AppPlayerBecoC1DbFile" "DELETE FROM players_coord"
-
-    echo "Wipe realizado!"
-    SEND_DISCORD_WEBHOOK "Wipe realizado!" "\$DiscordWebhookLogs" "\$CurrentDate" "\$ScriptName"
+if [ ! -f "$TEMPLATE_EXECUTE_POS" ]; then
+    echo "Erro: Template execute_script_pos.sh não encontrado em $TEMPLATE_EXECUTE_POS" >&2
+    exit 1
 fi
 
-# Atualiza o servidor via SteamCMD
-echo "[INFO] Atualizando servidor via SteamCMD..."
-cd "$DayzFolder"
-/home/$LinuxUserName/servers/steamcmd/steamcmd.sh +force_install_dir "$DayzFolder/" +login $SteamAccount +app_update 223350 validate +quit
-
-# Atualiza eventos (se o script existir)
-if [ -f "$DayzFolder/scripts/economy_update.sh" ]; then
-    echo "[INFO] Atualizando eventos..."
-    cd "$DayzFolder/scripts"
-    ./economy_update.sh
-fi 
-
-cd "$DayzFolder/mpmissions/$DayzMpmission/"
-
-# Remove arquivos existentes para evitar conflitos (cuidar para não apagar arquivos importantes do deathmatch)
-[ -d admin/files ] && cp -Rap admin/files /tmp/
-[ -d admin/loadouts ] && cp -Rap admin/loadouts /tmp/
-[ -d admin ] && rm -rf admin
-rm -f init.c
-rm -rf admin
-
-echo "[INFO] Baixando arquivos do servidor via Git..."
-# Repositório local em $DayzFolder/scripts
-REPO_DIR="$DayzFolder/scripts/dayz-server-beco-c1-v2"
-
-# Verifica se o repositório já existe
-if [ ! -d "\$REPO_DIR" ]; then
-    echo "[INFO] Clonando repositório (primeira vez)..."
-    git clone https://github.com/gfbalestrin/dayz-server-beco-c1-v2.git "\$REPO_DIR"
-else
-    echo "[INFO] Atualizando repositório existente..."    
-    cd "\$REPO_DIR"
-    git fetch --all
-    git reset --hard origin/main 
-    git clean -fdx
-fi
-
-# Copia arquivos específicos do vanilla
-echo "[INFO] Copiando arquivos para Vanilla..."
-cp "\$REPO_DIR/installation/vanilla/dayz-server/mpmissions/$DayzMpmission/init.c" .
-cp -r "\$REPO_DIR/installation/vanilla/dayz-server/mpmissions/$DayzMpmission/admin" .
-cp -a /tmp/files/.    ./admin/files/
-cp -a /tmp/loadouts/. ./admin/loadouts/
-
-GLOBALS_FILE="$DayzFolder/mpmissions/$DayzMpmission/admin/Globals.c"
-if [[ "\$DayzDeathmatch" == "1" ]]; then
-    if grep -q "bool IsDeathmatchEnabled = false;" "\$GLOBALS_FILE"; then
-        sed -i 's/bool IsDeathmatchEnabled = false;/bool IsDeathmatchEnabled = true;/g' "\$GLOBALS_FILE"        
-    fi
-    EVENTS_FILE="$DayzFolder/mpmissions/$DayzMpmission/db/events.xml"
-    sed -i '/<event name="StaticContaminatedArea">/,/<\/event>/d' "$EVENTS_FILE"
-    sed -i '/<event name="DynamicContaminatedArea">/,/<\/event>/d' "$EVENTS_FILE"
-    sed -i '/<event name="StaticGasZone">/,/<\/event>/d' "$EVENTS_FILE"
-    sed -i '/<event name="DynamicGasZone">/,/<\/event>/d' "$EVENTS_FILE"
-else
-    if grep -q "bool IsDeathmatchEnabled = true;" "\$GLOBALS_FILE"; then
-        sed -i 's/bool IsDeathmatchEnabled = true;/bool IsDeathmatchEnabled = false;/g' "\$GLOBALS_FILE"
-    fi
-fi
-
-# Define permissões corretas apenas nos arquivos copiados
-chown "$LinuxUserName:$LinuxUserName" init.c 2>/dev/null || echo "Aviso: Não foi possível alterar permissões do init.c"
-chown -R "$LinuxUserName:$LinuxUserName" admin 2>/dev/null || echo "Aviso: Não foi possível alterar permissões da pasta admin"
-
-MINUTES_RESTART=$DayzRestartMinutes
-awk -v dl="$MINUTES_RESTART" '
-BEGIN { in_old = 0; added = 0 }
-
-/<message>/ {
-    buffer = $0 ORS
-    in_old = 1
-    next
-}
-
-in_old {
-    buffer = buffer $0 ORS
-    if ($0 ~ /<\/message>/) {
-        # Verifica se o buffer é a mensagem de aviso
-        if (buffer ~ /<shutdown>1<\/shutdown>/ && buffer ~ /O servidor vai ser reiniciado em #tmin minutos/) {
-            # drop (não imprime)
-        } else {
-            printf "%s", buffer
-        }
-        in_old = 0
-        buffer = ""
-    }
-    next
-}
-
-/<\/messages>/ && !added {
-    print "    <message>"
-    print "        <deadline>" dl "</deadline>"
-    print "        <shutdown>1</shutdown>"
-    print "        <text>O servidor vai ser reiniciado em #tmin minutos.</text>"
-    print "    </message>"
-    added = 1
-}
-
-{ print }
-' "$DayzFolder/mpmissions/$DayzMpmission/db/messages.xml" > tmp.xml && \
-mv tmp.xml "$DayzFolder/mpmissions/$DayzMpmission/db/messages.xml"
-
-CFG_FILE="$DayzFolder/serverDZ.cfg"
-DAY_ACCEL="10"
-NIGHT_ACCEL="3"
-sed -i "s/^\s*serverTimeAcceleration=.*/serverTimeAcceleration=${DAY_ACCEL};/" "$CFG_FILE"
-sed -i "s/^\s*serverNightTimeAcceleration=.*/serverNightTimeAcceleration=${NIGHT_ACCEL};/" "$CFG_FILE"
-
-chown -R "$LinuxUserName:$LinuxUserName" $DayzFolder/mpmissions/$DayzMpmission/db/messages.xml 2>/dev/null || echo "Aviso: Não foi possível alterar permissões da pasta admin"
-
-CURRENT_DATE=\$(date "+%Y-%m-%d_%H-%M-%S")
-PLAYER_DB="/home/$LinuxUserName/servers/dayz-server/mpmissions/$DayzMpmission/storage_1/players.db"
-BACKUP_DIR="/home/$LinuxUserName/servers/dayz-server/mpmissions/$DayzMpmission/storage_1/backup_custom"
-BACKUP_FILE="\$BACKUP_DIR/players.db_\$CURRENT_DATE"
-
-echo "Fazendo backup do banco de players..."
-
-# Cria a pasta backup_custom se não existir
-if [ ! -d "\$BACKUP_DIR" ]; then
-    mkdir -p "\$BACKUP_DIR"
-    chown "$LinuxUserName:$LinuxUserName" "\$BACKUP_DIR"
-fi
-
-if [ -f "\$PLAYER_DB" ]; then
-    cp -Rap "\$PLAYER_DB" "\$BACKUP_FILE"
-else
-    echo "Aviso: arquivo \$PLAYER_DB não encontrado, backup não realizado."
-fi
-
-# Remove arquivos de backup mais antigos que 7 dias
-echo "Removendo backups antigos (mais de 7 dias)..."
-find "\$BACKUP_DIR" -name "players.db_*" -type f -mtime +7 -delete
-
-# Opcional: Log da limpeza
-if [ \$? -eq 0 ]; then
-    echo "Limpeza de backups antigos concluída"
-else
-    echo "Aviso: Erro durante limpeza de backups antigos"
-fi
-
-LOG_DIR="/home/$LinuxUserName/servers/dayz-server/profiles"
-
-# Remove arquivos de log mais antigos que 7 dias
-echo "Removendo logs antigos (mais de 7 dias)..."
-find "\$LOG_DIR" -name "DayZServer_*.ADM" -type f -mtime +7 -delete
-find "\$LOG_DIR" -name "DayZServer_*.RPT" -type f -mtime +7 -delete
-find "\$LOG_DIR" -name "DayZServer_*.log" -type f -mtime +7 -delete
-find "\$LOG_DIR" -name "DayZServer_*.mdmp" -type f -mtime +7 -delete
-find "\$LOG_DIR" -name "script_*.log" -type f -mtime +7 -delete
-find "\$LOG_DIR" -name "crash_*.log" -type f -mtime +7 -delete
-
-# Log da limpeza de logs
-if [ \$? -eq 0 ]; then
-    echo "Limpeza de logs antigos concluída"
-else
-    echo "Aviso: Erro durante limpeza de logs antigos"
-fi
-
-echo "[INFO] Update concluído com sucesso."
-EOF
-
-chmod +x "$DayzFolder/scripts/update.sh"
+# Gera o script update.sh a partir do template
+substituir_variaveis_script "$TEMPLATE_UPDATE" "$DayzFolder/scripts/update.sh"
 
 echo "Configurando script de pós inicialização $DayzFolder/scripts/execute_script_pos.sh ..."
-cat <<EOF > "$DayzFolder/scripts/execute_script_pos.sh"
-#!/bin/bash
-export TZ=America/Sao_Paulo
-LOG_DIR="/home/$LinuxUserName/servers/dayz-server/profiles"
 
-# Aguarda alguns segundos para o arquivo ser gerado
-sleep 10
-
-# Encontra o arquivo .ADM mais recente
-ADM_FILE=\$(ls -t "\$LOG_DIR"/DayZServer_*.ADM 2>/dev/null | head -n 1)
-
-# Se encontrado, cria ou atualiza link simbólico
-if [[ -f "\$ADM_FILE" ]]; then
-    ln -sf "\$(basename "\$ADM_FILE")" "\$LOG_DIR/DayZServer.ADM"
-fi
-
-if systemctl list-units --full -all | grep -Fq "dayz-monitor.service"; then
-    systemctl restart dayz-monitor.service
-fi
-EOF
-
-chmod +x "$DayzFolder/scripts/execute_script_pos.sh"
-
-
-echo "" >> "$DayzFolder/scripts/execute_script_pos.sh"
-chmod +x "$DayzFolder/scripts/execute_script_pos.sh"
+# Gera o script execute_script_pos.sh a partir do template
+substituir_variaveis_script "$TEMPLATE_EXECUTE_POS" "$DayzFolder/scripts/execute_script_pos.sh"
 
 chown -R "$LinuxUserName:$LinuxUserName" "/home/$LinuxUserName/servers" 2>/dev/null || echo "Aviso: Não foi possível alterar permissões da pasta servers (alguns arquivos podem ter restrições)"
 
 systemctl enable dayz-server.service
 
-confirm_step "Verificação final de configurações e instalação do sistema de logs"
+if [[ "$SKIP_MONITOR" -eq 0 ]]; then
+    confirm_step "Instalação do sistema de logs e monitor"
+    
+    # Instala sqlite3 se necessário
+    if ! command -v sqlite3 &> /dev/null; then
+        echo "Instalando sqlite3..."
+        apt install -y sqlite3
+    fi
+    
+    # Define diretórios
+    SCRIPTS_SOURCE_DIR="$SCRIPT_DIR/vanilla/dayz-server/scripts"
+    SCRIPTS_DEST_DIR="$DayzFolder/scripts"
+    
+    # Copia todos os scripts e pastas
+    echo "Copiando scripts e pastas do repositório..."
+    copiar_scripts_e_pastas "$SCRIPTS_SOURCE_DIR" "$SCRIPTS_DEST_DIR"
+    
+    # Gera o script supervisor a partir do template
+    TEMPLATE_SUPERVISOR="$SCRIPTS_SOURCE_DIR/dayz-monitor/dayz_supervisor.sh"
+    SUPERVISOR_DEST="$SCRIPTS_DEST_DIR/dayz-monitor/dayz_supervisor.sh"
+    
+    if [ -f "$TEMPLATE_SUPERVISOR" ]; then
+        echo "Gerando script supervisor..."
+        substituir_variaveis_script "$TEMPLATE_SUPERVISOR" "$SUPERVISOR_DEST"
+    else
+        echo "Aviso: Template supervisor não encontrado em $TEMPLATE_SUPERVISOR"
+    fi
+    
+    # Cria o serviço systemd para o monitor
+    confirm_step "Configuração do serviço systemd dayz-monitor"
+    
+    DayzMonitorServiceFile="/etc/systemd/system/dayz-monitor.service"
+    echo "Configurando serviço no systemd $DayzMonitorServiceFile ..."
+    
+    cat <<EOF > "$DayzMonitorServiceFile"
+[Unit]
+Description=DayZ Supervisor (command + log monitor)
+After=network.target
 
-echo "Realizando checagem de configuração..."
+[Service]
+ExecStart=$SCRIPTS_DEST_DIR/dayz-monitor/dayz_supervisor.sh
+Restart=always
+# Diretório de trabalho
+WorkingDirectory=$DayzFolder/
 
-echo "$ServerDZFile ..."
-echo ""
+# Limite de arquivos abertos
+LimitNOFILE=100000
 
-echo "$DayzSettingXmlFile ..."
-echo ""
+# Comandos de reload e parada
+ExecReload=/bin/kill -s HUP \$MAINPID
+ExecStop=/bin/kill -s INT \$MAINPID
 
-echo "$DayzBeServerFile ..."
-echo ""
+# Usuário e grupo que rodam o serviço
+User=$LinuxUserName
+Group=$LinuxUserName
 
-echo "$DayzMpmissionMessagesXml ..."
-echo ""
-
-echo "$DayzServerServiceFile ..."
-echo ""
-
-echo "Listando scripts..."
-ls -lh "$DayzFolder/scripts"
-echo ""
-
-if [[ $$DayzDeathmatch == "1" ]]; then
-	echo "$DayzMpmissionGlobalsXml ..."
-	echo ""
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    # Recarrega systemd
+    systemctl daemon-reload
+    
+    # Habilita o serviço
+    systemctl enable dayz-monitor.service
+    
+    echo "✅ Sistema de monitor e logs instalado com sucesso."
+    echo "   Para iniciar: systemctl start dayz-monitor.service"
+else
+    echo "❌ Instalação do sistema de monitor e logs foi pulada, pois a flag --skip-monitor foi ativada."
 fi
-
-if [[ "$DayzWipeOnRestart" == "1" ]]; then
-    echo "$DayzFolder/scripts/wipe.sh ..."
-    echo ""
-fi
-
-systemctl stop dayz-server.service
-
-sleep 10
-
-confirm_step "Instalação do sistema de logs"
-
-source ./install_monitor.sh
-
-echo ""
-echo "════════════════════════════════════════════════════════════════"
-echo "✅ Instalação concluída com sucesso!"
-echo "════════════════════════════════════════════════════════════════"
-echo ""
-echo "📋 Próximos passos:"
-echo "  1. Iniciar servidor:   systemctl start dayz-server.service"
-echo "  2. Ver status:         systemctl status dayz-server.service"
-echo "  3. Ver logs em tempo real: tail -f /home/dayzadmin/servers/dayz-server/profiles/dayz-server.err"
-echo "  4. Parar servidor:     systemctl stop dayz-server.service"
-echo "  5. Reiniciar servidor: systemctl restart dayz-server.service"
-echo ""
-echo "════════════════════════════════════════════════════════════════"

@@ -37,7 +37,6 @@ export AppScriptExtractPlayersStatsFile=$(jq -r '.App.ScriptExtractPlayersStatsF
 export AppScriptUpdateGeneralKillfeed=$(jq -r '.App.ScriptUpdateGeneralKillfeed' "$CONFIG_FILE")
 export AppScriptGetPlayerDamageFile=$(jq -r '.App.ScriptGetPlayerDamageFile' "$CONFIG_FILE")
 export AppScriptPlayerLoadoutManagerFile=$(jq -r '.App.ScriptPlayerLoadoutManagerFile' "$CONFIG_FILE")
-export AppScriptWipeFile=$(jq -r '.App.ScriptWipeFile' "$CONFIG_FILE")
 export AppUrlAppLoadout=$(jq -r '.App.UrlAppLoadout' "$CONFIG_FILE")
 
 # Print all variables

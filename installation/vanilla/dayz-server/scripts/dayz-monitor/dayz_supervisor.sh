@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Caminhos para os scripts individuais
-CMD_WATCHER="/home/dayzadmin/servers/dayz-server/scripts/dayz-monitor/dayz_command_watcher.sh"
-LOG_WATCHER="/home/dayzadmin/servers/dayz-server/scripts/dayz-monitor/dayz_log_monitor.sh"
-ERR_WATCHER="/home/dayzadmin/servers/dayz-server/scripts/dayz-monitor/dayz_err_monitor.sh"
+CMD_WATCHER="/home/__LINUX_USER_NAME__/servers/dayz-server/scripts/dayz-monitor/dayz_command_watcher.sh"
+LOG_WATCHER="/home/__LINUX_USER_NAME__/servers/dayz-server/scripts/dayz-monitor/dayz_log_monitor.sh"
+ERR_WATCHER="/home/__LINUX_USER_NAME__/servers/dayz-server/scripts/dayz-monitor/dayz_err_monitor.sh"
 
 # Inicia os scripts em background
 "$CMD_WATCHER" &

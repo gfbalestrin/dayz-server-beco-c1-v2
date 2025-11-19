@@ -26,7 +26,6 @@
         "ScriptUpdateGeneralKillfeed": "monta_killfeed_geral.sh",
         "ScriptGetPlayerDamageFile": "captura_dano_player.sh",        
         "ScriptPlayerLoadoutManagerFile": "player_loadout_manager.sh",     
-        "ScriptWipeFile": "wipe.sh",
         "UrlAppLoadout": "http://beco.servegame.com:54321",
         "SteamIdSpoof": [
             { "From": "11111111111111111", "To": "22222222222222222" }
