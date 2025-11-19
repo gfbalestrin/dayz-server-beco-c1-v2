@@ -32,11 +32,21 @@ handle_built_shelter() {
         MethodSuffix=" usando $(sanitize_discord_markdown "$BuildMethod")"
     fi
 
-    local Message
+    local Message PosCommand
     Message="Construção detectada: $SafePlayerInfo construiu um $(sanitize_discord_markdown "$ShelterType") em $Position$MethodSuffix"
 
     INSERT_CUSTOM_LOG "$Message" "INFO" "$ScriptName"
     HANDLER_CONTENT="$Message"
+
+    PosCommand=$(echo "$Position" | tr ',' ' ')
+    if [[ -n "$PosCommand" ]]; then
+        local CommandLine
+        CommandLine="SYSTEM registercontainer $PosCommand"
+        echo "$CommandLine" >>"$DayzServerFolder/$DayzAdminCmdsFile"
+        INSERT_CUSTOM_LOG "Comando enfileirado: $CommandLine" "DEBUG" "$ScriptName"
+    else
+        INSERT_CUSTOM_LOG "Falha ao montar coordenadas para comando registercontainer" "ERROR" "$ScriptName"
+    fi
 }
 
 

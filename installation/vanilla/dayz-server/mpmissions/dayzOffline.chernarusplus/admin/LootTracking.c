@@ -281,6 +281,63 @@ void CleanTrackedContainers()
 	}
 }
 
+bool RegisterContainerAtPosition(vector targetPosition, float searchRadius = 3.0)
+{
+	if (!GetGame() || !GetGame().IsServer())
+		return false;
+
+	if (searchRadius <= 0)
+		searchRadius = 3.0;
+
+	array<Object> nearbyObjects = new array<Object>();
+	GetGame().GetObjectsAtPosition(targetPosition, searchRadius, nearbyObjects, null);
+
+	if (!nearbyObjects || nearbyObjects.Count() == 0)
+	{
+		WriteToLog("RegisterContainerAtPosition(): Nenhum objeto encontrado próximo a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+		return false;
+	}
+
+	EntityAI closestContainer;
+	float closestDistance = searchRadius + 1.0;
+
+	foreach (Object candidateObject : nearbyObjects)
+	{
+		if (!candidateObject)
+			continue;
+
+		string objectType = candidateObject.GetType();
+		if (!IsContainerType(objectType))
+			continue;
+
+		EntityAI candidateContainer = EntityAI.Cast(candidateObject);
+		if (!candidateContainer)
+			continue;
+
+		vector candidatePosition = candidateContainer.GetPosition();
+		float candidateDistance = vector.Distance(candidatePosition, targetPosition);
+		if (candidateDistance > searchRadius)
+			continue;
+
+		if (!closestContainer || candidateDistance < closestDistance)
+		{
+			closestContainer = candidateContainer;
+			closestDistance = candidateDistance;
+		}
+	}
+
+	if (!closestContainer)
+	{
+		WriteToLog("RegisterContainerAtPosition(): Nenhum container válido encontrado próximo a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+		return false;
+	}
+
+	RegisterContainer(closestContainer);
+
+	WriteToLog("RegisterContainerAtPosition(): Container registrado a " + closestDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
+	return true;
+}
+
 void CheckContainersForLoot()
 {
 	if (!m_TrackedContainers || m_TrackedContainers.Count() == 0)

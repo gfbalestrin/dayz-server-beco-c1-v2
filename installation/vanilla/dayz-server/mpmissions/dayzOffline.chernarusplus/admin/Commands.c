@@ -129,6 +129,35 @@ bool ExecuteCommand(TStringArray tokens)
 
                 WriteToLog("ExecuteCommand(): registerwatchtower falhou em encontrar watchtower em " + watchtowerPosition.ToString() + " (raio=" + watchtowerSearchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
                 return false;
+            case "registercontainer":
+                if (tokens.Count() < 5)
+                {
+                    WriteToLog("ExecuteCommand(): registercontainer requer coordenadas X Z Y", LogFile.INIT, false, LogType.ERROR);
+                    return false;
+                }
+
+                float containerPosX = tokens[2].ToFloat();
+                float containerPosZ = tokens[3].ToFloat();
+                float containerPosY = tokens[4].ToFloat();
+                vector containerPosition = Vector(containerPosX, containerPosY, containerPosZ);
+
+                float containerSearchRadius = 3.0;
+                if (tokens.Count() >= 6)
+                {
+                    float candidateContainerRadius = tokens[5].ToFloat();
+                    if (candidateContainerRadius > 0)
+                        containerSearchRadius = candidateContainerRadius;
+                }
+
+                bool containerRegistered = RegisterContainerAtPosition(containerPosition, containerSearchRadius);
+                if (containerRegistered)
+                {
+                    WriteToLog("ExecuteCommand(): registercontainer executado com sucesso em " + containerPosition.ToString() + " (raio=" + containerSearchRadius.ToString() + ")", LogFile.INIT, false, LogType.INFO);
+                    return true;
+                }
+
+                WriteToLog("ExecuteCommand(): registercontainer falhou em encontrar container em " + containerPosition.ToString() + " (raio=" + containerSearchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+                return false;
             default:
                 WriteToLog("Comando do sistema desconhecido: " + command, LogFile.INIT, false, LogType.ERROR);
                 return false;
