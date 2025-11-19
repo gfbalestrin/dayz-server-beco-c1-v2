@@ -127,38 +127,45 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
         except:
             has_is_destroyed = False
         
+        # Buscar último registro de cada veículo
         if has_is_destroyed and not include_destroyed:
             cursor.execute("""
-                SELECT VehicleId, VehicleName, PositionX, PositionY, PositionZ, TimeStamp, IdVehicleTracking,
+                SELECT vt.VehicleId, vt.VehicleName, vt.PositionX, vt.PositionY, vt.PositionZ, vt.TimeStamp, vt.IdVehicleTracking,
                        0 as IsDestroyed, NULL as DestroyedAt
-                FROM vehicles_tracking
-                WHERE TimeStamp = (
-                    SELECT MAX(TimeStamp) FROM vehicles_tracking
+                FROM vehicles_tracking vt
+                INNER JOIN (
+                    SELECT VehicleId, MAX(TimeStamp) as MaxTimeStamp
+                    FROM vehicles_tracking
                     WHERE IsDestroyed = 0 OR IsDestroyed IS NULL
-                )
-                AND (IsDestroyed = 0 OR IsDestroyed IS NULL)
-                ORDER BY VehicleName
+                    GROUP BY VehicleId
+                ) AS latest_vt ON vt.VehicleId = latest_vt.VehicleId AND vt.TimeStamp = latest_vt.MaxTimeStamp
+                WHERE vt.IsDestroyed = 0 OR vt.IsDestroyed IS NULL
+                ORDER BY vt.VehicleName
             """)
         else:
             if has_is_destroyed:
                 cursor.execute("""
-                    SELECT VehicleId, VehicleName, PositionX, PositionY, PositionZ, TimeStamp, IdVehicleTracking,
-                           IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt
-                    FROM vehicles_tracking
-                    WHERE TimeStamp = (
-                        SELECT MAX(TimeStamp) FROM vehicles_tracking
-                    )
-                    ORDER BY VehicleName
+                    SELECT vt.VehicleId, vt.VehicleName, vt.PositionX, vt.PositionY, vt.PositionZ, vt.TimeStamp, vt.IdVehicleTracking,
+                           IFNULL(vt.IsDestroyed, 0) as IsDestroyed, vt.DestroyedAt
+                    FROM vehicles_tracking vt
+                    INNER JOIN (
+                        SELECT VehicleId, MAX(TimeStamp) as MaxTimeStamp
+                        FROM vehicles_tracking
+                        GROUP BY VehicleId
+                    ) AS latest_vt ON vt.VehicleId = latest_vt.VehicleId AND vt.TimeStamp = latest_vt.MaxTimeStamp
+                    ORDER BY vt.VehicleName
                 """)
             else:
                 cursor.execute("""
-                    SELECT VehicleId, VehicleName, PositionX, PositionY, PositionZ, TimeStamp, IdVehicleTracking,
+                    SELECT vt.VehicleId, vt.VehicleName, vt.PositionX, vt.PositionY, vt.PositionZ, vt.TimeStamp, vt.IdVehicleTracking,
                            0 as IsDestroyed, NULL as DestroyedAt
-                    FROM vehicles_tracking
-                    WHERE TimeStamp = (
-                        SELECT MAX(TimeStamp) FROM vehicles_tracking
-                    )
-                    ORDER BY VehicleName
+                    FROM vehicles_tracking vt
+                    INNER JOIN (
+                        SELECT VehicleId, MAX(TimeStamp) as MaxTimeStamp
+                        FROM vehicles_tracking
+                        GROUP BY VehicleId
+                    ) AS latest_vt ON vt.VehicleId = latest_vt.VehicleId AND vt.TimeStamp = latest_vt.MaxTimeStamp
+                    ORDER BY vt.VehicleName
                 """)
         return [dict(row) for row in cursor.fetchall()]
 
