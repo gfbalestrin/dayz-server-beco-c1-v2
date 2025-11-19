@@ -2755,7 +2755,8 @@ function updateFences(data) {
         const hasRecentAttack = fence.has_recent_attack || false;
         const marker = L.marker(coords, {
             icon: createFenceIcon(fence.fence_name, hasRecentAttack),
-            opacity: isDestroyed ? 0.5 : 1.0
+            opacity: isDestroyed ? 0.5 : 1.0,
+            zIndexOffset: hasRecentAttack ? 1000 : 0
         }).addTo(map);
         
         const popupContent = createFencePopup(fence);
