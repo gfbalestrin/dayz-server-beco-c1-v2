@@ -1113,6 +1113,39 @@ def api_vehicles_positions():
         # PositionY = Sul-Norte (Y do mapa) ← usar este
         # PositionZ = Altitude (ignorar)
         pixel_coords = dayz_to_pixel(veh['PositionX'], veh['PositionY'])
+        
+        # Buscar informações de items do banco de dados
+        items = veh.get('items', [])
+        attachments = veh.get('attachments', [])
+        health_parts = veh.get('health_parts')
+        
+        # Converter items e attachments para formato esperado pelo frontend
+        items_formatted = []
+        for item in items:
+            item_type = item.get('type', '')
+            item_health = item.get('health')
+            # Buscar informações do item no banco de itens
+            item_info = get_item_details_from_items_db(item_type)
+            items_formatted.append({
+                'type': item_type,
+                'name': item_info.get('name', item_type) if item_info else item_type,
+                'health': item_health,
+                'img': item_info.get('img', '') if item_info else ''
+            })
+        
+        attachments_formatted = []
+        for attachment in attachments:
+            attachment_type = attachment.get('type', '')
+            attachment_health = attachment.get('health')
+            # Buscar informações do attachment no banco de itens
+            attachment_info = get_item_details_from_items_db(attachment_type)
+            attachments_formatted.append({
+                'type': attachment_type,
+                'name': attachment_info.get('name', attachment_type) if attachment_info else attachment_type,
+                'health': attachment_health,
+                'img': attachment_info.get('img', '') if attachment_info else ''
+            })
+        
         result['vehicles'].append({
             'vehicle_id': veh['VehicleId'],
             'vehicle_name': veh['VehicleName'] or 'Veículo',
@@ -1123,7 +1156,10 @@ def api_vehicles_positions():
             'last_update': veh['TimeStamp'] or '',
             'is_destroyed': bool(veh.get('IsDestroyed', 0)) if include_destroyed else False,
             'destroyed_at': veh.get('DestroyedAt') if include_destroyed else None,
-            'has_moved': bool(veh.get('has_moved', False))
+            'has_moved': bool(veh.get('has_moved', False)),
+            'items': items_formatted,
+            'attachments': attachments_formatted,
+            'health_parts': health_parts
         })
     
     return jsonify(result)
@@ -1145,6 +1181,39 @@ def api_vehicles_map_positions():
         # PositionY = Sul-Norte (Y do mapa) ← usar este
         # PositionZ = Altitude (ignorar)
         pixel_coords = dayz_to_pixel(veh['PositionX'], veh['PositionY'])
+        
+        # Buscar informações de items do banco de dados
+        items = veh.get('items', [])
+        attachments = veh.get('attachments', [])
+        health_parts = veh.get('health_parts')
+        
+        # Converter items e attachments para formato esperado pelo frontend
+        items_formatted = []
+        for item in items:
+            item_type = item.get('type', '')
+            item_health = item.get('health')
+            # Buscar informações do item no banco de itens
+            item_info = get_item_details_from_items_db(item_type)
+            items_formatted.append({
+                'type': item_type,
+                'name': item_info.get('name', item_type) if item_info else item_type,
+                'health': item_health,
+                'img': item_info.get('img', '') if item_info else ''
+            })
+        
+        attachments_formatted = []
+        for attachment in attachments:
+            attachment_type = attachment.get('type', '')
+            attachment_health = attachment.get('health')
+            # Buscar informações do attachment no banco de itens
+            attachment_info = get_item_details_from_items_db(attachment_type)
+            attachments_formatted.append({
+                'type': attachment_type,
+                'name': attachment_info.get('name', attachment_type) if attachment_info else attachment_type,
+                'health': attachment_health,
+                'img': attachment_info.get('img', '') if attachment_info else ''
+            })
+        
         result['vehicles'].append({
             'vehicle_id': veh['VehicleId'],
             'vehicle_name': veh['VehicleName'] or 'Veículo',

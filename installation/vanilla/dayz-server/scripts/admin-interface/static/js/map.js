@@ -2434,40 +2434,7 @@ function updateVehicles(data) {
             opacity: isDestroyed ? 0.5 : 1.0
         }).addTo(map);
         
-        const destroyedInfo = isDestroyed ? `
-            <div class="info-row">
-                <span class="info-label"><i class="fas fa-exclamation-triangle text-warning me-1"></i>Status:</span>
-                <span class="info-value text-warning">Destruído</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Destruído em:</span>
-                <span class="info-value">${vehicle.destroyed_at || 'Desconhecido'}</span>
-            </div>
-        ` : '';
-        
-        const popupContent = `
-            <div class="player-popup">
-                <strong><i class="fas fa-car me-2"></i>${vehicle.vehicle_name}</strong>
-                <div class="info-row">
-                    <span class="info-label">ID:</span>
-                    <span class="info-value">${vehicle.vehicle_id}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Coords:</span>
-                    <span class="info-value">X: ${vehicle.coord_x.toFixed(2)}, Y: ${vehicle.coord_y.toFixed(2)} (altura: ${vehicle.coord_z ? vehicle.coord_z.toFixed(2) : 'N/A'})</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Atualizado:</span>
-                    <span class="info-value">${vehicle.last_update || 'Desconhecido'}</span>
-                </div>
-                ${destroyedInfo}
-                <div class="info-row mt-2">
-                    <button type="button" class="btn btn-sm btn-success" onclick="toggleVehicleTrail('${vehicleId}')">
-                        <i class="fas fa-route me-1"></i><span id="vehicleTrailBtn_${vehicleId}">${vehicleTrails[vehicleId] ? 'Ocultar Trail' : 'Mostrar Trail'}</span>
-                    </button>
-                </div>
-            </div>
-        `;
+        const popupContent = createVehiclePopup(vehicle);
         
         marker.bindPopup(popupContent, {
             autoPan: true,
@@ -2497,14 +2464,67 @@ function toggleVehicleTrail(vehicleId) {
 }
 
 /**
- * Atualizar popup de veículo
+ * Criar popup de veículo
  */
-function updateVehiclePopup(vehicleId) {
-    const marker = vehicleMarkers[vehicleId];
-    if (!marker || !vehiclesData[vehicleId]) return;
+function createVehiclePopup(vehicle) {
+    let itemsHtml = '';
+    const items = vehicle.items || [];
     
-    const vehicle = vehiclesData[vehicleId];
-    const popupContent = `
+    if (items.length > 0) {
+        itemsHtml += '<div class="mt-2"><strong>📦 Itens:</strong><div class="mt-1">';
+        items.forEach(function(item) {
+            const imgTag = item.img ? `<img src="${item.img}" onerror="this.style.display='none'" style="width: 24px; height: 24px; margin-right: 4px; vertical-align: middle;">` : '';
+            const healthText = item.health ? ` (HP: ${item.health.toFixed(2)})` : '';
+            itemsHtml += `<div class="item-display">${imgTag}<span>${item.name || item.type}${healthText}</span></div>`;
+        });
+        itemsHtml += '</div></div>';
+    } else {
+        itemsHtml = '<div class="text-muted mt-2">Nenhum item no inventário</div>';
+    }
+    
+    let attachmentsHtml = '';
+    const attachments = vehicle.attachments || [];
+    
+    if (attachments.length > 0) {
+        attachmentsHtml += '<div class="mt-2"><strong>🔧 Partes do Veículo:</strong><div class="mt-1">';
+        attachments.forEach(function(attachment) {
+            const imgTag = attachment.img ? `<img src="${attachment.img}" onerror="this.style.display='none'" style="width: 24px; height: 24px; margin-right: 4px; vertical-align: middle;">` : '';
+            const healthText = attachment.health ? ` (HP: ${attachment.health.toFixed(2)})` : '';
+            attachmentsHtml += `<div class="item-display">${imgTag}<span>${attachment.name || attachment.type}${healthText}</span></div>`;
+        });
+        attachmentsHtml += '</div></div>';
+    }
+    
+    let healthPartsHtml = '';
+    const healthParts = vehicle.health_parts;
+    
+    if (healthParts) {
+        healthPartsHtml += '<div class="mt-2"><strong>💚 Saúde das Partes:</strong><div class="mt-1">';
+        if (healthParts.engine !== null && healthParts.engine !== undefined) {
+            healthPartsHtml += `<div class="info-row"><span class="info-label">🔧 Motor:</span><span class="info-value">${(healthParts.engine * 100).toFixed(1)}%</span></div>`;
+        }
+        if (healthParts.body !== null && healthParts.body !== undefined) {
+            healthPartsHtml += `<div class="info-row"><span class="info-label">🚗 Corpo:</span><span class="info-value">${(healthParts.body * 100).toFixed(1)}%</span></div>`;
+        }
+        if (healthParts.fuel_tank !== null && healthParts.fuel_tank !== undefined) {
+            healthPartsHtml += `<div class="info-row"><span class="info-label">⛽ Tanque:</span><span class="info-value">${(healthParts.fuel_tank * 100).toFixed(1)}%</span></div>`;
+        }
+        healthPartsHtml += '</div></div>';
+    }
+    
+    const isDestroyed = vehicle.is_destroyed || false;
+    const destroyedInfo = isDestroyed ? `
+        <div class="info-row">
+            <span class="info-label"><i class="fas fa-exclamation-triangle text-warning me-1"></i>Status:</span>
+            <span class="info-value text-warning">Destruído</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Destruído em:</span>
+            <span class="info-value">${vehicle.destroyed_at || 'Desconhecido'}</span>
+        </div>
+    ` : '';
+    
+    return `
         <div class="player-popup">
             <strong><i class="fas fa-car me-2"></i>${vehicle.vehicle_name}</strong>
             <div class="info-row">
@@ -2515,17 +2535,32 @@ function updateVehiclePopup(vehicleId) {
                 <span class="info-label">Coords:</span>
                 <span class="info-value">X: ${vehicle.coord_x.toFixed(2)}, Y: ${vehicle.coord_y.toFixed(2)} (altura: ${vehicle.coord_z ? vehicle.coord_z.toFixed(2) : 'N/A'})</span>
             </div>
-            <div class="info-row">
+            ${healthPartsHtml}
+            ${itemsHtml}
+            ${attachmentsHtml}
+            <div class="info-row mt-2">
                 <span class="info-label">Atualizado:</span>
                 <span class="info-value">${vehicle.last_update || 'Desconhecido'}</span>
             </div>
+            ${destroyedInfo}
             <div class="info-row mt-2">
-                <button type="button" class="btn btn-sm btn-success" onclick="toggleVehicleTrail('${vehicleId}')">
-                    <i class="fas fa-route me-1"></i><span id="vehicleTrailBtn_${vehicleId}">${vehicleTrails[vehicleId] ? 'Ocultar Trail' : 'Mostrar Trail'}</span>
+                <button type="button" class="btn btn-sm btn-success" onclick="toggleVehicleTrail('${vehicle.vehicle_id}')">
+                    <i class="fas fa-route me-1"></i><span id="vehicleTrailBtn_${vehicle.vehicle_id}">${vehicleTrails[vehicle.vehicle_id] ? 'Ocultar Trail' : 'Mostrar Trail'}</span>
                 </button>
             </div>
         </div>
     `;
+}
+
+/**
+ * Atualizar popup de veículo
+ */
+function updateVehiclePopup(vehicleId) {
+    const marker = vehicleMarkers[vehicleId];
+    if (!marker || !vehiclesData[vehicleId]) return;
+    
+    const vehicle = vehiclesData[vehicleId];
+    const popupContent = createVehiclePopup(vehicle);
     
     if (marker.isPopupOpen()) {
         marker.setPopupContent(popupContent);

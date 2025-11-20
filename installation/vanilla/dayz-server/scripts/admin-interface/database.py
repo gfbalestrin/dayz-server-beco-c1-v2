@@ -129,9 +129,20 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
         
         # Buscar último registro de cada veículo
         if has_is_destroyed and not include_destroyed:
-            cursor.execute("""
+            # Verificar se colunas de saúde existem
+            cursor.execute("PRAGMA table_info(vehicles_tracking)")
+            columns = [row[1] for row in cursor.fetchall()]
+            health_columns = ""
+            if 'EngineHealth' in columns:
+                health_columns += ", vt.EngineHealth"
+            if 'BodyHealth' in columns:
+                health_columns += ", vt.BodyHealth"
+            if 'FuelTankHealth' in columns:
+                health_columns += ", vt.FuelTankHealth"
+            
+            cursor.execute(f"""
                 SELECT vt.VehicleId, vt.VehicleName, vt.PositionX, vt.PositionY, vt.PositionZ, vt.TimeStamp, vt.IdVehicleTracking,
-                       0 as IsDestroyed, NULL as DestroyedAt
+                       0 as IsDestroyed, NULL as DestroyedAt{health_columns}
                 FROM vehicles_tracking vt
                 INNER JOIN (
                     SELECT VehicleId, MAX(TimeStamp) as MaxTimeStamp
@@ -144,9 +155,20 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
             """)
         else:
             if has_is_destroyed:
-                cursor.execute("""
+                # Verificar se colunas de saúde existem
+                cursor.execute("PRAGMA table_info(vehicles_tracking)")
+                columns = [row[1] for row in cursor.fetchall()]
+                health_columns = ""
+                if 'EngineHealth' in columns:
+                    health_columns += ", vt.EngineHealth"
+                if 'BodyHealth' in columns:
+                    health_columns += ", vt.BodyHealth"
+                if 'FuelTankHealth' in columns:
+                    health_columns += ", vt.FuelTankHealth"
+                
+                cursor.execute(f"""
                     SELECT vt.VehicleId, vt.VehicleName, vt.PositionX, vt.PositionY, vt.PositionZ, vt.TimeStamp, vt.IdVehicleTracking,
-                           IFNULL(vt.IsDestroyed, 0) as IsDestroyed, vt.DestroyedAt
+                           IFNULL(vt.IsDestroyed, 0) as IsDestroyed, vt.DestroyedAt{health_columns}
                     FROM vehicles_tracking vt
                     INNER JOIN (
                         SELECT VehicleId, MAX(TimeStamp) as MaxTimeStamp
@@ -156,9 +178,20 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
                     ORDER BY vt.VehicleName
                 """)
             else:
-                cursor.execute("""
+                # Verificar se colunas de saúde existem
+                cursor.execute("PRAGMA table_info(vehicles_tracking)")
+                columns = [row[1] for row in cursor.fetchall()]
+                health_columns = ""
+                if 'EngineHealth' in columns:
+                    health_columns += ", vt.EngineHealth"
+                if 'BodyHealth' in columns:
+                    health_columns += ", vt.BodyHealth"
+                if 'FuelTankHealth' in columns:
+                    health_columns += ", vt.FuelTankHealth"
+                
+                cursor.execute(f"""
                     SELECT vt.VehicleId, vt.VehicleName, vt.PositionX, vt.PositionY, vt.PositionZ, vt.TimeStamp, vt.IdVehicleTracking,
-                           0 as IsDestroyed, NULL as DestroyedAt
+                           0 as IsDestroyed, NULL as DestroyedAt{health_columns}
                     FROM vehicles_tracking vt
                     INNER JOIN (
                         SELECT VehicleId, MAX(TimeStamp) as MaxTimeStamp
@@ -171,8 +204,10 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
         vehicles = [dict(row) for row in cursor.fetchall()]
         
         # Detectar se cada veículo se moveu (tem múltiplas posições diferentes no histórico)
+        # E buscar items, attachments e health_parts
         for vehicle in vehicles:
             vehicle_id = vehicle['VehicleId']
+            vehicle_tracking_id = vehicle['IdVehicleTracking']
             
             # Verificar se há pelo menos 2 posições diferentes para este veículo
             cursor.execute("""
@@ -186,6 +221,47 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
             
             # Se há mais de 1 posição distinta, o veículo se moveu
             vehicle['has_moved'] = distinct_positions > 1
+            
+            # Buscar items do veículo
+            try:
+                cursor.execute("""
+                    SELECT ItemType, ItemHealth
+                    FROM vehicles_items
+                    WHERE VehicleTrackingId = ?
+                    ORDER BY ItemType
+                """, (vehicle_tracking_id,))
+                vehicle['items'] = [{'type': row[0], 'health': row[1]} for row in cursor.fetchall()]
+            except:
+                vehicle['items'] = []
+            
+            # Buscar attachments do veículo
+            try:
+                cursor.execute("""
+                    SELECT AttachmentType, AttachmentHealth
+                    FROM vehicles_attachments
+                    WHERE VehicleTrackingId = ?
+                    ORDER BY AttachmentType
+                """, (vehicle_tracking_id,))
+                vehicle['attachments'] = [{'type': row[0], 'health': row[1]} for row in cursor.fetchall()]
+            except:
+                vehicle['attachments'] = []
+            
+            # Buscar health_parts (verificar se colunas existem)
+            try:
+                cursor.execute("PRAGMA table_info(vehicles_tracking)")
+                columns = [row[1] for row in cursor.fetchall()]
+                health_parts = {}
+                
+                if 'EngineHealth' in columns:
+                    health_parts['engine'] = vehicle.get('EngineHealth')
+                if 'BodyHealth' in columns:
+                    health_parts['body'] = vehicle.get('BodyHealth')
+                if 'FuelTankHealth' in columns:
+                    health_parts['fuel_tank'] = vehicle.get('FuelTankHealth')
+                
+                vehicle['health_parts'] = health_parts if health_parts else None
+            except:
+                vehicle['health_parts'] = None
         
         return vehicles
 

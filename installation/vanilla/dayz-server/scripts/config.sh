@@ -625,6 +625,9 @@ INSERT_VEHICLE_POSITION() {
     local CoordZ="$4"
     local CoordY="$5"
     local CustomTimestamp="$6"  # Parâmetro opcional para timestamp customizado
+    local EngineHealth="$7"     # Parâmetro opcional para saúde do motor
+    local BodyHealth="$8"        # Parâmetro opcional para saúde do corpo
+    local FuelTankHealth="$9"    # Parâmetro opcional para saúde do tanque
     
     local max_retries=5
     local retry_delay=0.2
@@ -639,6 +642,8 @@ INSERT_VEHICLE_POSITION() {
     local EscapedVehicleId
     local EscapedVehicleName
     local TimestampValue
+    local HealthColumns=""
+    local HealthValues=""
 
     # Escapar aspas simples
     EscapedVehicleId=$(echo "$VehicleId" | sed "s/'/''/g")
@@ -651,16 +656,36 @@ INSERT_VEHICLE_POSITION() {
         TimestampValue="datetime('now', 'localtime')"
     fi
 
+    # Verificar se colunas de saúde existem no banco
+    local has_engine_health has_body_health has_fuel_tank_health
+    has_engine_health=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='EngineHealth';")
+    has_body_health=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='BodyHealth';")
+    has_fuel_tank_health=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='FuelTankHealth';")
+
+    # Adicionar colunas de saúde se existirem no banco e forem fornecidas
+    if [[ "$has_engine_health" -eq 1 ]] && [[ -n "$EngineHealth" ]]; then
+        HealthColumns=", EngineHealth"
+        HealthValues=", ${EngineHealth:-NULL}"
+    fi
+    if [[ "$has_body_health" -eq 1 ]] && [[ -n "$BodyHealth" ]]; then
+        HealthColumns="$HealthColumns, BodyHealth"
+        HealthValues="$HealthValues, ${BodyHealth:-NULL}"
+    fi
+    if [[ "$has_fuel_tank_health" -eq 1 ]] && [[ -n "$FuelTankHealth" ]]; then
+        HealthColumns="$HealthColumns, FuelTankHealth"
+        HealthValues="$HealthValues, ${FuelTankHealth:-NULL}"
+    fi
+
     while (( attempt <= max_retries )); do
         local VehicleTrackingId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
-INSERT INTO vehicles_tracking (VehicleId, VehicleName, PositionX, PositionZ, PositionY, TimeStamp)
+INSERT INTO vehicles_tracking (VehicleId, VehicleName, PositionX, PositionZ, PositionY, TimeStamp$HealthColumns)
 VALUES (
     '$EscapedVehicleId',
     '$EscapedVehicleName',
     '$CoordX',
     '$CoordZ',
     '$CoordY',
-    $TimestampValue
+    $TimestampValue$HealthValues
 );
 SELECT last_insert_rowid();
 EOF
@@ -673,6 +698,118 @@ EOF
             echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
             sleep "$retry_delay"
             attempt=$((attempt + 1))
+        fi
+    done
+
+    echo "Failed to insert after $max_retries attempts."
+    echo ""
+    return 1
+}
+
+INSERT_VEHICLE_ITEM() {
+    local VehicleTrackingId="$1"
+    local ItemType="$2"
+    local ItemHealth="$3"
+    local CustomTimestamp="$4"  # Parâmetro opcional para timestamp customizado
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+
+    if [[ -z "$VehicleTrackingId" ]] || [[ -z "$ItemType" ]]; then
+        echo "Error: VehicleTrackingId and ItemType are required."
+        echo ""
+        return 1
+    fi
+
+    local EscapedItemType
+    local TimestampValue
+
+    # Escapar aspas simples
+    EscapedItemType=$(echo "$ItemType" | sed "s/'/''/g")
+    
+    # Usar timestamp customizado se fornecido, senão usar datetime atual
+    if [[ -n "$CustomTimestamp" ]]; then
+        TimestampValue="'$CustomTimestamp'"
+    else
+        TimestampValue="datetime('now', 'localtime')"
+    fi
+
+    while (( attempt <= max_retries )); do
+        local VehicleItemId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+INSERT INTO vehicles_items (VehicleTrackingId, ItemType, ItemHealth, TimeStamp)
+VALUES (
+    $VehicleTrackingId,
+    '$EscapedItemType',
+    ${ItemHealth:-NULL},
+    $TimestampValue
+);
+SELECT last_insert_rowid();
+EOF
+)
+
+        if [[ $? -eq 0 ]] && [[ -n "$VehicleItemId" ]]; then
+            echo "$VehicleItemId"
+            return 0
+        else
+            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
+            sleep "$retry_delay"
+            attempt=$((attempt + 1))    
+        fi
+    done
+
+    echo "Failed to insert after $max_retries attempts."
+    echo ""
+    return 1
+}
+
+INSERT_VEHICLE_ATTACHMENT() {
+    local VehicleTrackingId="$1"
+    local AttachmentType="$2"
+    local AttachmentHealth="$3"
+    local CustomTimestamp="$4"  # Parâmetro opcional para timestamp customizado
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+
+    if [[ -z "$VehicleTrackingId" ]] || [[ -z "$AttachmentType" ]]; then
+        echo "Error: VehicleTrackingId and AttachmentType are required."
+        echo ""
+        return 1
+    fi
+
+    local EscapedAttachmentType
+    local TimestampValue
+
+    # Escapar aspas simples
+    EscapedAttachmentType=$(echo "$AttachmentType" | sed "s/'/''/g")
+    
+    # Usar timestamp customizado se fornecido, senão usar datetime atual
+    if [[ -n "$CustomTimestamp" ]]; then
+        TimestampValue="'$CustomTimestamp'"
+    else
+        TimestampValue="datetime('now', 'localtime')"
+    fi
+
+    while (( attempt <= max_retries )); do
+        local VehicleAttachmentId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+INSERT INTO vehicles_attachments (VehicleTrackingId, AttachmentType, AttachmentHealth, TimeStamp)
+VALUES (
+    $VehicleTrackingId,
+    '$EscapedAttachmentType',
+    ${AttachmentHealth:-NULL},
+    $TimestampValue
+);
+SELECT last_insert_rowid();
+EOF
+)
+
+        if [[ $? -eq 0 ]] && [[ -n "$VehicleAttachmentId" ]]; then
+            echo "$VehicleAttachmentId"
+            return 0
+        else
+            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
+            sleep "$retry_delay"
+            attempt=$((attempt + 1))    
         fi
     done
 

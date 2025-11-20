@@ -39,6 +39,32 @@ CREATE TABLE IF NOT EXISTS vehicles_tracking (
 CREATE INDEX IF NOT EXISTS idx_vehicles_tracking_vehicle_id ON vehicles_tracking(VehicleId);
 CREATE INDEX IF NOT EXISTS idx_vehicles_tracking_timestamp ON vehicles_tracking(TimeStamp);
 
+CREATE TABLE IF NOT EXISTS vehicles_items (
+    IdVehicleItem INTEGER PRIMARY KEY AUTOINCREMENT,
+    VehicleTrackingId INTEGER NOT NULL,
+    ItemType TEXT NOT NULL,
+    ItemHealth REAL,
+    TimeStamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (VehicleTrackingId) REFERENCES vehicles_tracking(IdVehicleTracking) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_vehicles_items_vehicle ON vehicles_items(VehicleTrackingId);
+CREATE INDEX IF NOT EXISTS idx_vehicles_items_type ON vehicles_items(ItemType);
+CREATE INDEX IF NOT EXISTS idx_vehicles_items_timestamp ON vehicles_items(TimeStamp);
+
+CREATE TABLE IF NOT EXISTS vehicles_attachments (
+    IdVehicleAttachment INTEGER PRIMARY KEY AUTOINCREMENT,
+    VehicleTrackingId INTEGER NOT NULL,
+    AttachmentType TEXT NOT NULL,
+    AttachmentHealth REAL,
+    TimeStamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (VehicleTrackingId) REFERENCES vehicles_tracking(IdVehicleTracking) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_vehicles_attachments_vehicle ON vehicles_attachments(VehicleTrackingId);
+CREATE INDEX IF NOT EXISTS idx_vehicles_attachments_type ON vehicles_attachments(AttachmentType);
+CREATE INDEX IF NOT EXISTS idx_vehicles_attachments_timestamp ON vehicles_attachments(TimeStamp);
+
 CREATE TABLE IF NOT EXISTS containers_tracking (
     IdContainerTracking INTEGER PRIMARY KEY AUTOINCREMENT,
     ContainerId TEXT NOT NULL,
@@ -124,6 +150,9 @@ CREATE INDEX IF NOT EXISTS idx_user_audit_logs_timestamp ON user_audit_logs(Time
 -- ALTER TABLE containers_tracking ADD COLUMN DestroyedAt DATETIME;
 -- ALTER TABLE vehicles_tracking ADD COLUMN IsDestroyed INTEGER DEFAULT 0;
 -- ALTER TABLE vehicles_tracking ADD COLUMN DestroyedAt DATETIME;
+-- ALTER TABLE vehicles_tracking ADD COLUMN EngineHealth REAL;
+-- ALTER TABLE vehicles_tracking ADD COLUMN BodyHealth REAL;
+-- ALTER TABLE vehicles_tracking ADD COLUMN FuelTankHealth REAL;
 -- ALTER TABLE fences_tracking ADD COLUMN IsDestroyed INTEGER DEFAULT 0;
 -- ALTER TABLE fences_tracking ADD COLUMN DestroyedAt DATETIME;
 -- ALTER TABLE watchtowers_tracking ADD COLUMN IsDestroyed INTEGER DEFAULT 0;

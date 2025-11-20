@@ -60,9 +60,27 @@ handle_vehicles_positions() {
         local vehicle_id vehicle_name coord_x coord_z coord_y
         vehicle_id=$(echo "$vehicle_data" | jq -r '.vehicle_id')
         vehicle_name=$(echo "$vehicle_data" | jq -r '.vehicle_name')
-        coord_x=$(echo "$vehicle_data" | jq -r '.x')
-        coord_z=$(echo "$vehicle_data" | jq -r '.z')
-        coord_y=$(echo "$vehicle_data" | jq -r '.y')
+        
+        # Suportar tanto formato antigo (x, z, y) quanto novo (position.x, position.z, position.y)
+        if echo "$vehicle_data" | jq -e '.position' >/dev/null 2>&1; then
+            coord_x=$(echo "$vehicle_data" | jq -r '.position.x')
+            coord_z=$(echo "$vehicle_data" | jq -r '.position.z')
+            coord_y=$(echo "$vehicle_data" | jq -r '.position.y')
+        else
+            coord_x=$(echo "$vehicle_data" | jq -r '.x')
+            coord_z=$(echo "$vehicle_data" | jq -r '.z')
+            coord_y=$(echo "$vehicle_data" | jq -r '.y')
+        fi
+        
+        # Extrair health_parts, items e attachments
+        local engine_health body_health fuel_tank_health
+        engine_health=$(echo "$vehicle_data" | jq -r '.health_parts.engine // empty')
+        body_health=$(echo "$vehicle_data" | jq -r '.health_parts.body // empty')
+        fuel_tank_health=$(echo "$vehicle_data" | jq -r '.health_parts.fuel_tank // empty')
+        
+        local current_items current_attachments
+        current_items=$(echo "$vehicle_data" | jq -c '.items[]? // empty' 2>/dev/null)
+        current_attachments=$(echo "$vehicle_data" | jq -c '.attachments[]? // empty' 2>/dev/null)
 
         local coord_x_fmt coord_z_fmt coord_y_fmt
         coord_x_fmt=$(format_coord "$coord_x")
@@ -94,9 +112,55 @@ handle_vehicles_positions() {
         fi
 
         local VehicleTrackingId
-        VehicleTrackingId=$(INSERT_VEHICLE_POSITION "$vehicle_id" "$vehicle_name" "$coord_x_fmt" "$coord_z_fmt" "$coord_y_fmt" "$current_timestamp")
+        VehicleTrackingId=$(INSERT_VEHICLE_POSITION "$vehicle_id" "$vehicle_name" "$coord_x_fmt" "$coord_z_fmt" "$coord_y_fmt" "$current_timestamp" "$engine_health" "$body_health" "$fuel_tank_health")
         if [[ $? -eq 0 && -n "$VehicleTrackingId" ]]; then
             processed_count=$((processed_count + 1))
+            
+            # Inserir itens do veículo
+            if [[ -n "$current_items" ]]; then
+                local inserted_item_count item_data item_type item_health
+                inserted_item_count=0
+                while IFS= read -r item_data; do
+                    if [[ -z "$item_data" ]]; then
+                        continue
+                    fi
+
+                    item_type=$(echo "$item_data" | jq -r '.type')
+                    item_health=$(echo "$item_data" | jq -r '.health // empty')
+
+                    if [[ -n "$item_type" ]]; then
+                        INSERT_VEHICLE_ITEM "$VehicleTrackingId" "$item_type" "$item_health" "$current_timestamp" >/dev/null
+                        inserted_item_count=$((inserted_item_count + 1))
+                    fi
+                done <<< "$current_items"
+
+                if [[ $inserted_item_count -gt 0 ]]; then
+                    echo "  -> $inserted_item_count item(s) inseridos no veículo $vehicle_id"
+                fi
+            fi
+            
+            # Inserir attachments do veículo
+            if [[ -n "$current_attachments" ]]; then
+                local inserted_attachment_count attachment_data attachment_type attachment_health
+                inserted_attachment_count=0
+                while IFS= read -r attachment_data; do
+                    if [[ -z "$attachment_data" ]]; then
+                        continue
+                    fi
+
+                    attachment_type=$(echo "$attachment_data" | jq -r '.type')
+                    attachment_health=$(echo "$attachment_data" | jq -r '.health // empty')
+
+                    if [[ -n "$attachment_type" ]]; then
+                        INSERT_VEHICLE_ATTACHMENT "$VehicleTrackingId" "$attachment_type" "$attachment_health" "$current_timestamp" >/dev/null
+                        inserted_attachment_count=$((inserted_attachment_count + 1))
+                    fi
+                done <<< "$current_attachments"
+
+                if [[ $inserted_attachment_count -gt 0 ]]; then
+                    echo "  -> $inserted_attachment_count attachment(s) inseridos no veículo $vehicle_id"
+                fi
+            fi
         else
             INSERT_CUSTOM_LOG "Erro ao salvar posição do veículo (ID=$vehicle_id)" "ERROR" "$ScriptName"
         fi

@@ -176,17 +176,207 @@ void SendVehiclesPositions()
         {
             safeName.Replace(ch, "-");
         }
+
+        string itemsJson = "";
+        string attachmentsJson = "";
+
+        EntityAI vehicleEntity = EntityAI.Cast(vehicle);
+        if (vehicleEntity && vehicleEntity.GetInventory())
+        {
+            // Coletar itens do cargo
+            CargoBase vehicleCargo = vehicleEntity.GetInventory().GetCargo();
+            if (vehicleCargo)
+            {
+                for (int cargoIndex = 0; cargoIndex < vehicleCargo.GetItemCount(); cargoIndex++)
+                {
+                    EntityAI cargoItem = vehicleCargo.GetItem(cargoIndex);
+                    if (!cargoItem)
+                       	continue;
+
+                    string cargoType = cargoItem.GetType();
+                    float cargoHealth = cargoItem.GetHealth("", "");
+
+                    string safeCargoType = cargoType;
+                    foreach (string ch : unsafeChars)
+                    {
+                        safeCargoType.Replace(ch, "-");
+                    }
+
+                    if (itemsJson != "")
+                        itemsJson += ",";
+                    itemsJson += "{\"type\":\"" + safeCargoType + "\",\"health\":" + cargoHealth.ToString() + "}";
+                }
+            }
+
+            // Coletar attachments (partes do veículo)
+            for (int attachmentIndex = 0; attachmentIndex < vehicleEntity.GetInventory().AttachmentCount(); attachmentIndex++)
+            {
+                EntityAI attachmentItem = vehicleEntity.GetInventory().GetAttachmentFromIndex(attachmentIndex);
+                if (!attachmentItem)
+                    continue;
+
+                string attachmentType = attachmentItem.GetType();
+                float attachmentHealth = attachmentItem.GetHealth("", "");
+
+                string safeAttachmentType = attachmentType;
+                foreach (string ch : unsafeChars)
+                {
+                    safeAttachmentType.Replace(ch, "-");
+                }
+
+                if (attachmentsJson != "")
+                    attachmentsJson += ",";
+                attachmentsJson += "{\"type\":\"" + safeAttachmentType + "\",\"health\":" + attachmentHealth.ToString() + "}";
+            }
+        }
+
+        // Coletar saúde de partes principais
+        float engineHealth = vehicle.GetHealth01("Engine", "");
+        float bodyHealth = vehicle.GetHealth01("Body", "");
+        float fuelTankHealth = vehicle.GetHealth01("FuelTank", "");
+
+        string healthPartsJson = "\"engine\":" + engineHealth.ToString() + ",\"body\":" + bodyHealth.ToString() + ",\"fuel_tank\":" + fuelTankHealth.ToString();
         
         if (vehiclesJson != "")
             vehiclesJson += ",";
         
-        vehiclesJson += "{\"vehicle_id\":\"" + vehicleIdentifier + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + position[0].ToString() + ",\"z\":" + position[1].ToString() + ",\"y\":" + position[2].ToString() + "}";
+        vehiclesJson += "{\"vehicle_id\":\"" + vehicleIdentifier + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + position[0].ToString() + ",\"z\":" + position[1].ToString() + ",\"y\":" + position[2].ToString() + ",\"items\":[" + itemsJson + "],\"attachments\":[" + attachmentsJson + "],\"health_parts\":{" + healthPartsJson + "}}";
     }
 
     string jsonAction = "{\"action\":\"vehicles_positions\",\"vehicles\":[" + vehiclesJson + "]}";
     AppendExternalAction(jsonAction, false);
     
     WriteToLog("SendVehiclesPositions(): Posições de " + m_TrackedVehicles.Count().ToString() + " veículos enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
+}
+
+void CheckVehiclesForLoot()
+{
+	if (!m_TrackedVehicles || m_TrackedVehicles.Count() == 0)
+		return;
+
+	string vehiclesJson = "";
+	int vehiclesWithItems = 0;
+	int vehiclesTotal = 0;
+	int totalItems = 0;
+
+	foreach (CarScript vehicle : m_TrackedVehicles)
+	{
+		if (!vehicle)
+			continue;
+
+		vehiclesTotal++;
+
+		vector vehiclePosition = vehicle.GetPosition();
+		string vehicleName = vehicle.GetDisplayName();
+
+		int pidLow1 = 0;
+		int pidLow2 = 0;
+		int pidHigh1 = 0;
+		int pidHigh2 = 0;
+		vehicle.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+
+		bool hasPersistent = false;
+		if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+		{
+			hasPersistent = true;
+		}
+
+		string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+		string vehicleIdentifier = persistentKey;
+		if (!hasPersistent)
+		{
+			vehicleIdentifier = "pending-" + vehicle.GetID().ToString();
+		}
+
+		// Sanitiza o nome do veículo
+		string safeName = vehicleName;
+		TStringArray unsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
+		foreach (string ch : unsafeChars)
+		{
+			safeName.Replace(ch, "-");
+		}
+
+		string itemsJson = "";
+		string attachmentsJson = "";
+		bool vehicleHasItems = false;
+
+		EntityAI vehicleEntity = EntityAI.Cast(vehicle);
+		if (vehicleEntity && vehicleEntity.GetInventory())
+		{
+			// Coletar itens do cargo
+			CargoBase vehicleCargo = vehicleEntity.GetInventory().GetCargo();
+			if (vehicleCargo)
+			{
+				for (int cargoIndex = 0; cargoIndex < vehicleCargo.GetItemCount(); cargoIndex++)
+				{
+					EntityAI cargoItem = vehicleCargo.GetItem(cargoIndex);
+					if (!cargoItem)
+						continue;
+
+					string cargoType = cargoItem.GetType();
+					float cargoHealth = cargoItem.GetHealth("", "");
+					totalItems++;
+					vehicleHasItems = true;
+
+					string safeCargoType = cargoType;
+					foreach (string ch : unsafeChars)
+					{
+						safeCargoType.Replace(ch, "-");
+					}
+
+					if (itemsJson != "")
+						itemsJson += ",";
+					itemsJson += "{\"type\":\"" + safeCargoType + "\",\"health\":" + cargoHealth.ToString() + "}";
+				}
+			}
+
+			// Coletar attachments (partes do veículo)
+			for (int attachmentIndex = 0; attachmentIndex < vehicleEntity.GetInventory().AttachmentCount(); attachmentIndex++)
+			{
+				EntityAI attachmentItem = vehicleEntity.GetInventory().GetAttachmentFromIndex(attachmentIndex);
+				if (!attachmentItem)
+					continue;
+
+				string attachmentType = attachmentItem.GetType();
+				float attachmentHealth = attachmentItem.GetHealth("", "");
+
+				string safeAttachmentType = attachmentType;
+				foreach (string ch : unsafeChars)
+				{
+					safeAttachmentType.Replace(ch, "-");
+				}
+
+				if (attachmentsJson != "")
+					attachmentsJson += ",";
+				attachmentsJson += "{\"type\":\"" + safeAttachmentType + "\",\"health\":" + attachmentHealth.ToString() + "}";
+			}
+		}
+
+		// Coletar saúde de partes principais
+		float engineHealth = vehicle.GetHealth01("Engine", "");
+		float bodyHealth = vehicle.GetHealth01("Body", "");
+		float fuelTankHealth = vehicle.GetHealth01("FuelTank", "");
+
+		string healthPartsJson = "\"engine\":" + engineHealth.ToString() + ",\"body\":" + bodyHealth.ToString() + ",\"fuel_tank\":" + fuelTankHealth.ToString();
+
+		if (vehicleHasItems)
+		{
+			vehiclesWithItems++;
+		}
+
+		string vehicleJson = "{\"vehicle_id\":\"" + vehicleIdentifier + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + vehiclePosition[0].ToString() + ",\"z\":" + vehiclePosition[1].ToString() + ",\"y\":" + vehiclePosition[2].ToString() + ",\"items\":[" + itemsJson + "],\"attachments\":[" + attachmentsJson + "],\"health_parts\":{" + healthPartsJson + "}}";
+		
+		if (vehiclesJson != "")
+			vehiclesJson += ",";
+		vehiclesJson += vehicleJson;
+	}
+
+	if (vehiclesTotal > 0)
+	{
+		string jsonAction = "{\"action\":\"vehicles_positions\",\"vehicles\":[" + vehiclesJson + "]}";
+		AppendExternalAction(jsonAction, false);
+		WriteToLog("CheckVehiclesForLoot(): JSON com " + vehiclesTotal.ToString() + " veículos (com itens: " + vehiclesWithItems.ToString() + ", vazios: " + (vehiclesTotal - vehiclesWithItems).ToString() + ") e " + totalItems.ToString() + " itens enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
+	}
 }
 
 void LogAllVehicles()
@@ -244,4 +434,136 @@ void TrackVehiclePositions()
             WriteToLog("[REMOVER] Veículo inválido ou destruído.", LogFile.INIT, false, LogType.DEBUG);
         }
     }
+}
+
+void BuildVehiclesData(array<Object> worldObjects, out string vehiclesJson, out int totalVehicles, out int totalVehiclesWithItems, out int totalItems)
+{
+	vehiclesJson = "";
+	totalVehicles = 0;
+	totalVehiclesWithItems = 0;
+	totalItems = 0;
+
+	if (!GetGame() || !GetGame().IsServer())
+		return;
+
+	if (!worldObjects)
+		return;
+
+	foreach (Object candidateObject : worldObjects)
+	{
+		if (!candidateObject)
+			continue;
+
+		CarScript candidateVehicle = CarScript.Cast(candidateObject);
+		if (!candidateVehicle)
+			continue;
+
+		totalVehicles++;
+
+		vector vehiclePosition = candidateVehicle.GetPosition();
+		string vehicleName = candidateVehicle.GetDisplayName();
+
+		int pidLow1 = 0;
+		int pidLow2 = 0;
+		int pidHigh1 = 0;
+		int pidHigh2 = 0;
+		candidateVehicle.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+
+		bool hasPersistent = false;
+		if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+		{
+			hasPersistent = true;
+		}
+
+		string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+		string vehicleIdentifier = persistentKey;
+		if (!hasPersistent)
+		{
+			vehicleIdentifier = "pending-" + candidateVehicle.GetID().ToString();
+		}
+
+		// Sanitiza o nome do veículo
+		string safeName = vehicleName;
+		TStringArray unsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
+		foreach (string ch : unsafeChars)
+		{
+			safeName.Replace(ch, "-");
+		}
+
+		string itemsJson = "";
+		string attachmentsJson = "";
+		bool vehicleHasItems = false;
+		int vehicleItemsCount = 0;
+
+		EntityAI vehicleEntity = EntityAI.Cast(candidateVehicle);
+		if (vehicleEntity && vehicleEntity.GetInventory())
+		{
+			// Coletar itens do cargo
+			CargoBase vehicleCargo = vehicleEntity.GetInventory().GetCargo();
+			if (vehicleCargo)
+			{
+				for (int cargoIndex = 0; cargoIndex < vehicleCargo.GetItemCount(); cargoIndex++)
+				{
+					EntityAI cargoItem = vehicleCargo.GetItem(cargoIndex);
+					if (!cargoItem)
+						continue;
+
+					string cargoType = cargoItem.GetType();
+					float cargoHealth = cargoItem.GetHealth("", "");
+					vehicleItemsCount++;
+					totalItems++;
+					vehicleHasItems = true;
+
+					string safeCargoType = cargoType;
+					foreach (string ch : unsafeChars)
+					{
+						safeCargoType.Replace(ch, "-");
+					}
+
+					if (itemsJson != "")
+						itemsJson += ",";
+					itemsJson += "{\"type\":\"" + safeCargoType + "\",\"health\":" + cargoHealth.ToString() + "}";
+				}
+			}
+
+			// Coletar attachments (partes do veículo)
+			for (int attachmentIndex = 0; attachmentIndex < vehicleEntity.GetInventory().AttachmentCount(); attachmentIndex++)
+			{
+				EntityAI attachmentItem = vehicleEntity.GetInventory().GetAttachmentFromIndex(attachmentIndex);
+				if (!attachmentItem)
+					continue;
+
+				string attachmentType = attachmentItem.GetType();
+				float attachmentHealth = attachmentItem.GetHealth("", "");
+
+				string safeAttachmentType = attachmentType;
+				foreach (string ch : unsafeChars)
+				{
+					safeAttachmentType.Replace(ch, "-");
+				}
+
+				if (attachmentsJson != "")
+					attachmentsJson += ",";
+				attachmentsJson += "{\"type\":\"" + safeAttachmentType + "\",\"health\":" + attachmentHealth.ToString() + "}";
+			}
+		}
+
+		// Coletar saúde de partes principais
+		float engineHealth = candidateVehicle.GetHealth01("Engine", "");
+		float bodyHealth = candidateVehicle.GetHealth01("Body", "");
+		float fuelTankHealth = candidateVehicle.GetHealth01("FuelTank", "");
+
+		string healthPartsJson = "\"engine\":" + engineHealth.ToString() + ",\"body\":" + bodyHealth.ToString() + ",\"fuel_tank\":" + fuelTankHealth.ToString();
+
+		if (vehicleHasItems)
+		{
+			totalVehiclesWithItems++;
+		}
+
+		string vehicleJson = "{\"vehicle_id\":\"" + vehicleIdentifier + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + vehiclePosition[0].ToString() + ",\"z\":" + vehiclePosition[1].ToString() + ",\"y\":" + vehiclePosition[2].ToString() + ",\"items\":[" + itemsJson + "],\"attachments\":[" + attachmentsJson + "],\"health_parts\":{" + healthPartsJson + "}}";
+		
+		if (vehiclesJson != "")
+			vehiclesJson += ",";
+		vehiclesJson += vehicleJson;
+	}
 }
