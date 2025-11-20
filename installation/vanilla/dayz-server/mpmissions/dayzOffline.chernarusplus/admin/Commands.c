@@ -129,6 +129,35 @@ bool ExecuteCommand(TStringArray tokens)
 
                 WriteToLog("ExecuteCommand(): registerwatchtower falhou em encontrar watchtower em " + watchtowerPosition.ToString() + " (raio=" + watchtowerSearchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
                 return false;
+            case "registerflag":
+                if (tokens.Count() < 5)
+                {
+                    WriteToLog("ExecuteCommand(): registerflag requer coordenadas X Z Y", LogFile.INIT, false, LogType.ERROR);
+                    return false;
+                }
+
+                float flagPosX = tokens[2].ToFloat();
+                float flagPosZ = tokens[3].ToFloat();
+                float flagPosY = tokens[4].ToFloat();
+                vector flagPosition = Vector(flagPosX, flagPosY, flagPosZ);
+
+                float flagSearchRadius = 3.0;
+                if (tokens.Count() >= 6)
+                {
+                    float candidateFlagRadius = tokens[5].ToFloat();
+                    if (candidateFlagRadius > 0)
+                        flagSearchRadius = candidateFlagRadius;
+                }
+
+                bool flagRegistered = RegisterFlagAtPosition(flagPosition, flagSearchRadius);
+                if (flagRegistered)
+                {
+                    WriteToLog("ExecuteCommand(): registerflag executado com sucesso em " + flagPosition.ToString() + " (raio=" + flagSearchRadius.ToString() + ")", LogFile.INIT, false, LogType.INFO);
+                    return true;
+                }
+
+                WriteToLog("ExecuteCommand(): registerflag falhou em encontrar flag em " + flagPosition.ToString() + " (raio=" + flagSearchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+                return false;
             case "teleportvehicle":
                 return ExecuteTeleportVehicle(tokens);
             case "registercontainer":

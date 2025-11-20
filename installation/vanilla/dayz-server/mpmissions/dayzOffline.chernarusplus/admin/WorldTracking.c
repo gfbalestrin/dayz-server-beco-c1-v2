@@ -19,7 +19,7 @@ void InitWorldTracking()
 	if (!GetGame() || !GetGame().IsServer())
 		return;
 
-	WriteToLog("InitWorldTracking(): Iniciando varredura única para fences, veículos e containers...", LogFile.INIT, false, LogType.INFO);
+	WriteToLog("InitWorldTracking(): Iniciando varredura única para fences, watchtowers, flags, veículos e containers...", LogFile.INIT, false, LogType.INFO);
 
 	array<Object> worldObjects = new array<Object>();
 	GatherWorldObjects(worldObjects);
@@ -32,6 +32,7 @@ void InitWorldTracking()
 
 	PopulateTrackedFences(worldObjects);
 	PopulateTrackedWatchtowers(worldObjects);
+	PopulateTrackedFlags(worldObjects);
 	PopulateTrackedVehicles(worldObjects);
 	PopulateTrackedContainers(worldObjects);
 
@@ -44,10 +45,12 @@ void InitWorldTracking()
 
 	CleanTrackedFences();
 	CleanTrackedWatchtowers();
+	CleanTrackedFlags();
 	CleanTrackedVehicles();
 
 	SendFencesStatus();
 	SendWatchtowersStatus();
+	SendFlagsStatus();
 	SendVehiclesPositions();
 
 	string payloadContainers = containersJson;

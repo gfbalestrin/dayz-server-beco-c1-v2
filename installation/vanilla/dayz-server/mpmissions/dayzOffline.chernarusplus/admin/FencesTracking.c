@@ -570,3 +570,219 @@ void ScanWatchtowers()
     CleanTrackedWatchtowers();
     SendWatchtowersStatus();
 }
+
+void PopulateTrackedFlags(array<Object> worldObjects)
+{
+    if (!GetGame() || !GetGame().IsServer())
+        return;
+
+    if (!m_TrackedFlags)
+    {
+        WriteToLog("PopulateTrackedFlags(): Inicializando array m_TrackedFlags...", LogFile.INIT, false, LogType.DEBUG);
+        m_TrackedFlags = new array<Flag_Base>();
+    }
+    else
+    {
+        WriteToLog("PopulateTrackedFlags(): Array m_TrackedFlags já existe, limpando conteúdo...", LogFile.INIT, false, LogType.DEBUG);
+        m_TrackedFlags.Clear();
+    }
+
+    if (!worldObjects)
+    {
+        WriteToLog("PopulateTrackedFlags(): Lista de objetos vazia recebida.", LogFile.INIT, false, LogType.WARNING);
+        return;
+    }
+
+    foreach (Object candidateObject : worldObjects)
+    {
+        Flag_Base candidateFlag = Flag_Base.Cast(candidateObject);
+        if (!candidateFlag)
+            continue;
+
+        if (!candidateFlag.HasBase())
+            continue;
+
+        m_TrackedFlags.Insert(candidateFlag);
+    }
+
+    WriteToLog("PopulateTrackedFlags(): Total de flags em rastreamento: " + m_TrackedFlags.Count().ToString(), LogFile.INIT, false, LogType.INFO);
+}
+
+void RegisterFlag(Flag_Base newFlag)
+{
+    if (!GetGame() || !GetGame().IsServer())
+        return;
+
+    if (!newFlag)
+        return;
+
+    if (!newFlag.HasBase())
+        return;
+
+    if (!m_TrackedFlags)
+        m_TrackedFlags = new array<Flag_Base>();
+
+    int trackedCount = m_TrackedFlags.Count();
+    for (int trackedIndex = 0; trackedIndex < trackedCount; trackedIndex++)
+    {
+        Flag_Base trackedFlag = m_TrackedFlags.Get(trackedIndex);
+        if (!trackedFlag)
+            continue;
+
+        if (trackedFlag == newFlag)
+        {
+            WriteToLog("RegisterFlag(): Flag já está rastreada, ignorando.", LogFile.INIT, false, LogType.DEBUG);
+            return;
+        }
+    }
+
+    m_TrackedFlags.Insert(newFlag);
+
+    vector flagPosition = newFlag.GetPosition();
+    vector flagOrientation = newFlag.GetOrientation();
+    WriteToLog("RegisterFlag(): Flag adicionada em " + flagPosition.ToString() + " orientação " + flagOrientation.ToString(), LogFile.INIT, false, LogType.INFO);
+}
+
+bool RegisterFlagAtPosition(vector targetPosition, float searchRadius = 3.0)
+{
+    if (!GetGame() || !GetGame().IsServer())
+        return false;
+
+    if (searchRadius <= 0)
+        searchRadius = 3.0;
+
+    array<Object> nearbyObjects = new array<Object>();
+    GetGame().GetObjectsAtPosition(targetPosition, searchRadius, nearbyObjects, null);
+
+    if (!nearbyObjects || nearbyObjects.Count() == 0)
+    {
+        WriteToLog("RegisterFlagAtPosition(): Nenhum objeto encontrado próximo a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+        return false;
+    }
+
+    Flag_Base closestFlag;
+    float closestDistance = searchRadius + 1.0;
+
+    foreach (Object candidateObject : nearbyObjects)
+    {
+        Flag_Base candidateFlag = Flag_Base.Cast(candidateObject);
+        if (!candidateFlag)
+            continue;
+
+        if (!candidateFlag.HasBase())
+            continue;
+
+        vector candidatePosition = candidateFlag.GetPosition();
+        float candidateDistance = vector.Distance(candidatePosition, targetPosition);
+        if (candidateDistance > searchRadius)
+            continue;
+
+        if (!closestFlag || candidateDistance < closestDistance)
+        {
+            closestFlag = candidateFlag;
+            closestDistance = candidateDistance;
+        }
+    }
+
+    if (!closestFlag)
+    {
+        WriteToLog("RegisterFlagAtPosition(): Nenhuma flag válida encontrada próxima a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+        return false;
+    }
+
+    RegisterFlag(closestFlag);
+
+    WriteToLog("RegisterFlagAtPosition(): Flag registrada a " + closestDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
+    return true;
+}
+
+void CleanTrackedFlags()
+{
+    if (!m_TrackedFlags)
+        return;
+
+    int removedCount = 0;
+    for (int i = m_TrackedFlags.Count() - 1; i >= 0; i--)
+    {
+        Flag_Base trackedFlag = m_TrackedFlags.Get(i);
+        if (!trackedFlag)
+        {
+            m_TrackedFlags.Remove(i);
+            removedCount++;
+            continue;
+        }
+
+        if (!trackedFlag.HasBase())
+        {
+            m_TrackedFlags.Remove(i);
+            removedCount++;
+        }
+    }
+
+    if (removedCount > 0)
+    {
+        WriteToLog("CleanTrackedFlags(): " + removedCount.ToString() + " flags inválidas removidas do rastreamento", LogFile.INIT, false, LogType.DEBUG);
+    }
+}
+
+void SendFlagsStatus()
+{
+    int count = 0;
+    string flagsJson = "";
+
+    if (m_TrackedFlags)
+    {
+        foreach (Flag_Base trackedFlag : m_TrackedFlags)
+        {
+            if (!trackedFlag)
+                continue;
+
+            bool hasBase = trackedFlag.HasBase();
+
+            vector pos = trackedFlag.GetPosition();
+            vector ori = trackedFlag.GetOrientation();
+
+            string posX = pos[0].ToString();
+            string posZ = pos[1].ToString();
+            string posY = pos[2].ToString();
+            string oriX = ori[0].ToString();
+            string oriY = ori[1].ToString();
+            string oriZ = ori[2].ToString();
+
+            if (flagsJson != "")
+                flagsJson += ",";
+
+            flagsJson += "{\"position\":{\"x\":" + posX + ",\"z\":" + posZ + ",\"y\":" + posY + "}";
+            flagsJson += ",\"orientation\":{\"x\":" + oriX + ",\"y\":" + oriY + ",\"z\":" + oriZ + "}";
+            flagsJson += ",\"has_base\":" + BoolToJson(hasBase);
+            flagsJson += "}";
+
+            string logMsg = "[FLAG] Posição=(" + posX + ", " + posZ + ", " + posY + ") | HasBase=" + hasBase.ToString();
+            WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
+
+            count++;
+        }
+    }
+
+    string jsonAction = "{\"action\":\"flags_positions\",\"flag_data\":[" + flagsJson + "]}";
+    AppendExternalAction(jsonAction);
+    WriteToLog("SendFlagsStatus(): JSON com " + count.ToString() + " flags enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
+}
+
+void InitFlagTracking()
+{
+    WriteToLog("InitFlagTracking(): Iniciando rastreamento de flags...", LogFile.INIT, false, LogType.INFO);
+
+    array<Object> trackedObjects = new array<Object>();
+    GatherWorldObjects(trackedObjects);
+    PopulateTrackedFlags(trackedObjects);
+}
+
+void ScanFlags()
+{
+    if (!m_TrackedFlags || m_TrackedFlags.Count() == 0)
+        InitFlagTracking();
+
+    CleanTrackedFlags();
+    SendFlagsStatus();
+}
