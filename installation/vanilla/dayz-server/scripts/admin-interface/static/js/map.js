@@ -2470,6 +2470,7 @@ function updateVehicles(data) {
             autoPanPaddingTopLeft: [60, 60],
             autoPanPaddingBottomRight: [60, 60],
             maxWidth: 300,
+            maxHeight: 500,
             offset: popupOffset
         });
         
@@ -2502,7 +2503,7 @@ function createVehiclePopup(vehicle) {
     const items = vehicle.items || [];
     
     if (items.length > 0) {
-        itemsHtml += '<div class="mt-2"><strong>📦 Itens:</strong><div class="mt-1">';
+        itemsHtml += '<div class="mt-2"><strong>📦 Itens:</strong><div class="mt-1" style="max-height: 200px; overflow-y: auto;">';
         items.forEach(function(item) {
             const imgTag = item.img ? `<img src="${item.img}" onerror="this.style.display='none'" style="width: 24px; height: 24px; margin-right: 4px; vertical-align: middle;">` : '';
             const healthText = item.health ? ` (HP: ${item.health.toFixed(2)})` : '';
@@ -2517,7 +2518,7 @@ function createVehiclePopup(vehicle) {
     const attachments = vehicle.attachments || [];
     
     if (attachments.length > 0) {
-        attachmentsHtml += '<div class="mt-2"><strong>🔧 Partes do Veículo:</strong><div class="mt-1">';
+        attachmentsHtml += '<div class="mt-2"><strong>🔧 Partes do Veículo:</strong><div class="mt-1" style="max-height: 200px; overflow-y: auto;">';
         attachments.forEach(function(attachment) {
             const imgTag = attachment.img ? `<img src="${attachment.img}" onerror="this.style.display='none'" style="width: 24px; height: 24px; margin-right: 4px; vertical-align: middle;">` : '';
             const healthText = attachment.health ? ` (HP: ${attachment.health.toFixed(2)})` : '';
@@ -2738,6 +2739,7 @@ function updateContainers(data) {
             autoPanPaddingTopLeft: [60, 60],
             autoPanPaddingBottomRight: [60, 60],
             maxWidth: 300,
+            maxHeight: 500,
             offset: popupOffset
         });
         
@@ -2769,7 +2771,7 @@ function createContainerPopup(container) {
     }
     
     if (items.length > 0) {
-        itemsHtml += '<div class="mt-2"><strong>Items:</strong><div class="mt-1">';
+        itemsHtml += '<div class="mt-2"><strong>Items:</strong><div class="mt-1" style="max-height: 200px; overflow-y: auto;">';
         items.forEach(function(item) {
             const imgTag = item.img ? `<img src="${item.img}" onerror="this.style.display='none'" style="width: 24px; height: 24px; margin-right: 4px; vertical-align: middle;">` : '';
             const healthText = item.health ? ` (HP: ${item.health})` : '';
@@ -2946,6 +2948,7 @@ function updateFences(data) {
             autoPanPaddingTopLeft: [60, 60],
             autoPanPaddingBottomRight: [60, 60],
             maxWidth: 300,
+            maxHeight: 500,
             offset: popupOffset
         });
         
