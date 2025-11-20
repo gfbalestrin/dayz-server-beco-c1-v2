@@ -304,6 +304,35 @@ def get_vehicle_trail(vehicle_id: str, limit: int = 100) -> List[Dict]:
         
         return filtered_vehicles
 
+
+def get_active_vehicle_name_counts() -> Dict[str, int]:
+    """Agrupa veículos ativos (não destruídos) por nome exibido"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("PRAGMA table_info(vehicles_tracking)")
+        columns = [row[1] for row in cursor.fetchall()]
+        has_is_destroyed = 'IsDestroyed' in columns
+
+        base_query = """
+            SELECT vt.VehicleName, COUNT(*) AS Total
+            FROM vehicles_tracking vt
+            INNER JOIN (
+                SELECT VehicleId, MAX(TimeStamp) AS MaxTimeStamp
+                FROM vehicles_tracking
+                GROUP BY VehicleId
+            ) latest ON vt.VehicleId = latest.VehicleId AND vt.TimeStamp = latest.MaxTimeStamp
+        """
+
+        if has_is_destroyed:
+            base_query += " WHERE IFNULL(vt.IsDestroyed, 0) = 0"
+
+        base_query += " GROUP BY vt.VehicleName"
+
+        cursor.execute(base_query)
+        rows = cursor.fetchall()
+        return {row['VehicleName']: row['Total'] for row in rows}
+
 def get_containers_last_position(include_destroyed: bool = False) -> List[Dict]:
     """Retorna containers do último timestamp de rastreamento com seus items"""
     with DatabaseConnection(config.DB_LOGS) as conn:

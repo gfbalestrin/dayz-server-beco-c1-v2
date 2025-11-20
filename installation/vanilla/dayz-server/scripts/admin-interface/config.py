@@ -67,3 +67,12 @@ LOADOUTS_PLAYERS_IDS_FILE = os.path.join(LOADOUTS_BASE_PATH, 'players_ids.json')
 # Caminhos de logs do servidor
 INIT_LOG_PATH = '/home/dayzadmin/servers/dayz-server/profiles/init.log'
 DAYZ_SERVER_ERR_PATH = '/home/dayzadmin/servers/dayz-server/profiles/dayz-server.err'
+
+# Caminhos de configuração da economia
+DAYZ_TYPES_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/db/types.xml'
+DAYZ_EVENTS_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/db/events.xml'
+
+if not os.path.exists(DAYZ_TYPES_FILE):
+    raise FileNotFoundError(f"Arquivo types.xml não encontrado: {DAYZ_TYPES_FILE}")
+if not os.path.exists(DAYZ_EVENTS_FILE):
+    raise FileNotFoundError(f"Arquivo events.xml não encontrado: {DAYZ_EVENTS_FILE}")

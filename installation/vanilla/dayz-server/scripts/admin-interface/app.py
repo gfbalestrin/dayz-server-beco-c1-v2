@@ -73,9 +73,11 @@ from database import (
     get_loadout_rules_item_types, get_allowed_item_types_for_loadout, ban_item_type_for_loadout, unban_item_type_for_loadout,
     # Loadout Rules Filtered Functions
     get_weapons_for_player_loadout, get_magazines_for_player_loadout, get_ammunitions_for_player_loadout,
-    get_attachments_for_player_loadout, get_explosives_for_player_loadout, get_items_for_player_loadout
+    get_attachments_for_player_loadout, get_explosives_for_player_loadout, get_items_for_player_loadout,
+    get_active_vehicle_name_counts
 )
 from datetime import datetime
+import vehicle_limits
 try:
     from zoneinfo import ZoneInfo
 except ImportError:
@@ -115,6 +117,23 @@ def convert_timestamp_to_br(timestamp_str):
 def current_time_br():
     return datetime.now(SAO_PAULO_TZ).strftime('%Y-%m-%d %H:%M:%S')
 app.secret_key = config.SECRET_KEY
+
+
+def evaluate_vehicle_limit(vehicle_type: str):
+    """Valida se é permitido spawnar o veículo considerando os limites do events.xml"""
+    counts = get_active_vehicle_name_counts()
+    limit_info = vehicle_limits.can_spawn_vehicle(vehicle_type, counts)
+    allowed = limit_info.get('allowed', True)
+    return allowed, limit_info
+
+
+def format_limit_block_message(limit_info: dict) -> str:
+    event_name = limit_info.get('event') or 'Evento desconhecido'
+    current = limit_info.get('current')
+    max_allowed = limit_info.get('max')
+    if current is not None and max_allowed is not None:
+        return f'Limite do {event_name} atingido ({current}/{max_allowed})'
+    return f'Limite do {event_name} atingido'
 
 
 def stream_log_file(log_path: str):
@@ -2487,6 +2506,25 @@ def api_item_types():
     types = get_item_types()
     return jsonify({'types': types})
 
+
+@app.route('/api/vehicle-limits', methods=['GET'])
+@admin_required
+def api_vehicle_limits():
+    """Retorna limites configurados no events.xml e o uso atual"""
+    try:
+        counts = get_active_vehicle_name_counts()
+        limits = vehicle_limits.get_vehicle_limits_summary(counts)
+        return jsonify({
+            'success': True,
+            'limits': limits,
+            'generated_at': current_time_br()
+        })
+    except FileNotFoundError as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+    except Exception as e:
+        app.logger.exception("Erro ao carregar limites de veículos: %s", e)
+        return jsonify({'success': False, 'message': 'Erro ao carregar limites de veículos'}), 500
+
 @app.route('/api/spawn/item', methods=['POST'])
 @admin_required
 @audit_action('SPAWN_ITEM')
@@ -2548,6 +2586,12 @@ def api_spawn_vehicle():
     
     if not player_id or not vehicle_type:
         return jsonify({'success': False, 'message': 'Dados incompletos'}), 400
+
+    allowed, limit_info = evaluate_vehicle_limit(vehicle_type)
+    warning = None
+    if not allowed:
+        warning = format_limit_block_message(limit_info)
+        logger.warning(f"Tentativa de spawn com limite excedido: {vehicle_type} - {warning}")
     
     # Formato: PlayerID spawnvehicle vehicle_type
     command_line = f"{player_id} spawnvehicle {vehicle_type}\n"
@@ -2563,10 +2607,14 @@ def api_spawn_vehicle():
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         
         logger.info(f"Comando enviado: {command_line.strip()}")
-        return jsonify({
+        response = {
             'success': True,
             'message': f'Veículo {vehicle_type} spawned com sucesso!'
-        })
+        }
+        if warning:
+            response['warning'] = warning
+            response['limit'] = limit_info
+        return jsonify(response)
     except Exception as e:
         logger.exception("Erro ao spawnar veículo")
         return jsonify({
@@ -2637,6 +2685,12 @@ def api_spawn_vehicle_at_coords():
     
     if not all([vehicle_type, coord_x is not None, coord_y is not None]):
         return jsonify({'success': False, 'message': 'Dados incompletos'}), 400
+
+    allowed, limit_info = evaluate_vehicle_limit(vehicle_type)
+    warning = None
+    if not allowed:
+        warning = format_limit_block_message(limit_info)
+        logger.warning(f"Tentativa de spawn com limite excedido: {vehicle_type} - {warning}")
     
     # Formato: SYSTEM createvehicle vehicle_type coordX coordY
     command_line = f"SYSTEM createvehicle {vehicle_type} {coord_x} {coord_y}\n"
@@ -2652,10 +2706,14 @@ def api_spawn_vehicle_at_coords():
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         
         logger.info(f"Spawn veículo em coordenadas: {coord_x}, {coord_y}")
-        return jsonify({
+        response = {
             'success': True,
             'message': f'Veículo {vehicle_type} criado nas coordenadas!'
-        })
+        }
+        if warning:
+            response['warning'] = warning
+            response['limit'] = limit_info
+        return jsonify(response)
     except Exception as e:
         logger.exception("Erro ao spawnar veículo em coordenadas")
         return jsonify({

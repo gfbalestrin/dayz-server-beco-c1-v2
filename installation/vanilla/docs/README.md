@@ -398,11 +398,16 @@ Spawna um veículo completo próximo ao admin.
 - Combustível, óleo, freio e coolant cheios
 - Vida máxima (1000 HP)
 - Lifetime: 45 dias
+- Respeita o limite configurado no `db/events.xml` (atributo `max` do evento correspondente)
+- Tela de spawning mostra `Em uso X/Y` conforme dados do monitor e bloqueia o botão ao atingir o limite
 
 **Exemplo**:
 ```
 !spawnvehicle Sedan_02
 ```
+
+> ℹ️ **Validação automática**  
+> A API lê periodicamente os arquivos `db/events.xml` e `db/types.xml` em `/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/db/`. Basta salvar as alterações no servidor (ou substituir os arquivos) para que os novos limites sejam refletidos na próxima consulta — não é necessário reiniciar a interface.
 
 #### `!ghostmode` / `!unghostmode`
 Torna o admin invisível.

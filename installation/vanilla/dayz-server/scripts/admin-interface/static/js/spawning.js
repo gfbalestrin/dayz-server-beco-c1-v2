@@ -12,6 +12,8 @@ let spawnMode = 'player'; // 'player' ou 'coords'
 let selectedCoords = null; // {x, y, z, pixel: [lat, lng]}
 let spawnMap = null; // Instância do Leaflet
 let spawnMapPlayerMarkers = {}; // Marcadores de jogadores no mapa de spawn
+let vehicleLimits = {};
+let vehicleLimitsLoading = false;
 
 // Cores para marcadores de jogadores (reutilizado de map.js)
 const iconColors = [
@@ -279,19 +281,112 @@ function renderVehiclesGrid() {
     const grid = $('#vehiclesGrid');
     grid.empty();
     
+    if (vehicleLimitsLoading) {
+        grid.html('<div class="text-center p-4"><i class="fas fa-spinner fa-spin fa-2x"></i></div>');
+        return;
+    }
+
+    if (VEHICLES.length === 0) {
+        grid.html('<div class="text-center p-4">Nenhum veículo configurado</div>');
+        return;
+    }
+
     VEHICLES.forEach(vehicle => {
+        const limitInfo = vehicleLimits[vehicle.type];
+        const hasLimit = limitInfo && limitInfo.has_limit;
+        const available = limitInfo ? limitInfo.available : null;
+        const current = limitInfo ? limitInfo.current : null;
+        const max = limitInfo ? limitInfo.max : null;
+        const min = limitInfo ? limitInfo.min : null;
+        const nominal = limitInfo ? limitInfo.nominal : null;
+        const lifetime = limitInfo ? limitInfo.lifetime : null;
+        const restock = limitInfo ? limitInfo.restock : null;
+        const blocked = limitInfo ? limitInfo.blocked : false;
+
+        let metaHtml = '';
+        let detailsHtml = '';
+        
+        if (limitInfo) {
+            const totalLabel = max !== null && max !== undefined ? `${current ?? 0}/${max}` : `${current ?? 0}/?`;
+            
+            // Informações principais
+            metaHtml = `
+                <div class="vehicle-limit-info">
+                    <span>Em uso: ${totalLabel}</span>
+                    ${blocked ? '<span class="vehicle-limit-warning">Limite atingido</span>' : ''}
+                </div>
+            `;
+            
+            // Informações detalhadas (colapsável)
+            const details = [];
+            if (nominal !== null && nominal !== undefined) {
+                details.push(`Nominal: ${nominal}`);
+            }
+            if (min !== null && min !== undefined && max !== null && max !== undefined) {
+                details.push(`Min/Max: ${min}/${max}`);
+            }
+            if (lifetime !== null && lifetime !== undefined) {
+                const lifetimeHours = (lifetime / 3600).toFixed(1);
+                details.push(`Lifetime: ${lifetimeHours}h`);
+            }
+            if (restock !== null && restock !== undefined) {
+                const restockMinutes = (restock / 60).toFixed(0);
+                details.push(`Restock: ${restockMinutes}min`);
+            }
+            
+            if (details.length > 0) {
+                detailsHtml = `
+                    <div class="vehicle-details">
+                        <small>${details.join(' | ')}</small>
+                    </div>
+                `;
+            }
+        }
+
         const card = $(`
-            <div class="vehicle-card" data-vehicle-type="${vehicle.type}">
+            <div class="vehicle-card ${blocked ? 'disabled' : ''}" data-vehicle-type="${vehicle.type}" title="${blocked ? 'Atenção: Limite excedido. Spawn será permitido mas pode ser removido pela CE.' : ''}">
                 <img src="${vehicle.image}" alt="${vehicle.name}" onerror="this.src='https://via.placeholder.com/200x120/6c757d/ffffff?text=Erro+ao+carregar'">
                 <div class="vehicle-name">${vehicle.name}</div>
+                ${metaHtml}
+                ${detailsHtml}
             </div>
         `);
-        
+
         card.on('click', function() {
             spawnVehicle(vehicle);
         });
         
         grid.append(card);
+    });
+}
+
+function loadVehicleLimits(showErrors = false) {
+    vehicleLimitsLoading = true;
+    renderVehiclesGrid();
+    return $.ajax({
+        url: '/api/vehicle-limits',
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                vehicleLimits = response.limits || {};
+            } else {
+                vehicleLimits = {};
+                if (showErrors) {
+                    showToast('Erro', response.message || 'Falha ao carregar limites de veículos', 'error');
+                }
+            }
+        },
+        error: function(xhr) {
+            vehicleLimits = {};
+            if (showErrors) {
+                const error = xhr.responseJSON || {};
+                showToast('Erro', error.message || 'Falha ao carregar limites de veículos', 'error');
+            }
+        },
+        complete: function() {
+            vehicleLimitsLoading = false;
+            renderVehiclesGrid();
+        }
     });
 }
 
@@ -305,6 +400,12 @@ function spawnVehicle(vehicle) {
         showToast('Aviso', 'Selecione as coordenadas no mapa primeiro!', 'warning');
         return;
     }
+
+    const currentLimit = vehicleLimits[vehicle.type];
+    let warningMsg = null;
+    if (currentLimit && currentLimit.has_limit && currentLimit.available !== null && currentLimit.available <= 0) {
+        warningMsg = `Limite do evento atingido (${currentLimit.current}/${currentLimit.max || '?'}). O spawn será permitido mas o veículo pode ser removido pela CE.`;
+    }
     
     // Confirmar spawn
     let confirmMsg = '';
@@ -312,6 +413,10 @@ function spawnVehicle(vehicle) {
         confirmMsg = `Spawnar ${vehicle.name} próximo ao jogador ${selectedPlayer.PlayerName}?`;
     } else {
         confirmMsg = `Spawnar ${vehicle.name} nas coordenadas X=${selectedCoords.x.toFixed(1)}, Y=${selectedCoords.y.toFixed(1)}?`;
+    }
+    
+    if (warningMsg) {
+        confirmMsg += '\n\n' + warningMsg;
     }
     
     if (!confirm(confirmMsg)) return;
@@ -328,6 +433,12 @@ function spawnVehicle(vehicle) {
             }),
             success: function(response) {
                 showToast('Sucesso', response.message, 'success');
+                if (response.warning) {
+                    setTimeout(() => {
+                        showToast('Aviso', response.warning, 'warning');
+                    }, 500);
+                }
+                loadVehicleLimits();
             },
             error: function(xhr) {
                 const error = xhr.responseJSON || {};
@@ -347,6 +458,12 @@ function spawnVehicle(vehicle) {
             }),
             success: function(response) {
                 showToast('Sucesso', response.message, 'success');
+                if (response.warning) {
+                    setTimeout(() => {
+                        showToast('Aviso', response.warning, 'warning');
+                    }, 500);
+                }
+                loadVehicleLimits();
             },
             error: function(xhr) {
                 const error = xhr.responseJSON || {};
@@ -1359,6 +1476,7 @@ $(document).ready(function() {
     loadWeaponsForFilters();
     loadItemTypes();
     renderVehiclesGrid();
+    loadVehicleLimits();
     
     // Auto-seleção de jogador via URL
     setTimeout(function() {
