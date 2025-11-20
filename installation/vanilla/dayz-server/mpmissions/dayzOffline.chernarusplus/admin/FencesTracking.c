@@ -793,15 +793,37 @@ void SendFlagsStatus()
                 continue;
 
             BaseBuildingBase buildingBase = BaseBuildingBase.Cast(trackedFlag);
-            Construction construction = null;
             bool hasBase = false;
+            bool hasFlagBase = false;
+            bool flagRaised = false;
+            float flagHeight = 0.0;
 
             if (buildingBase)
             {
-                construction = buildingBase.GetConstruction();
-                if (construction)
+                hasBase = buildingBase.HasBase();
+
+                Inventory inventory = buildingBase.GetInventory();
+                if (inventory)
                 {
-                    hasBase = IsFlagPartBuilt(trackedFlag, "base");
+                    int attachmentCount = inventory.AttachmentCount();
+                    for (int i = 0; i < attachmentCount; i++)
+                    {
+                        EntityAI attachment = inventory.GetAttachmentFromIndex(i);
+                        if (attachment)
+                        {
+                            string attachmentType = attachment.GetType();
+                            if (attachmentType == "Flag_Base")
+                            {
+                                hasFlagBase = true;
+                                flagRaised = true;
+
+                                vector flagBasePos = attachment.GetPosition();
+                                vector flagPolePos = trackedFlag.GetPosition();
+                                flagHeight = Math.AbsFloat(flagBasePos[1] - flagPolePos[1]);
+                                break;
+                            }
+                        }
+                    }
                 }
             }
 
@@ -814,6 +836,7 @@ void SendFlagsStatus()
             string oriX = ori[0].ToString();
             string oriY = ori[1].ToString();
             string oriZ = ori[2].ToString();
+            string flagHeightStr = flagHeight.ToString();
 
             if (flagsJson != "")
                 flagsJson += ",";
@@ -821,17 +844,12 @@ void SendFlagsStatus()
             flagsJson += "{\"position\":{\"x\":" + posX + ",\"z\":" + posZ + ",\"y\":" + posY + "}";
             flagsJson += ",\"orientation\":{\"x\":" + oriX + ",\"y\":" + oriY + ",\"z\":" + oriZ + "}";
             flagsJson += ",\"has_base\":" + BoolToJson(hasBase);
+            flagsJson += ",\"has_flag_base\":" + BoolToJson(hasFlagBase);
+            flagsJson += ",\"flag_raised\":" + BoolToJson(flagRaised);
+            flagsJson += ",\"flag_height\":" + flagHeightStr;
             flagsJson += "}";
 
-            string logMsg = "[FLAG] Posição=(" + posX + ", " + posZ + ", " + posY + ") | HasBase=" + hasBase.ToString();
-            if (construction)
-            {
-                logMsg += " | Construction encontrado";
-            }
-            else
-            {
-                logMsg += " | Construction não encontrado";
-            }
+            string logMsg = "[FLAG] Posição=(" + posX + ", " + posZ + ", " + posY + ") | HasBase=" + hasBase.ToString() + " | HasFlagBase=" + hasFlagBase.ToString() + " | FlagRaised=" + flagRaised.ToString() + " | FlagHeight=" + flagHeightStr;
             WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
 
             count++;

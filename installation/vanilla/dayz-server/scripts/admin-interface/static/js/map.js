@@ -3052,7 +3052,11 @@ function createFencePopup(fence) {
         const details = fence.flag_details || {};
         const formatStatus = (value) => {
             if (value === null || value === undefined) return 'Desconhecido';
-            return value ? 'Construído' : 'Não construído';
+            return value ? 'Sim' : 'Não';
+        };
+        const formatHeight = (value) => {
+            if (value === null || value === undefined || value === 0) return 'N/A';
+            return value.toFixed ? value.toFixed(2) + 'm' : value + 'm';
         };
         const orientation = fence.orientation || {};
         const orientationText = (orientation.x !== undefined && orientation.y !== undefined)
@@ -3075,8 +3079,20 @@ function createFencePopup(fence) {
                     <span class="info-value">${orientationText}</span>
                 </div>
                 <div class="info-row mt-2">
-                    <span class="info-label">Base:</span>
+                    <span class="info-label">Suporte/Base:</span>
                     <span class="info-value">${formatStatus(details.has_base)}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Bandeira Anexada:</span>
+                    <span class="info-value">${formatStatus(details.has_flag_base)}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Bandeira Hasteada:</span>
+                    <span class="info-value">${formatStatus(details.flag_raised)}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Altura da Bandeira:</span>
+                    <span class="info-value">${formatHeight(details.flag_height)}</span>
                 </div>
                 <div class="info-row mt-2">
                     <span class="info-label">Atualizado:</span>

@@ -775,7 +775,10 @@ def get_flags_last_position() -> List[Dict]:
                    ft.OrientationY,
                    ft.OrientationZ,
                    ft.TimeStamp,
-                   ft.HasBase
+                   ft.HasBase,
+                   ft.HasFlagBase,
+                   ft.FlagRaised,
+                   ft.FlagHeight
             FROM flags_tracking ft
             INNER JOIN (
                 SELECT FlagId, MAX(FlagTrackingId) AS MaxId

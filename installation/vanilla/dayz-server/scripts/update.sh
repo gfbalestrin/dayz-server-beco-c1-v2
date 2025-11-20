@@ -145,6 +145,7 @@ if [[ "$DayzWipeOnRestart" == "1" ]]; then
 	sqlite3 "__APP_FOLDER__/__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM containers_tracking"
 	sqlite3 "__APP_FOLDER__/__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM fences_tracking"
 	sqlite3 "__APP_FOLDER__/__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM watchtowers_tracking"
+	sqlite3 "__APP_FOLDER__/__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM flags_tracking"
 	sqlite3 "__APP_FOLDER__/__APP_PLAYER_BECO_C1_DB_FILE__" "DELETE FROM players_damage"
 	sqlite3 "__APP_FOLDER__/__APP_PLAYER_BECO_C1_DB_FILE__" "DELETE FROM players_killfeed"
 	sqlite3 "__APP_FOLDER__/__APP_PLAYER_BECO_C1_DB_FILE__" "DELETE FROM players_coord_backup"

@@ -1471,7 +1471,10 @@ def api_fences_positions():
     for flag in flags:
         pixel_coords = dayz_to_pixel(flag['PositionX'], flag['PositionY'])
         flag_details = {
-            'has_base': normalize_watchtower_bool(flag.get('HasBase'))
+            'has_base': normalize_watchtower_bool(flag.get('HasBase')),
+            'has_flag_base': normalize_watchtower_bool(flag.get('HasFlagBase')),
+            'flag_raised': normalize_watchtower_bool(flag.get('FlagRaised')),
+            'flag_height': safe_float(flag.get('FlagHeight'))
         }
 
         result['fences'].append({

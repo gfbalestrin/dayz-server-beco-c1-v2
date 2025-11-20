@@ -49,11 +49,20 @@ handle_flags_positions() {
         local has_base
         has_base=$(flag_bool_to_int "$(echo "$flag_data" | jq -r '.has_base')")
 
+        local has_flag_base
+        has_flag_base=$(flag_bool_to_int "$(echo "$flag_data" | jq -r '.has_flag_base')")
+
+        local flag_raised
+        flag_raised=$(flag_bool_to_int "$(echo "$flag_data" | jq -r '.flag_raised')")
+
+        local flag_height
+        flag_height=$(echo "$flag_data" | jq -r '.flag_height // empty')
+
         local flag_id
         flag_id="Flag_${coord_x}_${coord_z}_${coord_y}"
 
         local FlagTrackingId
-        FlagTrackingId=$(INSERT_FLAG_POSITION "$flag_id" "Flag" "$coord_x" "$coord_z" "$coord_y" "$ori_x" "$ori_y" "$ori_z" "$current_timestamp" "$has_base")
+        FlagTrackingId=$(INSERT_FLAG_POSITION "$flag_id" "Flag" "$coord_x" "$coord_z" "$coord_y" "$ori_x" "$ori_y" "$ori_z" "$current_timestamp" "$has_base" "$has_flag_base" "$flag_raised" "$flag_height")
 
         if [[ $? -eq 0 && -n "$FlagTrackingId" ]]; then
             processed_count=$((processed_count + 1))

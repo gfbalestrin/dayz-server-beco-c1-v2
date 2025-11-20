@@ -138,6 +138,7 @@ containers_tracking_before=$(count_records "$logs_db" "containers_tracking")
 container_items_tracking_before=$(count_records "$logs_db" "container_items_tracking")
 fences_tracking_before=$(count_records "$logs_db" "fences_tracking")
 watchtowers_tracking_before=$(count_records "$logs_db" "watchtowers_tracking")
+flags_tracking_before=$(count_records "$logs_db" "flags_tracking")
 logs_adm_before=$(count_records "$logs_db" "logs_adm")
 logs_custom_before=$(count_records "$logs_db" "logs_custom")
 logs_rpt_before=$(count_records "$logs_db" "logs_rpt")
@@ -149,6 +150,7 @@ containers_tracking_old=$(count_old_records "$logs_db" "containers_tracking" "Ti
 container_items_tracking_old=$(count_old_records "$logs_db" "container_items_tracking" "TimeStamp" "$RETENTION_DAYS_SHORT")
 fences_tracking_old=$(count_old_records "$logs_db" "fences_tracking" "TimeStamp" "$RETENTION_DAYS_SHORT")
 watchtowers_tracking_old=$(count_old_records "$logs_db" "watchtowers_tracking" "TimeStamp" "$RETENTION_DAYS_SHORT")
+flags_tracking_old=$(count_old_records "$logs_db" "flags_tracking" "TimeStamp" "$RETENTION_DAYS_SHORT")
 logs_adm_old=$(count_old_records "$logs_db" "logs_adm" "TimeStamp" "$RETENTION_DAYS_LONG")
 logs_custom_old=$(count_old_records "$logs_db" "logs_custom" "TimeStamp" "$RETENTION_DAYS_LONG")
 logs_rpt_old=$(count_old_records "$logs_db" "logs_rpt" "TimeStamp" "$RETENTION_DAYS_LONG")
@@ -161,6 +163,7 @@ INSERT_CUSTOM_LOG "Tabela containers_tracking: $containers_tracking_before total
 INSERT_CUSTOM_LOG "Tabela container_items_tracking: $container_items_tracking_before total, $container_items_tracking_old antigos (mais de $RETENTION_DAYS_SHORT dias)" "INFO" "clear_databases.sh"
 INSERT_CUSTOM_LOG "Tabela fences_tracking: $fences_tracking_before total, $fences_tracking_old antigos (mais de $RETENTION_DAYS_SHORT dias)" "INFO" "clear_databases.sh"
 INSERT_CUSTOM_LOG "Tabela watchtowers_tracking: $watchtowers_tracking_before total, $watchtowers_tracking_old antigos (mais de $RETENTION_DAYS_SHORT dias)" "INFO" "clear_databases.sh"
+INSERT_CUSTOM_LOG "Tabela flags_tracking: $flags_tracking_before total, $flags_tracking_old antigos (mais de $RETENTION_DAYS_SHORT dias)" "INFO" "clear_databases.sh"
 INSERT_CUSTOM_LOG "Tabela logs_adm: $logs_adm_before total, $logs_adm_old antigos (mais de $RETENTION_DAYS_LONG dias)" "INFO" "clear_databases.sh"
 INSERT_CUSTOM_LOG "Tabela logs_custom: $logs_custom_before total, $logs_custom_old antigos (mais de $RETENTION_DAYS_LONG dias)" "INFO" "clear_databases.sh"
 INSERT_CUSTOM_LOG "Tabela logs_rpt: $logs_rpt_before total, $logs_rpt_old antigos (mais de $RETENTION_DAYS_LONG dias)" "INFO" "clear_databases.sh"
@@ -172,6 +175,7 @@ delete_old_records "$logs_db" "containers_tracking" "TimeStamp" "$RETENTION_DAYS
 delete_old_records "$logs_db" "container_items_tracking" "TimeStamp" "$RETENTION_DAYS_SHORT" "container_items_tracking"
 delete_old_records "$logs_db" "fences_tracking" "TimeStamp" "$RETENTION_DAYS_SHORT" "fences_tracking"
 delete_old_records "$logs_db" "watchtowers_tracking" "TimeStamp" "$RETENTION_DAYS_SHORT" "watchtowers_tracking"
+delete_old_records "$logs_db" "flags_tracking" "TimeStamp" "$RETENTION_DAYS_SHORT" "flags_tracking"
 delete_old_records "$logs_db" "logs_adm" "TimeStamp" "$RETENTION_DAYS_LONG" "logs_adm"
 delete_old_records "$logs_db" "logs_custom" "TimeStamp" "$RETENTION_DAYS_LONG" "logs_custom"
 delete_old_records "$logs_db" "logs_rpt" "TimeStamp" "$RETENTION_DAYS_LONG" "logs_rpt"
@@ -182,6 +186,7 @@ containers_tracking_after=$(count_records "$logs_db" "containers_tracking")
 container_items_tracking_after=$(count_records "$logs_db" "container_items_tracking")
 fences_tracking_after=$(count_records "$logs_db" "fences_tracking")
 watchtowers_tracking_after=$(count_records "$logs_db" "watchtowers_tracking")
+flags_tracking_after=$(count_records "$logs_db" "flags_tracking")
 logs_adm_after=$(count_records "$logs_db" "logs_adm")
 logs_custom_after=$(count_records "$logs_db" "logs_custom")
 logs_rpt_after=$(count_records "$logs_db" "logs_rpt")
@@ -193,6 +198,7 @@ INSERT_CUSTOM_LOG "Tabela containers_tracking: $containers_tracking_before -> $c
 INSERT_CUSTOM_LOG "Tabela container_items_tracking: $container_items_tracking_before -> $container_items_tracking_after (deletados: $((container_items_tracking_before - container_items_tracking_after)))" "INFO" "clear_databases.sh"
 INSERT_CUSTOM_LOG "Tabela fences_tracking: $fences_tracking_before -> $fences_tracking_after (deletados: $((fences_tracking_before - fences_tracking_after)))" "INFO" "clear_databases.sh"
 INSERT_CUSTOM_LOG "Tabela watchtowers_tracking: $watchtowers_tracking_before -> $watchtowers_tracking_after (deletados: $((watchtowers_tracking_before - watchtowers_tracking_after)))" "INFO" "clear_databases.sh"
+INSERT_CUSTOM_LOG "Tabela flags_tracking: $flags_tracking_before -> $flags_tracking_after (deletados: $((flags_tracking_before - flags_tracking_after)))" "INFO" "clear_databases.sh"
 INSERT_CUSTOM_LOG "Tabela logs_adm: $logs_adm_before -> $logs_adm_after (deletados: $((logs_adm_before - logs_adm_after)))" "INFO" "clear_databases.sh"
 INSERT_CUSTOM_LOG "Tabela logs_custom: $logs_custom_before -> $logs_custom_after (deletados: $((logs_custom_before - logs_custom_after)))" "INFO" "clear_databases.sh"
 INSERT_CUSTOM_LOG "Tabela logs_rpt: $logs_rpt_before -> $logs_rpt_after (deletados: $((logs_rpt_before - logs_rpt_after)))" "INFO" "clear_databases.sh"

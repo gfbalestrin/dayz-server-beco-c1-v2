@@ -1170,6 +1170,9 @@ INSERT_FLAG_POSITION() {
     local OriZ="$8"
     local CustomTimestamp="$9"
     local HasBase="${10}"
+    local HasFlagBase="${11}"
+    local FlagRaised="${12}"
+    local FlagHeight="${13}"
     local max_retries=5
     local retry_delay=0.2
     local attempt=1
@@ -1193,6 +1196,9 @@ CREATE TABLE IF NOT EXISTS flags_tracking (
     OrientationZ REAL,
     TimeStamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     HasBase INTEGER,
+    HasFlagBase INTEGER,
+    FlagRaised INTEGER,
+    FlagHeight REAL,
     IsDestroyed INTEGER DEFAULT 0,
     DestroyedAt DATETIME
 );
@@ -1214,8 +1220,14 @@ EOF
     fi
 
     local HasBaseValue
+    local HasFlagBaseValue
+    local FlagRaisedValue
+    local FlagHeightValue
 
     if [[ -n "$HasBase" ]]; then HasBaseValue="$HasBase"; else HasBaseValue="NULL"; fi
+    if [[ -n "$HasFlagBase" ]]; then HasFlagBaseValue="$HasFlagBase"; else HasFlagBaseValue="NULL"; fi
+    if [[ -n "$FlagRaised" ]]; then FlagRaisedValue="$FlagRaised"; else FlagRaisedValue="NULL"; fi
+    if [[ -n "$FlagHeight" ]]; then FlagHeightValue="$FlagHeight"; else FlagHeightValue="NULL"; fi
 
     while (( attempt <= max_retries )); do
         local FlagTrackingId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
@@ -1229,7 +1241,10 @@ INSERT INTO flags_tracking (
     OrientationY,
     OrientationZ,
     TimeStamp,
-    HasBase
+    HasBase,
+    HasFlagBase,
+    FlagRaised,
+    FlagHeight
 )
 VALUES (
     '$EscapedFlagId',
@@ -1241,7 +1256,10 @@ VALUES (
     '$OriY',
     '$OriZ',
     $TimestampValue,
-    $HasBaseValue
+    $HasBaseValue,
+    $HasFlagBaseValue,
+    $FlagRaisedValue,
+    $FlagHeightValue
 );
 SELECT last_insert_rowid();
 EOF

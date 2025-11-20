@@ -157,6 +157,9 @@ CREATE INDEX IF NOT EXISTS idx_user_audit_logs_timestamp ON user_audit_logs(Time
 -- ALTER TABLE fences_tracking ADD COLUMN DestroyedAt DATETIME;
 -- ALTER TABLE watchtowers_tracking ADD COLUMN IsDestroyed INTEGER DEFAULT 0;
 -- ALTER TABLE watchtowers_tracking ADD COLUMN DestroyedAt DATETIME;
+-- ALTER TABLE flags_tracking ADD COLUMN HasFlagBase INTEGER;
+-- ALTER TABLE flags_tracking ADD COLUMN FlagRaised INTEGER;
+-- ALTER TABLE flags_tracking ADD COLUMN FlagHeight REAL;
 
 -- Criar índices para melhor performance nas queries de filtro
 CREATE INDEX IF NOT EXISTS idx_containers_tracking_destroyed ON containers_tracking(IsDestroyed);
