@@ -339,6 +339,26 @@ bool IsWatchtowerPartBuilt(Construction construction, string partName)
     return towerPart.IsBuilt();
 }
 
+bool IsFlagPartBuilt(Object flagObject, string partName)
+{
+    if (!flagObject || partName == "")
+        return false;
+
+    BaseBuildingBase buildingBase = BaseBuildingBase.Cast(flagObject);
+    if (!buildingBase)
+        return false;
+
+    Construction construction = buildingBase.GetConstruction();
+    if (!construction)
+        return false;
+
+    ConstructionPart flagPart = construction.GetConstructionPart(partName);
+    if (!flagPart)
+        return false;
+
+    return flagPart.IsBuilt();
+}
+
 void PopulateTrackedWatchtowers(array<Object> worldObjects)
 {
     if (!GetGame() || !GetGame().IsServer())
@@ -772,7 +792,18 @@ void SendFlagsStatus()
             if (objectType != "TerritoryFlag")
                 continue;
 
-            bool hasBase = true;
+            BaseBuildingBase buildingBase = BaseBuildingBase.Cast(trackedFlag);
+            Construction construction = null;
+            bool hasBase = false;
+
+            if (buildingBase)
+            {
+                construction = buildingBase.GetConstruction();
+                if (construction)
+                {
+                    hasBase = IsFlagPartBuilt(trackedFlag, "base");
+                }
+            }
 
             vector pos = trackedFlag.GetPosition();
             vector ori = trackedFlag.GetOrientation();
@@ -793,6 +824,14 @@ void SendFlagsStatus()
             flagsJson += "}";
 
             string logMsg = "[FLAG] Posição=(" + posX + ", " + posZ + ", " + posY + ") | HasBase=" + hasBase.ToString();
+            if (construction)
+            {
+                logMsg += " | Construction encontrado";
+            }
+            else
+            {
+                logMsg += " | Construction não encontrado";
+            }
             WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
 
             count++;
