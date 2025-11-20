@@ -217,6 +217,8 @@ void SendVehiclesPositions()
 
         vector position = vehicle.GetPosition();
         string vehicleName = vehicle.GetDisplayName();
+        float vehicleLifetime = vehicle.GetLifetime();
+        float vehicleLifetimeMax = vehicle.GetLifetimeMax();
 
         int pidLow1 = 0;
         int pidLow2 = 0;
@@ -304,13 +306,15 @@ void SendVehiclesPositions()
         string posZStr = position[1].ToString();
         string posYStr = position[2].ToString();
         string vehicleJsonPart1 = "{\"vehicle_id\":\"" + vehicleIdentifier + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + posXStr + ",\"z\":" + posZStr + ",\"y\":" + posYStr;
-        string vehicleJsonPart2 = ",\"items\":[" + itemsJson + "],\"attachments\":[" + attachmentsJson + "],\"health_parts\":{" + healthPartsJson + "}}";
+        string vehicleJsonPart2 = ",\"items\":[" + itemsJson + "],\"attachments\":[" + attachmentsJson + "],\"health_parts\":{" + healthPartsJson + "},\"lifetime\":" + vehicleLifetime.ToString() + ",\"lifetime_max\":" + vehicleLifetimeMax.ToString() + "}";
         string vehicleJson = vehicleJsonPart1 + vehicleJsonPart2;
         
         if (vehiclesJson != "")
             vehiclesJson += ",";
         
         vehiclesJson += vehicleJson;
+
+        WriteToLog("[LIFETIME] VehicleId=" + vehicleIdentifier + " (" + safeName + ") lifetime=" + vehicleLifetime.ToString() + " lifetime_max=" + vehicleLifetimeMax.ToString(), LogFile.INIT, false, LogType.DEBUG);
     }
 
     string jsonAction = "{\"action\":\"vehicles_positions\",\"vehicles\":[" + vehiclesJson + "]}";
@@ -336,8 +340,10 @@ void CheckVehiclesForLoot()
 
 		vehiclesTotal++;
 
-		vector vehiclePosition = vehicle.GetPosition();
-		string vehicleName = vehicle.GetDisplayName();
+        vector vehiclePosition = vehicle.GetPosition();
+        string vehicleName = vehicle.GetDisplayName();
+        float vehicleLifetime = vehicle.GetLifetime();
+        float vehicleLifetimeMax = vehicle.GetLifetimeMax();
 
 		int pidLow1 = 0;
 		int pidLow2 = 0;
@@ -433,12 +439,14 @@ void CheckVehiclesForLoot()
 		string posZStr = vehiclePosition[1].ToString();
 		string posYStr = vehiclePosition[2].ToString();
 		string vehicleJsonPart1 = "{\"vehicle_id\":\"" + vehicleIdentifier + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + posXStr + ",\"z\":" + posZStr + ",\"y\":" + posYStr;
-		string vehicleJsonPart2 = ",\"items\":[" + itemsJson + "],\"attachments\":[" + attachmentsJson + "],\"health_parts\":{" + healthPartsJson + "}}";
+        string vehicleJsonPart2 = ",\"items\":[" + itemsJson + "],\"attachments\":[" + attachmentsJson + "],\"health_parts\":{" + healthPartsJson + "},\"lifetime\":" + vehicleLifetime.ToString() + ",\"lifetime_max\":" + vehicleLifetimeMax.ToString() + "}";
 		string vehicleJson = vehicleJsonPart1 + vehicleJsonPart2;
 		
 		if (vehiclesJson != "")
 			vehiclesJson += ",";
 		vehiclesJson += vehicleJson;
+
+        WriteToLog("[LIFETIME] VehicleId=" + vehicleIdentifier + " (" + safeName + ") lifetime=" + vehicleLifetime.ToString() + " lifetime_max=" + vehicleLifetimeMax.ToString(), LogFile.INIT, false, LogType.DEBUG);
 	}
 
 	if (vehiclesTotal > 0)
@@ -530,8 +538,10 @@ void BuildVehiclesData(array<Object> worldObjects, out string vehiclesJson, out 
 
 		totalVehicles++;
 
-		vector vehiclePosition = candidateVehicle.GetPosition();
-		string vehicleName = candidateVehicle.GetDisplayName();
+        vector vehiclePosition = candidateVehicle.GetPosition();
+        string vehicleName = candidateVehicle.GetDisplayName();
+        float candidateLifetime = candidateVehicle.GetLifetime();
+        float candidateLifetimeMax = candidateVehicle.GetLifetimeMax();
 
 		int pidLow1 = 0;
 		int pidLow2 = 0;
@@ -629,11 +639,13 @@ void BuildVehiclesData(array<Object> worldObjects, out string vehiclesJson, out 
 		string posZStr = vehiclePosition[1].ToString();
 		string posYStr = vehiclePosition[2].ToString();
 		string vehicleJsonPart1 = "{\"vehicle_id\":\"" + vehicleIdentifier + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + posXStr + ",\"z\":" + posZStr + ",\"y\":" + posYStr;
-		string vehicleJsonPart2 = ",\"items\":[" + itemsJson + "],\"attachments\":[" + attachmentsJson + "],\"health_parts\":{" + healthPartsJson + "}}";
+        string vehicleJsonPart2 = ",\"items\":[" + itemsJson + "],\"attachments\":[" + attachmentsJson + "],\"health_parts\":{" + healthPartsJson + "},\"lifetime\":" + candidateLifetime.ToString() + ",\"lifetime_max\":" + candidateLifetimeMax.ToString() + "}";
 		string vehicleJson = vehicleJsonPart1 + vehicleJsonPart2;
 		
 		if (vehiclesJson != "")
 			vehiclesJson += ",";
 		vehiclesJson += vehicleJson;
+
+        WriteToLog("[LIFETIME] VehicleId=" + vehicleIdentifier + " (" + safeName + ") lifetime=" + candidateLifetime.ToString() + " lifetime_max=" + candidateLifetimeMax.ToString(), LogFile.INIT, false, LogType.DEBUG);
 	}
 }
