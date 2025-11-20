@@ -810,7 +810,7 @@ void SendFlagsStatus()
                         if (attachment)
                         {
                             string attachmentType = attachment.GetType();
-                            if (attachmentType == "Flag_Base")
+                            if (attachmentType.IndexOf("Flag_") == 0)
                             {
                                 hasFlagBase = true;
                                 flagRaised = true;
