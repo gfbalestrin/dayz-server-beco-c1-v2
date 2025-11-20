@@ -352,6 +352,9 @@ function getTooltipDirectionForPoint(lat, lng) {
     const margin = size * 0.2;
     let direction = 'top';
     
+    if (lat < margin) {
+        direction = 'bottom';
+    } else
     if (lat > size - margin) {
         direction = 'bottom';
     }
@@ -363,6 +366,30 @@ function getTooltipDirectionForPoint(lat, lng) {
     }
     
     return direction;
+}
+
+/**
+ * Calcular offset seguro para popups próximos às bordas do mapa
+ */
+function getPopupOffsetForPoint(lat, lng) {
+    const size = currentMapConfig ? currentMapConfig.pixelSize : BASE_MAP_SIZE;
+    const margin = Math.max(size * 0.1, 150);
+    let offsetX = 0;
+    let offsetY = -24;
+    
+    if (lat < margin) {
+        offsetY = 36;
+    } else if (lat > size - margin) {
+        offsetY = -36;
+    }
+    
+    if (lng < margin) {
+        offsetX = 36;
+    } else if (lng > size - margin) {
+        offsetX = -36;
+    }
+    
+    return L.point(offsetX, offsetY);
 }
 
 /**
@@ -2435,11 +2462,15 @@ function updateVehicles(data) {
         }).addTo(map);
         
         const popupContent = createVehiclePopup(vehicle);
+        const popupOffset = getPopupOffsetForPoint(coords[0], coords[1]);
         
         marker.bindPopup(popupContent, {
             autoPan: true,
-            autoPanPadding: [50, 50],
-            maxWidth: 300
+            keepInView: true,
+            autoPanPaddingTopLeft: [60, 60],
+            autoPanPaddingBottomRight: [60, 60],
+            maxWidth: 300,
+            offset: popupOffset
         });
         
         vehicleMarkers[vehicleId] = marker;
@@ -2699,11 +2730,15 @@ function updateContainers(data) {
         });
         
         const popupContent = createContainerPopup(container);
+        const popupOffset = getPopupOffsetForPoint(coords[0], coords[1]);
         
         marker.bindPopup(popupContent, {
             autoPan: true,
-            autoPanPadding: [50, 50],
-            maxWidth: 300
+            keepInView: true,
+            autoPanPaddingTopLeft: [60, 60],
+            autoPanPaddingBottomRight: [60, 60],
+            maxWidth: 300,
+            offset: popupOffset
         });
         
         containerMarkers[containerId] = marker;
@@ -2903,11 +2938,15 @@ function updateFences(data) {
         }).addTo(map);
         
         const popupContent = createFencePopup(fence);
+        const popupOffset = getPopupOffsetForPoint(coords[0], coords[1]);
         
         marker.bindPopup(popupContent, {
             autoPan: true,
-            autoPanPadding: [50, 50],
-            maxWidth: 300
+            keepInView: true,
+            autoPanPaddingTopLeft: [60, 60],
+            autoPanPaddingBottomRight: [60, 60],
+            maxWidth: 300,
+            offset: popupOffset
         });
         
         fenceMarkers[fenceId] = marker;
