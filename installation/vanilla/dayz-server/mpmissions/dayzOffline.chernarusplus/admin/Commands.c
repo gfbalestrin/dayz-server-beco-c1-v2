@@ -129,6 +129,8 @@ bool ExecuteCommand(TStringArray tokens)
 
                 WriteToLog("ExecuteCommand(): registerwatchtower falhou em encontrar watchtower em " + watchtowerPosition.ToString() + " (raio=" + watchtowerSearchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
                 return false;
+            case "teleportvehicle":
+                return ExecuteTeleportVehicle(tokens);
             case "registercontainer":
                 if (tokens.Count() < 5)
                 {
@@ -1804,5 +1806,100 @@ void ProcessAttachmentsRecursive(EntityAI parentItem, array<ref ItemAttachmentDa
             WriteToLog("ProcessAttachmentsRecursive(): Falha ao criar attachment: " + attachment.type, LogFile.INIT, false, LogType.ERROR);
         }
     }
+}
+
+bool ExecuteTeleportVehicle(TStringArray tokens)
+{
+    // Formato: SYSTEM teleportvehicle VehicleId CoordX Altura CoordY
+    // Seguindo o mesmo padrão do comando teleport de jogadores
+    if (tokens.Count() < 6)
+    {
+        WriteToLog("ExecuteTeleportVehicle(): Parâmetros insuficientes. Formato: SYSTEM teleportvehicle VehicleId CoordX Altura CoordY", LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    string vehicleId = tokens[2];
+    float coordX = tokens[3].ToFloat();
+    float altura = tokens[4].ToFloat();
+    float coordY = tokens[5].ToFloat();
+    
+    // Buscar veículo no array m_TrackedVehicles
+    CarScript targetVehicle = null;
+    
+    if (!m_TrackedVehicles || m_TrackedVehicles.Count() == 0)
+    {
+        WriteToLog("ExecuteTeleportVehicle(): Nenhum veículo rastreado encontrado", LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    foreach (CarScript vehicle : m_TrackedVehicles)
+    {
+        if (!vehicle)
+            continue;
+        
+        // Gerar identificador do veículo (mesma lógica do VehicleTracking.c)
+        int pidLow1 = 0;
+        int pidLow2 = 0;
+        int pidHigh1 = 0;
+        int pidHigh2 = 0;
+        vehicle.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+        
+        bool hasPersistent = false;
+        if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+        {
+            hasPersistent = true;
+        }
+        
+        string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+        string vehicleIdentifier = persistentKey;
+        if (!hasPersistent)
+        {
+            vehicleIdentifier = "pending-" + vehicle.GetID().ToString();
+        }
+        
+        // Comparar com o ID fornecido
+        if (vehicleIdentifier == vehicleId)
+        {
+            targetVehicle = vehicle;
+            break;
+        }
+    }
+    
+    if (!targetVehicle)
+    {
+        WriteToLog("ExecuteTeleportVehicle(): Veículo não encontrado: " + vehicleId, LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    // Verificar se veículo não está destruído
+    if (targetVehicle.GetHealth("", "") <= 0)
+    {
+        WriteToLog("ExecuteTeleportVehicle(): Veículo está destruído: " + vehicleId, LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    // Criar vetor de posição
+    vector newPos = Vector(coordX, 0, coordY);
+    
+    // Se altura foi fornecida, usar. Caso contrário, calcular automaticamente
+    if (altura != 0)
+    {
+        newPos[1] = altura;
+        WriteToLog("ExecuteTeleportVehicle(): Usando altura fornecida: " + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
+    }
+    else
+    {
+        // Calcular altura do terreno automaticamente
+        newPos[1] = GetGame().SurfaceY(newPos[0], newPos[2]);
+        WriteToLog("ExecuteTeleportVehicle(): Ajustando altura automaticamente para: " + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
+    }
+    
+    // Teleportar veículo
+    targetVehicle.SetPosition(newPos);
+    
+    string vehicleName = targetVehicle.GetDisplayName();
+    WriteToLog("ExecuteTeleportVehicle(): Veículo " + vehicleName + " (" + vehicleId + ") teleportado para X=" + newPos[0].ToString() + " Y=" + newPos[2].ToString() + " Z=" + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
+    
+    return true;
 }
 
