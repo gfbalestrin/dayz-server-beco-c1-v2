@@ -2,6 +2,73 @@
 // FUNÇÕES DE TRACKING DE VEÍCULOS
 // ============================================================================
 
+ref map<string, bool> m_VehicleMissingZonesLogged;
+
+void LogMissingVehicleZone(string vehicleType, string zoneName)
+{
+	if (!m_VehicleMissingZonesLogged)
+		m_VehicleMissingZonesLogged = new map<string, bool>();
+
+	string key = vehicleType + "::" + zoneName;
+	if (m_VehicleMissingZonesLogged.Contains(key))
+		return;
+
+	m_VehicleMissingZonesLogged.Insert(key, true);
+	WriteToLog("VehicleTracking(): Zona de dano \"" + zoneName + "\" não encontrada para o tipo " + vehicleType + ", omitindo dados de saúde no JSON.", LogFile.INIT, false, LogType.DEBUG);
+}
+
+bool TryGetVehicleZoneHealth(CarScript vehicle, string zoneName, out float outHealth)
+{
+	outHealth = 0.0;
+
+	if (!vehicle || zoneName == "")
+		return false;
+
+	if (!GetGame())
+		return false;
+
+	string vehicleType = vehicle.GetType();
+	string configPath = "CfgVehicles " + vehicleType + " DamageSystem DamageZones " + zoneName;
+
+	if (!GetGame().ConfigIsExisting(configPath))
+	{
+		LogMissingVehicleZone(vehicleType, zoneName);
+		return false;
+	}
+
+	outHealth = vehicle.GetHealth01(zoneName, "");
+	return true;
+}
+
+string BuildVehicleHealthPartsJson(CarScript vehicle)
+{
+	string healthPartsJson = "";
+	float zoneHealth = 0.0;
+
+	if (TryGetVehicleZoneHealth(vehicle, "Engine", zoneHealth))
+	{
+		healthPartsJson = "\"engine\":" + zoneHealth.ToString();
+	}
+
+	if (TryGetVehicleZoneHealth(vehicle, "Body", zoneHealth))
+	{
+		if (healthPartsJson != "")
+			healthPartsJson += ",";
+
+		healthPartsJson += "\"body\":" + zoneHealth.ToString();
+	}
+
+	if (TryGetVehicleZoneHealth(vehicle, "FuelTank", zoneHealth))
+	{
+		if (healthPartsJson != "")
+			healthPartsJson += ",";
+
+		healthPartsJson += "\"fuel_tank\":" + zoneHealth.ToString();
+	}
+
+	return healthPartsJson;
+}
+
 bool IsVehicle(EntityAI entity)
 {
 	if (!entity)
@@ -112,8 +179,9 @@ void CleanTrackedVehicles()
             continue;
         }
 
-        float engineHealth = vehicle.GetHealth01("Engine", "");
-        if (engineHealth <= 0.0)
+        float engineHealth = 0.0;
+        bool hasEngineHealth = TryGetVehicleZoneHealth(vehicle, "Engine", engineHealth);
+        if (hasEngineHealth && engineHealth <= 0.0)
         {
             string vehicleName = vehicle.GetDisplayName();
             vector vehiclePosition = vehicle.GetPosition();
@@ -229,15 +297,8 @@ void SendVehiclesPositions()
             }
         }
 
-        // Coletar saúde de partes principais
-        float engineHealth = vehicle.GetHealth01("Engine", "");
-        float bodyHealth = vehicle.GetHealth01("Body", "");
-        float fuelTankHealth = vehicle.GetHealth01("FuelTank", "");
-
-        string engineHealthStr = engineHealth.ToString();
-        string bodyHealthStr = bodyHealth.ToString();
-        string fuelTankHealthStr = fuelTankHealth.ToString();
-        string healthPartsJson = "\"engine\":" + engineHealthStr + ",\"body\":" + bodyHealthStr + ",\"fuel_tank\":" + fuelTankHealthStr;
+        // Coletar saúde de partes principais (omitindo zonas ausentes)
+        string healthPartsJson = BuildVehicleHealthPartsJson(vehicle);
         
         string posXStr = position[0].ToString();
         string posZStr = position[1].ToString();
@@ -360,15 +421,8 @@ void CheckVehiclesForLoot()
 			}
 		}
 
-		// Coletar saúde de partes principais
-		float engineHealth = vehicle.GetHealth01("Engine", "");
-		float bodyHealth = vehicle.GetHealth01("Body", "");
-		float fuelTankHealth = vehicle.GetHealth01("FuelTank", "");
-
-		string engineHealthStr = engineHealth.ToString();
-		string bodyHealthStr = bodyHealth.ToString();
-		string fuelTankHealthStr = fuelTankHealth.ToString();
-		string healthPartsJson = "\"engine\":" + engineHealthStr + ",\"body\":" + bodyHealthStr + ",\"fuel_tank\":" + fuelTankHealthStr;
+		// Coletar saúde de partes principais (omitindo zonas ausentes)
+		string healthPartsJson = BuildVehicleHealthPartsJson(vehicle);
 
 		if (vehicleHasItems)
 		{
@@ -563,15 +617,8 @@ void BuildVehiclesData(array<Object> worldObjects, out string vehiclesJson, out 
 			}
 		}
 
-		// Coletar saúde de partes principais
-		float engineHealth = candidateVehicle.GetHealth01("Engine", "");
-		float bodyHealth = candidateVehicle.GetHealth01("Body", "");
-		float fuelTankHealth = candidateVehicle.GetHealth01("FuelTank", "");
-
-		string engineHealthStr = engineHealth.ToString();
-		string bodyHealthStr = bodyHealth.ToString();
-		string fuelTankHealthStr = fuelTankHealth.ToString();
-		string healthPartsJson = "\"engine\":" + engineHealthStr + ",\"body\":" + bodyHealthStr + ",\"fuel_tank\":" + fuelTankHealthStr;
+		// Coletar saúde de partes principais (omitindo zonas ausentes)
+		string healthPartsJson = BuildVehicleHealthPartsJson(candidateVehicle);
 
 		if (vehicleHasItems)
 		{
