@@ -53,15 +53,68 @@ else
 fi
 
 # Remove arquivos de backup mais antigos que 7 dias
-echo "Removendo backups antigos (mais de 7 dias)..."
+echo "Removendo backups de players antigos (mais de 7 dias)..."
 find "$BACKUP_DIR" -name "players.db_*" -type f -mtime +7 -delete
 
 # Opcional: Log da limpeza
 if [ $? -eq 0 ]; then
-    echo "Limpeza de backups antigos concluída"
+    echo "Limpeza de backups de players antigos concluída"
 else
-    echo "Aviso: Erro durante limpeza de backups antigos"
+    echo "Aviso: Erro durante limpeza de backups de players antigos"
 fi
+
+echo "Fazendo backup dos bancos sqlite do diretório databases..."
+
+# Faz backup dos bancos SQLite do diretório databases
+DATABASES_DIR="__APP_FOLDER__/databases"
+DATABASES_BACKUP_DIR="__APP_FOLDER__/databases/backup_custom"
+DATABASES_BACKUP_SUBDIR="$DATABASES_BACKUP_DIR/$CURRENT_DATE"
+
+# Cria a pasta backup_custom se não existir
+if [ ! -d "$DATABASES_BACKUP_DIR" ]; then
+    mkdir -p "$DATABASES_BACKUP_DIR"
+    chown "__LINUX_USER_NAME__:__LINUX_USER_NAME__" "$DATABASES_BACKUP_DIR"
+fi
+
+# Cria o subdiretório com data/hora para este backup
+if [ ! -d "$DATABASES_BACKUP_SUBDIR" ]; then
+    mkdir -p "$DATABASES_BACKUP_SUBDIR"
+    chown "__LINUX_USER_NAME__:__LINUX_USER_NAME__" "$DATABASES_BACKUP_SUBDIR"
+fi
+
+# Copia todos os arquivos .db do diretório databases para o backup
+if [ -d "$DATABASES_DIR" ]; then
+    DB_COUNT=0
+    for db_file in "$DATABASES_DIR"/*.db; do
+        if [ -f "$db_file" ]; then
+            db_name=$(basename "$db_file")
+            cp -Rap "$db_file" "$DATABASES_BACKUP_SUBDIR/$db_name"
+            DB_COUNT=$((DB_COUNT + 1))
+            echo "Backup criado: $db_name"
+        fi
+    done
+    
+    if [ $DB_COUNT -gt 0 ]; then
+        INSERT_CUSTOM_LOG "Backup de $DB_COUNT banco(s) SQLite criado em $DATABASES_BACKUP_SUBDIR" "INFO" "$ScriptName"
+        echo "Backup de $DB_COUNT banco(s) SQLite criado com sucesso em $DATABASES_BACKUP_SUBDIR"
+    else
+        echo "Aviso: Nenhum arquivo .db encontrado em $DATABASES_DIR"
+    fi
+else
+    echo "Aviso: Diretório $DATABASES_DIR não encontrado, backup não realizado."
+fi
+
+# Remove diretórios de backup mais antigos que 7 dias
+echo "Removendo backups de databases antigos (mais de 7 dias)..."
+find "$DATABASES_BACKUP_DIR" -type d -name "20*" -mtime +7 -exec rm -rf {} + 2>/dev/null || true
+
+# Log da limpeza
+if [ $? -eq 0 ]; then
+    echo "Limpeza de backups de databases antigos concluída"
+else
+    echo "Aviso: Erro durante limpeza de backups de databases antigos"
+fi
+
 
 # Remove arquivos de log mais antigos que 7 dias (ANTES do servidor gerar novos logs)
 LOG_DIR="/home/__LINUX_USER_NAME__/servers/dayz-server/profiles"

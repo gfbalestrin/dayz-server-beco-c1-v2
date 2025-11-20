@@ -43,6 +43,9 @@ RESTORE_BACKUP_WORKDIR = '/home/dayzadmin/servers/dayz-server/scripts'
 # Arquivo de comandos do DayZ
 COMMANDS_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/commands_to_execute.txt'
 
+# Arquivo de resultados de comandos do DayZ
+COMMANDS_RESULTS_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/commands_results.txt'
+
 # Arquivo de mensagens privadas para enviar
 MESSAGES_PRIVATE_TO_SEND_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/messages_private_to_send.txt'
 

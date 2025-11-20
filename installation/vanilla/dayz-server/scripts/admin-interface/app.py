@@ -1753,6 +1753,173 @@ def api_send_private_message(player_id):
             'message': f'Erro ao enviar mensagem: {str(e)}'
         }), 500
 
+@app.route('/api/players/<player_id>/check-inventory', methods=['POST'])
+@admin_required
+@audit_action('CHECK_INVENTORY')
+def api_check_inventory(player_id):
+    """API para verificar inventário de um jogador online"""
+    import logging
+    import fcntl
+    import os
+    import uuid
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        data = request.get_json()
+        request_id = data.get('request_id')
+        
+        if not request_id:
+            return jsonify({'success': False, 'message': 'request_id não fornecido'}), 400
+        
+        logger.debug(f"Check inventory request: player_id={player_id}, request_id={request_id}")
+        
+        # Verificar se jogador está online
+        online_players = get_online_players()
+        online_ids = [p['PlayerID'] for p in online_players]
+        
+        if player_id not in online_ids:
+            logger.warning(f"Tentativa de verificar inventário de jogador offline: {player_id}")
+            return jsonify({
+                'success': False,
+                'message': 'Jogador precisa estar online para verificar inventário'
+            }), 400
+        
+        # Caminho do arquivo de comandos
+        commands_file = config.COMMANDS_FILE
+        
+        if not os.path.exists(commands_file):
+            logger.error(f"Arquivo de comandos não encontrado: {commands_file}")
+            return jsonify({
+                'success': False,
+                'message': 'Arquivo de comandos não encontrado'
+            }), 500
+        
+        # Formato: PlayerID checkinventory PlayerID request_id
+        command_line = f"{player_id} checkinventory {player_id} {request_id}\n"
+        
+        logger.info(f"Adicionando comando de verificação de inventário: {command_line.strip()}")
+        
+        # Usar file lock para evitar concorrência
+        try:
+            with open(commands_file, 'a') as f:
+                # Adquirir lock exclusivo
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.write(command_line)
+                    f.flush()
+                    os.fsync(f.fileno())
+                finally:
+                    # Liberar lock
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            
+            logger.info("Comando de verificação de inventário adicionado com sucesso")
+            return jsonify({
+                'success': True,
+                'message': 'Comando enviado com sucesso',
+                'request_id': request_id
+            })
+            
+        except IOError as e:
+            logger.error(f"Erro ao escrever no arquivo de comandos: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'Erro ao escrever comando: {str(e)}'
+            }), 500
+            
+    except Exception as e:
+        logger.exception("Erro inesperado ao verificar inventário")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao executar verificação de inventário: {str(e)}'
+        }), 500
+
+@app.route('/api/commands/results/<request_id>')
+@admin_required
+def api_command_results(request_id):
+    """API para obter resultado de um comando pelo request_id"""
+    import logging
+    import os
+    import json
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Caminho do arquivo de resultados
+        results_file = config.COMMANDS_RESULTS_FILE
+        
+        if not os.path.exists(results_file):
+            logger.error(f"Arquivo de resultados não encontrado: {results_file}")
+            return jsonify({
+                'status': 'not_found',
+                'message': 'Arquivo de resultados não encontrado'
+            }), 404
+        
+        # Ler arquivo de resultados
+        try:
+            with open(results_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+        except IOError as e:
+            logger.error(f"Erro ao ler arquivo de resultados: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': f'Erro ao ler arquivo de resultados: {str(e)}'
+            }), 500
+        
+        # Buscar linha com request_id correspondente (última ocorrência)
+        result_data = None
+        for line in reversed(lines):
+            line = line.strip()
+            if not line:
+                continue
+            
+            try:
+                # Tentar parsear JSON
+                data = json.loads(line)
+                if data.get('request_id') == request_id:
+                    result_data = data
+                    break
+            except json.JSONDecodeError:
+                # Linha não é JSON válido, continuar
+                continue
+        
+        if result_data:
+            # Enriquecer dados dos itens com informações do banco (nome e imagem)
+            if result_data.get('items'):
+                enriched_items = []
+                for item in result_data['items']:
+                    item_type = item.get('type', '')
+                    if item_type:
+                        item_details = get_item_details_from_items_db(item_type)
+                        enriched_item = {
+                            'type': item_type,
+                            'quantity': item.get('quantity', 1),
+                            'name': item_details['name'] if item_details else item_type,
+                            'img': item_details['img'] if item_details else ''
+                        }
+                        enriched_items.append(enriched_item)
+                    else:
+                        enriched_items.append(item)
+                result_data['items'] = enriched_items
+            
+            return jsonify({
+                'status': 'ready',
+                'data': result_data
+            })
+        else:
+            # Resultado ainda não disponível
+            return jsonify({
+                'status': 'not_found',
+                'message': 'Resultado ainda não disponível'
+            })
+            
+    except Exception as e:
+        logger.exception("Erro inesperado ao buscar resultado do comando")
+        return jsonify({
+            'status': 'error',
+            'message': f'Erro ao buscar resultado: {str(e)}'
+        }), 500
+
 @app.route('/api/messages/global', methods=['POST'])
 @admin_required
 @audit_action('SEND_GLOBAL_MESSAGE')

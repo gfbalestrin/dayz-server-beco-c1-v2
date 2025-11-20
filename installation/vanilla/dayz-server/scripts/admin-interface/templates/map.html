@@ -334,6 +334,30 @@
     </div>
 </div>
 
+<!-- Modal de Ações do Jogador -->
+<div class="modal fade" id="playerMarkerActionsModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-user me-2"></i>Ações do Jogador
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-primary" id="teleportPlayerActionBtn">
+                        <i class="fas fa-map-marker-alt me-2"></i>Teleportar Jogador
+                    </button>
+                    <button type="button" class="btn btn-info" id="checkInventoryActionBtn">
+                        <i class="fas fa-box me-2"></i>Verificar Inventário
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal de Teleporte de Jogador para Posição -->
 <div class="modal fade" id="teleportToPlayerModal" tabindex="-1">
     <div class="modal-dialog">
@@ -426,6 +450,26 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- Modal de Inventário do Jogador -->
+<div class="modal fade" id="playerInventoryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-box me-2"></i>Inventário do Jogador
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="playerInventoryModalBody">
+                <!-- Conteúdo será preenchido dinamicamente -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 

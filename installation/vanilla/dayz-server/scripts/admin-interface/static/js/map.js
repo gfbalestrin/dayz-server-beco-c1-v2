@@ -20,6 +20,7 @@ let vehiclesData = {}; // Armazenar dados dos veículos
 let containersData = {}; // Armazenar dados dos containers
 let fencesData = {}; // Armazenar dados das fences
 let currentPointContext = null; // Contexto do ponto para ações
+let currentPlayerContext = null; // Contexto do jogador para ações
 let selectedPlayerFilters = []; // Array de player IDs selecionados
 let autoRefreshInterval = null;
 let showTrails = false;
@@ -3753,12 +3754,12 @@ function showPointActionsMenu(playerId, point, pointNumber) {
 }
 
 /**
- * Mostrar modal de teleporte de jogador para posição de outro jogador
+ * Mostrar modal de ações do jogador
  * Aceita tanto dados de marcador principal quanto de pontos do trail
  */
 function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
     // Determinar se é marcador principal ou ponto do trail
-    let playerName, coordX, coordY, coordZ;
+    let playerName, coordX, coordY, coordZ, isOnline;
     
     if (targetPlayer.player_name !== undefined) {
         // Dados do marcador principal (player object completo)
@@ -3766,6 +3767,7 @@ function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
         coordX = targetPlayer.coord_x;
         coordY = targetPlayer.coord_y;
         coordZ = targetPlayer.coord_z;
+        isOnline = targetPlayer.is_online || false;
     } else {
         // Dados do ponto do trail (currentPointContext)
         const playerData = playersData[targetPlayerId];
@@ -3773,13 +3775,50 @@ function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
         coordX = targetPlayer.coord_x;
         coordY = targetPlayer.coord_y;
         coordZ = targetPlayer.coord_z;
+        isOnline = playerData ? playerData.isOnline : false;
     }
+    
+    // Armazenar contexto do jogador
+    currentPlayerContext = {
+        playerId: targetPlayerId,
+        playerName: playerName,
+        coordX: coordX,
+        coordY: coordY,
+        coordZ: coordZ,
+        isOnline: isOnline
+    };
+    
+    // Mostrar modal de ações
+    const modal = new bootstrap.Modal(document.getElementById('playerMarkerActionsModal'));
+    modal.show();
+    
+    // Habilitar/desabilitar botão de inventário baseado em status online
+    if (isOnline) {
+        $('#checkInventoryActionBtn').prop('disabled', false);
+    } else {
+        $('#checkInventoryActionBtn').prop('disabled', true);
+    }
+}
+
+/**
+ * Mostrar modal de teleporte de jogador para posição de outro jogador
+ * Função auxiliar chamada pelo modal de ações
+ */
+function showTeleportToPlayerModal() {
+    if (!currentPlayerContext) {
+        return;
+    }
+    
+    const playerName = currentPlayerContext.playerName;
+    const coordX = currentPlayerContext.coordX;
+    const coordY = currentPlayerContext.coordY;
+    const coordZ = currentPlayerContext.coordZ;
     
     // Preencher informações do jogador/ponto de destino
     $('#teleportToTargetPlayerName').text(playerName);
     $('#teleportToTargetCoords').text(`X=${coordX.toFixed(1)}, Y=${coordY.toFixed(1)}, Z=${coordZ ? coordZ.toFixed(1) : 'N/A'}`);
     
-    // Armazenar dados para teleporte (não precisa do targetPlayerId)
+    // Armazenar dados para teleporte
     $('#confirmTeleportToPlayerBtn').data('coordX', coordX);
     $('#confirmTeleportToPlayerBtn').data('coordY', coordY);
     $('#confirmTeleportToPlayerBtn').data('coordZ', coordZ);
@@ -4045,6 +4084,193 @@ function proceedWithClone(targetPlayerId, playerCoordId) {
     });
 }
 
+/**
+ * Gerar ID único para request
+ */
+function generateRequestId() {
+    return 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+/**
+ * Verificar inventário de um jogador
+ */
+function checkPlayerInventory(playerId, playerName) {
+    if (!currentPlayerContext || !currentPlayerContext.isOnline) {
+        showToast('Aviso', 'Jogador precisa estar online para verificar inventário', 'warning');
+        return;
+    }
+    
+    // Gerar request_id único
+    const requestId = generateRequestId();
+    
+    // Fechar modal de ações
+    bootstrap.Modal.getInstance(document.getElementById('playerMarkerActionsModal')).hide();
+    
+    // Mostrar loading no modal de inventário
+    const modalBody = $('#playerInventoryModalBody');
+    modalBody.html(`
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+            <p class="mt-3">Verificando inventário de <strong>${playerName}</strong>...</p>
+        </div>
+    `);
+    
+    // Abrir modal de inventário
+    const modal = new bootstrap.Modal(document.getElementById('playerInventoryModal'));
+    modal.show();
+    
+    // Desabilitar botão durante processamento
+    $('#checkInventoryActionBtn').prop('disabled', true);
+    
+    // Chamar endpoint para enviar comando
+    $.ajax({
+        url: `/api/players/${playerId}/check-inventory`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            request_id: requestId
+        }),
+        success: function(response) {
+            // Iniciar polling para obter resultado
+            startInventoryPolling(requestId, playerId, playerName, 0);
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            const errorMsg = error.message || error.error || 'Erro ao iniciar verificação de inventário';
+            modalBody.html(`
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>${errorMsg}
+                </div>
+            `);
+            $('#checkInventoryActionBtn').prop('disabled', false);
+        }
+    });
+}
+
+/**
+ * Fazer polling para obter resultado do inventário
+ */
+function startInventoryPolling(requestId, playerId, playerName, attempt) {
+    const MAX_ATTEMPTS = 30; // 30 tentativas
+    const POLL_INTERVAL = 2000; // 2 segundos entre tentativas
+    
+    if (attempt >= MAX_ATTEMPTS) {
+        const modalBody = $('#playerInventoryModalBody');
+        modalBody.html(`
+            <div class="alert alert-warning">
+                <i class="fas fa-clock me-2"></i>Tempo limite excedido. O servidor pode estar processando o comando.
+            </div>
+        `);
+        $('#checkInventoryActionBtn').prop('disabled', false);
+        return;
+    }
+    
+    // Atualizar mensagem de loading com tentativa atual
+    if (attempt > 0 && attempt % 5 === 0) {
+        const modalBody = $('#playerInventoryModalBody');
+        modalBody.html(`
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Carregando...</span>
+                </div>
+                <p class="mt-3">Verificando inventário de <strong>${playerName}</strong>...</p>
+                <p class="text-muted small">Aguardando resposta do servidor (tentativa ${attempt}/${MAX_ATTEMPTS})</p>
+            </div>
+        `);
+    }
+    
+    // Fazer requisição para obter resultado
+    $.get(`/api/commands/results/${requestId}`)
+        .done(function(response) {
+            if (response.status === 'ready') {
+                // Resultado disponível
+                displayPlayerInventory(response.data, playerName);
+                $('#checkInventoryActionBtn').prop('disabled', false);
+            } else if (response.status === 'not_found' || response.status === 'processing') {
+                // Resultado não encontrado ainda, continuar polling
+                setTimeout(function() {
+                    startInventoryPolling(requestId, playerId, playerName, attempt + 1);
+                }, POLL_INTERVAL);
+            } else {
+                // Status desconhecido, continuar tentando
+                setTimeout(function() {
+                    startInventoryPolling(requestId, playerId, playerName, attempt + 1);
+                }, POLL_INTERVAL);
+            }
+        })
+        .fail(function(xhr) {
+            // Em caso de erro, continuar tentando por algumas vezes
+            if (attempt < 5) {
+                setTimeout(function() {
+                    startInventoryPolling(requestId, playerId, playerName, attempt + 1);
+                }, POLL_INTERVAL);
+            } else {
+                const modalBody = $('#playerInventoryModalBody');
+                modalBody.html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Erro ao buscar resultado do inventário.
+                    </div>
+                `);
+                $('#checkInventoryActionBtn').prop('disabled', false);
+            }
+        });
+}
+
+/**
+ * Exibir inventário do jogador no modal
+ */
+function displayPlayerInventory(inventoryData, playerName) {
+    const modalBody = $('#playerInventoryModalBody');
+    
+    if (!inventoryData || !inventoryData.items || inventoryData.items.length === 0) {
+        modalBody.html(`
+            <div class="mb-3">
+                <strong>Jogador:</strong> ${playerName}<br>
+                <strong>ID:</strong> ${inventoryData.player_id || 'N/A'}
+            </div>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>Inventário vazio
+            </div>
+        `);
+        return;
+    }
+    
+    let html = `
+        <div class="mb-3">
+            <strong>Jogador:</strong> ${playerName}<br>
+            <strong>ID:</strong> ${inventoryData.player_id || 'N/A'}
+        </div>
+        <div class="mb-2"><strong>Itens (${inventoryData.items.length}):</strong></div>
+        <div class="mt-2" style="max-height: 500px; overflow-y: auto;">
+    `;
+    
+    inventoryData.items.forEach(function(item) {
+        const itemType = item.type || '';
+        const itemName = item.name || itemType;
+        const itemImg = item.img || '';
+        const quantity = item.quantity || 1;
+        
+        const imgTag = itemImg ? `<img src="${itemImg}" onerror="this.style.display='none'" style="width: 32px; height: 32px; margin-right: 8px; vertical-align: middle; object-fit: contain;">` : '';
+        
+        html += `
+            <div class="item-display mb-2 p-2 border rounded d-flex align-items-center">
+                ${imgTag}
+                <div class="flex-grow-1">
+                    <span class="fw-bold">${itemName}</span>
+                    ${itemType !== itemName ? `<br><small class="text-muted">${itemType}</small>` : ''}
+                </div>
+                ${quantity > 1 ? `<span class="badge bg-secondary ms-2">x${quantity}</span>` : ''}
+            </div>
+        `;
+    });
+    
+    html += `</div>`;
+    
+    modalBody.html(html);
+}
+
 // Event listeners
 $(document).ready(function() {
     // Botão de restaurar backup
@@ -4098,6 +4324,26 @@ $(document).ready(function() {
     
     // Botão de confirmação de clonagem
     $('#confirmCloneCharacterBtn').on('click', executeCloneCharacter);
+    
+    // Botões do modal de ações do jogador
+    $('#teleportPlayerActionBtn').on('click', function() {
+        if (currentPlayerContext) {
+            // Fechar modal de ações
+            bootstrap.Modal.getInstance(document.getElementById('playerMarkerActionsModal')).hide();
+            
+            // Abrir modal de teleporte
+            showTeleportToPlayerModal();
+        }
+    });
+    
+    $('#checkInventoryActionBtn').on('click', function() {
+        if (currentPlayerContext) {
+            checkPlayerInventory(
+                currentPlayerContext.playerId,
+                currentPlayerContext.playerName
+            );
+        }
+    });
 });
 
 /**
