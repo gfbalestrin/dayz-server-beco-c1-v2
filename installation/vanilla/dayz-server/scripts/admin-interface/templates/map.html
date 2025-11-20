@@ -471,6 +471,56 @@
         </div>
     </div>
 </div>
+
+<!-- Modal de Teleporte de Veículo -->
+<div class="modal fade" id="vehicleTeleportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-map-marker-alt me-2"></i>Teleportar Veículo
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="teleportVehicleId">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Veículo:</strong> <span id="teleportVehicleName"></span><br>
+                    <strong>Posição Atual:</strong> <span id="teleportVehicleCurrentCoords"></span>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Coordenada X:</label>
+                    <input type="number" class="form-control" id="teleportVehicleX" step="0.1" placeholder="Ex: 7500.0">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Coordenada Y:</label>
+                    <input type="number" class="form-control" id="teleportVehicleY" step="0.1" placeholder="Ex: 7500.0">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Altura (Z) - Opcional:</label>
+                    <input type="number" class="form-control" id="teleportVehicleZ" step="0.1" placeholder="Deixe vazio para calcular automaticamente">
+                    <small class="form-text text-muted">Se não preenchido, a altura será calculada automaticamente pelo servidor.</small>
+                </div>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Opções:</strong><br>
+                    <small>1. Preencha as coordenadas manualmente acima, ou<br>
+                    2. Use o botão abaixo para fechar este modal e clicar no mapa para definir a posição automaticamente.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-info me-2" onclick="useMapPositionForVehicle()">
+                    <i class="fas fa-map me-1"></i>Usar Posição do Mapa
+                </button>
+                <button type="button" class="btn btn-warning" id="confirmVehicleTeleportBtn" onclick="executeVehicleTeleport()">
+                    <i class="fas fa-map-marker-alt me-1"></i>Teleportar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}

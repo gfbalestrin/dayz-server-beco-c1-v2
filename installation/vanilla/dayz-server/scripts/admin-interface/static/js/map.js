@@ -2576,8 +2576,11 @@ function createVehiclePopup(vehicle) {
             </div>
             ${destroyedInfo}
             <div class="info-row mt-2">
-                <button type="button" class="btn btn-sm btn-success" onclick="toggleVehicleTrail('${vehicle.vehicle_id}')">
+                <button type="button" class="btn btn-sm btn-success me-2" onclick="toggleVehicleTrail('${vehicle.vehicle_id}')">
                     <i class="fas fa-route me-1"></i><span id="vehicleTrailBtn_${vehicle.vehicle_id}">${vehicleTrails[vehicle.vehicle_id] ? 'Ocultar Trail' : 'Mostrar Trail'}</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-warning" onclick="showVehicleTeleportModal('${vehicle.vehicle_id}')">
+                    <i class="fas fa-map-marker-alt me-1"></i>Teleportar
                 </button>
             </div>
         </div>
@@ -4419,6 +4422,25 @@ $(document).ready(function() {
     // Botão de confirmação de clonagem
     $('#confirmCloneCharacterBtn').on('click', executeCloneCharacter);
     
+    // Limpar teleportTargetVehicle apenas quando modal for cancelado explicitamente
+    $('#vehicleTeleportModal').on('hidden.bs.modal', function(e) {
+        // Não limpar se foi fechado para usar posição do mapa
+        if (vehicleTeleportUseMapPosition) {
+            return;
+        }
+        
+        // Não limpar se foi fechado por sucesso de teleporte (será limpo na função executeVehicleTeleport)
+        // Só limpar se foi cancelado pelo botão Cancelar ou fechado pelo X
+        const relatedTarget = e.relatedTarget || (e.target && $(e.target).closest('.btn-close, .btn-secondary')[0]);
+        if (relatedTarget && ($(relatedTarget).hasClass('btn-secondary') || $(relatedTarget).hasClass('btn-close'))) {
+            teleportTargetVehicle = null;
+            // Voltar ao modo normal se não houver jogador selecionado
+            if (selectedPlayerFilters.length === 0) {
+                setMode('normal');
+            }
+        }
+    });
+    
     // Botões do modal de ações do jogador
     $('#teleportPlayerActionBtn').on('click', function() {
         if (currentPlayerContext) {
@@ -4455,10 +4477,52 @@ function setMode(mode) {
     if (mode === 'normal') {
         $('#btnModeNormal').addClass('active');
         map.getContainer().style.cursor = '';
+        // Limpar teleportTargetVehicle ao voltar ao modo normal
+        if (teleportTargetVehicle) {
+            teleportTargetVehicle = null;
+        }
     } else if (mode === 'teleport') {
         $('#btnModeTeleport').addClass('active');
         $('#teleportInfo').show();
         map.getContainer().style.cursor = 'crosshair';
+        
+        // Atualizar mensagem do teleportInfo baseado no contexto
+        updateTeleportInfo();
+    }
+}
+
+/**
+ * Atualizar mensagem do teleportInfo baseado no contexto atual
+ */
+function updateTeleportInfo() {
+    const teleportInfo = $('#teleportInfo');
+    
+    if (teleportTargetVehicle) {
+        const vehicle = vehiclesData[teleportTargetVehicle];
+        const vehicleName = vehicle ? (vehicle.vehicle_name || 'Veículo') : 'Veículo';
+        teleportInfo.html(`
+            <div class="alert alert-warning mb-0">
+                <i class="fas fa-car me-2"></i><strong>Modo Teleporte de Veículo</strong><br>
+                <small>Clique no mapa para teleportar <strong>${vehicleName}</strong></small>
+            </div>
+        `);
+    } else if (selectedPlayerFilters.length > 0) {
+        const playerId = selectedPlayerFilters[0];
+        const player = playersData[playerId];
+        const playerName = player ? (player.name || playerId) : playerId;
+        teleportInfo.html(`
+            <div class="alert alert-info mb-0">
+                <i class="fas fa-user me-2"></i><strong>Modo Teleporte de Jogador</strong><br>
+                <small>Clique no mapa para teleportar <strong>${playerName}</strong></small>
+            </div>
+        `);
+    } else {
+        teleportInfo.html(`
+            <div class="alert alert-secondary mb-0">
+                <i class="fas fa-map-marker-alt me-2"></i><strong>Modo Teleporte</strong><br>
+                <small>Selecione um jogador no filtro acima ou um veículo no mapa</small>
+            </div>
+        `);
     }
 }
 
@@ -4479,6 +4543,91 @@ function pixelToDayz(pixelCoords) {
  * Handler para clique no mapa em modo teleporte
  */
 function handleTeleportClick(e) {
+    // Verificar se é teleporte de veículo (prioridade sobre jogador)
+    if (teleportTargetVehicle) {
+        const vehicle = vehiclesData[teleportTargetVehicle];
+        if (!vehicle) {
+            showToast('Erro', 'Veículo não encontrado', 'error');
+            teleportTargetVehicle = null;
+            // Voltar ao modo normal se não houver jogador selecionado
+            if (selectedPlayerFilters.length === 0) {
+                setMode('normal');
+            }
+            return;
+        }
+        
+        // Converter pixel para coordenadas DayZ
+        const pixelCoords = [e.latlng.lat, e.latlng.lng];
+        const dayzCoords = pixelToDayz(pixelCoords);
+        
+        const vehicleName = vehicle.vehicle_name || 'Veículo';
+        
+        if (!confirm(`Teleportar ${vehicleName} para X=${dayzCoords.x.toFixed(1)}, Y=${dayzCoords.y.toFixed(1)}?`)) {
+            return;
+        }
+        
+        // Verificar se modal está aberto
+        const modal = bootstrap.Modal.getInstance(document.getElementById('vehicleTeleportModal'));
+        const isModalOpen = modal && modal._isShown;
+        
+        if (isModalOpen) {
+            // Se modal está aberto, preencher campos e executar
+            $('#teleportVehicleX').val(dayzCoords.x.toFixed(2));
+            $('#teleportVehicleY').val(dayzCoords.y.toFixed(2));
+            $('#teleportVehicleZ').val('');
+            executeVehicleTeleport();
+        } else {
+            // Se modal está fechado, executar teleporte diretamente
+            const vehicleId = teleportTargetVehicle;
+            const coordX = dayzCoords.x;
+            const coordY = dayzCoords.y;
+            
+            // Desabilitar modo teleporte temporariamente para evitar múltiplos cliques
+            const originalMode = currentMode;
+            setMode('normal');
+            
+            $.ajax({
+                url: `/api/vehicles/${vehicleId}/teleport`,
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    coord_x: coordX,
+                    coord_y: coordY
+                }),
+                success: function(response) {
+                    showToast('Sucesso', response.message, 'success');
+                    // Limpar target após teleporte bem-sucedido
+                    teleportTargetVehicle = null;
+                    // Voltar ao modo normal se não houver jogador selecionado
+                    if (selectedPlayerFilters.length === 0) {
+                        setMode('normal');
+                    } else {
+                        setMode(originalMode);
+                    }
+                    // Recarregar veículos após um delay
+                    setTimeout(() => {
+                        if (showVehicles) {
+                            loadVehicles();
+                        }
+                    }, 1000);
+                },
+                error: function(xhr) {
+                    console.error('Erro ao teleportar veículo:', xhr);
+                    const error = xhr.responseJSON || {};
+                    const errorMsg = error.message || error.error || 'Erro desconhecido ao teleportar veículo';
+                    showToast('Erro', errorMsg, 'error');
+                    // Restaurar modo
+                    setMode(originalMode);
+                }
+            });
+        }
+        
+        // Limpar target será feito na função executeVehicleTeleport após sucesso (se modal aberto)
+        // ou no callback do AJAX (se modal fechado)
+        return;
+    }
+    
+    // Teleporte de jogador (código original)
     if (selectedPlayerFilters.length === 0) {
         showToast('Aviso', 'Selecione um jogador no filtro acima para teleportar', 'warning');
         return;
@@ -4527,5 +4676,137 @@ function handleTeleportClick(e) {
         }
     });
 }
+
+/**
+ * Mostrar modal de teleporte de veículo
+ */
+function showVehicleTeleportModal(vehicleId) {
+    const vehicle = vehiclesData[vehicleId];
+    if (!vehicle) {
+        showToast('Erro', 'Veículo não encontrado', 'error');
+        return;
+    }
+    
+    // Preencher informações do veículo
+    $('#teleportVehicleId').val(vehicleId);
+    $('#teleportVehicleName').text(vehicle.vehicle_name || 'Veículo');
+    $('#teleportVehicleCurrentCoords').text(`X=${vehicle.coord_x.toFixed(1)}, Y=${vehicle.coord_y.toFixed(1)}`);
+    
+    // Limpar campos de coordenadas
+    $('#teleportVehicleX').val('');
+    $('#teleportVehicleY').val('');
+    $('#teleportVehicleZ').val('');
+    
+    // Armazenar vehicleId para uso no clique do mapa
+    teleportTargetVehicle = vehicleId;
+    
+    // Verificar se está no modo de teleporte
+    if (currentMode !== 'teleport') {
+        // Mudar para modo de teleporte
+        setMode('teleport');
+    } else {
+        // Atualizar mensagem do teleportInfo
+        updateTeleportInfo();
+    }
+    
+    // Mostrar modal
+    $('#vehicleTeleportModal').modal('show');
+}
+
+// Flag para indicar que modal foi fechado para usar posição do mapa
+let vehicleTeleportUseMapPosition = false;
+
+/**
+ * Fechar modal e aguardar clique no mapa para definir posição
+ */
+function useMapPositionForVehicle() {
+    // Marcar flag para não limpar teleportTargetVehicle
+    vehicleTeleportUseMapPosition = true;
+    
+    // Fechar modal
+    bootstrap.Modal.getInstance(document.getElementById('vehicleTeleportModal')).hide();
+    
+    // Garantir que está no modo teleporte
+    if (currentMode !== 'teleport') {
+        setMode('teleport');
+    }
+    
+    // Atualizar mensagem do teleportInfo
+    updateTeleportInfo();
+    
+    showToast('Info', 'Clique no mapa para definir a posição do veículo', 'info');
+    
+    // Resetar flag após um pequeno delay
+    setTimeout(() => {
+        vehicleTeleportUseMapPosition = false;
+    }, 100);
+}
+
+/**
+ * Executar teleporte de veículo
+ */
+function executeVehicleTeleport() {
+    const vehicleId = $('#teleportVehicleId').val();
+    const coordX = parseFloat($('#teleportVehicleX').val());
+    const coordY = parseFloat($('#teleportVehicleY').val());
+    const coordZ = $('#teleportVehicleZ').val() ? parseFloat($('#teleportVehicleZ').val()) : null;
+    
+    if (!vehicleId) {
+        showToast('Erro', 'ID do veículo não encontrado', 'error');
+        return;
+    }
+    
+    if (isNaN(coordX) || isNaN(coordY)) {
+        showToast('Aviso', 'Preencha as coordenadas X e Y', 'warning');
+        return;
+    }
+    
+    // Desabilitar botão e mostrar loading
+    $('#confirmVehicleTeleportBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Teleportando...');
+    
+    const payload = {
+        coord_x: coordX,
+        coord_y: coordY
+    };
+    
+    if (coordZ !== null && !isNaN(coordZ)) {
+        payload.coord_z = coordZ;
+    }
+    
+    $.ajax({
+        url: `/api/vehicles/${vehicleId}/teleport`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function(response) {
+            bootstrap.Modal.getInstance(document.getElementById('vehicleTeleportModal')).hide();
+            showToast('Sucesso', response.message, 'success');
+            // Limpar target após teleporte bem-sucedido
+            teleportTargetVehicle = null;
+            // Voltar ao modo normal se não houver jogador selecionado
+            if (selectedPlayerFilters.length === 0) {
+                setMode('normal');
+            }
+            // Recarregar veículos após um delay
+            setTimeout(() => {
+                if (showVehicles) {
+                    loadVehicles();
+                }
+            }, 1000);
+        },
+        error: function(xhr) {
+            console.error('Erro ao teleportar veículo:', xhr);
+            const error = xhr.responseJSON || {};
+            const errorMsg = error.message || error.error || 'Erro desconhecido ao teleportar veículo';
+            showToast('Erro', errorMsg, 'error');
+        },
+        complete: function() {
+            $('#confirmVehicleTeleportBtn').prop('disabled', false).html('<i class="fas fa-map-marker-alt me-1"></i>Teleportar');
+        }
+    });
+}
+
+// Variável global para armazenar veículo alvo do teleporte
+let teleportTargetVehicle = null;
 
 // Funções de spawn removidas - funcionalidades movidas para spawning.html
