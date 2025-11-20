@@ -822,18 +822,43 @@ def get_fence_trail(fence_id: str, limit: int = 100, offset: int = 0, date_from:
         return paginated_fences, len(filtered_fences)
 
 def get_item_details_from_items_db(name_type: str) -> Optional[Dict]:
-    """Busca detalhes de um item no banco dayz_items.db por name_type"""
+    """Busca detalhes de um item no banco dayz_items.db por name_type
+    Busca sequencialmente em múltiplas tabelas: item, weapons, attachments, magazines, ammunitions, explosives
+    """
+    if not name_type:
+        return None
+    
     try:
         with DatabaseConnection(config.DB_ITEMS) as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, name, name_type, img, slots, width, height
-                FROM item
-                WHERE name_type = ?
-            """, (name_type,))
-            row = cursor.fetchone()
-            if row:
-                return dict(row)
+            
+            # Lista de tabelas para buscar (em ordem de prioridade)
+            # Ordem otimizada: tabela item primeiro (mais comum)
+            tables = [
+                ('item', 'id, name, name_type, img, slots, width, height'),
+                ('weapons', 'id, name, name_type, img, slots, width, height'),
+                ('attachments', 'id, name, name_type, img, slots, width, height'),
+                ('magazines', 'id, name, name_type, img, slots, width, height'),
+                ('ammunitions', 'id, name, name_type, img, slots, width, height'),
+                ('explosives', 'id, name, name_type, img, slots, width, height')
+            ]
+            
+            # Buscar sequencialmente, parar na primeira correspondência
+            for table_name, fields in tables:
+                try:
+                    cursor.execute(f"""
+                        SELECT {fields}
+                        FROM {table_name}
+                        WHERE name_type = ?
+                        LIMIT 1
+                    """, (name_type,))
+                    row = cursor.fetchone()
+                    if row:
+                        return dict(row)
+                except Exception as table_error:
+                    # Se tabela não existir ou houver erro, continuar para próxima
+                    continue
+            
             return None
     except Exception as e:
         print(f"Erro ao buscar item {name_type}: {e}")

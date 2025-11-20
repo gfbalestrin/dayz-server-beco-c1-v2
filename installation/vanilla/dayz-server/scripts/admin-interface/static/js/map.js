@@ -4224,6 +4224,13 @@ function startInventoryPolling(requestId, playerId, playerName, attempt) {
 function displayPlayerInventory(inventoryData, playerName) {
     const modalBody = $('#playerInventoryModalBody');
     
+    // Lista de itens que usam "quantity" para carga/durabilidade, não para stack
+    const itemsWithQuantityAsCharge = [
+        'Battery9V',
+        'Battery',
+        'CarBattery'
+    ];
+    
     if (!inventoryData || !inventoryData.items || inventoryData.items.length === 0) {
         modalBody.html(`
             <div class="mb-3">
@@ -4252,6 +4259,16 @@ function displayPlayerInventory(inventoryData, playerName) {
         const itemImg = item.img || '';
         const quantity = item.quantity || 1;
         
+        // Verificar se o item usa quantity para carga/durabilidade (não stack)
+        const usesQuantityAsCharge = itemsWithQuantityAsCharge.some(function(excludedType) {
+            return itemType.includes(excludedType);
+        });
+        
+        // Mostrar badge de quantidade apenas se:
+        // - quantity > 1 E
+        // - O item NÃO usa quantity para carga/durabilidade
+        const shouldShowQuantity = quantity > 1 && !usesQuantityAsCharge;
+        
         const imgTag = itemImg ? `<img src="${itemImg}" onerror="this.style.display='none'" style="width: 32px; height: 32px; margin-right: 8px; vertical-align: middle; object-fit: contain;">` : '';
         
         html += `
@@ -4261,7 +4278,7 @@ function displayPlayerInventory(inventoryData, playerName) {
                     <span class="fw-bold">${itemName}</span>
                     ${itemType !== itemName ? `<br><small class="text-muted">${itemType}</small>` : ''}
                 </div>
-                ${quantity > 1 ? `<span class="badge bg-secondary ms-2">x${quantity}</span>` : ''}
+                ${shouldShowQuantity ? `<span class="badge bg-secondary ms-2">x${quantity}</span>` : ''}
             </div>
         `;
     });
