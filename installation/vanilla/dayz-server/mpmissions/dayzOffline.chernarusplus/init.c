@@ -304,6 +304,8 @@ class CustomMission: MissionServer
 			SendFencesStatus(); // Envia status de todas as cercas rastreadas
 			CleanTrackedWatchtowers(); // Limpa watchtowers removidas do array
 			SendWatchtowersStatus(); // Envia status das watchtowers rastreadas
+			CleanTrackedFlags(); // Limpa flags inválidas do array
+			SendFlagsStatus(); // Envia status das flags rastreadas
 			CleanTrackedContainers(); // Limpa containers destruídos do array
 			CheckContainersForLoot(); // Verifica e envia containers que receberam loot
 			
