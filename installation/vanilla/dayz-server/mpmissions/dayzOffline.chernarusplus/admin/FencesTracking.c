@@ -579,7 +579,7 @@ void PopulateTrackedFlags(array<Object> worldObjects)
     if (!m_TrackedFlags)
     {
         WriteToLog("PopulateTrackedFlags(): Inicializando array m_TrackedFlags...", LogFile.INIT, false, LogType.DEBUG);
-        m_TrackedFlags = new array<Flag_Base>();
+        m_TrackedFlags = new array<Object>();
     }
     else
     {
@@ -595,17 +595,20 @@ void PopulateTrackedFlags(array<Object> worldObjects)
 
     foreach (Object candidateObject : worldObjects)
     {
-        Flag_Base candidateFlag = Flag_Base.Cast(candidateObject);
-        if (!candidateFlag)
+        if (!candidateObject)
             continue;
 
-        m_TrackedFlags.Insert(candidateFlag);
+        string objectType = candidateObject.GetType();
+        if (objectType != "TerritoryFlag")
+            continue;
+
+        m_TrackedFlags.Insert(candidateObject);
     }
 
     WriteToLog("PopulateTrackedFlags(): Total de flags em rastreamento: " + m_TrackedFlags.Count().ToString(), LogFile.INIT, false, LogType.INFO);
 }
 
-void RegisterFlag(Flag_Base newFlag)
+void RegisterFlag(Object newFlag)
 {
     if (!GetGame() || !GetGame().IsServer())
         return;
@@ -613,13 +616,20 @@ void RegisterFlag(Flag_Base newFlag)
     if (!newFlag)
         return;
 
+    string objectType = newFlag.GetType();
+    if (objectType != "TerritoryFlag")
+    {
+        WriteToLog("RegisterFlag(): Objeto não é TerritoryFlag. Tipo: " + objectType, LogFile.INIT, false, LogType.WARNING);
+        return;
+    }
+
     if (!m_TrackedFlags)
-        m_TrackedFlags = new array<Flag_Base>();
+        m_TrackedFlags = new array<Object>();
 
     int trackedCount = m_TrackedFlags.Count();
     for (int trackedIndex = 0; trackedIndex < trackedCount; trackedIndex++)
     {
-        Flag_Base trackedFlag = m_TrackedFlags.Get(trackedIndex);
+        Object trackedFlag = m_TrackedFlags.Get(trackedIndex);
         if (!trackedFlag)
             continue;
 
@@ -654,30 +664,58 @@ bool RegisterFlagAtPosition(vector targetPosition, float searchRadius = 10.0)
         return false;
     }
 
-    Flag_Base closestFlag;
+    WriteToLog("RegisterFlagAtPosition(): DEBUG - Total de objetos encontrados: " + nearbyObjects.Count().ToString() + " na posição " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.DEBUG);
+
+    Object closestFlag;
     float closestDistance = searchRadius + 1.0;
+    int flagCount = 0;
+    int objectIndex = 0;
 
     foreach (Object candidateObject : nearbyObjects)
     {
-        Flag_Base candidateFlag = Flag_Base.Cast(candidateObject);
-        if (!candidateFlag)
+        if (!candidateObject)
+        {
+            objectIndex++;
             continue;
+        }
 
-        vector candidatePosition = candidateFlag.GetPosition();
-        float candidateDistance = vector.Distance(candidatePosition, targetPosition);
-        if (candidateDistance > searchRadius)
+        string objectType = candidateObject.GetType();
+        
+        if (objectType != "TerritoryFlag")
+        {
+            WriteToLog("RegisterFlagAtPosition(): DEBUG - Objeto #" + objectIndex.ToString() + " não é TerritoryFlag. Tipo: " + objectType, LogFile.INIT, false, LogType.DEBUG);
+            objectIndex++;
             continue;
+        }
+
+        flagCount++;
+        vector candidatePosition = candidateObject.GetPosition();
+        float candidateDistance = vector.Distance(candidatePosition, targetPosition);
+        
+        WriteToLog("RegisterFlagAtPosition(): DEBUG - Flag encontrada #" + flagCount.ToString() + " tipo: " + objectType + " posição: " + candidatePosition.ToString() + " distância: " + candidateDistance.ToString() + "m", LogFile.INIT, false, LogType.DEBUG);
+        
+        if (candidateDistance > searchRadius)
+        {
+            WriteToLog("RegisterFlagAtPosition(): DEBUG - Flag #" + flagCount.ToString() + " fora do raio (distância: " + candidateDistance.ToString() + "m > raio: " + searchRadius.ToString() + "m)", LogFile.INIT, false, LogType.DEBUG);
+            objectIndex++;
+            continue;
+        }
 
         if (!closestFlag || candidateDistance < closestDistance)
         {
-            closestFlag = candidateFlag;
+            closestFlag = candidateObject;
             closestDistance = candidateDistance;
+            WriteToLog("RegisterFlagAtPosition(): DEBUG - Nova flag mais próxima selecionada (distância: " + closestDistance.ToString() + "m)", LogFile.INIT, false, LogType.DEBUG);
         }
+        
+        objectIndex++;
     }
+
+    WriteToLog("RegisterFlagAtPosition(): DEBUG - Total de flags encontradas: " + flagCount.ToString(), LogFile.INIT, false, LogType.DEBUG);
 
     if (!closestFlag)
     {
-        WriteToLog("RegisterFlagAtPosition(): Nenhuma flag válida encontrada próxima a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+        WriteToLog("RegisterFlagAtPosition(): Nenhuma flag válida encontrada próxima a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + "). Total de objetos: " + nearbyObjects.Count().ToString() + ", Total de flags: " + flagCount.ToString(), LogFile.INIT, false, LogType.WARNING);
         return false;
     }
 
@@ -695,8 +733,16 @@ void CleanTrackedFlags()
     int removedCount = 0;
     for (int i = m_TrackedFlags.Count() - 1; i >= 0; i--)
     {
-        Flag_Base trackedFlag = m_TrackedFlags.Get(i);
+        Object trackedFlag = m_TrackedFlags.Get(i);
         if (!trackedFlag)
+        {
+            m_TrackedFlags.Remove(i);
+            removedCount++;
+            continue;
+        }
+
+        string objectType = trackedFlag.GetType();
+        if (objectType != "TerritoryFlag")
         {
             m_TrackedFlags.Remove(i);
             removedCount++;
@@ -717,9 +763,13 @@ void SendFlagsStatus()
 
     if (m_TrackedFlags)
     {
-        foreach (Flag_Base trackedFlag : m_TrackedFlags)
+        foreach (Object trackedFlag : m_TrackedFlags)
         {
             if (!trackedFlag)
+                continue;
+
+            string objectType = trackedFlag.GetType();
+            if (objectType != "TerritoryFlag")
                 continue;
 
             bool hasBase = true;
