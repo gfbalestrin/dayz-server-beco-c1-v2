@@ -141,7 +141,7 @@ bool ExecuteCommand(TStringArray tokens)
                 float flagPosY = tokens[4].ToFloat();
                 vector flagPosition = Vector(flagPosX, flagPosY, flagPosZ);
 
-                float flagSearchRadius = 3.0;
+                float flagSearchRadius = 10.0;
                 if (tokens.Count() >= 6)
                 {
                     float candidateFlagRadius = tokens[5].ToFloat();

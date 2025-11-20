@@ -637,13 +637,13 @@ void RegisterFlag(Flag_Base newFlag)
     WriteToLog("RegisterFlag(): Flag adicionada em " + flagPosition.ToString() + " orientação " + flagOrientation.ToString(), LogFile.INIT, false, LogType.INFO);
 }
 
-bool RegisterFlagAtPosition(vector targetPosition, float searchRadius = 3.0)
+bool RegisterFlagAtPosition(vector targetPosition, float searchRadius = 10.0)
 {
     if (!GetGame() || !GetGame().IsServer())
         return false;
 
     if (searchRadius <= 0)
-        searchRadius = 3.0;
+        searchRadius = 10.0;
 
     array<Object> nearbyObjects = new array<Object>();
     GetGame().GetObjectsAtPosition(targetPosition, searchRadius, nearbyObjects, null);
