@@ -864,7 +864,7 @@ bool ExecuteCreateContainer(TStringArray tokens, PlayerBase player = null)
         
         coordX = tokens[3].ToFloat();
         coordY = tokens[4].ToFloat();
-        itemStartIndex = 5; // Items começam no token[5]
+        itemStartIndex = 4; // Items começam no token[5], mas loop usa itemStartIndex + 1
     }
     
     string containerType = tokens[2];
