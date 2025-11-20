@@ -802,13 +802,11 @@ void SendFlagsStatus()
             {
                 hasBase = buildingBase.HasBase();
 
-                Inventory inventory = buildingBase.GetInventory();
-                if (inventory)
+                if (buildingBase.GetInventory())
                 {
-                    int attachmentCount = inventory.AttachmentCount();
-                    for (int i = 0; i < attachmentCount; i++)
+                    for (int i = 0; i < buildingBase.GetInventory().AttachmentCount(); i++)
                     {
-                        EntityAI attachment = inventory.GetAttachmentFromIndex(i);
+                        EntityAI attachment = buildingBase.GetInventory().GetAttachmentFromIndex(i);
                         if (attachment)
                         {
                             string attachmentType = attachment.GetType();
