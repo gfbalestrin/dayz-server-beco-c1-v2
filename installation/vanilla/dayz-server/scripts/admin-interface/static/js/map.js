@@ -169,6 +169,21 @@ function createFenceIcon(fence, hasRecentAttack = false) {
             iconSize: [24, 24]
         });
     }
+    
+    if (structureType === 'flag') {
+        const details = fence.flag_details || {};
+        let color = '#6c757d';
+        if (details.has_base) {
+            color = '#1cc88a';
+        }
+        return L.divIcon({
+            className: 'fence-marker flag-marker',
+            html: `<div style="position: relative; background-color: ${color}; border: 2px solid white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-flag" style="color: white; font-size: 13px;"></i>
+            </div>`,
+            iconSize: [24, 24]
+        });
+    }
 
     const fenceName = fence?.fence_name || '';
     let color, iconClass;
@@ -3028,6 +3043,44 @@ function createFencePopup(fence) {
                     <button type="button" class="btn btn-sm btn-warning" onclick="loadWatchtowerHistory('${fence.fence_id}')">
                         <i class="fas fa-history me-1"></i>Histórico de Alterações
                     </button>
+                </div>
+            </div>
+        `;
+    }
+    
+    if (structureType === 'flag') {
+        const details = fence.flag_details || {};
+        const formatStatus = (value) => {
+            if (value === null || value === undefined) return 'Desconhecido';
+            return value ? 'Construído' : 'Não construído';
+        };
+        const orientation = fence.orientation || {};
+        const orientationText = (orientation.x !== undefined && orientation.y !== undefined)
+            ? `Pitch: ${orientation.x?.toFixed ? orientation.x.toFixed(1) : orientation.x || 0}°, Yaw: ${orientation.y?.toFixed ? orientation.y.toFixed(1) : orientation.y || 0}°`
+            : 'Desconhecido';
+
+        return `
+            <div class="player-popup">
+                <strong><i class="fas fa-flag me-2"></i>Flag Pole (${fence.fence_name})</strong>
+                <div class="info-row">
+                    <span class="info-label">ID:</span>
+                    <span class="info-value">${fence.fence_id}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Coords:</span>
+                    <span class="info-value">X: ${fence.coord_x.toFixed(2)}, Y: ${fence.coord_y.toFixed(2)} (altura: ${fence.coord_z ? fence.coord_z.toFixed(2) : 'N/A'})</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Orientação:</span>
+                    <span class="info-value">${orientationText}</span>
+                </div>
+                <div class="info-row mt-2">
+                    <span class="info-label">Base:</span>
+                    <span class="info-value">${formatStatus(details.has_base)}</span>
+                </div>
+                <div class="info-row mt-2">
+                    <span class="info-label">Atualizado:</span>
+                    <span class="info-value">${fence.last_update || 'Desconhecido'}</span>
                 </div>
             </div>
         `;

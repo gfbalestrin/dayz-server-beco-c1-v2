@@ -104,6 +104,9 @@ tail -F "$COMMAND_FILE" | while read -r line; do
         watchtowers_positions)
             handle_watchtowers_positions "$line"
             ;;
+        flags_positions)
+            handle_flags_positions "$line"
+            ;;
         *)
             echo ">> Ação desconhecida: $action"
             ;;

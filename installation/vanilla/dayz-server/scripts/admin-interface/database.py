@@ -755,6 +755,44 @@ def get_watchtowers_last_position() -> List[Dict]:
         cursor.execute(query)
         return [dict(row) for row in cursor.fetchall()]
 
+def get_flags_last_position() -> List[Dict]:
+    """Retorna flags do último timestamp de rastreamento"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='flags_tracking';")
+        if not cursor.fetchone():
+            return []
+
+        query = """
+            SELECT ft.FlagTrackingId,
+                   ft.FlagId,
+                   ft.FlagName,
+                   ft.PositionX,
+                   ft.PositionY,
+                   ft.PositionZ,
+                   ft.OrientationX,
+                   ft.OrientationY,
+                   ft.OrientationZ,
+                   ft.TimeStamp,
+                   ft.HasBase
+            FROM flags_tracking ft
+            INNER JOIN (
+                SELECT FlagId, MAX(FlagTrackingId) AS MaxId
+                FROM flags_tracking
+                WHERE TimeStamp = (
+                    SELECT MAX(TimeStamp)
+                    FROM flags_tracking ft2
+                    WHERE ft2.FlagId = flags_tracking.FlagId
+                )
+                GROUP BY FlagId
+            ) latest ON ft.FlagId = latest.FlagId
+                AND ft.FlagTrackingId = latest.MaxId
+            ORDER BY ft.TimeStamp DESC
+        """
+        cursor.execute(query)
+        return [dict(row) for row in cursor.fetchall()]
+
 def get_watchtower_trail(watchtower_id: str, limit: int = 100, offset: int = 0, date_from: str = None, date_to: str = None) -> tuple:
     """
     Retorna histórico de mudanças de uma watchtower com filtros

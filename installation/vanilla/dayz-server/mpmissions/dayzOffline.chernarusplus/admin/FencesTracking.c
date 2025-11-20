@@ -599,9 +599,6 @@ void PopulateTrackedFlags(array<Object> worldObjects)
         if (!candidateFlag)
             continue;
 
-        if (!candidateFlag.HasBase())
-            continue;
-
         m_TrackedFlags.Insert(candidateFlag);
     }
 
@@ -614,9 +611,6 @@ void RegisterFlag(Flag_Base newFlag)
         return;
 
     if (!newFlag)
-        return;
-
-    if (!newFlag.HasBase())
         return;
 
     if (!m_TrackedFlags)
@@ -669,9 +663,6 @@ bool RegisterFlagAtPosition(vector targetPosition, float searchRadius = 3.0)
         if (!candidateFlag)
             continue;
 
-        if (!candidateFlag.HasBase())
-            continue;
-
         vector candidatePosition = candidateFlag.GetPosition();
         float candidateDistance = vector.Distance(candidatePosition, targetPosition);
         if (candidateDistance > searchRadius)
@@ -711,12 +702,6 @@ void CleanTrackedFlags()
             removedCount++;
             continue;
         }
-
-        if (!trackedFlag.HasBase())
-        {
-            m_TrackedFlags.Remove(i);
-            removedCount++;
-        }
     }
 
     if (removedCount > 0)
@@ -737,7 +722,7 @@ void SendFlagsStatus()
             if (!trackedFlag)
                 continue;
 
-            bool hasBase = trackedFlag.HasBase();
+            bool hasBase = true;
 
             vector pos = trackedFlag.GetPosition();
             vector ori = trackedFlag.GetOrientation();

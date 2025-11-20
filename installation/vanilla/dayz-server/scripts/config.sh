@@ -1159,6 +1159,109 @@ EOF
     return 1
 }
 
+INSERT_FLAG_POSITION() {
+    local FlagId="$1"
+    local FlagName="$2"
+    local CoordX="$3"
+    local CoordZ="$4"
+    local CoordY="$5"
+    local OriX="$6"
+    local OriY="$7"
+    local OriZ="$8"
+    local CustomTimestamp="$9"
+    local HasBase="${10}"
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+
+    if [[ -z "$FlagId" ]]; then
+        echo "Error: FlagId is required."
+        echo ""
+        return 1
+    fi
+
+    sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<'EOF'
+CREATE TABLE IF NOT EXISTS flags_tracking (
+    FlagTrackingId INTEGER PRIMARY KEY AUTOINCREMENT,
+    FlagId TEXT NOT NULL,
+    FlagName TEXT,
+    PositionX REAL,
+    PositionZ REAL,
+    PositionY REAL,
+    OrientationX REAL,
+    OrientationY REAL,
+    OrientationZ REAL,
+    TimeStamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    HasBase INTEGER,
+    IsDestroyed INTEGER DEFAULT 0,
+    DestroyedAt DATETIME
+);
+CREATE INDEX IF NOT EXISTS idx_flags_tracking_flag_id ON flags_tracking(FlagId);
+CREATE INDEX IF NOT EXISTS idx_flags_tracking_timestamp ON flags_tracking(TimeStamp);
+EOF
+
+    local EscapedFlagId
+    local EscapedFlagName
+    local TimestampValue
+
+    EscapedFlagId=$(echo "$FlagId" | sed "s/'/''/g")
+    EscapedFlagName=$(echo "$FlagName" | sed "s/'/''/g")
+
+    if [[ -n "$CustomTimestamp" ]]; then
+        TimestampValue="'$CustomTimestamp'"
+    else
+        TimestampValue="datetime('now', 'localtime')"
+    fi
+
+    local HasBaseValue
+
+    if [[ -n "$HasBase" ]]; then HasBaseValue="$HasBase"; else HasBaseValue="NULL"; fi
+
+    while (( attempt <= max_retries )); do
+        local FlagTrackingId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+INSERT INTO flags_tracking (
+    FlagId,
+    FlagName,
+    PositionX,
+    PositionZ,
+    PositionY,
+    OrientationX,
+    OrientationY,
+    OrientationZ,
+    TimeStamp,
+    HasBase
+)
+VALUES (
+    '$EscapedFlagId',
+    '$EscapedFlagName',
+    '$CoordX',
+    '$CoordZ',
+    '$CoordY',
+    '$OriX',
+    '$OriY',
+    '$OriZ',
+    $TimestampValue,
+    $HasBaseValue
+);
+SELECT last_insert_rowid();
+EOF
+)
+
+        if [[ $? -eq 0 ]]; then
+            echo "$FlagTrackingId"
+            return 0
+        else
+            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
+            sleep "$retry_delay"
+            attempt=$((attempt + 1))
+        fi
+    done
+
+    echo "Failed to insert flag after $max_retries attempts."
+    echo ""
+    return 1
+}
+
 GET_DAYZ_PLAYER_POSITION(){
     local PlayerID="$1"
     local player=$(sqlite3 "$DayzServerFolder/$DayzPlayerDbFile" "SELECT hex(Data) FROM Players where UID = '$PlayerId';")    

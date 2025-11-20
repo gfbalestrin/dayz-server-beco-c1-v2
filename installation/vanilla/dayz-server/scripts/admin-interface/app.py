@@ -15,7 +15,7 @@ from database import (
     get_logs_adm, get_logs_custom,     get_vehicles_tracking, get_vehicles_map_positions,
     get_player_by_id, search_players, get_players_last_position,
     get_containers_last_position, get_item_details_from_items_db,
-    get_fences_last_position, get_watchtowers_last_position, get_watchtower_trail,
+    get_fences_last_position, get_watchtowers_last_position, get_flags_last_position, get_watchtower_trail,
     get_player_trail, get_online_players_positions,
     get_vehicle_trail, get_container_trail, get_fence_trail,
     get_players_positions_by_timerange, dayz_to_pixel,
@@ -1380,6 +1380,7 @@ def api_fences_positions():
     include_destroyed = request.args.get('include_destroyed', 'false').lower() == 'true'
     fences = get_fences_last_position(include_destroyed=include_destroyed)
     watchtowers = get_watchtowers_last_position()
+    flags = get_flags_last_position()
     
     result = {
         'timestamp': datetime.now().isoformat(),
@@ -1464,6 +1465,36 @@ def api_fences_positions():
                 'x': safe_float(watchtower.get('OrientationX')),
                 'y': safe_float(watchtower.get('OrientationY')),
                 'z': safe_float(watchtower.get('OrientationZ'))
+            }
+        })
+
+    for flag in flags:
+        pixel_coords = dayz_to_pixel(flag['PositionX'], flag['PositionY'])
+        flag_details = {
+            'has_base': normalize_watchtower_bool(flag.get('HasBase'))
+        }
+
+        result['fences'].append({
+            'fence_id': flag['FlagId'],
+            'fence_name': flag.get('FlagName') or 'Flag Pole',
+            'coord_x': flag['PositionX'],
+            'coord_y': flag['PositionY'],
+            'coord_z': flag['PositionZ'],
+            'pixel_coords': pixel_coords,
+            'last_update': flag.get('TimeStamp') or '',
+            'has_base': flag_details['has_base'],
+            'lower_panel_built': None,
+            'upper_panel_built': None,
+            'is_destroyed': False,
+            'destroyed_at': None,
+            'has_recent_attack': False,
+            'structure_type': 'flag',
+            'watchtower_details': None,
+            'flag_details': flag_details,
+            'orientation': {
+                'x': safe_float(flag.get('OrientationX')),
+                'y': safe_float(flag.get('OrientationY')),
+                'z': safe_float(flag.get('OrientationZ'))
             }
         })
     
