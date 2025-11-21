@@ -6,11 +6,6 @@ PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PARENT_DIR"
 source ./config.sh
 
-sanitize_discord_markdown() {
-    local input="$1"
-    echo "$input" | tr -d '\n\r' | sed -e 's/[*_~`|]/\\&/g' -e 's/[][\()<>]/\\&/g' -e 's/["\\]/\\&/g'
-}
-
 LOG_ACTIONS_DIR="$SCRIPT_DIR/log_actions"
 if [[ -d "$LOG_ACTIONS_DIR" ]]; then
     for action_file in "$LOG_ACTIONS_DIR"/*.sh; do

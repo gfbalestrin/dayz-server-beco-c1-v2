@@ -1306,6 +1306,11 @@ GET_DAYZ_PLAYER_DATA(){
     echo "$player"
 }
 
+sanitize_discord_markdown() {
+    local input="$1"
+    echo "$input" | tr -d '\n\r' | sed -e 's/[*_~`|]/\\&/g' -e 's/[][\()<>]/\\&/g' -e 's/["\\]/\\&/g'
+}
+
 SEND_DISCORD_WEBHOOK() {
     [[ -z "$DiscordDesactive" || "$DiscordDesactive" -eq 0 ]] || return 0
     local content="$1"

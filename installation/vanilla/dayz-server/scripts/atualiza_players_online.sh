@@ -45,9 +45,9 @@ function EnviaLogsDiscord() {
         INSERT_CUSTOM_LOG "Ignorando pois player não consta no banco" "INFO" "$ScriptName"
         return 1
     fi
-    PlayerName=$(echo "$PlayerExists" | cut -d$'\x1F' -f1 | sed 's/[^a-zA-Z0-9_ -]//g' | xargs)
+    PlayerName=$(echo "$PlayerExists" | cut -d$'\x1F' -f1)
     SteamID=$(echo "$PlayerExists" | cut -d$'\x1F' -f2)
-    SteamName=$(echo "$PlayerExists" | cut -d$'\x1F' -f3 | sed 's/[^a-zA-Z0-9_ -]//g' | xargs)
+    SteamName=$(echo "$PlayerExists" | cut -d$'\x1F' -f3)
 
     if [[ -f "$DayzServerFolder/$DayzAdminIdsFile" ]] && grep -q "$PLAYER_ID" "$DayzServerFolder/$DayzAdminIdsFile"; then
         echo "Ignorando conta do administrador e matando player para renascer com loot admin..."
@@ -56,9 +56,9 @@ function EnviaLogsDiscord() {
     fi
 
     if [[ "$EVENT" == "CONNECT" ]]; then
-        Content="Jogador **$PlayerName** ([$SteamName](<https://steamcommunity.com/profiles/$SteamID>)) conectou"
+        Content="Jogador **$(sanitize_discord_markdown "$PlayerName")** ([$(sanitize_discord_markdown "$SteamName")](<https://steamcommunity.com/profiles/$SteamID>)) conectou"
     else
-        Content="Jogador **$PlayerName** ([$SteamName](<https://steamcommunity.com/profiles/$SteamID>)) desconectou"
+        Content="Jogador **$(sanitize_discord_markdown "$PlayerName")** ([$(sanitize_discord_markdown "$SteamName")](<https://steamcommunity.com/profiles/$SteamID>)) desconectou"
     fi
     			
     SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
