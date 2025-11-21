@@ -559,204 +559,237 @@ void SendWatchtowersStatus()
 
             if (construction)
             {
-                string partName;
-                ConstructionPart part;
-                
                 // Nível 1 - Parede 1
-                array<string> level1Wall1LowerParts = { "level_1_wall_1_down", "level_1_wall_1_wood_down", "level_1_wall_1_metal_down" };
-                foreach (partName : level1Wall1LowerParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level1Wall1LowerParts = { "level_1_wall_1_down", "level_1_wall_1_wood_down", "level_1_wall_1_metal_down" };
+                    foreach (string partName : level1Wall1LowerParts)
                     {
-                        level1Wall1LowerBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level1Wall1LowerBuilt = true;
+                            break;
+                        }
                     }
                 }
-                array<string> level1Wall1UpperParts = { "level_1_wall_1_up", "level_1_wall_1_wood_up", "level_1_wall_1_metal_up" };
-                foreach (partName : level1Wall1UpperParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level1Wall1UpperParts = { "level_1_wall_1_up", "level_1_wall_1_wood_up", "level_1_wall_1_metal_up" };
+                    foreach (string partName : level1Wall1UpperParts)
                     {
-                        level1Wall1UpperBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level1Wall1UpperBuilt = true;
+                            break;
+                        }
                     }
                 }
 
                 // Nível 1 - Parede 2
-                array<string> level1Wall2LowerParts = { "level_1_wall_2_down", "level_1_wall_2_wood_down", "level_1_wall_2_metal_down" };
-                foreach (partName : level1Wall2LowerParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level1Wall2LowerParts = { "level_1_wall_2_down", "level_1_wall_2_wood_down", "level_1_wall_2_metal_down" };
+                    foreach (string partName : level1Wall2LowerParts)
                     {
-                        level1Wall2LowerBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level1Wall2LowerBuilt = true;
+                            break;
+                        }
                     }
                 }
-                array<string> level1Wall2UpperParts = { "level_1_wall_2_up", "level_1_wall_2_wood_up", "level_1_wall_2_metal_up" };
-                foreach (partName : level1Wall2UpperParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level1Wall2UpperParts = { "level_1_wall_2_up", "level_1_wall_2_wood_up", "level_1_wall_2_metal_up" };
+                    foreach (string partName : level1Wall2UpperParts)
                     {
-                        level1Wall2UpperBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level1Wall2UpperBuilt = true;
+                            break;
+                        }
                     }
                 }
 
                 // Nível 1 - Parede 3
-                array<string> level1Wall3LowerParts = { "level_1_wall_3_down", "level_1_wall_3_wood_down", "level_1_wall_3_metal_down" };
-                foreach (partName : level1Wall3LowerParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level1Wall3LowerParts = { "level_1_wall_3_down", "level_1_wall_3_wood_down", "level_1_wall_3_metal_down" };
+                    foreach (string partName : level1Wall3LowerParts)
                     {
-                        level1Wall3LowerBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level1Wall3LowerBuilt = true;
+                            break;
+                        }
                     }
                 }
-                array<string> level1Wall3UpperParts = { "level_1_wall_3_up", "level_1_wall_3_wood_up", "level_1_wall_3_metal_up" };
-                foreach (partName : level1Wall3UpperParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level1Wall3UpperParts = { "level_1_wall_3_up", "level_1_wall_3_wood_up", "level_1_wall_3_metal_up" };
+                    foreach (string partName : level1Wall3UpperParts)
                     {
-                        level1Wall3UpperBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level1Wall3UpperBuilt = true;
+                            break;
+                        }
                     }
                 }
 
                 // Nível 2 - Parede 1
-                array<string> level2Wall1LowerParts = { "level_2_wall_1_down", "level_2_wall_1_wood_down", "level_2_wall_1_metal_down" };
-                foreach (partName : level2Wall1LowerParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level2Wall1LowerParts = { "level_2_wall_1_down", "level_2_wall_1_wood_down", "level_2_wall_1_metal_down" };
+                    foreach (string partName : level2Wall1LowerParts)
                     {
-                        level2Wall1LowerBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level2Wall1LowerBuilt = true;
+                            break;
+                        }
                     }
                 }
-                array<string> level2Wall1UpperParts = { "level_2_wall_1_up", "level_2_wall_1_wood_up", "level_2_wall_1_metal_up" };
-                foreach (partName : level2Wall1UpperParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level2Wall1UpperParts = { "level_2_wall_1_up", "level_2_wall_1_wood_up", "level_2_wall_1_metal_up" };
+                    foreach (string partName : level2Wall1UpperParts)
                     {
-                        level2Wall1UpperBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level2Wall1UpperBuilt = true;
+                            break;
+                        }
                     }
                 }
 
                 // Nível 2 - Parede 2
-                array<string> level2Wall2LowerParts = { "level_2_wall_2_down", "level_2_wall_2_wood_down", "level_2_wall_2_metal_down" };
-                foreach (partName : level2Wall2LowerParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level2Wall2LowerParts = { "level_2_wall_2_down", "level_2_wall_2_wood_down", "level_2_wall_2_metal_down" };
+                    foreach (string partName : level2Wall2LowerParts)
                     {
-                        level2Wall2LowerBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level2Wall2LowerBuilt = true;
+                            break;
+                        }
                     }
                 }
-                array<string> level2Wall2UpperParts = { "level_2_wall_2_up", "level_2_wall_2_wood_up", "level_2_wall_2_metal_up" };
-                foreach (partName : level2Wall2UpperParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level2Wall2UpperParts = { "level_2_wall_2_up", "level_2_wall_2_wood_up", "level_2_wall_2_metal_up" };
+                    foreach (string partName : level2Wall2UpperParts)
                     {
-                        level2Wall2UpperBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level2Wall2UpperBuilt = true;
+                            break;
+                        }
                     }
                 }
 
                 // Nível 2 - Parede 3
-                array<string> level2Wall3LowerParts = { "level_2_wall_3_down", "level_2_wall_3_wood_down", "level_2_wall_3_metal_down" };
-                foreach (partName : level2Wall3LowerParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level2Wall3LowerParts = { "level_2_wall_3_down", "level_2_wall_3_wood_down", "level_2_wall_3_metal_down" };
+                    foreach (string partName : level2Wall3LowerParts)
                     {
-                        level2Wall3LowerBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level2Wall3LowerBuilt = true;
+                            break;
+                        }
                     }
                 }
-                array<string> level2Wall3UpperParts = { "level_2_wall_3_up", "level_2_wall_3_wood_up", "level_2_wall_3_metal_up" };
-                foreach (partName : level2Wall3UpperParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level2Wall3UpperParts = { "level_2_wall_3_up", "level_2_wall_3_wood_up", "level_2_wall_3_metal_up" };
+                    foreach (string partName : level2Wall3UpperParts)
                     {
-                        level2Wall3UpperBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level2Wall3UpperBuilt = true;
+                            break;
+                        }
                     }
                 }
 
                 // Nível 3 - Parede 1
-                array<string> level3Wall1LowerParts = { "level_3_wall_1_down", "level_3_wall_1_wood_down", "level_3_wall_1_metal_down" };
-                foreach (partName : level3Wall1LowerParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level3Wall1LowerParts = { "level_3_wall_1_down", "level_3_wall_1_wood_down", "level_3_wall_1_metal_down" };
+                    foreach (string partName : level3Wall1LowerParts)
                     {
-                        level3Wall1LowerBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level3Wall1LowerBuilt = true;
+                            break;
+                        }
                     }
                 }
-                array<string> level3Wall1UpperParts = { "level_3_wall_1_up", "level_3_wall_1_wood_up", "level_3_wall_1_metal_up" };
-                foreach (partName : level3Wall1UpperParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level3Wall1UpperParts = { "level_3_wall_1_up", "level_3_wall_1_wood_up", "level_3_wall_1_metal_up" };
+                    foreach (string partName : level3Wall1UpperParts)
                     {
-                        level3Wall1UpperBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level3Wall1UpperBuilt = true;
+                            break;
+                        }
                     }
                 }
 
                 // Nível 3 - Parede 2
-                array<string> level3Wall2LowerParts = { "level_3_wall_2_down", "level_3_wall_2_wood_down", "level_3_wall_2_metal_down" };
-                foreach (partName : level3Wall2LowerParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level3Wall2LowerParts = { "level_3_wall_2_down", "level_3_wall_2_wood_down", "level_3_wall_2_metal_down" };
+                    foreach (string partName : level3Wall2LowerParts)
                     {
-                        level3Wall2LowerBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level3Wall2LowerBuilt = true;
+                            break;
+                        }
                     }
                 }
-                array<string> level3Wall2UpperParts = { "level_3_wall_2_up", "level_3_wall_2_wood_up", "level_3_wall_2_metal_up" };
-                foreach (partName : level3Wall2UpperParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level3Wall2UpperParts = { "level_3_wall_2_up", "level_3_wall_2_wood_up", "level_3_wall_2_metal_up" };
+                    foreach (string partName : level3Wall2UpperParts)
                     {
-                        level3Wall2UpperBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level3Wall2UpperBuilt = true;
+                            break;
+                        }
                     }
                 }
 
                 // Nível 3 - Parede 3
-                array<string> level3Wall3LowerParts = { "level_3_wall_3_down", "level_3_wall_3_wood_down", "level_3_wall_3_metal_down" };
-                foreach (partName : level3Wall3LowerParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level3Wall3LowerParts = { "level_3_wall_3_down", "level_3_wall_3_wood_down", "level_3_wall_3_metal_down" };
+                    foreach (string partName : level3Wall3LowerParts)
                     {
-                        level3Wall3LowerBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level3Wall3LowerBuilt = true;
+                            break;
+                        }
                     }
                 }
-                array<string> level3Wall3UpperParts = { "level_3_wall_3_up", "level_3_wall_3_wood_up", "level_3_wall_3_metal_up" };
-                foreach (partName : level3Wall3UpperParts)
                 {
-                    part = construction.GetConstructionPart(partName);
-                    if (part && part.IsBuilt())
+                    array<string> level3Wall3UpperParts = { "level_3_wall_3_up", "level_3_wall_3_wood_up", "level_3_wall_3_metal_up" };
+                    foreach (string partName : level3Wall3UpperParts)
                     {
-                        level3Wall3UpperBuilt = true;
-                        break;
+                        ConstructionPart part = construction.GetConstructionPart(partName);
+                        if (part && part.IsBuilt())
+                        {
+                            level3Wall3UpperBuilt = true;
+                            break;
+                        }
                     }
                 }
             }
