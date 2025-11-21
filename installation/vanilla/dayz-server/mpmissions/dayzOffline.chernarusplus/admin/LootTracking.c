@@ -32,17 +32,17 @@ bool IsContainerType(string objectType)
 	return false;
 }
 
-void RegisterContainer(EntityAI newContainer)
+bool RegisterContainer(EntityAI newContainer)
 {
 	if (!GetGame() || !GetGame().IsServer())
-		return;
+		return false;
 
 	if (!newContainer)
-		return;
+		return false;
 
 	string containerType = newContainer.GetType();
 	if (!IsContainerType(containerType))
-		return;
+		return false;
 
 	if (!m_TrackedContainers)
 		m_TrackedContainers = new array<EntityAI>();
@@ -57,7 +57,7 @@ void RegisterContainer(EntityAI newContainer)
 		if (trackedContainer == newContainer)
 		{
 			WriteToLog("RegisterContainer(): Container já está rastreado, ignorando.", LogFile.INIT, false, LogType.DEBUG);
-			return;
+			return false;
 		}
 	}
 
@@ -65,6 +65,7 @@ void RegisterContainer(EntityAI newContainer)
 
 	vector containerPosition = newContainer.GetPosition();
 	WriteToLog("RegisterContainer(): Container " + containerType + " adicionado em " + containerPosition.ToString(), LogFile.INIT, false, LogType.INFO);
+	return true;
 }
 
 void BuildContainersData(array<Object> worldObjects, out string containersJson, out int totalContainers, out int totalContainersWithItems, out int totalContainersEmpty, out int totalItems)
@@ -299,8 +300,9 @@ bool RegisterContainerAtPosition(vector targetPosition, float searchRadius = 3.0
 		return false;
 	}
 
-	EntityAI closestContainer;
-	float closestDistance = searchRadius + 1.0;
+	// Coletar todos os containers válidos com suas distâncias
+	array<EntityAI> validContainers = new array<EntityAI>();
+	array<float> containerDistances = new array<float>();
 
 	foreach (Object candidateObject : nearbyObjects)
 	{
@@ -320,23 +322,54 @@ bool RegisterContainerAtPosition(vector targetPosition, float searchRadius = 3.0
 		if (candidateDistance > searchRadius)
 			continue;
 
-		if (!closestContainer || candidateDistance < closestDistance)
-		{
-			closestContainer = candidateContainer;
-			closestDistance = candidateDistance;
-		}
+		validContainers.Insert(candidateContainer);
+		containerDistances.Insert(candidateDistance);
 	}
 
-	if (!closestContainer)
+	if (validContainers.Count() == 0)
 	{
 		WriteToLog("RegisterContainerAtPosition(): Nenhum container válido encontrado próximo a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
 		return false;
 	}
 
-	RegisterContainer(closestContainer);
+	// Ordenar containers por distância (bubble sort simples)
+	int containerCount = validContainers.Count();
+	for (int i = 0; i < containerCount - 1; i++)
+	{
+		for (int j = 0; j < containerCount - i - 1; j++)
+		{
+			if (containerDistances.Get(j) > containerDistances.Get(j + 1))
+			{
+				// Trocar distâncias
+				float tempDistance = containerDistances.Get(j);
+				containerDistances.Set(j, containerDistances.Get(j + 1));
+				containerDistances.Set(j + 1, tempDistance);
 
-	WriteToLog("RegisterContainerAtPosition(): Container registrado a " + closestDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
-	return true;
+				// Trocar containers
+				EntityAI tempContainer = validContainers.Get(j);
+				validContainers.Set(j, validContainers.Get(j + 1));
+				validContainers.Set(j + 1, tempContainer);
+			}
+		}
+	}
+
+	// Tentar registrar cada container em ordem de distância até encontrar um que possa ser registrado
+	for (int containerIndex = 0; containerIndex < containerCount; containerIndex++)
+	{
+		EntityAI candidateContainer = validContainers.Get(containerIndex);
+		float candidateDistance = containerDistances.Get(containerIndex);
+
+		bool registered = RegisterContainer(candidateContainer);
+		if (registered)
+		{
+			WriteToLog("RegisterContainerAtPosition(): Container registrado a " + candidateDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
+			return true;
+		}
+	}
+
+	// Todos os containers já estavam rastreados
+	WriteToLog("RegisterContainerAtPosition(): Todos os containers encontrados já estão rastreados próximo a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+	return false;
 }
 
 void CheckContainersForLoot()

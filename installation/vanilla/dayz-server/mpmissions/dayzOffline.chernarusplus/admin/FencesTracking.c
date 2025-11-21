@@ -36,16 +36,16 @@ void PopulateTrackedFences(array<Object> worldObjects)
 	WriteToLog("PopulateTrackedFences(): Total de fences em rastreamento: " + m_TrackedFences.Count().ToString(), LogFile.INIT, false, LogType.INFO);
 }
 
-void RegisterFence(Fence newFence)
+bool RegisterFence(Fence newFence)
 {
 	if (!GetGame() || !GetGame().IsServer())
-		return;
+		return false;
 
 	if (!newFence)
-		return;
+		return false;
 
 	if (!newFence.HasBase())
-		return;
+		return false;
 
 	if (!m_TrackedFences)
 		m_TrackedFences = new array<Fence>();
@@ -60,7 +60,7 @@ void RegisterFence(Fence newFence)
 		if (trackedFence == newFence)
 		{
 			WriteToLog("RegisterFence(): Fence já está rastreada, ignorando.", LogFile.INIT, false, LogType.DEBUG);
-			return;
+			return false;
 		}
 	}
 
@@ -69,6 +69,7 @@ void RegisterFence(Fence newFence)
 	vector fencePosition = newFence.GetPosition();
 	vector fenceOrientation = newFence.GetOrientation();
 	WriteToLog("RegisterFence(): Fence adicionada em " + fencePosition.ToString() + " orientação " + fenceOrientation.ToString(), LogFile.INIT, false, LogType.INFO);
+	return true;
 }
 
 bool RegisterFenceAtPosition(vector targetPosition, float searchRadius = 3.0)
@@ -88,8 +89,9 @@ bool RegisterFenceAtPosition(vector targetPosition, float searchRadius = 3.0)
         return false;
     }
 
-    Fence closestFence;
-    float closestDistance = searchRadius + 1.0;
+    // Coletar todas as fences válidas com suas distâncias
+    array<Fence> validFences = new array<Fence>();
+    array<float> fenceDistances = new array<float>();
 
     foreach (Object candidateObject : nearbyObjects)
     {
@@ -105,23 +107,54 @@ bool RegisterFenceAtPosition(vector targetPosition, float searchRadius = 3.0)
         if (candidateDistance > searchRadius)
             continue;
 
-        if (!closestFence || candidateDistance < closestDistance)
-        {
-            closestFence = candidateFence;
-            closestDistance = candidateDistance;
-        }
+        validFences.Insert(candidateFence);
+        fenceDistances.Insert(candidateDistance);
     }
 
-    if (!closestFence)
+    if (validFences.Count() == 0)
     {
         WriteToLog("RegisterFenceAtPosition(): Nenhuma fence válida encontrada próxima a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
         return false;
     }
 
-    RegisterFence(closestFence);
+    // Ordenar fences por distância (bubble sort simples)
+    int fenceCount = validFences.Count();
+    for (int i = 0; i < fenceCount - 1; i++)
+    {
+        for (int j = 0; j < fenceCount - i - 1; j++)
+        {
+            if (fenceDistances.Get(j) > fenceDistances.Get(j + 1))
+            {
+                // Trocar distâncias
+                float tempDistance = fenceDistances.Get(j);
+                fenceDistances.Set(j, fenceDistances.Get(j + 1));
+                fenceDistances.Set(j + 1, tempDistance);
 
-    WriteToLog("RegisterFenceAtPosition(): Fence registrada a " + closestDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
-    return true;
+                // Trocar fences
+                Fence tempFence = validFences.Get(j);
+                validFences.Set(j, validFences.Get(j + 1));
+                validFences.Set(j + 1, tempFence);
+            }
+        }
+    }
+
+    // Tentar registrar cada fence em ordem de distância até encontrar uma que possa ser registrada
+    for (int fenceIndex = 0; fenceIndex < fenceCount; fenceIndex++)
+    {
+        Fence candidateFence = validFences.Get(fenceIndex);
+        float candidateDistance = fenceDistances.Get(fenceIndex);
+
+        bool registered = RegisterFence(candidateFence);
+        if (registered)
+        {
+            WriteToLog("RegisterFenceAtPosition(): Fence registrada a " + candidateDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
+            return true;
+        }
+    }
+
+    // Todas as fences já estavam rastreadas
+    WriteToLog("RegisterFenceAtPosition(): Todas as fences encontradas já estão rastreadas próximo a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+    return false;
 }
 
 void InitFenceTracking()
@@ -411,16 +444,16 @@ void PopulateTrackedWatchtowers(array<Object> worldObjects)
     WriteToLog("PopulateTrackedWatchtowers(): Total de watchtowers em rastreamento: " + m_TrackedWatchtowers.Count().ToString(), LogFile.INIT, false, LogType.INFO);
 }
 
-void RegisterWatchtower(Watchtower newWatchtower)
+bool RegisterWatchtower(Watchtower newWatchtower)
 {
     if (!GetGame() || !GetGame().IsServer())
-        return;
+        return false;
 
     if (!newWatchtower)
-        return;
+        return false;
 
     if (!newWatchtower.HasBase())
-        return;
+        return false;
 
     if (!m_TrackedWatchtowers)
         m_TrackedWatchtowers = new array<Watchtower>();
@@ -435,7 +468,7 @@ void RegisterWatchtower(Watchtower newWatchtower)
         if (trackedWatchtower == newWatchtower)
         {
             WriteToLog("RegisterWatchtower(): Watchtower já está rastreada, ignorando.", LogFile.INIT, false, LogType.DEBUG);
-            return;
+            return false;
         }
     }
 
@@ -444,6 +477,7 @@ void RegisterWatchtower(Watchtower newWatchtower)
     vector watchtowerPosition = newWatchtower.GetPosition();
     vector watchtowerOrientation = newWatchtower.GetOrientation();
     WriteToLog("RegisterWatchtower(): Watchtower adicionada em " + watchtowerPosition.ToString() + " orientação " + watchtowerOrientation.ToString(), LogFile.INIT, false, LogType.INFO);
+    return true;
 }
 
 bool RegisterWatchtowerAtPosition(vector targetPosition, float searchRadius = 10.0)
@@ -463,8 +497,9 @@ bool RegisterWatchtowerAtPosition(vector targetPosition, float searchRadius = 10
         return false;
     }
 
-    Watchtower closestWatchtower;
-    float closestDistance = searchRadius + 1.0;
+    // Coletar todas as watchtowers válidas com suas distâncias
+    array<Watchtower> validWatchtowers = new array<Watchtower>();
+    array<float> watchtowerDistances = new array<float>();
 
     foreach (Object candidateObject : nearbyObjects)
     {
@@ -480,23 +515,54 @@ bool RegisterWatchtowerAtPosition(vector targetPosition, float searchRadius = 10
         if (candidateDistance > searchRadius)
             continue;
 
-        if (!closestWatchtower || candidateDistance < closestDistance)
-        {
-            closestWatchtower = candidateWatchtower;
-            closestDistance = candidateDistance;
-        }
+        validWatchtowers.Insert(candidateWatchtower);
+        watchtowerDistances.Insert(candidateDistance);
     }
 
-    if (!closestWatchtower)
+    if (validWatchtowers.Count() == 0)
     {
         WriteToLog("RegisterWatchtowerAtPosition(): Nenhuma watchtower válida encontrada próxima a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
         return false;
     }
 
-    RegisterWatchtower(closestWatchtower);
+    // Ordenar watchtowers por distância (bubble sort simples)
+    int watchtowerCount = validWatchtowers.Count();
+    for (int i = 0; i < watchtowerCount - 1; i++)
+    {
+        for (int j = 0; j < watchtowerCount - i - 1; j++)
+        {
+            if (watchtowerDistances.Get(j) > watchtowerDistances.Get(j + 1))
+            {
+                // Trocar distâncias
+                float tempDistance = watchtowerDistances.Get(j);
+                watchtowerDistances.Set(j, watchtowerDistances.Get(j + 1));
+                watchtowerDistances.Set(j + 1, tempDistance);
 
-    WriteToLog("RegisterWatchtowerAtPosition(): Watchtower registrada a " + closestDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
-    return true;
+                // Trocar watchtowers
+                Watchtower tempWatchtower = validWatchtowers.Get(j);
+                validWatchtowers.Set(j, validWatchtowers.Get(j + 1));
+                validWatchtowers.Set(j + 1, tempWatchtower);
+            }
+        }
+    }
+
+    // Tentar registrar cada watchtower em ordem de distância até encontrar uma que possa ser registrada
+    for (int watchtowerIndex = 0; watchtowerIndex < watchtowerCount; watchtowerIndex++)
+    {
+        Watchtower candidateWatchtower = validWatchtowers.Get(watchtowerIndex);
+        float candidateDistance = watchtowerDistances.Get(watchtowerIndex);
+
+        bool registered = RegisterWatchtower(candidateWatchtower);
+        if (registered)
+        {
+            WriteToLog("RegisterWatchtowerAtPosition(): Watchtower registrada a " + candidateDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
+            return true;
+        }
+    }
+
+    // Todas as watchtowers já estavam rastreadas
+    WriteToLog("RegisterWatchtowerAtPosition(): Todas as watchtowers encontradas já estão rastreadas próximo a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+    return false;
 }
 
 void CleanTrackedWatchtowers()
@@ -743,19 +809,19 @@ void PopulateTrackedFlags(array<Object> worldObjects)
     WriteToLog("PopulateTrackedFlags(): Total de flags em rastreamento: " + m_TrackedFlags.Count().ToString(), LogFile.INIT, false, LogType.INFO);
 }
 
-void RegisterFlag(Object newFlag)
+bool RegisterFlag(Object newFlag)
 {
     if (!GetGame() || !GetGame().IsServer())
-        return;
+        return false;
 
     if (!newFlag)
-        return;
+        return false;
 
     string objectType = newFlag.GetType();
     if (objectType != "TerritoryFlag")
     {
         WriteToLog("RegisterFlag(): Objeto não é TerritoryFlag. Tipo: " + objectType, LogFile.INIT, false, LogType.WARNING);
-        return;
+        return false;
     }
 
     if (!m_TrackedFlags)
@@ -771,7 +837,7 @@ void RegisterFlag(Object newFlag)
         if (trackedFlag == newFlag)
         {
             WriteToLog("RegisterFlag(): Flag já está rastreada, ignorando.", LogFile.INIT, false, LogType.DEBUG);
-            return;
+            return false;
         }
     }
 
@@ -780,6 +846,7 @@ void RegisterFlag(Object newFlag)
     vector flagPosition = newFlag.GetPosition();
     vector flagOrientation = newFlag.GetOrientation();
     WriteToLog("RegisterFlag(): Flag adicionada em " + flagPosition.ToString() + " orientação " + flagOrientation.ToString(), LogFile.INIT, false, LogType.INFO);
+    return true;
 }
 
 bool RegisterFlagAtPosition(vector targetPosition, float searchRadius = 10.0)
@@ -799,65 +866,72 @@ bool RegisterFlagAtPosition(vector targetPosition, float searchRadius = 10.0)
         return false;
     }
 
-    WriteToLog("RegisterFlagAtPosition(): DEBUG - Total de objetos encontrados: " + nearbyObjects.Count().ToString() + " na posição " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.DEBUG);
-
-    Object closestFlag;
-    float closestDistance = searchRadius + 1.0;
-    int flagCount = 0;
-    int objectIndex = 0;
+    // Coletar todas as flags válidas com suas distâncias
+    array<Object> validFlags = new array<Object>();
+    array<float> flagDistances = new array<float>();
 
     foreach (Object candidateObject : nearbyObjects)
     {
         if (!candidateObject)
-        {
-            objectIndex++;
             continue;
-        }
 
         string objectType = candidateObject.GetType();
-        
         if (objectType != "TerritoryFlag")
-        {
-            WriteToLog("RegisterFlagAtPosition(): DEBUG - Objeto #" + objectIndex.ToString() + " não é TerritoryFlag. Tipo: " + objectType, LogFile.INIT, false, LogType.DEBUG);
-            objectIndex++;
             continue;
-        }
 
-        flagCount++;
         vector candidatePosition = candidateObject.GetPosition();
         float candidateDistance = vector.Distance(candidatePosition, targetPosition);
-        
-        WriteToLog("RegisterFlagAtPosition(): DEBUG - Flag encontrada #" + flagCount.ToString() + " tipo: " + objectType + " posição: " + candidatePosition.ToString() + " distância: " + candidateDistance.ToString() + "m", LogFile.INIT, false, LogType.DEBUG);
-        
         if (candidateDistance > searchRadius)
-        {
-            WriteToLog("RegisterFlagAtPosition(): DEBUG - Flag #" + flagCount.ToString() + " fora do raio (distância: " + candidateDistance.ToString() + "m > raio: " + searchRadius.ToString() + "m)", LogFile.INIT, false, LogType.DEBUG);
-            objectIndex++;
             continue;
-        }
 
-        if (!closestFlag || candidateDistance < closestDistance)
-        {
-            closestFlag = candidateObject;
-            closestDistance = candidateDistance;
-            WriteToLog("RegisterFlagAtPosition(): DEBUG - Nova flag mais próxima selecionada (distância: " + closestDistance.ToString() + "m)", LogFile.INIT, false, LogType.DEBUG);
-        }
-        
-        objectIndex++;
+        validFlags.Insert(candidateObject);
+        flagDistances.Insert(candidateDistance);
     }
 
-    WriteToLog("RegisterFlagAtPosition(): DEBUG - Total de flags encontradas: " + flagCount.ToString(), LogFile.INIT, false, LogType.DEBUG);
-
-    if (!closestFlag)
+    if (validFlags.Count() == 0)
     {
-        WriteToLog("RegisterFlagAtPosition(): Nenhuma flag válida encontrada próxima a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + "). Total de objetos: " + nearbyObjects.Count().ToString() + ", Total de flags: " + flagCount.ToString(), LogFile.INIT, false, LogType.WARNING);
+        WriteToLog("RegisterFlagAtPosition(): Nenhuma flag válida encontrada próxima a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
         return false;
     }
 
-    RegisterFlag(closestFlag);
+    // Ordenar flags por distância (bubble sort simples)
+    int flagCount = validFlags.Count();
+    for (int i = 0; i < flagCount - 1; i++)
+    {
+        for (int j = 0; j < flagCount - i - 1; j++)
+        {
+            if (flagDistances.Get(j) > flagDistances.Get(j + 1))
+            {
+                // Trocar distâncias
+                float tempDistance = flagDistances.Get(j);
+                flagDistances.Set(j, flagDistances.Get(j + 1));
+                flagDistances.Set(j + 1, tempDistance);
 
-    WriteToLog("RegisterFlagAtPosition(): Flag registrada a " + closestDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
-    return true;
+                // Trocar flags
+                Object tempFlag = validFlags.Get(j);
+                validFlags.Set(j, validFlags.Get(j + 1));
+                validFlags.Set(j + 1, tempFlag);
+            }
+        }
+    }
+
+    // Tentar registrar cada flag em ordem de distância até encontrar uma que possa ser registrada
+    for (int flagIndex = 0; flagIndex < flagCount; flagIndex++)
+    {
+        Object candidateFlag = validFlags.Get(flagIndex);
+        float candidateDistance = flagDistances.Get(flagIndex);
+
+        bool registered = RegisterFlag(candidateFlag);
+        if (registered)
+        {
+            WriteToLog("RegisterFlagAtPosition(): Flag registrada a " + candidateDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
+            return true;
+        }
+    }
+
+    // Todas as flags já estavam rastreadas
+    WriteToLog("RegisterFlagAtPosition(): Todas as flags encontradas já estão rastreadas próximo a " + targetPosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+    return false;
 }
 
 void CleanTrackedFlags()
