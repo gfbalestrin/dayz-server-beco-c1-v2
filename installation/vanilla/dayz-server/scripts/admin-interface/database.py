@@ -711,7 +711,7 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
         
         return fences
 
-def get_watchtowers_last_position() -> List[Dict]:
+def get_watchtowers_last_position(include_destroyed: bool = False) -> List[Dict]:
     """Retorna watchtowers do último timestamp de rastreamento"""
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
@@ -720,42 +720,126 @@ def get_watchtowers_last_position() -> List[Dict]:
         if not cursor.fetchone():
             return []
 
-        query = """
-            SELECT wt.WatchtowerTrackingId,
-                   wt.WatchtowerId,
-                   wt.WatchtowerName,
-                   wt.PositionX,
-                   wt.PositionY,
-                   wt.PositionZ,
-                   wt.OrientationX,
-                   wt.OrientationY,
-                   wt.OrientationZ,
-                   wt.TimeStamp,
-                   wt.HasBase,
-                   wt.Level1BaseBuilt,
-                   wt.Level2BaseBuilt,
-                   wt.Level3BaseBuilt,
-                   wt.Level1StairsBuilt,
-                   wt.Level2StairsBuilt,
-                   wt.HasRoof
-            FROM watchtowers_tracking wt
-            INNER JOIN (
-                SELECT WatchtowerId, MAX(WatchtowerTrackingId) AS MaxId
-                FROM watchtowers_tracking
-                WHERE TimeStamp = (
-                    SELECT MAX(TimeStamp)
-                    FROM watchtowers_tracking wt2
-                    WHERE wt2.WatchtowerId = watchtowers_tracking.WatchtowerId
-                )
-                GROUP BY WatchtowerId
-            ) latest ON wt.WatchtowerId = latest.WatchtowerId
-                AND wt.WatchtowerTrackingId = latest.MaxId
-            ORDER BY wt.TimeStamp DESC
-        """
+        # Verificar se coluna IsDestroyed existe (migração)
+        try:
+            cursor.execute("PRAGMA table_info(watchtowers_tracking)")
+            columns = [row[1] for row in cursor.fetchall()]
+            has_is_destroyed = 'IsDestroyed' in columns
+        except:
+            has_is_destroyed = False
+
+        if has_is_destroyed and not include_destroyed:
+            query = """
+                SELECT wt.WatchtowerTrackingId,
+                       wt.WatchtowerId,
+                       wt.WatchtowerName,
+                       wt.PositionX,
+                       wt.PositionY,
+                       wt.PositionZ,
+                       wt.OrientationX,
+                       wt.OrientationY,
+                       wt.OrientationZ,
+                       wt.TimeStamp,
+                       wt.HasBase,
+                       wt.Level1BaseBuilt,
+                       wt.Level2BaseBuilt,
+                       wt.Level3BaseBuilt,
+                       wt.Level1StairsBuilt,
+                       wt.Level2StairsBuilt,
+                       wt.HasRoof,
+                       0 as IsDestroyed,
+                       NULL as DestroyedAt
+                FROM watchtowers_tracking wt
+                INNER JOIN (
+                    SELECT WatchtowerId, MAX(WatchtowerTrackingId) AS MaxId
+                    FROM watchtowers_tracking
+                    WHERE (IsDestroyed = 0 OR IsDestroyed IS NULL)
+                        AND TimeStamp = (
+                            SELECT MAX(TimeStamp)
+                            FROM watchtowers_tracking wt2
+                            WHERE wt2.WatchtowerId = watchtowers_tracking.WatchtowerId
+                                AND (wt2.IsDestroyed = 0 OR wt2.IsDestroyed IS NULL)
+                        )
+                    GROUP BY WatchtowerId
+                ) latest ON wt.WatchtowerId = latest.WatchtowerId
+                    AND wt.WatchtowerTrackingId = latest.MaxId
+                WHERE wt.IsDestroyed = 0 OR wt.IsDestroyed IS NULL
+                ORDER BY wt.TimeStamp DESC
+            """
+        elif has_is_destroyed:
+            query = """
+                SELECT wt.WatchtowerTrackingId,
+                       wt.WatchtowerId,
+                       wt.WatchtowerName,
+                       wt.PositionX,
+                       wt.PositionY,
+                       wt.PositionZ,
+                       wt.OrientationX,
+                       wt.OrientationY,
+                       wt.OrientationZ,
+                       wt.TimeStamp,
+                       wt.HasBase,
+                       wt.Level1BaseBuilt,
+                       wt.Level2BaseBuilt,
+                       wt.Level3BaseBuilt,
+                       wt.Level1StairsBuilt,
+                       wt.Level2StairsBuilt,
+                       wt.HasRoof,
+                       IFNULL(wt.IsDestroyed, 0) as IsDestroyed,
+                       wt.DestroyedAt
+                FROM watchtowers_tracking wt
+                INNER JOIN (
+                    SELECT WatchtowerId, MAX(WatchtowerTrackingId) AS MaxId
+                    FROM watchtowers_tracking
+                    WHERE TimeStamp = (
+                        SELECT MAX(TimeStamp)
+                        FROM watchtowers_tracking wt2
+                        WHERE wt2.WatchtowerId = watchtowers_tracking.WatchtowerId
+                    )
+                    GROUP BY WatchtowerId
+                ) latest ON wt.WatchtowerId = latest.WatchtowerId
+                    AND wt.WatchtowerTrackingId = latest.MaxId
+                ORDER BY wt.TimeStamp DESC
+            """
+        else:
+            query = """
+                SELECT wt.WatchtowerTrackingId,
+                       wt.WatchtowerId,
+                       wt.WatchtowerName,
+                       wt.PositionX,
+                       wt.PositionY,
+                       wt.PositionZ,
+                       wt.OrientationX,
+                       wt.OrientationY,
+                       wt.OrientationZ,
+                       wt.TimeStamp,
+                       wt.HasBase,
+                       wt.Level1BaseBuilt,
+                       wt.Level2BaseBuilt,
+                       wt.Level3BaseBuilt,
+                       wt.Level1StairsBuilt,
+                       wt.Level2StairsBuilt,
+                       wt.HasRoof,
+                       0 as IsDestroyed,
+                       NULL as DestroyedAt
+                FROM watchtowers_tracking wt
+                INNER JOIN (
+                    SELECT WatchtowerId, MAX(WatchtowerTrackingId) AS MaxId
+                    FROM watchtowers_tracking
+                    WHERE TimeStamp = (
+                        SELECT MAX(TimeStamp)
+                        FROM watchtowers_tracking wt2
+                        WHERE wt2.WatchtowerId = watchtowers_tracking.WatchtowerId
+                    )
+                    GROUP BY WatchtowerId
+                ) latest ON wt.WatchtowerId = latest.WatchtowerId
+                    AND wt.WatchtowerTrackingId = latest.MaxId
+                ORDER BY wt.TimeStamp DESC
+            """
         cursor.execute(query)
         return [dict(row) for row in cursor.fetchall()]
 
-def get_flags_last_position() -> List[Dict]:
+def get_flags_last_position(include_destroyed: bool = False) -> List[Dict]:
     """Retorna flags do último timestamp de rastreamento"""
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
@@ -764,35 +848,113 @@ def get_flags_last_position() -> List[Dict]:
         if not cursor.fetchone():
             return []
 
-        query = """
-            SELECT ft.FlagTrackingId,
-                   ft.FlagId,
-                   ft.FlagName,
-                   ft.PositionX,
-                   ft.PositionY,
-                   ft.PositionZ,
-                   ft.OrientationX,
-                   ft.OrientationY,
-                   ft.OrientationZ,
-                   ft.TimeStamp,
-                   ft.HasBase,
-                   ft.HasFlagBase,
-                   ft.FlagRaised,
-                   ft.FlagHeight
-            FROM flags_tracking ft
-            INNER JOIN (
-                SELECT FlagId, MAX(FlagTrackingId) AS MaxId
-                FROM flags_tracking
-                WHERE TimeStamp = (
-                    SELECT MAX(TimeStamp)
-                    FROM flags_tracking ft2
-                    WHERE ft2.FlagId = flags_tracking.FlagId
-                )
-                GROUP BY FlagId
-            ) latest ON ft.FlagId = latest.FlagId
-                AND ft.FlagTrackingId = latest.MaxId
-            ORDER BY ft.TimeStamp DESC
-        """
+        # Verificar se coluna IsDestroyed existe (migração)
+        try:
+            cursor.execute("PRAGMA table_info(flags_tracking)")
+            columns = [row[1] for row in cursor.fetchall()]
+            has_is_destroyed = 'IsDestroyed' in columns
+        except:
+            has_is_destroyed = False
+
+        if has_is_destroyed and not include_destroyed:
+            query = """
+                SELECT ft.FlagTrackingId,
+                       ft.FlagId,
+                       ft.FlagName,
+                       ft.PositionX,
+                       ft.PositionY,
+                       ft.PositionZ,
+                       ft.OrientationX,
+                       ft.OrientationY,
+                       ft.OrientationZ,
+                       ft.TimeStamp,
+                       ft.HasBase,
+                       ft.HasFlagBase,
+                       ft.FlagRaised,
+                       ft.FlagHeight,
+                       0 as IsDestroyed,
+                       NULL as DestroyedAt
+                FROM flags_tracking ft
+                INNER JOIN (
+                    SELECT FlagId, MAX(FlagTrackingId) AS MaxId
+                    FROM flags_tracking
+                    WHERE (IsDestroyed = 0 OR IsDestroyed IS NULL)
+                        AND TimeStamp = (
+                            SELECT MAX(TimeStamp)
+                            FROM flags_tracking ft2
+                            WHERE ft2.FlagId = flags_tracking.FlagId
+                                AND (ft2.IsDestroyed = 0 OR ft2.IsDestroyed IS NULL)
+                        )
+                    GROUP BY FlagId
+                ) latest ON ft.FlagId = latest.FlagId
+                    AND ft.FlagTrackingId = latest.MaxId
+                WHERE ft.IsDestroyed = 0 OR ft.IsDestroyed IS NULL
+                ORDER BY ft.TimeStamp DESC
+            """
+        elif has_is_destroyed:
+            query = """
+                SELECT ft.FlagTrackingId,
+                       ft.FlagId,
+                       ft.FlagName,
+                       ft.PositionX,
+                       ft.PositionY,
+                       ft.PositionZ,
+                       ft.OrientationX,
+                       ft.OrientationY,
+                       ft.OrientationZ,
+                       ft.TimeStamp,
+                       ft.HasBase,
+                       ft.HasFlagBase,
+                       ft.FlagRaised,
+                       ft.FlagHeight,
+                       IFNULL(ft.IsDestroyed, 0) as IsDestroyed,
+                       ft.DestroyedAt
+                FROM flags_tracking ft
+                INNER JOIN (
+                    SELECT FlagId, MAX(FlagTrackingId) AS MaxId
+                    FROM flags_tracking
+                    WHERE TimeStamp = (
+                        SELECT MAX(TimeStamp)
+                        FROM flags_tracking ft2
+                        WHERE ft2.FlagId = flags_tracking.FlagId
+                    )
+                    GROUP BY FlagId
+                ) latest ON ft.FlagId = latest.FlagId
+                    AND ft.FlagTrackingId = latest.MaxId
+                ORDER BY ft.TimeStamp DESC
+            """
+        else:
+            query = """
+                SELECT ft.FlagTrackingId,
+                       ft.FlagId,
+                       ft.FlagName,
+                       ft.PositionX,
+                       ft.PositionY,
+                       ft.PositionZ,
+                       ft.OrientationX,
+                       ft.OrientationY,
+                       ft.OrientationZ,
+                       ft.TimeStamp,
+                       ft.HasBase,
+                       ft.HasFlagBase,
+                       ft.FlagRaised,
+                       ft.FlagHeight,
+                       0 as IsDestroyed,
+                       NULL as DestroyedAt
+                FROM flags_tracking ft
+                INNER JOIN (
+                    SELECT FlagId, MAX(FlagTrackingId) AS MaxId
+                    FROM flags_tracking
+                    WHERE TimeStamp = (
+                        SELECT MAX(TimeStamp)
+                        FROM flags_tracking ft2
+                        WHERE ft2.FlagId = flags_tracking.FlagId
+                    )
+                    GROUP BY FlagId
+                ) latest ON ft.FlagId = latest.FlagId
+                    AND ft.FlagTrackingId = latest.MaxId
+                ORDER BY ft.TimeStamp DESC
+            """
         cursor.execute(query)
         return [dict(row) for row in cursor.fetchall()]
 

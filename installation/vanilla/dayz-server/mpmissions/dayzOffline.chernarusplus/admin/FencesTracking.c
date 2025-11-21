@@ -431,7 +431,7 @@ void RegisterWatchtower(Watchtower newWatchtower)
     WriteToLog("RegisterWatchtower(): Watchtower adicionada em " + watchtowerPosition.ToString() + " orientação " + watchtowerOrientation.ToString(), LogFile.INIT, false, LogType.INFO);
 }
 
-bool RegisterWatchtowerAtPosition(vector targetPosition, float searchRadius = 3.0)
+bool RegisterWatchtowerAtPosition(vector targetPosition, float searchRadius = 10.0)
 {
     if (!GetGame() || !GetGame().IsServer())
         return false;

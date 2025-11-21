@@ -1379,8 +1379,8 @@ def api_fences_positions():
     """API com posições atuais dos fences (construções)"""
     include_destroyed = request.args.get('include_destroyed', 'false').lower() == 'true'
     fences = get_fences_last_position(include_destroyed=include_destroyed)
-    watchtowers = get_watchtowers_last_position()
-    flags = get_flags_last_position()
+    watchtowers = get_watchtowers_last_position(include_destroyed=include_destroyed)
+    flags = get_flags_last_position(include_destroyed=include_destroyed)
     
     result = {
         'timestamp': datetime.now().isoformat(),
@@ -1456,8 +1456,8 @@ def api_fences_positions():
             'has_base': details['has_base'],
             'lower_panel_built': details['level_1_base'],
             'upper_panel_built': details['level_2_base'],
-            'is_destroyed': False,
-            'destroyed_at': None,
+            'is_destroyed': bool(watchtower.get('IsDestroyed', 0)) if include_destroyed else False,
+            'destroyed_at': watchtower.get('DestroyedAt') if include_destroyed else None,
             'has_recent_attack': False,
             'structure_type': 'watchtower',
             'watchtower_details': details,
@@ -1488,8 +1488,8 @@ def api_fences_positions():
             'has_base': flag_details['has_base'],
             'lower_panel_built': None,
             'upper_panel_built': None,
-            'is_destroyed': False,
-            'destroyed_at': None,
+            'is_destroyed': bool(flag.get('IsDestroyed', 0)) if include_destroyed else False,
+            'destroyed_at': flag.get('DestroyedAt') if include_destroyed else None,
             'has_recent_attack': False,
             'structure_type': 'flag',
             'watchtower_details': None,

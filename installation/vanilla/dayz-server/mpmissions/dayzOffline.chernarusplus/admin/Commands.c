@@ -112,7 +112,7 @@ bool ExecuteCommand(TStringArray tokens)
                 float watchtowerPosY = tokens[4].ToFloat();
                 vector watchtowerPosition = Vector(watchtowerPosX, watchtowerPosY, watchtowerPosZ);
 
-                float watchtowerSearchRadius = 3.0;
+                float watchtowerSearchRadius = 10.0; // Aumentado para 10.0 (igual ao da flag)
                 if (tokens.Count() >= 6)
                 {
                     float candidateWatchtowerRadius = tokens[5].ToFloat();
