@@ -98,6 +98,20 @@
                     <button type="button" class="btn btn-outline-primary" id="btnModeTeleport">
                         <i class="fas fa-map-marker-alt me-1"></i>Teleporte
                     </button>
+                    <button type="button" class="btn btn-outline-primary" id="btnModeScan">
+                        <i class="fas fa-search me-1"></i>Escanear região
+                    </button>
+                </div>
+                <div class="mt-2" id="scanRadiusControl" style="display: none;">
+                    <label class="form-label small" for="scanRadiusInput">Raio (metros):</label>
+                    <input type="number" class="form-control form-control-sm" id="scanRadiusInput" 
+                           min="1" max="100" value="50" step="1">
+                    <small class="text-muted">Máximo: 100m</small>
+                </div>
+                <div class="mt-2" id="clearScanMarkersBtn" style="display: none;">
+                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="btnClearScanMarkers">
+                        <i class="fas fa-trash me-1"></i>Limpar Marcadores
+                    </button>
                 </div>
             </div>
         </div>

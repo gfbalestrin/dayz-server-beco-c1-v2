@@ -1217,6 +1217,238 @@ function generateRequestId() {
 }
 
 /**
+ * Escanear região do mapa
+ */
+function scanRegion(coordX, coordY, coordZ, radius) {
+    // Gerar request_id único
+    const requestId = generateRequestId();
+    
+    // Mostrar loading
+    showToast('Info', `Escaneando região em X=${coordX.toFixed(1)}, Y=${coordY.toFixed(1)} (raio: ${radius}m)...`, 'info');
+    
+    // Chamar endpoint para enviar comando
+    $.ajax({
+        url: '/api/scan-region',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            coord_x: coordX,
+            coord_y: coordY,
+            coord_z: coordZ,
+            radius: radius,
+            request_id: requestId
+        }),
+        success: function(response) {
+            // Iniciar polling para obter resultado
+            startScanPolling(requestId, 0);
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            const errorMsg = error.message || error.error || 'Erro ao iniciar escaneamento de região';
+            showToast('Erro', errorMsg, 'error');
+        }
+    });
+}
+
+/**
+ * Iniciar polling para obter resultado do escaneamento
+ */
+function startScanPolling(requestId, attempt) {
+    const MAX_ATTEMPTS = 30; // 30 tentativas
+    const POLL_INTERVAL = 2000; // 2 segundos entre tentativas
+    
+    if (attempt >= MAX_ATTEMPTS) {
+        showToast('Aviso', 'Tempo limite excedido. O servidor pode estar processando o comando.', 'warning');
+        return;
+    }
+    
+    // Fazer requisição para obter resultado
+    $.get(`/api/commands/results/${requestId}`)
+        .done(function(response) {
+            if (response.status === 'ready') {
+                // Resultado disponível
+                markObjectsOnMap(response.data);
+                showToast('Sucesso', `Escaneamento concluído: ${response.data.objects ? response.data.objects.length : 0} objetos encontrados`, 'success');
+            } else if (response.status === 'not_found' || response.status === 'processing') {
+                // Resultado não encontrado ainda, continuar polling
+                setTimeout(function() {
+                    startScanPolling(requestId, attempt + 1);
+                }, POLL_INTERVAL);
+            } else {
+                // Status desconhecido, continuar tentando
+                setTimeout(function() {
+                    startScanPolling(requestId, attempt + 1);
+                }, POLL_INTERVAL);
+            }
+        })
+        .fail(function(xhr) {
+            // Em caso de erro, continuar tentando por algumas vezes
+            if (attempt < 5) {
+                setTimeout(function() {
+                    startScanPolling(requestId, attempt + 1);
+                }, POLL_INTERVAL);
+            } else {
+                showToast('Erro', 'Erro ao buscar resultado do escaneamento.', 'error');
+            }
+        });
+}
+
+/**
+ * Marcar objetos no mapa baseado nos resultados do escaneamento
+ */
+function markObjectsOnMap(scanData) {
+    if (!scanData || !scanData.objects || scanData.objects.length === 0) {
+        showToast('Info', 'Nenhum objeto encontrado na região escaneada', 'info');
+        return;
+    }
+    
+    console.log('markObjectsOnMap: Processando', scanData.objects.length, 'objetos');
+    
+    // Limpar marcadores anteriores se necessário (opcional - pode manter acumulados)
+    // Para limpar: clearScanMarkers();
+    
+    let markedCount = 0;
+    let skippedCount = 0;
+    
+    scanData.objects.forEach(function(obj) {
+        if (!obj.position || obj.position.x === undefined || obj.position.y === undefined) {
+            skippedCount++;
+            return;
+        }
+        
+        // Filtrar objetos sem tipo (tipo vazio)
+        if (!obj.type || obj.type === '') {
+            skippedCount++;
+            return;
+        }
+        
+        // Converter coordenadas DayZ para coordenadas do mapa
+        // No DayZ Enforce Script: GetPosition() retorna [X, Y, Z]
+        // - X = leste-oeste (horizontal)
+        // - Y = altura (não usado para mapa)
+        // - Z = norte-sul (vertical)
+        // No backend Python: CoordX = X, CoordY = Z, CoordZ = Y
+        // Conversão: pixel_x = (coord_x / 15360.0) * pixelSize
+        //            pixel_y = (coord_z / 15360.0) * pixelSize (usar Z, não Y!)
+        const pixelSize = MapState.currentMapConfig ? MapState.currentMapConfig.pixelSize : 4096;
+        const pixelX = (obj.position.x / 15360.0) * pixelSize; // X = leste-oeste
+        const pixelY = (obj.position.z / 15360.0) * pixelSize; // Z = norte-sul (não Y que é altura!)
+        
+        // Leaflet usa [lat, lng] = [y, x]
+        const mapCoords = [pixelY, pixelX];
+        
+        // Verificar se as coordenadas estão dentro dos bounds do mapa
+        if (pixelX < 0 || pixelX > pixelSize || pixelY < 0 || pixelY > pixelSize) {
+            console.warn('Objeto fora dos bounds do mapa:', obj, 'pixelCoords:', [pixelX, pixelY]);
+            skippedCount++;
+            return;
+        }
+        
+        // Criar ícone baseado no tipo de objeto
+        let icon = createScanObjectIcon(obj.type);
+        
+        // Criar marcador
+        const marker = L.marker(mapCoords, {
+            icon: icon,
+            opacity: 0.9
+        }).addTo(MapState.map);
+        
+        // Criar popup com informações do objeto
+        const objName = obj.name || obj.type || 'Objeto desconhecido';
+        const popupContent = `
+            <div>
+                <strong>${objName}</strong><br>
+                <small>Tipo: ${obj.type || 'N/A'}</small><br>
+                <small>X: ${obj.position.x.toFixed(1)}, Y: ${obj.position.y.toFixed(1)}</small>
+                ${obj.position.z !== undefined ? `<br><small>Z: ${obj.position.z.toFixed(1)}</small>` : ''}
+            </div>
+        `;
+        
+        marker.bindPopup(popupContent);
+        
+        // Armazenar marcador
+        const markerId = 'scan_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        MapState.scanMarkers[markerId] = marker;
+        
+        markedCount++;
+    });
+    
+    console.log(`Marcados ${markedCount} objetos no mapa de ${scanData.objects.length} objetos encontrados (${skippedCount} ignorados)`);
+    
+    if (markedCount === 0) {
+        showToast('Aviso', `Nenhum objeto válido foi marcado no mapa. ${skippedCount} objetos foram ignorados (sem tipo ou fora dos bounds)`, 'warning');
+    } else {
+        showToast('Sucesso', `${markedCount} objetos marcados no mapa`, 'success');
+    }
+}
+
+/**
+ * Criar ícone para objeto escaneado baseado no tipo
+ */
+function createScanObjectIcon(objectType) {
+    if (!objectType) {
+        objectType = 'Unknown';
+    }
+    
+    let color, iconClass;
+    const typeLower = objectType.toLowerCase();
+    
+    // Detectar tipo de objeto
+    if (typeLower.includes('car') || typeLower.includes('vehicle') || typeLower.includes('truck') || typeLower.includes('sedan') || typeLower.includes('hatchback')) {
+        // Veículos
+        color = '#28a745';
+        iconClass = 'fas fa-car';
+    } else if (typeLower.includes('barrel') || typeLower.includes('crate') || typeLower.includes('container') || typeLower.includes('tent') || typeLower.includes('chest')) {
+        // Containers
+        color = '#007bff';
+        iconClass = 'fas fa-box';
+    } else if (typeLower.includes('weapon') || typeLower.includes('gun') || typeLower.includes('rifle') || typeLower.includes('pistol') || 
+               typeLower.includes('shotgun') || typeLower.includes('akm') || typeLower.includes('mosin') || typeLower.includes('mag_') ||
+               typeLower.includes('ammo') || typeLower.includes('bayonet') || typeLower.includes('glock') || typeLower.includes('fnx')) {
+        // Armas e munições
+        color = '#dc3545';
+        iconClass = 'fas fa-crosshairs';
+    } else if (typeLower.includes('pants') || typeLower.includes('jacket') || typeLower.includes('vest') || typeLower.includes('boots') ||
+               typeLower.includes('gloves') || typeLower.includes('cap') || typeLower.includes('shirt') || typeLower.includes('mask') ||
+               typeLower.includes('belt') || typeLower.includes('bag') || typeLower.includes('backpack')) {
+        // Roupas e equipamentos
+        color = '#9c27b0';
+        iconClass = 'fas fa-tshirt';
+    } else if (typeLower.includes('tree') || typeLower.includes('bush') || typeLower.includes('static_rock') || typeLower.includes('static_')) {
+        // Objetos estáticos e natureza
+        color = '#795548';
+        iconClass = 'fas fa-tree';
+    } else if (typeLower.includes('land_') || typeLower.includes('power') || typeLower.includes('panel')) {
+        // Estruturas e objetos do terreno
+        color = '#607d8b';
+        iconClass = 'fas fa-building';
+    } else {
+        // Outros objetos/itens
+        color = '#ffc107';
+        iconClass = 'fas fa-cube';
+    }
+    
+    return L.divIcon({
+        className: 'scan-object-marker',
+        html: `<div style="background-color: ${color}; border: 2px solid white; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><i class="${iconClass}" style="color: white; font-size: 10px;"></i></div>`,
+        iconSize: [18, 18]
+    });
+}
+
+/**
+ * Limpar todos os marcadores de escaneamento
+ */
+function clearScanMarkers() {
+    Object.keys(MapState.scanMarkers).forEach(function(key) {
+        if (MapState.scanMarkers[key]) {
+            MapState.map.removeLayer(MapState.scanMarkers[key]);
+        }
+    });
+    MapState.scanMarkers = {};
+    showToast('Info', 'Marcadores de escaneamento removidos', 'info');
+}
+
+/**
  * Verificar inventário de um jogador
  */
 function checkPlayerInventory(playerId, playerName) {

@@ -69,6 +69,17 @@ $(document).ready(function() {
     // Event listeners para modos
     $('#btnModeNormal').on('click', () => setMode('normal'));
     $('#btnModeTeleport').on('click', () => setMode('teleport'));
+    $('#btnModeScan').on('click', () => setMode('scan'));
+    
+    // Event listener para atualizar círculo de escaneamento quando raio mudar
+    $('#scanRadiusInput').on('input', function() {
+        if (MapState.currentMode === 'scan') {
+            updateScanCircle();
+        }
+    });
+    
+    // Event listener para limpar marcadores de escaneamento
+    $('#btnClearScanMarkers').on('click', clearScanMarkers);
     
     // Verificar se há filtro de player_id na URL e aplicar
     const urlParams = new URLSearchParams(window.location.search);

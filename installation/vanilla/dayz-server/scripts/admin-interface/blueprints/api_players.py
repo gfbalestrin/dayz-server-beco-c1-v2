@@ -348,6 +348,95 @@ def api_check_inventory(player_id):
         }), 500
 
 
+@api_players_bp.route('/api/scan-region', methods=['POST'])
+@admin_required
+@audit_action('SCAN_REGION')
+def api_scan_region():
+    """API para escanear objetos em uma região do mapa"""
+    try:
+        data = request.get_json()
+        coord_x = data.get('coord_x')
+        coord_y = data.get('coord_y')
+        coord_z = data.get('coord_z', 0)
+        radius = data.get('radius')
+        request_id = data.get('request_id')
+        
+        if coord_x is None or coord_y is None:
+            return jsonify({
+                'success': False,
+                'message': 'Coordenadas X e Y são obrigatórias'
+            }), 400
+        
+        if radius is None:
+            return jsonify({
+                'success': False,
+                'message': 'Raio é obrigatório'
+            }), 400
+        
+        if radius < 1 or radius > 100:
+            return jsonify({
+                'success': False,
+                'message': 'Raio deve estar entre 1 e 100 metros'
+            }), 400
+        
+        if not request_id:
+            return jsonify({
+                'success': False,
+                'message': 'request_id não fornecido'
+            }), 400
+        
+        logger.debug(f"Scan region request: coord_x={coord_x}, coord_y={coord_y}, coord_z={coord_z}, radius={radius}, request_id={request_id}")
+        
+        # Caminho do arquivo de comandos
+        commands_file = config.COMMANDS_FILE
+        
+        if not os.path.exists(commands_file):
+            logger.error(f"Arquivo de comandos não encontrado: {commands_file}")
+            return jsonify({
+                'success': False,
+                'message': 'Arquivo de comandos não encontrado'
+            }), 500
+        
+        # Formato: SYSTEM scanregion coord_x coord_y coord_z radius request_id
+        command_line = f"SYSTEM scanregion {coord_x} {coord_y} {coord_z} {radius} {request_id}\n"
+        
+        logger.info(f"Adicionando comando de escaneamento de região: {command_line.strip()}")
+        
+        # Usar file lock para evitar concorrência
+        try:
+            with open(commands_file, 'a') as f:
+                # Adquirir lock exclusivo
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.write(command_line)
+                    f.flush()
+                    os.fsync(f.fileno())
+                finally:
+                    # Liberar lock
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            
+            logger.info("Comando de escaneamento de região adicionado com sucesso")
+            return jsonify({
+                'success': True,
+                'message': 'Comando enviado com sucesso',
+                'request_id': request_id
+            })
+            
+        except IOError as e:
+            logger.error(f"Erro ao escrever no arquivo de comandos: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'Erro ao escrever comando: {str(e)}'
+            }), 500
+            
+    except Exception as e:
+        logger.exception("Erro inesperado ao escanear região")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao executar escaneamento de região: {str(e)}'
+        }), 500
+
+
 @api_players_bp.route('/api/players/<player_id>/action', methods=['POST'])
 @admin_required
 @audit_action('PLAYER_ACTION')

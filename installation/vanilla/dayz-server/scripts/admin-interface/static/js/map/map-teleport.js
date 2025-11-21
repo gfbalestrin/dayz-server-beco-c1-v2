@@ -10,10 +10,18 @@ function setMode(mode) {
     MapState.currentMode = mode;
     
     // Atualizar UI dos botões
-    $('#btnModeNormal, #btnModeTeleport').removeClass('active');
+    $('#btnModeNormal, #btnModeTeleport, #btnModeScan').removeClass('active');
     
     // Ocultar todos os controles
     $('#teleportInfo').hide();
+    $('#scanRadiusControl').hide();
+    $('#clearScanMarkersBtn').hide();
+    
+    // Remover círculo de escaneamento se existir
+    if (MapState.scanCircle) {
+        MapState.map.removeLayer(MapState.scanCircle);
+        MapState.scanCircle = null;
+    }
     
     if (mode === 'normal') {
         $('#btnModeNormal').addClass('active');
@@ -29,6 +37,15 @@ function setMode(mode) {
         
         // Atualizar mensagem do teleportInfo baseado no contexto
         updateTeleportInfo();
+    } else if (mode === 'scan') {
+        $('#btnModeScan').addClass('active');
+        $('#scanRadiusControl').show();
+        $('#clearScanMarkersBtn').show();
+        if (MapState.map) {
+            MapState.map.getContainer().style.cursor = 'crosshair';
+            // Criar círculo visual inicial (será atualizado no mousemove)
+            updateScanCircle();
+        }
     }
 }
 
@@ -206,6 +223,90 @@ function handleTeleportClick(e) {
     });
     
     updateTeleportInfo();
+}
+
+/**
+ * Handler para clique no mapa em modo scan
+ */
+function handleScanClick(e) {
+    if (MapState.currentMode !== 'scan') {
+        return;
+    }
+    
+    // Obter raio do input
+    const radius = parseFloat($('#scanRadiusInput').val()) || 50;
+    
+    if (radius < 1 || radius > 100) {
+        showToast('Erro', 'Raio deve estar entre 1 e 100 metros', 'error');
+        return;
+    }
+    
+    // Converter pixel para coordenadas DayZ
+    const pixelCoords = [e.latlng.lat, e.latlng.lng];
+    const dayzCoords = pixelToDayz(pixelCoords);
+    
+    // Calcular altura Z (será calculada pelo servidor, mas podemos tentar obter do mapa)
+    const coordZ = 0; // Será calculado pelo servidor
+    
+    // Chamar função de escaneamento
+    scanRegion(dayzCoords.x, dayzCoords.y, coordZ, radius);
+}
+
+/**
+ * Atualizar círculo visual de escaneamento no cursor
+ */
+function updateScanCircle() {
+    if (MapState.currentMode !== 'scan' || !MapState.map) {
+        return;
+    }
+    
+    // Remover círculo anterior se existir
+    if (MapState.scanCircle) {
+        MapState.map.removeLayer(MapState.scanCircle);
+    }
+    
+    // Obter raio do input
+    const radius = parseFloat($('#scanRadiusInput').val()) || 50;
+    
+    // Converter raio de metros para pixels do mapa
+    // 1 metro no DayZ = 15360 / pixelSize pixels no mapa
+    const pixelSize = MapState.currentMapConfig ? MapState.currentMapConfig.pixelSize : 4096;
+    const radiusInPixels = (radius / 15360.0) * pixelSize;
+    
+    // Criar círculo no centro do mapa inicialmente (será atualizado no mousemove)
+    const center = MapState.map.getCenter();
+    MapState.scanCircle = L.circle(center, {
+        radius: radiusInPixels,
+        color: '#ff6b35',
+        fillColor: '#ff6b35',
+        fillOpacity: 0.2,
+        weight: 2,
+        dashArray: '5, 5'
+    }).addTo(MapState.map);
+    
+    // Atualizar posição do círculo quando o mouse se move
+    MapState.map.off('mousemove', updateScanCirclePosition);
+    MapState.map.on('mousemove', updateScanCirclePosition);
+}
+
+/**
+ * Atualizar posição do círculo de escaneamento seguindo o cursor
+ */
+function updateScanCirclePosition(e) {
+    if (MapState.currentMode !== 'scan' || !MapState.scanCircle || !e.latlng) {
+        return;
+    }
+    
+    // Obter raio do input
+    const radius = parseFloat($('#scanRadiusInput').val()) || 50;
+    
+    // Converter raio de metros para pixels do mapa
+    const pixelSize = MapState.currentMapConfig ? MapState.currentMapConfig.pixelSize : 4096;
+    const radiusInPixels = (radius / 15360.0) * pixelSize;
+    
+    // Atualizar posição e raio do círculo
+    MapState.scanCircle.setLatLng(e.latlng);
+    MapState.scanCircle.setRadius(radiusInPixels);
 }
 
 /**

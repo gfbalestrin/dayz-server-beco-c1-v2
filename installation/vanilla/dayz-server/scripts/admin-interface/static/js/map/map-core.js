@@ -365,6 +365,10 @@ function initMap() {
             if (typeof handleTeleportClick === 'function') {
                 handleTeleportClick(e);
             }
+        } else if (MapState.currentMode === 'scan') {
+            if (typeof handleScanClick === 'function') {
+                handleScanClick(e);
+            }
         }
     });
     
