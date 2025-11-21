@@ -535,6 +535,229 @@ void SendWatchtowersStatus()
             bool level2StairsBuilt = IsWatchtowerPartBuilt(construction, "level_2_stairs");
             bool hasRoof = IsWatchtowerPartBuilt(construction, "roof");
 
+            // Verificar partes das paredes para cada nível
+            bool level1Wall1LowerBuilt = false;
+            bool level1Wall1UpperBuilt = false;
+            bool level1Wall2LowerBuilt = false;
+            bool level1Wall2UpperBuilt = false;
+            bool level1Wall3LowerBuilt = false;
+            bool level1Wall3UpperBuilt = false;
+
+            bool level2Wall1LowerBuilt = false;
+            bool level2Wall1UpperBuilt = false;
+            bool level2Wall2LowerBuilt = false;
+            bool level2Wall2UpperBuilt = false;
+            bool level2Wall3LowerBuilt = false;
+            bool level2Wall3UpperBuilt = false;
+
+            bool level3Wall1LowerBuilt = false;
+            bool level3Wall1UpperBuilt = false;
+            bool level3Wall2LowerBuilt = false;
+            bool level3Wall2UpperBuilt = false;
+            bool level3Wall3LowerBuilt = false;
+            bool level3Wall3UpperBuilt = false;
+
+            if (construction)
+            {
+                // Nível 1 - Parede 1
+                array<string> level1Wall1LowerParts = { "level_1_wall_1_down", "level_1_wall_1_wood_down", "level_1_wall_1_metal_down" };
+                foreach (string partName : level1Wall1LowerParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level1Wall1LowerBuilt = true;
+                        break;
+                    }
+                }
+                array<string> level1Wall1UpperParts = { "level_1_wall_1_up", "level_1_wall_1_wood_up", "level_1_wall_1_metal_up" };
+                foreach (string partName : level1Wall1UpperParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level1Wall1UpperBuilt = true;
+                        break;
+                    }
+                }
+
+                // Nível 1 - Parede 2
+                array<string> level1Wall2LowerParts = { "level_1_wall_2_down", "level_1_wall_2_wood_down", "level_1_wall_2_metal_down" };
+                foreach (string partName : level1Wall2LowerParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level1Wall2LowerBuilt = true;
+                        break;
+                    }
+                }
+                array<string> level1Wall2UpperParts = { "level_1_wall_2_up", "level_1_wall_2_wood_up", "level_1_wall_2_metal_up" };
+                foreach (string partName : level1Wall2UpperParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level1Wall2UpperBuilt = true;
+                        break;
+                    }
+                }
+
+                // Nível 1 - Parede 3
+                array<string> level1Wall3LowerParts = { "level_1_wall_3_down", "level_1_wall_3_wood_down", "level_1_wall_3_metal_down" };
+                foreach (string partName : level1Wall3LowerParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level1Wall3LowerBuilt = true;
+                        break;
+                    }
+                }
+                array<string> level1Wall3UpperParts = { "level_1_wall_3_up", "level_1_wall_3_wood_up", "level_1_wall_3_metal_up" };
+                foreach (string partName : level1Wall3UpperParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level1Wall3UpperBuilt = true;
+                        break;
+                    }
+                }
+
+                // Nível 2 - Parede 1
+                array<string> level2Wall1LowerParts = { "level_2_wall_1_down", "level_2_wall_1_wood_down", "level_2_wall_1_metal_down" };
+                foreach (string partName : level2Wall1LowerParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level2Wall1LowerBuilt = true;
+                        break;
+                    }
+                }
+                array<string> level2Wall1UpperParts = { "level_2_wall_1_up", "level_2_wall_1_wood_up", "level_2_wall_1_metal_up" };
+                foreach (string partName : level2Wall1UpperParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level2Wall1UpperBuilt = true;
+                        break;
+                    }
+                }
+
+                // Nível 2 - Parede 2
+                array<string> level2Wall2LowerParts = { "level_2_wall_2_down", "level_2_wall_2_wood_down", "level_2_wall_2_metal_down" };
+                foreach (string partName : level2Wall2LowerParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level2Wall2LowerBuilt = true;
+                        break;
+                    }
+                }
+                array<string> level2Wall2UpperParts = { "level_2_wall_2_up", "level_2_wall_2_wood_up", "level_2_wall_2_metal_up" };
+                foreach (string partName : level2Wall2UpperParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level2Wall2UpperBuilt = true;
+                        break;
+                    }
+                }
+
+                // Nível 2 - Parede 3
+                array<string> level2Wall3LowerParts = { "level_2_wall_3_down", "level_2_wall_3_wood_down", "level_2_wall_3_metal_down" };
+                foreach (string partName : level2Wall3LowerParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level2Wall3LowerBuilt = true;
+                        break;
+                    }
+                }
+                array<string> level2Wall3UpperParts = { "level_2_wall_3_up", "level_2_wall_3_wood_up", "level_2_wall_3_metal_up" };
+                foreach (string partName : level2Wall3UpperParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level2Wall3UpperBuilt = true;
+                        break;
+                    }
+                }
+
+                // Nível 3 - Parede 1
+                array<string> level3Wall1LowerParts = { "level_3_wall_1_down", "level_3_wall_1_wood_down", "level_3_wall_1_metal_down" };
+                foreach (string partName : level3Wall1LowerParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level3Wall1LowerBuilt = true;
+                        break;
+                    }
+                }
+                array<string> level3Wall1UpperParts = { "level_3_wall_1_up", "level_3_wall_1_wood_up", "level_3_wall_1_metal_up" };
+                foreach (string partName : level3Wall1UpperParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level3Wall1UpperBuilt = true;
+                        break;
+                    }
+                }
+
+                // Nível 3 - Parede 2
+                array<string> level3Wall2LowerParts = { "level_3_wall_2_down", "level_3_wall_2_wood_down", "level_3_wall_2_metal_down" };
+                foreach (string partName : level3Wall2LowerParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level3Wall2LowerBuilt = true;
+                        break;
+                    }
+                }
+                array<string> level3Wall2UpperParts = { "level_3_wall_2_up", "level_3_wall_2_wood_up", "level_3_wall_2_metal_up" };
+                foreach (string partName : level3Wall2UpperParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level3Wall2UpperBuilt = true;
+                        break;
+                    }
+                }
+
+                // Nível 3 - Parede 3
+                array<string> level3Wall3LowerParts = { "level_3_wall_3_down", "level_3_wall_3_wood_down", "level_3_wall_3_metal_down" };
+                foreach (string partName : level3Wall3LowerParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level3Wall3LowerBuilt = true;
+                        break;
+                    }
+                }
+                array<string> level3Wall3UpperParts = { "level_3_wall_3_up", "level_3_wall_3_wood_up", "level_3_wall_3_metal_up" };
+                foreach (string partName : level3Wall3UpperParts)
+                {
+                    ConstructionPart part = construction.GetConstructionPart(partName);
+                    if (part && part.IsBuilt())
+                    {
+                        level3Wall3UpperBuilt = true;
+                        break;
+                    }
+                }
+            }
+
             vector pos = trackedWatchtower.GetPosition();
             vector ori = trackedWatchtower.GetOrientation();
 
@@ -557,11 +780,32 @@ void SendWatchtowersStatus()
             watchtowersJson += ",\"level_1_stairs\":" + BoolToJson(level1StairsBuilt);
             watchtowersJson += ",\"level_2_stairs\":" + BoolToJson(level2StairsBuilt);
             watchtowersJson += ",\"has_roof\":" + BoolToJson(hasRoof);
+            watchtowersJson += ",\"level_1_wall_1_lower_built\":" + BoolToJson(level1Wall1LowerBuilt);
+            watchtowersJson += ",\"level_1_wall_1_upper_built\":" + BoolToJson(level1Wall1UpperBuilt);
+            watchtowersJson += ",\"level_1_wall_2_lower_built\":" + BoolToJson(level1Wall2LowerBuilt);
+            watchtowersJson += ",\"level_1_wall_2_upper_built\":" + BoolToJson(level1Wall2UpperBuilt);
+            watchtowersJson += ",\"level_1_wall_3_lower_built\":" + BoolToJson(level1Wall3LowerBuilt);
+            watchtowersJson += ",\"level_1_wall_3_upper_built\":" + BoolToJson(level1Wall3UpperBuilt);
+            watchtowersJson += ",\"level_2_wall_1_lower_built\":" + BoolToJson(level2Wall1LowerBuilt);
+            watchtowersJson += ",\"level_2_wall_1_upper_built\":" + BoolToJson(level2Wall1UpperBuilt);
+            watchtowersJson += ",\"level_2_wall_2_lower_built\":" + BoolToJson(level2Wall2LowerBuilt);
+            watchtowersJson += ",\"level_2_wall_2_upper_built\":" + BoolToJson(level2Wall2UpperBuilt);
+            watchtowersJson += ",\"level_2_wall_3_lower_built\":" + BoolToJson(level2Wall3LowerBuilt);
+            watchtowersJson += ",\"level_2_wall_3_upper_built\":" + BoolToJson(level2Wall3UpperBuilt);
+            watchtowersJson += ",\"level_3_wall_1_lower_built\":" + BoolToJson(level3Wall1LowerBuilt);
+            watchtowersJson += ",\"level_3_wall_1_upper_built\":" + BoolToJson(level3Wall1UpperBuilt);
+            watchtowersJson += ",\"level_3_wall_2_lower_built\":" + BoolToJson(level3Wall2LowerBuilt);
+            watchtowersJson += ",\"level_3_wall_2_upper_built\":" + BoolToJson(level3Wall2UpperBuilt);
+            watchtowersJson += ",\"level_3_wall_3_lower_built\":" + BoolToJson(level3Wall3LowerBuilt);
+            watchtowersJson += ",\"level_3_wall_3_upper_built\":" + BoolToJson(level3Wall3UpperBuilt);
             watchtowersJson += "}";
 
             string logMsg = "[WATCHTOWER] Posição=(" + posX + ", " + posZ + ", " + posY + ") | Nível1=" + level1BaseBuilt.ToString() + " | Nível2=" + level2BaseBuilt.ToString() + " | Nível3=" + level3BaseBuilt.ToString() + " | Escadas L1=" + level1StairsBuilt.ToString() + " | Escadas L2=" + level2StairsBuilt.ToString();
             if (hasRoof)
                 logMsg += " | Telhado=1";
+            logMsg += " | L1 Paredes: W1(" + level1Wall1LowerBuilt.ToString() + "/" + level1Wall1UpperBuilt.ToString() + ") W2(" + level1Wall2LowerBuilt.ToString() + "/" + level1Wall2UpperBuilt.ToString() + ") W3(" + level1Wall3LowerBuilt.ToString() + "/" + level1Wall3UpperBuilt.ToString() + ")";
+            logMsg += " | L2 Paredes: W1(" + level2Wall1LowerBuilt.ToString() + "/" + level2Wall1UpperBuilt.ToString() + ") W2(" + level2Wall2LowerBuilt.ToString() + "/" + level2Wall2UpperBuilt.ToString() + ") W3(" + level2Wall3LowerBuilt.ToString() + "/" + level2Wall3UpperBuilt.ToString() + ")";
+            logMsg += " | L3 Paredes: W1(" + level3Wall1LowerBuilt.ToString() + "/" + level3Wall1UpperBuilt.ToString() + ") W2(" + level3Wall2LowerBuilt.ToString() + "/" + level3Wall2UpperBuilt.ToString() + ") W3(" + level3Wall3LowerBuilt.ToString() + "/" + level3Wall3UpperBuilt.ToString() + ")";
             WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
 
             count++;
