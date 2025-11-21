@@ -1042,6 +1042,24 @@ INSERT_WATCHTOWER_POSITION() {
     local Level1Stairs="${14}"
     local Level2Stairs="${15}"
     local HasRoof="${16}"
+    local Level1Wall1Lower="${17}"
+    local Level1Wall1Upper="${18}"
+    local Level1Wall2Lower="${19}"
+    local Level1Wall2Upper="${20}"
+    local Level1Wall3Lower="${21}"
+    local Level1Wall3Upper="${22}"
+    local Level2Wall1Lower="${23}"
+    local Level2Wall1Upper="${24}"
+    local Level2Wall2Lower="${25}"
+    local Level2Wall2Upper="${26}"
+    local Level2Wall3Lower="${27}"
+    local Level2Wall3Upper="${28}"
+    local Level3Wall1Lower="${29}"
+    local Level3Wall1Upper="${30}"
+    local Level3Wall2Lower="${31}"
+    local Level3Wall2Upper="${32}"
+    local Level3Wall3Lower="${33}"
+    local Level3Wall3Upper="${34}"
     local max_retries=5
     local retry_delay=0.2
     local attempt=1
@@ -1071,6 +1089,24 @@ CREATE TABLE IF NOT EXISTS watchtowers_tracking (
     Level1StairsBuilt INTEGER,
     Level2StairsBuilt INTEGER,
     HasRoof INTEGER,
+    Level1Wall1LowerBuilt INTEGER,
+    Level1Wall1UpperBuilt INTEGER,
+    Level1Wall2LowerBuilt INTEGER,
+    Level1Wall2UpperBuilt INTEGER,
+    Level1Wall3LowerBuilt INTEGER,
+    Level1Wall3UpperBuilt INTEGER,
+    Level2Wall1LowerBuilt INTEGER,
+    Level2Wall1UpperBuilt INTEGER,
+    Level2Wall2LowerBuilt INTEGER,
+    Level2Wall2UpperBuilt INTEGER,
+    Level2Wall3LowerBuilt INTEGER,
+    Level2Wall3UpperBuilt INTEGER,
+    Level3Wall1LowerBuilt INTEGER,
+    Level3Wall1UpperBuilt INTEGER,
+    Level3Wall2LowerBuilt INTEGER,
+    Level3Wall2UpperBuilt INTEGER,
+    Level3Wall3LowerBuilt INTEGER,
+    Level3Wall3UpperBuilt INTEGER,
     IsDestroyed INTEGER DEFAULT 0,
     DestroyedAt DATETIME
 );
@@ -1093,6 +1129,11 @@ EOF
 
     local HasBaseValue Level1BaseValue Level2BaseValue Level3BaseValue
     local Level1StairsValue Level2StairsValue HasRoofValue
+    local Level1Wall1LowerValue Level1Wall1UpperValue Level1Wall2LowerValue Level1Wall2UpperValue
+    local Level1Wall3LowerValue Level1Wall3UpperValue Level2Wall1LowerValue Level2Wall1UpperValue
+    local Level2Wall2LowerValue Level2Wall2UpperValue Level2Wall3LowerValue Level2Wall3UpperValue
+    local Level3Wall1LowerValue Level3Wall1UpperValue Level3Wall2LowerValue Level3Wall2UpperValue
+    local Level3Wall3LowerValue Level3Wall3UpperValue
 
     if [[ -n "$HasBase" ]]; then HasBaseValue="$HasBase"; else HasBaseValue="NULL"; fi
     if [[ -n "$Level1Base" ]]; then Level1BaseValue="$Level1Base"; else Level1BaseValue="NULL"; fi
@@ -1101,6 +1142,24 @@ EOF
     if [[ -n "$Level1Stairs" ]]; then Level1StairsValue="$Level1Stairs"; else Level1StairsValue="NULL"; fi
     if [[ -n "$Level2Stairs" ]]; then Level2StairsValue="$Level2Stairs"; else Level2StairsValue="NULL"; fi
     if [[ -n "$HasRoof" ]]; then HasRoofValue="$HasRoof"; else HasRoofValue="NULL"; fi
+    if [[ -n "$Level1Wall1Lower" ]]; then Level1Wall1LowerValue="$Level1Wall1Lower"; else Level1Wall1LowerValue="NULL"; fi
+    if [[ -n "$Level1Wall1Upper" ]]; then Level1Wall1UpperValue="$Level1Wall1Upper"; else Level1Wall1UpperValue="NULL"; fi
+    if [[ -n "$Level1Wall2Lower" ]]; then Level1Wall2LowerValue="$Level1Wall2Lower"; else Level1Wall2LowerValue="NULL"; fi
+    if [[ -n "$Level1Wall2Upper" ]]; then Level1Wall2UpperValue="$Level1Wall2Upper"; else Level1Wall2UpperValue="NULL"; fi
+    if [[ -n "$Level1Wall3Lower" ]]; then Level1Wall3LowerValue="$Level1Wall3Lower"; else Level1Wall3LowerValue="NULL"; fi
+    if [[ -n "$Level1Wall3Upper" ]]; then Level1Wall3UpperValue="$Level1Wall3Upper"; else Level1Wall3UpperValue="NULL"; fi
+    if [[ -n "$Level2Wall1Lower" ]]; then Level2Wall1LowerValue="$Level2Wall1Lower"; else Level2Wall1LowerValue="NULL"; fi
+    if [[ -n "$Level2Wall1Upper" ]]; then Level2Wall1UpperValue="$Level2Wall1Upper"; else Level2Wall1UpperValue="NULL"; fi
+    if [[ -n "$Level2Wall2Lower" ]]; then Level2Wall2LowerValue="$Level2Wall2Lower"; else Level2Wall2LowerValue="NULL"; fi
+    if [[ -n "$Level2Wall2Upper" ]]; then Level2Wall2UpperValue="$Level2Wall2Upper"; else Level2Wall2UpperValue="NULL"; fi
+    if [[ -n "$Level2Wall3Lower" ]]; then Level2Wall3LowerValue="$Level2Wall3Lower"; else Level2Wall3LowerValue="NULL"; fi
+    if [[ -n "$Level2Wall3Upper" ]]; then Level2Wall3UpperValue="$Level2Wall3Upper"; else Level2Wall3UpperValue="NULL"; fi
+    if [[ -n "$Level3Wall1Lower" ]]; then Level3Wall1LowerValue="$Level3Wall1Lower"; else Level3Wall1LowerValue="NULL"; fi
+    if [[ -n "$Level3Wall1Upper" ]]; then Level3Wall1UpperValue="$Level3Wall1Upper"; else Level3Wall1UpperValue="NULL"; fi
+    if [[ -n "$Level3Wall2Lower" ]]; then Level3Wall2LowerValue="$Level3Wall2Lower"; else Level3Wall2LowerValue="NULL"; fi
+    if [[ -n "$Level3Wall2Upper" ]]; then Level3Wall2UpperValue="$Level3Wall2Upper"; else Level3Wall2UpperValue="NULL"; fi
+    if [[ -n "$Level3Wall3Lower" ]]; then Level3Wall3LowerValue="$Level3Wall3Lower"; else Level3Wall3LowerValue="NULL"; fi
+    if [[ -n "$Level3Wall3Upper" ]]; then Level3Wall3UpperValue="$Level3Wall3Upper"; else Level3Wall3UpperValue="NULL"; fi
 
     while (( attempt <= max_retries )); do
         local WatchtowerTrackingId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
@@ -1120,7 +1179,25 @@ INSERT INTO watchtowers_tracking (
     Level3BaseBuilt,
     Level1StairsBuilt,
     Level2StairsBuilt,
-    HasRoof
+    HasRoof,
+    Level1Wall1LowerBuilt,
+    Level1Wall1UpperBuilt,
+    Level1Wall2LowerBuilt,
+    Level1Wall2UpperBuilt,
+    Level1Wall3LowerBuilt,
+    Level1Wall3UpperBuilt,
+    Level2Wall1LowerBuilt,
+    Level2Wall1UpperBuilt,
+    Level2Wall2LowerBuilt,
+    Level2Wall2UpperBuilt,
+    Level2Wall3LowerBuilt,
+    Level2Wall3UpperBuilt,
+    Level3Wall1LowerBuilt,
+    Level3Wall1UpperBuilt,
+    Level3Wall2LowerBuilt,
+    Level3Wall2UpperBuilt,
+    Level3Wall3LowerBuilt,
+    Level3Wall3UpperBuilt
 )
 VALUES (
     '$EscapedWatchtowerId',
@@ -1138,7 +1215,25 @@ VALUES (
     $Level3BaseValue,
     $Level1StairsValue,
     $Level2StairsValue,
-    $HasRoofValue
+    $HasRoofValue,
+    $Level1Wall1LowerValue,
+    $Level1Wall1UpperValue,
+    $Level1Wall2LowerValue,
+    $Level1Wall2UpperValue,
+    $Level1Wall3LowerValue,
+    $Level1Wall3UpperValue,
+    $Level2Wall1LowerValue,
+    $Level2Wall1UpperValue,
+    $Level2Wall2LowerValue,
+    $Level2Wall2UpperValue,
+    $Level2Wall3LowerValue,
+    $Level2Wall3UpperValue,
+    $Level3Wall1LowerValue,
+    $Level3Wall1UpperValue,
+    $Level3Wall2LowerValue,
+    $Level3Wall2UpperValue,
+    $Level3Wall3LowerValue,
+    $Level3Wall3UpperValue
 );
 SELECT last_insert_rowid();
 EOF

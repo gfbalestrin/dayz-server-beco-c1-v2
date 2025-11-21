@@ -94,6 +94,31 @@ handle_watchtowers_positions() {
         level_2_stairs=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_2_stairs')")
         has_roof=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.has_roof')")
 
+        local level_1_wall_1_lower level_1_wall_1_upper level_1_wall_2_lower level_1_wall_2_upper
+        local level_1_wall_3_lower level_1_wall_3_upper level_2_wall_1_lower level_2_wall_1_upper
+        local level_2_wall_2_lower level_2_wall_2_upper level_2_wall_3_lower level_2_wall_3_upper
+        local level_3_wall_1_lower level_3_wall_1_upper level_3_wall_2_lower level_3_wall_2_upper
+        local level_3_wall_3_lower level_3_wall_3_upper
+
+        level_1_wall_1_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_1_wall_1_lower_built')")
+        level_1_wall_1_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_1_wall_1_upper_built')")
+        level_1_wall_2_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_1_wall_2_lower_built')")
+        level_1_wall_2_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_1_wall_2_upper_built')")
+        level_1_wall_3_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_1_wall_3_lower_built')")
+        level_1_wall_3_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_1_wall_3_upper_built')")
+        level_2_wall_1_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_2_wall_1_lower_built')")
+        level_2_wall_1_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_2_wall_1_upper_built')")
+        level_2_wall_2_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_2_wall_2_lower_built')")
+        level_2_wall_2_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_2_wall_2_upper_built')")
+        level_2_wall_3_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_2_wall_3_lower_built')")
+        level_2_wall_3_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_2_wall_3_upper_built')")
+        level_3_wall_1_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_3_wall_1_lower_built')")
+        level_3_wall_1_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_3_wall_1_upper_built')")
+        level_3_wall_2_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_3_wall_2_lower_built')")
+        level_3_wall_2_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_3_wall_2_upper_built')")
+        level_3_wall_3_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_3_wall_3_lower_built')")
+        level_3_wall_3_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_3_wall_3_upper_built')")
+
         local watchtower_id
         watchtower_id="Watchtower_${coord_x}_${coord_z}_${coord_y}"
 
@@ -106,7 +131,7 @@ handle_watchtowers_positions() {
         fi
 
         local WatchtowerTrackingId
-        WatchtowerTrackingId=$(INSERT_WATCHTOWER_POSITION "$watchtower_id" "Watchtower" "$coord_x" "$coord_z" "$coord_y" "$ori_x" "$ori_y" "$ori_z" "$current_timestamp" "$has_base" "$level_1_base" "$level_2_base" "$level_3_base" "$level_1_stairs" "$level_2_stairs" "$has_roof")
+        WatchtowerTrackingId=$(INSERT_WATCHTOWER_POSITION "$watchtower_id" "Watchtower" "$coord_x" "$coord_z" "$coord_y" "$ori_x" "$ori_y" "$ori_z" "$current_timestamp" "$has_base" "$level_1_base" "$level_2_base" "$level_3_base" "$level_1_stairs" "$level_2_stairs" "$has_roof" "$level_1_wall_1_lower" "$level_1_wall_1_upper" "$level_1_wall_2_lower" "$level_1_wall_2_upper" "$level_1_wall_3_lower" "$level_1_wall_3_upper" "$level_2_wall_1_lower" "$level_2_wall_1_upper" "$level_2_wall_2_lower" "$level_2_wall_2_upper" "$level_2_wall_3_lower" "$level_2_wall_3_upper" "$level_3_wall_1_lower" "$level_3_wall_1_upper" "$level_3_wall_2_lower" "$level_3_wall_2_upper" "$level_3_wall_3_lower" "$level_3_wall_3_upper")
 
         if [[ $? -eq 0 && -n "$WatchtowerTrackingId" ]]; then
             processed_count=$((processed_count + 1))

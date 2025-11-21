@@ -1785,6 +1785,56 @@ function showFenceHistoryModal(fenceId, trail, pagination) {
                 });
                 html += `</div>`;
                 
+                // Adicionar informações das paredes
+                html += `<div class="mt-2"><strong>Paredes:</strong></div>`;
+                const wallLevels = [
+                    { level: 1, walls: [
+                        { key: 'level_1_wall_1_lower_built', label: 'Parede 1 Inferior' },
+                        { key: 'level_1_wall_1_upper_built', label: 'Parede 1 Superior' },
+                        { key: 'level_1_wall_2_lower_built', label: 'Parede 2 Inferior' },
+                        { key: 'level_1_wall_2_upper_built', label: 'Parede 2 Superior' },
+                        { key: 'level_1_wall_3_lower_built', label: 'Parede 3 Inferior' },
+                        { key: 'level_1_wall_3_upper_built', label: 'Parede 3 Superior' }
+                    ]},
+                    { level: 2, walls: [
+                        { key: 'level_2_wall_1_lower_built', label: 'Parede 1 Inferior' },
+                        { key: 'level_2_wall_1_upper_built', label: 'Parede 1 Superior' },
+                        { key: 'level_2_wall_2_lower_built', label: 'Parede 2 Inferior' },
+                        { key: 'level_2_wall_2_upper_built', label: 'Parede 2 Superior' },
+                        { key: 'level_2_wall_3_lower_built', label: 'Parede 3 Inferior' },
+                        { key: 'level_2_wall_3_upper_built', label: 'Parede 3 Superior' }
+                    ]},
+                    { level: 3, walls: [
+                        { key: 'level_3_wall_1_lower_built', label: 'Parede 1 Inferior' },
+                        { key: 'level_3_wall_1_upper_built', label: 'Parede 1 Superior' },
+                        { key: 'level_3_wall_2_lower_built', label: 'Parede 2 Inferior' },
+                        { key: 'level_3_wall_2_upper_built', label: 'Parede 2 Superior' },
+                        { key: 'level_3_wall_3_lower_built', label: 'Parede 3 Inferior' },
+                        { key: 'level_3_wall_3_upper_built', label: 'Parede 3 Superior' }
+                    ]}
+                ];
+                
+                wallLevels.forEach(levelData => {
+                    html += `<div class="ms-2 mt-1"><strong>Nível ${levelData.level}:</strong></div>`;
+                    levelData.walls.forEach(wall => {
+                        const currentVal = normalizeFlag(point[wall.key]);
+                        const prevVal = prevPoint ? normalizeFlag(prevPoint[wall.key]) : null;
+                        let changeIndicator = '';
+                        if (prevVal !== null && prevVal !== currentVal) {
+                            changeIndicator = currentVal ? ' <span class="text-success">(+)</span>' : ' <span class="text-danger">(-)</span>';
+                            if (!currentVal) {
+                                lostFlags.push(`N${levelData.level} ${wall.label}`);
+                            }
+                        }
+                        html += `
+                            <div class="info-row ms-3">
+                                <span class="info-label">${wall.label}:</span>
+                                <span class="info-value">${formatWatchtowerStatus(point[wall.key])}${changeIndicator}</span>
+                            </div>
+                        `;
+                    });
+                });
+                
                 if (point.orientation && (point.orientation.x !== null || point.orientation.y !== null)) {
                     const pitch = point.orientation.x !== null && point.orientation.x !== undefined ? Number(point.orientation.x).toFixed(1) : 'N/A';
                     const yaw = point.orientation.y !== null && point.orientation.y !== undefined ? Number(point.orientation.y).toFixed(1) : 'N/A';
@@ -3627,6 +3677,51 @@ function createFencePopup(fence) {
                 <div class="info-row">
                     <span class="info-label">Telhado:</span>
                     <span class="info-value">${formatStatus(details.has_roof)}</span>
+                </div>
+                <div class="info-row mt-2">
+                    <span class="info-label"><strong>Paredes - Nível 1:</strong></span>
+                </div>
+                <div class="info-row ms-3">
+                    <span class="info-label">Parede 1:</span>
+                    <span class="info-value">Inferior: ${formatStatus(details.level_1_wall_1_lower_built)}, Superior: ${formatStatus(details.level_1_wall_1_upper_built)}</span>
+                </div>
+                <div class="info-row ms-3">
+                    <span class="info-label">Parede 2:</span>
+                    <span class="info-value">Inferior: ${formatStatus(details.level_1_wall_2_lower_built)}, Superior: ${formatStatus(details.level_1_wall_2_upper_built)}</span>
+                </div>
+                <div class="info-row ms-3">
+                    <span class="info-label">Parede 3:</span>
+                    <span class="info-value">Inferior: ${formatStatus(details.level_1_wall_3_lower_built)}, Superior: ${formatStatus(details.level_1_wall_3_upper_built)}</span>
+                </div>
+                <div class="info-row mt-2">
+                    <span class="info-label"><strong>Paredes - Nível 2:</strong></span>
+                </div>
+                <div class="info-row ms-3">
+                    <span class="info-label">Parede 1:</span>
+                    <span class="info-value">Inferior: ${formatStatus(details.level_2_wall_1_lower_built)}, Superior: ${formatStatus(details.level_2_wall_1_upper_built)}</span>
+                </div>
+                <div class="info-row ms-3">
+                    <span class="info-label">Parede 2:</span>
+                    <span class="info-value">Inferior: ${formatStatus(details.level_2_wall_2_lower_built)}, Superior: ${formatStatus(details.level_2_wall_2_upper_built)}</span>
+                </div>
+                <div class="info-row ms-3">
+                    <span class="info-label">Parede 3:</span>
+                    <span class="info-value">Inferior: ${formatStatus(details.level_2_wall_3_lower_built)}, Superior: ${formatStatus(details.level_2_wall_3_upper_built)}</span>
+                </div>
+                <div class="info-row mt-2">
+                    <span class="info-label"><strong>Paredes - Nível 3:</strong></span>
+                </div>
+                <div class="info-row ms-3">
+                    <span class="info-label">Parede 1:</span>
+                    <span class="info-value">Inferior: ${formatStatus(details.level_3_wall_1_lower_built)}, Superior: ${formatStatus(details.level_3_wall_1_upper_built)}</span>
+                </div>
+                <div class="info-row ms-3">
+                    <span class="info-label">Parede 2:</span>
+                    <span class="info-value">Inferior: ${formatStatus(details.level_3_wall_2_lower_built)}, Superior: ${formatStatus(details.level_3_wall_2_upper_built)}</span>
+                </div>
+                <div class="info-row ms-3">
+                    <span class="info-label">Parede 3:</span>
+                    <span class="info-value">Inferior: ${formatStatus(details.level_3_wall_3_lower_built)}, Superior: ${formatStatus(details.level_3_wall_3_upper_built)}</span>
                 </div>
                 <div class="info-row mt-2">
                     <span class="info-label">Atualizado:</span>
