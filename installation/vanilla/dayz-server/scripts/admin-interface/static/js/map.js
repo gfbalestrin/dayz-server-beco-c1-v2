@@ -203,22 +203,46 @@ function createFenceIcon(fence, hasRecentAttack = false) {
     const fenceName = fence?.fence_name || '';
     let color, iconClass;
     
+    // Verificar se ambos painéis estão construídos
+    const lowerPanelBuilt = fence?.lower_panel_built === true || fence?.lower_panel_built === 1;
+    const upperPanelBuilt = fence?.upper_panel_built === true || fence?.upper_panel_built === 1;
+    const bothPanelsBuilt = lowerPanelBuilt && upperPanelBuilt;
+    
+    // Determinar ícone baseado no tipo de fence
     if (fenceName.includes('Gate')) {
-        // Fence com Gate - Verde (ou laranja/vermelho se houver ataque)
-        color = hasRecentAttack ? '#ff6b35' : '#28a745';
         iconClass = 'fas fa-door-open';
     } else if (fenceName.includes('Open')) {
-        // Fence aberto - Amarelo (ou laranja/vermelho se houver ataque)
-        color = hasRecentAttack ? '#ff6b35' : '#ffc107';
         iconClass = 'fas fa-unlock';
     } else if (fenceName.includes('Locked')) {
-        // Fence trancado - Vermelho (ou laranja mais escuro se houver ataque)
-        color = hasRecentAttack ? '#c82333' : '#dc3545';
         iconClass = 'fas fa-lock';
     } else {
-        // Fence padrão - Cinza (ou laranja se houver ataque)
-        color = hasRecentAttack ? '#ff6b35' : '#6c757d';
         iconClass = 'fas fa-border-all';
+    }
+    
+    // Determinar cor com prioridade: hasRecentAttack > portão não trancado > ambos painéis construídos > tipo de fence
+    if (hasRecentAttack) {
+        // Prioridade 1: Ataque recente - Laranja/Vermelho
+        if (fenceName.includes('Locked')) {
+            color = '#c82333';
+        } else {
+            color = '#ff6b35';
+        }
+    } else if (fenceName.includes('Gate') && !fenceName.includes('Locked')) {
+        // Prioridade 2: Portão não trancado (Gate sem Locked) - Vermelho
+        // Isso inclui portões abertos (Open) e portões genéricos (Gate)
+        color = '#dc3545';
+    } else if (bothPanelsBuilt) {
+        // Prioridade 3: Ambos painéis construídos - Verde
+        color = '#28a745';
+    } else {
+        // Prioridade 4: Cor baseada no tipo de fence
+        if (fenceName.includes('Gate')) {
+            color = '#28a745';
+        } else if (fenceName.includes('Locked')) {
+            color = '#dc3545';
+        } else {
+            color = '#6c757d';
+        }
     }
     
     // Adicionar ícone de alerta se houver ataque recente
@@ -1698,6 +1722,21 @@ function showFenceHistoryModal(fenceId, trail, pagination) {
     };
     const normalizeFlag = (value) => value === true || value === 1;
     
+    // Função auxiliar para determinar o tipo de fence baseado no nome
+    const getFenceType = (fenceName) => {
+        if (!fenceName) return 'Parede';
+        const name = fenceName.toString();
+        if (name.includes('Gate')) {
+            if (name.includes('Open')) {
+                return 'Portão Aberto';
+            } else if (name.includes('Locked')) {
+                return 'Portão Fechado';
+            }
+            return 'Portão';
+        }
+        return 'Parede';
+    };
+    
     let html = `<div class="trail-history-container">`;
     html += `<div class="mb-3"><strong>ID:</strong> ${fenceId}</div>`;
     html += `<div class="mb-3"><strong>Coordenadas:</strong> X=${fence.coord_x.toFixed(1)}, Y=${fence.coord_y.toFixed(1)}</div>`;
@@ -1892,6 +1931,21 @@ function showFenceHistoryModal(fenceId, trail, pagination) {
                     html += `<div class="info-row mt-2"><span class="info-label">Orientação:</span><span class="info-value">Pitch: ${pitch}°, Yaw: ${yaw}°</span></div>`;
                 }
             } else {
+                // Determinar tipo de fence atual e anterior
+                const currentFenceType = getFenceType(point.fence_name);
+                const prevFenceType = prevPoint ? getFenceType(prevPoint.fence_name) : null;
+                const typeChanged = prevFenceType !== null && prevFenceType !== currentFenceType;
+                
+                // Determinar cor do badge baseado no tipo
+                let typeBadgeClass = 'bg-secondary';
+                if (currentFenceType === 'Portão Aberto') {
+                    typeBadgeClass = 'bg-success';
+                } else if (currentFenceType === 'Portão Fechado') {
+                    typeBadgeClass = 'bg-danger';
+                } else if (currentFenceType === 'Portão') {
+                    typeBadgeClass = 'bg-warning';
+                }
+                
                 let hasAttack = false;
                 let attackMessage = '';
                 if (prevPoint) {
@@ -1915,6 +1969,13 @@ function showFenceHistoryModal(fenceId, trail, pagination) {
                 }
                 
                 html += `<div class="mt-2">`;
+                // Exibir tipo de fence com indicador de mudança se houver
+                let typeChangeIndicator = '';
+                if (typeChanged) {
+                    typeChangeIndicator = ` <span class="text-info">(Mudou de ${prevFenceType})</span>`;
+                }
+                html += `<span class="badge ${typeBadgeClass} me-1 mb-1">Tipo: ${currentFenceType}${typeChangeIndicator}</span>`;
+                html += `<br>`;
                 html += `<span class="badge bg-secondary me-1">Base: ${formatStatusLabel(point.has_base)}</span>`;
                 html += `<span class="badge bg-secondary me-1">Painel Inferior: ${formatStatusLabel(point.lower_panel_built)}</span>`;
                 html += `<span class="badge bg-secondary me-1">Painel Superior: ${formatStatusLabel(point.upper_panel_built)}</span>`;

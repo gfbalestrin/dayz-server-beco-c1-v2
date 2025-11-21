@@ -1375,14 +1375,15 @@ def get_fence_trail(fence_id: str, limit: int = 100, offset: int = 0, date_from:
         prev_state = None
         
         for fence in all_fences:
-            # Criar hash do estado atual (posição + estado de construção)
+            # Criar hash do estado atual (posição + estado de construção + tipo de fence)
             current_state_key = (
                 round(fence['PositionX'], 1),
                 round(fence['PositionY'], 1),
                 round(fence['PositionZ'], 1),
                 fence.get('HasBase'),
                 fence.get('LowerPanelBuilt'),
-                fence.get('UpperPanelBuilt')
+                fence.get('UpperPanelBuilt'),
+                fence.get('FenceName')  # Incluir FenceName para detectar mudanças de tipo
             )
             
             current_state = {
@@ -1390,7 +1391,8 @@ def get_fence_trail(fence_id: str, limit: int = 100, offset: int = 0, date_from:
                 'position': (fence['PositionX'], fence['PositionY'], fence['PositionZ']),
                 'has_base': fence.get('HasBase'),
                 'lower_panel': fence.get('LowerPanelBuilt'),
-                'upper_panel': fence.get('UpperPanelBuilt')
+                'upper_panel': fence.get('UpperPanelBuilt'),
+                'fence_name': fence.get('FenceName')
             }
             
             # Se mudou, adicionar à lista
