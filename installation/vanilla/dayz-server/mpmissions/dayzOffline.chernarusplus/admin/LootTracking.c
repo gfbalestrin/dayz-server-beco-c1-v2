@@ -356,13 +356,13 @@ bool RegisterContainerAtPosition(vector targetPosition, float searchRadius = 3.0
 	// Tentar registrar cada container em ordem de distância até encontrar um que possa ser registrado
 	for (int containerIndex = 0; containerIndex < containerCount; containerIndex++)
 	{
-		EntityAI candidateContainer = validContainers.Get(containerIndex);
-		float candidateDistance = containerDistances.Get(containerIndex);
+		EntityAI selectedContainer = validContainers.Get(containerIndex);
+		float selectedDistance = containerDistances.Get(containerIndex);
 
-		bool registered = RegisterContainer(candidateContainer);
+		bool registered = RegisterContainer(selectedContainer);
 		if (registered)
 		{
-			WriteToLog("RegisterContainerAtPosition(): Container registrado a " + candidateDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
+			WriteToLog("RegisterContainerAtPosition(): Container registrado a " + selectedDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
 			return true;
 		}
 	}

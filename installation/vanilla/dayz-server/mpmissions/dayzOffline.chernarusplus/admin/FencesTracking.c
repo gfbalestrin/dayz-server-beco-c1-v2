@@ -141,13 +141,13 @@ bool RegisterFenceAtPosition(vector targetPosition, float searchRadius = 3.0)
     // Tentar registrar cada fence em ordem de distância até encontrar uma que possa ser registrada
     for (int fenceIndex = 0; fenceIndex < fenceCount; fenceIndex++)
     {
-        Fence candidateFence = validFences.Get(fenceIndex);
-        float candidateDistance = fenceDistances.Get(fenceIndex);
+        Fence selectedFence = validFences.Get(fenceIndex);
+        float selectedDistance = fenceDistances.Get(fenceIndex);
 
-        bool registered = RegisterFence(candidateFence);
+        bool registered = RegisterFence(selectedFence);
         if (registered)
         {
-            WriteToLog("RegisterFenceAtPosition(): Fence registrada a " + candidateDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
+            WriteToLog("RegisterFenceAtPosition(): Fence registrada a " + selectedDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
             return true;
         }
     }
@@ -549,13 +549,13 @@ bool RegisterWatchtowerAtPosition(vector targetPosition, float searchRadius = 10
     // Tentar registrar cada watchtower em ordem de distância até encontrar uma que possa ser registrada
     for (int watchtowerIndex = 0; watchtowerIndex < watchtowerCount; watchtowerIndex++)
     {
-        Watchtower candidateWatchtower = validWatchtowers.Get(watchtowerIndex);
-        float candidateDistance = watchtowerDistances.Get(watchtowerIndex);
+        Watchtower selectedWatchtower = validWatchtowers.Get(watchtowerIndex);
+        float selectedDistance = watchtowerDistances.Get(watchtowerIndex);
 
-        bool registered = RegisterWatchtower(candidateWatchtower);
+        bool registered = RegisterWatchtower(selectedWatchtower);
         if (registered)
         {
-            WriteToLog("RegisterWatchtowerAtPosition(): Watchtower registrada a " + candidateDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
+            WriteToLog("RegisterWatchtowerAtPosition(): Watchtower registrada a " + selectedDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
             return true;
         }
     }
@@ -918,13 +918,13 @@ bool RegisterFlagAtPosition(vector targetPosition, float searchRadius = 10.0)
     // Tentar registrar cada flag em ordem de distância até encontrar uma que possa ser registrada
     for (int flagIndex = 0; flagIndex < flagCount; flagIndex++)
     {
-        Object candidateFlag = validFlags.Get(flagIndex);
-        float candidateDistance = flagDistances.Get(flagIndex);
+        Object selectedFlag = validFlags.Get(flagIndex);
+        float selectedDistance = flagDistances.Get(flagIndex);
 
-        bool registered = RegisterFlag(candidateFlag);
+        bool registered = RegisterFlag(selectedFlag);
         if (registered)
         {
-            WriteToLog("RegisterFlagAtPosition(): Flag registrada a " + candidateDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
+            WriteToLog("RegisterFlagAtPosition(): Flag registrada a " + selectedDistance.ToString() + "m da posição alvo", LogFile.INIT, false, LogType.INFO);
             return true;
         }
     }
