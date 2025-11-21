@@ -71,6 +71,109 @@ bool ExecuteCommand(TStringArray tokens)
             case "scanobjects":
                 InitWorldTracking();
                 return true;
+            case "scanregion":
+                if (tokens.Count() < 7)
+                {
+                    WriteToLog("ExecuteCommand(): scanregion requer coordenadas X Y Z, raio e request_id", LogFile.INIT, false, LogType.ERROR);
+                    return false;
+                }
+                
+                float scanCoordX = tokens[2].ToFloat();
+                float scanCoordZ = tokens[3].ToFloat();
+                float scanCoordY = tokens[4].ToFloat();
+                float scanRadius = tokens[5].ToFloat();
+                string scanRequestId = tokens[6];
+                
+                if (scanRadius <= 0 || scanRadius > 100)
+                {
+                    WriteToLog("ExecuteCommand(): scanregion - Raio inválido: " + scanRadius.ToString() + " (deve estar entre 1 e 100)", LogFile.INIT, false, LogType.ERROR);
+                    return false;
+                }
+                
+                vector scanPosition = Vector(scanCoordX, scanCoordY, scanCoordZ);
+                
+                WriteToLog("ExecuteCommand(): scanregion - Escaneando região em " + scanPosition.ToString() + " (raio: " + scanRadius.ToString() + "m, request_id: " + scanRequestId + ")", LogFile.INIT, false, LogType.INFO);
+                
+                array<Object> scannedObjects = new array<Object>();
+                GetGame().GetObjectsAtPosition(scanPosition, scanRadius, scannedObjects, null);
+                
+                if (!scannedObjects || scannedObjects.Count() == 0)
+                {
+                    string emptyResultJson = "{\"request_id\":\"" + SanitizeForJson(scanRequestId) + "\",\"command\":\"scanregion\",\"center\":{\"x\":" + scanCoordX.ToString() + ",\"y\":" + scanCoordY.ToString() + ",\"z\":" + scanCoordZ.ToString() + "},\"radius\":" + scanRadius.ToString() + ",\"objects\":[]}";
+                    AppendCommandResult(emptyResultJson, false);
+                    WriteToLog("ExecuteCommand(): scanregion - Nenhum objeto encontrado na região (request_id: " + scanRequestId + ")", LogFile.INIT, false, LogType.INFO);
+                    return true;
+                }
+                
+                string objectsJson = "";
+                int objectCount = 0;
+                
+                foreach (Object scannedObj : scannedObjects)
+                {
+                    if (!scannedObj)
+                        continue;
+                    
+                    // Filtrar objetos: excluir jogadores, edifícios estáticos, objetos do sistema
+                    if (scannedObj.IsMan() || scannedObj.IsInherited(PlayerBase))
+                        continue;
+                    
+                    if (scannedObj.IsInherited(BuildingBase) || scannedObj.IsInherited(House))
+                        continue;
+                    
+                    // Obter informações do objeto
+                    string objType = scannedObj.GetType();
+                    string objName = "";
+                    
+                    // Tentar obter nome do objeto
+                    if (scannedObj.IsInherited(ItemBase))
+                    {
+                        ItemBase itemBase = ItemBase.Cast(scannedObj);
+                        if (itemBase)
+                        {
+                            objName = itemBase.GetDisplayName();
+                        }
+                    }
+                    else if (scannedObj.IsInherited(CarScript))
+                    {
+                        CarScript vehicle = CarScript.Cast(scannedObj);
+                        if (vehicle)
+                        {
+                            objName = vehicle.GetDisplayName();
+                        }
+                    }
+                    else if (scannedObj.IsInherited(ContainerBase))
+                    {
+                        ContainerBase container = ContainerBase.Cast(scannedObj);
+                        if (container)
+                        {
+                            objName = container.GetDisplayName();
+                        }
+                    }
+                    
+                    if (objName == "")
+                        objName = objType;
+                    
+                    vector objPosition = scannedObj.GetPosition();
+                    
+                    string sanitizedType = SanitizeForJson(objType);
+                    string sanitizedName = SanitizeForJson(objName);
+                    
+                    if (objectsJson != "")
+                        objectsJson = objectsJson + ",";
+                    
+                    objectsJson = objectsJson + "{\"type\":\"" + sanitizedType + "\",\"name\":\"" + sanitizedName + "\",\"position\":{\"x\":" + objPosition[0].ToString() + ",\"y\":" + objPosition[1].ToString() + ",\"z\":" + objPosition[2].ToString() + "}}";
+                    
+                    objectCount++;
+                }
+                
+                string sanitizedRequestId = SanitizeForJson(scanRequestId);
+                string resultJson = "{\"request_id\":\"" + sanitizedRequestId + "\",\"command\":\"scanregion\",\"center\":{\"x\":" + scanCoordX.ToString() + ",\"y\":" + scanCoordY.ToString() + ",\"z\":" + scanCoordZ.ToString() + "},\"radius\":" + scanRadius.ToString() + ",\"objects\":[" + objectsJson + "]}";
+                
+                AppendCommandResult(resultJson, false);
+                
+                WriteToLog("ExecuteCommand(): scanregion - Escaneamento concluído: " + objectCount.ToString() + " objetos encontrados (request_id: " + scanRequestId + ")", LogFile.INIT, false, LogType.INFO);
+                
+                return true;
             case "registerfence":
                 if (tokens.Count() < 5)
                 {
