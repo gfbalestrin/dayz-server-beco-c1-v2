@@ -37,7 +37,16 @@ handle_watchtowers_positions() {
         sql_query="SELECT wt.WatchtowerId, wt.WatchtowerName, wt.PositionX, wt.PositionZ, wt.PositionY, 
                IFNULL(wt.HasBase,''), IFNULL(wt.Level1BaseBuilt,''), IFNULL(wt.Level2BaseBuilt,''), 
                IFNULL(wt.Level3BaseBuilt,''), IFNULL(wt.Level1StairsBuilt,''), IFNULL(wt.Level2StairsBuilt,''), 
-               IFNULL(wt.HasRoof,'')
+               IFNULL(wt.HasRoof,''),
+               IFNULL(wt.Level1Wall1LowerBuilt,''), IFNULL(wt.Level1Wall1UpperBuilt,''),
+               IFNULL(wt.Level1Wall2LowerBuilt,''), IFNULL(wt.Level1Wall2UpperBuilt,''),
+               IFNULL(wt.Level1Wall3LowerBuilt,''), IFNULL(wt.Level1Wall3UpperBuilt,''),
+               IFNULL(wt.Level2Wall1LowerBuilt,''), IFNULL(wt.Level2Wall1UpperBuilt,''),
+               IFNULL(wt.Level2Wall2LowerBuilt,''), IFNULL(wt.Level2Wall2UpperBuilt,''),
+               IFNULL(wt.Level2Wall3LowerBuilt,''), IFNULL(wt.Level2Wall3UpperBuilt,''),
+               IFNULL(wt.Level3Wall1LowerBuilt,''), IFNULL(wt.Level3Wall1UpperBuilt,''),
+               IFNULL(wt.Level3Wall2LowerBuilt,''), IFNULL(wt.Level3Wall2UpperBuilt,''),
+               IFNULL(wt.Level3Wall3LowerBuilt,''), IFNULL(wt.Level3Wall3UpperBuilt,'')
         FROM watchtowers_tracking wt
         WHERE wt.TimeStamp = (
             SELECT MAX(wt2.TimeStamp) 
@@ -50,7 +59,16 @@ handle_watchtowers_positions() {
         sql_query="SELECT wt.WatchtowerId, wt.WatchtowerName, wt.PositionX, wt.PositionZ, wt.PositionY, 
                IFNULL(wt.HasBase,''), IFNULL(wt.Level1BaseBuilt,''), IFNULL(wt.Level2BaseBuilt,''), 
                IFNULL(wt.Level3BaseBuilt,''), IFNULL(wt.Level1StairsBuilt,''), IFNULL(wt.Level2StairsBuilt,''), 
-               IFNULL(wt.HasRoof,'')
+               IFNULL(wt.HasRoof,''),
+               IFNULL(wt.Level1Wall1LowerBuilt,''), IFNULL(wt.Level1Wall1UpperBuilt,''),
+               IFNULL(wt.Level1Wall2LowerBuilt,''), IFNULL(wt.Level1Wall2UpperBuilt,''),
+               IFNULL(wt.Level1Wall3LowerBuilt,''), IFNULL(wt.Level1Wall3UpperBuilt,''),
+               IFNULL(wt.Level2Wall1LowerBuilt,''), IFNULL(wt.Level2Wall1UpperBuilt,''),
+               IFNULL(wt.Level2Wall2LowerBuilt,''), IFNULL(wt.Level2Wall2UpperBuilt,''),
+               IFNULL(wt.Level2Wall3LowerBuilt,''), IFNULL(wt.Level2Wall3UpperBuilt,''),
+               IFNULL(wt.Level3Wall1LowerBuilt,''), IFNULL(wt.Level3Wall1UpperBuilt,''),
+               IFNULL(wt.Level3Wall2LowerBuilt,''), IFNULL(wt.Level3Wall2UpperBuilt,''),
+               IFNULL(wt.Level3Wall3LowerBuilt,''), IFNULL(wt.Level3Wall3UpperBuilt,'')
         FROM watchtowers_tracking wt
         WHERE wt.TimeStamp = (
             SELECT MAX(wt2.TimeStamp) 
@@ -59,8 +77,11 @@ handle_watchtowers_positions() {
         )"
     fi
     
-    while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_has_base prev_level1_base prev_level2_base prev_level3_base prev_level1_stairs prev_level2_stairs prev_has_roof; do
-        prev_watchtowers["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_has_base|$prev_level1_base|$prev_level2_base|$prev_level3_base|$prev_level1_stairs|$prev_level2_stairs|$prev_has_roof"
+    while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_has_base prev_level1_base prev_level2_base prev_level3_base prev_level1_stairs prev_level2_stairs prev_has_roof \
+        prev_l1_w1_lower prev_l1_w1_upper prev_l1_w2_lower prev_l1_w2_upper prev_l1_w3_lower prev_l1_w3_upper \
+        prev_l2_w1_lower prev_l2_w1_upper prev_l2_w2_lower prev_l2_w2_upper prev_l2_w3_lower prev_l2_w3_upper \
+        prev_l3_w1_lower prev_l3_w1_upper prev_l3_w2_lower prev_l3_w2_upper prev_l3_w3_lower prev_l3_w3_upper; do
+        prev_watchtowers["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_has_base|$prev_level1_base|$prev_level2_base|$prev_level3_base|$prev_level1_stairs|$prev_level2_stairs|$prev_has_roof|$prev_l1_w1_lower|$prev_l1_w1_upper|$prev_l1_w2_lower|$prev_l1_w2_upper|$prev_l1_w3_lower|$prev_l1_w3_upper|$prev_l2_w1_lower|$prev_l2_w1_upper|$prev_l2_w2_lower|$prev_l2_w2_upper|$prev_l2_w3_lower|$prev_l2_w3_upper|$prev_l3_w1_lower|$prev_l3_w1_upper|$prev_l3_w2_lower|$prev_l3_w2_upper|$prev_l3_w3_lower|$prev_l3_w3_upper"
     done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "$sql_query")
 
     local watchtowers
@@ -127,6 +148,198 @@ handle_watchtowers_positions() {
         if [[ -z "$prev_data" ]]; then
             INSERT_CUSTOM_LOG "Watchtower nova detectada (ID=$watchtower_id) - Coords=($coord_x,$coord_z,$coord_y)" "INFO" "$ScriptName"
         else
+            local prev_name prev_x prev_z prev_y prev_has_base prev_level1_base prev_level2_base prev_level3_base prev_level1_stairs prev_level2_stairs prev_has_roof
+            local prev_l1_w1_lower prev_l1_w1_upper prev_l1_w2_lower prev_l1_w2_upper prev_l1_w3_lower prev_l1_w3_upper
+            local prev_l2_w1_lower prev_l2_w1_upper prev_l2_w2_lower prev_l2_w2_upper prev_l2_w3_lower prev_l2_w3_upper
+            local prev_l3_w1_lower prev_l3_w1_upper prev_l3_w2_lower prev_l3_w2_upper prev_l3_w3_lower prev_l3_w3_upper
+            local diff_message
+            
+            IFS='|' read -r prev_name prev_x prev_z prev_y prev_has_base prev_level1_base prev_level2_base prev_level3_base prev_level1_stairs prev_level2_stairs prev_has_roof \
+                prev_l1_w1_lower prev_l1_w1_upper prev_l1_w2_lower prev_l1_w2_upper prev_l1_w3_lower prev_l1_w3_upper \
+                prev_l2_w1_lower prev_l2_w1_upper prev_l2_w2_lower prev_l2_w2_upper prev_l2_w3_lower prev_l2_w3_upper \
+                prev_l3_w1_lower prev_l3_w1_upper prev_l3_w2_lower prev_l3_w2_upper prev_l3_w3_lower prev_l3_w3_upper <<< "$prev_data"
+            
+            diff_message=""
+            
+            if [[ "$coord_x" != "$prev_x" || "$coord_z" != "$prev_z" || "$coord_y" != "$prev_y" ]]; then
+                diff_message+="coords((${prev_x},${prev_z},${prev_y})->(${coord_x},${coord_z},${coord_y})); "
+            fi
+            if [[ "$has_base" != "$prev_has_base" ]]; then
+                diff_message+="base($(format_bool_log "$prev_has_base")->$(format_bool_log "$has_base")); "
+            fi
+            if [[ "$level_1_base" != "$prev_level1_base" ]]; then
+                diff_message+="nivel1($(format_bool_log "$prev_level1_base")->$(format_bool_log "$level_1_base")); "
+            fi
+            if [[ "$level_2_base" != "$prev_level2_base" ]]; then
+                diff_message+="nivel2($(format_bool_log "$prev_level2_base")->$(format_bool_log "$level_2_base")); "
+            fi
+            if [[ "$level_3_base" != "$prev_level3_base" ]]; then
+                diff_message+="nivel3($(format_bool_log "$prev_level3_base")->$(format_bool_log "$level_3_base")); "
+            fi
+            if [[ "$level_1_stairs" != "$prev_level1_stairs" ]]; then
+                diff_message+="escadas1($(format_bool_log "$prev_level1_stairs")->$(format_bool_log "$level_1_stairs")); "
+            fi
+            if [[ "$level_2_stairs" != "$prev_level2_stairs" ]]; then
+                diff_message+="escadas2($(format_bool_log "$prev_level2_stairs")->$(format_bool_log "$level_2_stairs")); "
+            fi
+            if [[ "$has_roof" != "$prev_has_roof" ]]; then
+                diff_message+="telhado($(format_bool_log "$prev_has_roof")->$(format_bool_log "$has_roof")); "
+            fi
+            
+            # Comparar paredes do nível 1
+            if [[ "$level_1_wall_1_lower" != "$prev_l1_w1_lower" ]]; then
+                diff_message+="L1P1Inf($(format_bool_log "$prev_l1_w1_lower")->$(format_bool_log "$level_1_wall_1_lower")); "
+            fi
+            if [[ "$level_1_wall_1_upper" != "$prev_l1_w1_upper" ]]; then
+                diff_message+="L1P1Sup($(format_bool_log "$prev_l1_w1_upper")->$(format_bool_log "$level_1_wall_1_upper")); "
+            fi
+            if [[ "$level_1_wall_2_lower" != "$prev_l1_w2_lower" ]]; then
+                diff_message+="L1P2Inf($(format_bool_log "$prev_l1_w2_lower")->$(format_bool_log "$level_1_wall_2_lower")); "
+            fi
+            if [[ "$level_1_wall_2_upper" != "$prev_l1_w2_upper" ]]; then
+                diff_message+="L1P2Sup($(format_bool_log "$prev_l1_w2_upper")->$(format_bool_log "$level_1_wall_2_upper")); "
+            fi
+            if [[ "$level_1_wall_3_lower" != "$prev_l1_w3_lower" ]]; then
+                diff_message+="L1P3Inf($(format_bool_log "$prev_l1_w3_lower")->$(format_bool_log "$level_1_wall_3_lower")); "
+            fi
+            if [[ "$level_1_wall_3_upper" != "$prev_l1_w3_upper" ]]; then
+                diff_message+="L1P3Sup($(format_bool_log "$prev_l1_w3_upper")->$(format_bool_log "$level_1_wall_3_upper")); "
+            fi
+            
+            # Comparar paredes do nível 2
+            if [[ "$level_2_wall_1_lower" != "$prev_l2_w1_lower" ]]; then
+                diff_message+="L2P1Inf($(format_bool_log "$prev_l2_w1_lower")->$(format_bool_log "$level_2_wall_1_lower")); "
+            fi
+            if [[ "$level_2_wall_1_upper" != "$prev_l2_w1_upper" ]]; then
+                diff_message+="L2P1Sup($(format_bool_log "$prev_l2_w1_upper")->$(format_bool_log "$level_2_wall_1_upper")); "
+            fi
+            if [[ "$level_2_wall_2_lower" != "$prev_l2_w2_lower" ]]; then
+                diff_message+="L2P2Inf($(format_bool_log "$prev_l2_w2_lower")->$(format_bool_log "$level_2_wall_2_lower")); "
+            fi
+            if [[ "$level_2_wall_2_upper" != "$prev_l2_w2_upper" ]]; then
+                diff_message+="L2P2Sup($(format_bool_log "$prev_l2_w2_upper")->$(format_bool_log "$level_2_wall_2_upper")); "
+            fi
+            if [[ "$level_2_wall_3_lower" != "$prev_l2_w3_lower" ]]; then
+                diff_message+="L2P3Inf($(format_bool_log "$prev_l2_w3_lower")->$(format_bool_log "$level_2_wall_3_lower")); "
+            fi
+            if [[ "$level_2_wall_3_upper" != "$prev_l2_w3_upper" ]]; then
+                diff_message+="L2P3Sup($(format_bool_log "$prev_l2_w3_upper")->$(format_bool_log "$level_2_wall_3_upper")); "
+            fi
+            
+            # Comparar paredes do nível 3
+            if [[ "$level_3_wall_1_lower" != "$prev_l3_w1_lower" ]]; then
+                diff_message+="L3P1Inf($(format_bool_log "$prev_l3_w1_lower")->$(format_bool_log "$level_3_wall_1_lower")); "
+            fi
+            if [[ "$level_3_wall_1_upper" != "$prev_l3_w1_upper" ]]; then
+                diff_message+="L3P1Sup($(format_bool_log "$prev_l3_w1_upper")->$(format_bool_log "$level_3_wall_1_upper")); "
+            fi
+            if [[ "$level_3_wall_2_lower" != "$prev_l3_w2_lower" ]]; then
+                diff_message+="L3P2Inf($(format_bool_log "$prev_l3_w2_lower")->$(format_bool_log "$level_3_wall_2_lower")); "
+            fi
+            if [[ "$level_3_wall_2_upper" != "$prev_l3_w2_upper" ]]; then
+                diff_message+="L3P2Sup($(format_bool_log "$prev_l3_w2_upper")->$(format_bool_log "$level_3_wall_2_upper")); "
+            fi
+            if [[ "$level_3_wall_3_lower" != "$prev_l3_w3_lower" ]]; then
+                diff_message+="L3P3Inf($(format_bool_log "$prev_l3_w3_lower")->$(format_bool_log "$level_3_wall_3_lower")); "
+            fi
+            if [[ "$level_3_wall_3_upper" != "$prev_l3_w3_upper" ]]; then
+                diff_message+="L3P3Sup($(format_bool_log "$prev_l3_w3_upper")->$(format_bool_log "$level_3_wall_3_upper")); "
+            fi
+            
+            if [[ -n "$diff_message" ]]; then
+                diff_message="${diff_message%??}"
+                INSERT_CUSTOM_LOG "Watchtower atualizada (ID=$watchtower_id) - Alterações: $diff_message" "INFO" "$ScriptName"
+                
+                local destruction_detected destruction_summary
+                destruction_detected="false"
+                destruction_summary=""
+                
+                # Detectar destruição de paredes do nível 1
+                if [[ "$prev_l1_w1_lower" == "1" && "$level_1_wall_1_lower" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 1 Parede 1 Inferior destruída; "
+                fi
+                if [[ "$prev_l1_w1_upper" == "1" && "$level_1_wall_1_upper" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 1 Parede 1 Superior destruída; "
+                fi
+                if [[ "$prev_l1_w2_lower" == "1" && "$level_1_wall_2_lower" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 1 Parede 2 Inferior destruída; "
+                fi
+                if [[ "$prev_l1_w2_upper" == "1" && "$level_1_wall_2_upper" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 1 Parede 2 Superior destruída; "
+                fi
+                if [[ "$prev_l1_w3_lower" == "1" && "$level_1_wall_3_lower" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 1 Parede 3 Inferior destruída; "
+                fi
+                if [[ "$prev_l1_w3_upper" == "1" && "$level_1_wall_3_upper" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 1 Parede 3 Superior destruída; "
+                fi
+                
+                # Detectar destruição de paredes do nível 2
+                if [[ "$prev_l2_w1_lower" == "1" && "$level_2_wall_1_lower" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 2 Parede 1 Inferior destruída; "
+                fi
+                if [[ "$prev_l2_w1_upper" == "1" && "$level_2_wall_1_upper" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 2 Parede 1 Superior destruída; "
+                fi
+                if [[ "$prev_l2_w2_lower" == "1" && "$level_2_wall_2_lower" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 2 Parede 2 Inferior destruída; "
+                fi
+                if [[ "$prev_l2_w2_upper" == "1" && "$level_2_wall_2_upper" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 2 Parede 2 Superior destruída; "
+                fi
+                if [[ "$prev_l2_w3_lower" == "1" && "$level_2_wall_3_lower" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 2 Parede 3 Inferior destruída; "
+                fi
+                if [[ "$prev_l2_w3_upper" == "1" && "$level_2_wall_3_upper" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 2 Parede 3 Superior destruída; "
+                fi
+                
+                # Detectar destruição de paredes do nível 3
+                if [[ "$prev_l3_w1_lower" == "1" && "$level_3_wall_1_lower" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 3 Parede 1 Inferior destruída; "
+                fi
+                if [[ "$prev_l3_w1_upper" == "1" && "$level_3_wall_1_upper" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 3 Parede 1 Superior destruída; "
+                fi
+                if [[ "$prev_l3_w2_lower" == "1" && "$level_3_wall_2_lower" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 3 Parede 2 Inferior destruída; "
+                fi
+                if [[ "$prev_l3_w2_upper" == "1" && "$level_3_wall_2_upper" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 3 Parede 2 Superior destruída; "
+                fi
+                if [[ "$prev_l3_w3_lower" == "1" && "$level_3_wall_3_lower" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 3 Parede 3 Inferior destruída; "
+                fi
+                if [[ "$prev_l3_w3_upper" == "1" && "$level_3_wall_3_upper" != "1" ]]; then
+                    destruction_detected="true"
+                    destruction_summary+="Nível 3 Parede 3 Superior destruída; "
+                fi
+                
+                if [[ "$destruction_detected" == "true" ]]; then
+                    destruction_summary="${destruction_summary%??}"
+                    local Content
+                    Content="Watchtower atacada (ID=$watchtower_id) em (${coord_x},${coord_z},${coord_y}) - $destruction_summary"
+                    SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+                fi
+            fi
+            
             unset "prev_watchtowers[$watchtower_id]"
         fi
 

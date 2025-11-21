@@ -1476,7 +1476,7 @@ def api_fences_positions():
             'upper_panel_built': details['level_2_base'],
             'is_destroyed': bool(watchtower.get('IsDestroyed', 0)) if include_destroyed else False,
             'destroyed_at': watchtower.get('DestroyedAt') if include_destroyed else None,
-            'has_recent_attack': False,
+            'has_recent_attack': bool(watchtower.get('has_recent_attack', False)),
             'structure_type': 'watchtower',
             'watchtower_details': details,
             'orientation': {

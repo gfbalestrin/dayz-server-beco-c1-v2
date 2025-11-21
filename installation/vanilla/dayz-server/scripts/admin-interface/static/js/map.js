@@ -170,10 +170,16 @@ function createFenceIcon(fence, hasRecentAttack = false) {
         } else if (completionScore >= 2) {
             color = '#36b9cc';
         }
+        // Se houver ataque recente, alterar cor para laranja/vermelho
+        if (hasRecentAttack) {
+            color = '#ff6b35';
+        }
+        // Adicionar ícone de alerta se houver ataque recente
+        const alertIcon = hasRecentAttack ? '<i class="fas fa-exclamation-triangle" style="position: absolute; top: -5px; right: -5px; color: #dc3545; font-size: 10px; background: white; border-radius: 50%; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;"></i>' : '';
         return L.divIcon({
             className: 'fence-marker watchtower-marker',
-            html: `<div style="position: relative; background-color: ${color}; border: 2px solid white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                <i class="fas fa-chess-rook" style="color: white; font-size: 13px;"></i>
+            html: `<div style="position: relative; background-color: ${color}; border: 2px solid ${hasRecentAttack ? '#dc3545' : 'white'}; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-chess-rook" style="color: white; font-size: 13px;"></i>${alertIcon}
             </div>`,
             iconSize: [24, 24]
         });
@@ -3635,9 +3641,18 @@ function createFencePopup(fence) {
             ? `Pitch: ${orientation.x?.toFixed ? orientation.x.toFixed(1) : orientation.x || 0}°, Yaw: ${orientation.y?.toFixed ? orientation.y.toFixed(1) : orientation.y || 0}°`
             : 'Desconhecido';
 
+        const hasRecentAttack = fence.has_recent_attack || false;
+        const attackWarning = hasRecentAttack ? `
+            <div class="alert alert-danger mt-2 mb-2" style="padding: 8px; font-size: 12px;">
+                <i class="fas fa-exclamation-triangle me-1"></i><strong>⚠️ Possível Ataque Detectado</strong><br>
+                <small>Uma ou mais paredes foram destruídas recentemente. Verifique o histórico para mais detalhes.</small>
+            </div>
+        ` : '';
+        
         return `
             <div class="player-popup">
                 <strong><i class="fas fa-chess-rook me-2"></i>Watchtower (${fence.fence_name})</strong>
+                ${attackWarning}
                 <div class="info-row">
                     <span class="info-label">ID:</span>
                     <span class="info-value">${fence.fence_id}</span>

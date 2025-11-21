@@ -891,7 +891,92 @@ def get_watchtowers_last_position(include_destroyed: bool = False) -> List[Dict]
                 ORDER BY wt.TimeStamp DESC
             """
         cursor.execute(query)
-        return [dict(row) for row in cursor.fetchall()]
+        watchtowers = [dict(row) for row in cursor.fetchall()]
+        
+        # Função auxiliar para normalizar valores booleanos
+        def normalize_bool_value(value):
+            if value is None:
+                return 0
+            if isinstance(value, bool):
+                return 1 if value else 0
+            if isinstance(value, str):
+                value = value.strip().lower()
+                if value in ('true', '1', 'yes'):
+                    return 1
+                if value in ('false', '0', 'no'):
+                    return 0
+            # Para inteiros ou outros tipos numéricos
+            return 1 if int(value) == 1 else 0
+        
+        # Detectar ataques recentes (perda de parede)
+        for watchtower in watchtowers:
+            watchtower_id = watchtower['WatchtowerId']
+            current_timestamp = watchtower.get('TimeStamp')
+            
+            has_recent_attack = False
+            
+            # Só buscar registro anterior se tiver timestamp atual
+            if current_timestamp:
+                # Lista de todas as 18 paredes para verificar
+                wall_fields = [
+                    'Level1Wall1LowerBuilt', 'Level1Wall1UpperBuilt',
+                    'Level1Wall2LowerBuilt', 'Level1Wall2UpperBuilt',
+                    'Level1Wall3LowerBuilt', 'Level1Wall3UpperBuilt',
+                    'Level2Wall1LowerBuilt', 'Level2Wall1UpperBuilt',
+                    'Level2Wall2LowerBuilt', 'Level2Wall2UpperBuilt',
+                    'Level2Wall3LowerBuilt', 'Level2Wall3UpperBuilt',
+                    'Level3Wall1LowerBuilt', 'Level3Wall1UpperBuilt',
+                    'Level3Wall2LowerBuilt', 'Level3Wall2UpperBuilt',
+                    'Level3Wall3LowerBuilt', 'Level3Wall3UpperBuilt'
+                ]
+                
+                # Normalizar valores atuais
+                current_walls = {}
+                for field in wall_fields:
+                    raw_value = watchtower.get(field, 0)
+                    current_walls[field] = normalize_bool_value(raw_value)
+                
+                # Verificar cada parede individualmente
+                for wall_field in wall_fields:
+                    current_value = current_walls[wall_field]
+                    
+                    # Se a parede atual não está construída, verificar se estava antes
+                    if current_value == 0:
+                        if has_is_destroyed and not include_destroyed:
+                            # Buscar último registro com esta parede construída
+                            cursor.execute(f"""
+                                SELECT {wall_field}, TimeStamp, WatchtowerTrackingId
+                                FROM watchtowers_tracking
+                                WHERE WatchtowerId = ?
+                                AND TimeStamp < ?
+                                AND {wall_field} = 1
+                                AND (IsDestroyed = 0 OR IsDestroyed IS NULL)
+                                ORDER BY TimeStamp DESC, WatchtowerTrackingId DESC
+                                LIMIT 1
+                            """, (watchtower_id, current_timestamp))
+                        else:
+                            # Buscar último registro com esta parede construída
+                            cursor.execute(f"""
+                                SELECT {wall_field}, TimeStamp, WatchtowerTrackingId
+                                FROM watchtowers_tracking
+                                WHERE WatchtowerId = ?
+                                AND TimeStamp < ?
+                                AND {wall_field} = 1
+                                ORDER BY TimeStamp DESC, WatchtowerTrackingId DESC
+                                LIMIT 1
+                            """, (watchtower_id, current_timestamp))
+                        
+                        prev_row = cursor.fetchone()
+                        if prev_row:
+                            prev_value = normalize_bool_value(prev_row[0])
+                            # Se tinha antes (1) e não tem mais (0), houve ataque
+                            if prev_value == 1:
+                                has_recent_attack = True
+                                break  # Basta uma parede destruída para marcar como ataque
+            
+            watchtower['has_recent_attack'] = has_recent_attack
+        
+        return watchtowers
 
 def get_flags_last_position(include_destroyed: bool = False) -> List[Dict]:
     """Retorna flags do último timestamp de rastreamento"""
