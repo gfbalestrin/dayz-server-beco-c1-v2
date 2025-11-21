@@ -1,6 +1,14 @@
+-- ============================================================
+-- BANCO DE DADOS: players_beco_c1.db
+-- Descrição: Armazena dados de jogadores, estatísticas e loadouts
+-- ============================================================
+
 PRAGMA foreign_keys = ON;
 
--- Tabela players_database
+-- ============================================================
+-- TABELAS DE JOGADORES
+-- ============================================================
+
 CREATE TABLE IF NOT EXISTS players_database (
     PlayerID TEXT PRIMARY KEY NOT NULL,
     PlayerName TEXT,
@@ -32,7 +40,8 @@ CREATE TABLE IF NOT EXISTS players_online (
     FOREIGN KEY (PlayerID) REFERENCES players_database(PlayerID) ON DELETE CASCADE
 );
 
--- Tabela players_stats
+-- Tabela players_stats: Usada apenas por shell scripts
+-- Não é utilizada diretamente pela aplicação admin-interface
 CREATE TABLE IF NOT EXISTS players_stats (
     PlayerID TEXT NOT NULL,
     Longest_survivor_hit REAL,
@@ -42,7 +51,8 @@ CREATE TABLE IF NOT EXISTS players_stats (
     FOREIGN KEY (PlayerID) REFERENCES players_database(PlayerID) ON DELETE CASCADE
 );
 
--- Criação da tabela ranking_infected_killed
+-- Tabela ranking_infected_killed: Não encontrado uso direto
+-- Mantida para compatibilidade com scripts externos
 CREATE TABLE IF NOT EXISTS ranking_infected_killed (
     PlayerID TEXT NOT NULL,
     Longest_survivor_hit REAL,
@@ -52,7 +62,8 @@ CREATE TABLE IF NOT EXISTS ranking_infected_killed (
     FOREIGN KEY (PlayerID) REFERENCES players_database(PlayerID)
 );
 
--- Tabela players_name_history
+-- Tabela players_name_history: Usada apenas por shell scripts (config.sh)
+-- Não é utilizada diretamente pela aplicação admin-interface
 CREATE TABLE IF NOT EXISTS players_name_history (
     Id INTEGER PRIMARY KEY AUTOINCREMENT,
     PlayerID TEXT NOT NULL,
@@ -71,24 +82,22 @@ CREATE TABLE IF NOT EXISTS players_coord (
     CoordZ REAL NOT NULL,
     CoordY REAL NOT NULL,
     Data DATETIME,
+    Health REAL,
+    Blood REAL,
+    Shock REAL,
+    Energy REAL,
+    Water REAL,
+    IsAlive INTEGER,
+    IsAdmin INTEGER,
+    Stamina REAL,
+    StaminaMax REAL,
+    ItemsInHands TEXT,
+    ItemsCount INTEGER,
+    MainItems TEXT,
     FOREIGN KEY (PlayerID) REFERENCES players_database(PlayerID) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_players_coords_playerid ON players_coord(PlayerID);
-
--- Adicionar novas colunas para informações adicionais dos jogadores
-ALTER TABLE players_coord ADD COLUMN Health REAL;
-ALTER TABLE players_coord ADD COLUMN Blood REAL;
-ALTER TABLE players_coord ADD COLUMN Shock REAL;
-ALTER TABLE players_coord ADD COLUMN Energy REAL;
-ALTER TABLE players_coord ADD COLUMN Water REAL;
-ALTER TABLE players_coord ADD COLUMN IsAlive INTEGER;
-ALTER TABLE players_coord ADD COLUMN IsAdmin INTEGER;
-ALTER TABLE players_coord ADD COLUMN Stamina REAL;
-ALTER TABLE players_coord ADD COLUMN StaminaMax REAL;
-ALTER TABLE players_coord ADD COLUMN ItemsInHands TEXT;
-ALTER TABLE players_coord ADD COLUMN ItemsCount INTEGER;
-ALTER TABLE players_coord ADD COLUMN MainItems TEXT;
 
 -- Tabela players_coord_backup
 CREATE TABLE IF NOT EXISTS players_coord_backup (
@@ -119,9 +128,11 @@ CREATE TABLE IF NOT EXISTS players_damage (
 CREATE INDEX IF NOT EXISTS idx_damage_killer ON players_damage(PlayerIDAttacker);
 CREATE INDEX IF NOT EXISTS idx_damage_killed ON players_damage(PlayerIDVictim);
 
--- Descrição: Tabela para gerenciar usuários com diferentes perfis (super_admin, admin, player)
+-- ============================================================
+-- TABELAS DE USUÁRIOS E AUTENTICAÇÃO
+-- ============================================================
 
--- Tabela de usuários
+-- Tabela de usuários para gerenciar diferentes perfis (super_admin, admin, player)
 CREATE TABLE IF NOT EXISTS users (
     UserID INTEGER PRIMARY KEY AUTOINCREMENT,
     Username TEXT UNIQUE NOT NULL,
@@ -131,26 +142,17 @@ CREATE TABLE IF NOT EXISTS users (
     IsActive INTEGER DEFAULT 1,
     CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
     LastLogin DATETIME,
+    MustChangePassword INTEGER DEFAULT 1,
     FOREIGN KEY (PlayerID) REFERENCES players_database(PlayerID) ON DELETE SET NULL
 );
 
--- Índice para busca rápida por username
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(Username);
-
--- Índice para busca rápida por PlayerID
 CREATE INDEX IF NOT EXISTS idx_users_playerid ON users(PlayerID);
-
--- Índice para busca rápida por UserType
 CREATE INDEX IF NOT EXISTS idx_users_usertype ON users(UserType);
 
--- Descrição: Campo para forçar troca de senha no primeiro login
-
--- Adicionar coluna MustChangePassword
-ALTER TABLE users ADD COLUMN MustChangePassword INTEGER DEFAULT 1;
-
--- Atualizar usuários existentes para não pedir troca de senha (segurança)
--- Manter DEFAULT 1 para novos usuários
-UPDATE users SET MustChangePassword = 0 WHERE MustChangePassword IS NULL;
+-- ============================================================
+-- TABELAS DE LOADOUTS
+-- ============================================================
 
 -- Tabela loadouts_custom
 CREATE TABLE IF NOT EXISTS loadouts_custom (
@@ -176,10 +178,44 @@ CREATE TABLE IF NOT EXISTS loadouts_players (
     UNIQUE(player_id, loadout_id)
 );
 
--- Índices para performance
 CREATE INDEX IF NOT EXISTS idx_loadouts_custom_name ON loadouts_custom(name);
 CREATE INDEX IF NOT EXISTS idx_loadouts_custom_is_active ON loadouts_custom(is_active);
 CREATE INDEX IF NOT EXISTS idx_loadouts_players_player_id ON loadouts_players(player_id);
 CREATE INDEX IF NOT EXISTS idx_loadouts_players_loadout_id ON loadouts_players(loadout_id);
 CREATE INDEX IF NOT EXISTS idx_loadouts_players_is_active ON loadouts_players(player_id, is_active);
 
+-- ============================================================
+-- TABELAS DE DETECÇÃO DE CHEAT
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS cheat_detection_scores (
+    PlayerID TEXT PRIMARY KEY NOT NULL,
+    TotalScore REAL DEFAULT 0,
+    LastUpdated DATETIME DEFAULT CURRENT_TIMESTAMP,
+    RiskLevel TEXT DEFAULT 'normal',  -- 'normal', 'suspicious', 'high_risk', 'critical'
+    IsBanned INTEGER DEFAULT 0,
+    BannedAt DATETIME,
+    FOREIGN KEY (PlayerID) REFERENCES players_database(PlayerID) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_cheat_scores_risk_level ON cheat_detection_scores(RiskLevel);
+CREATE INDEX IF NOT EXISTS idx_cheat_scores_total_score ON cheat_detection_scores(TotalScore);
+CREATE INDEX IF NOT EXISTS idx_cheat_scores_is_banned ON cheat_detection_scores(IsBanned);
+
+CREATE TABLE IF NOT EXISTS cheat_detection_events (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    PlayerID TEXT NOT NULL,
+    EventType TEXT NOT NULL,  -- 'teleport', 'speed_hack', 'aimbot', 'loot_hack', etc.
+    Score REAL NOT NULL,
+    Details TEXT,  -- JSON com detalhes do evento
+    TimeStamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    Reviewed INTEGER DEFAULT 0,
+    ReviewedBy TEXT,
+    ReviewResult TEXT,  -- 'confirmed', 'false_positive', NULL
+    FOREIGN KEY (PlayerID) REFERENCES players_database(PlayerID) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_cheat_events_player_id ON cheat_detection_events(PlayerID);
+CREATE INDEX IF NOT EXISTS idx_cheat_events_event_type ON cheat_detection_events(EventType);
+CREATE INDEX IF NOT EXISTS idx_cheat_events_timestamp ON cheat_detection_events(TimeStamp);
+CREATE INDEX IF NOT EXISTS idx_cheat_events_reviewed ON cheat_detection_events(Reviewed);

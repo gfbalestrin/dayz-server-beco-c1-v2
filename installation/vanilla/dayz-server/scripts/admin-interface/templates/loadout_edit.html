@@ -13,14 +13,14 @@
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
             {% if request.path.startswith('/my-loadout') %}
-            <li class="breadcrumb-item"><a href="{{ url_for('my_loadout') }}">Meu Loadout</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('views.my_loadout') }}">Meu Loadout</a></li>
             <li class="breadcrumb-item active" aria-current="page">{% if is_edit %}Editar{% else %}Criar{% endif %} Loadout</li>
             {% else %}
-            <li class="breadcrumb-item"><a href="{{ url_for('loadouts') }}">Loadouts</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('views.loadouts') }}">Loadouts</a></li>
             {% if loadout_type == 'player' %}
-            <li class="breadcrumb-item"><a href="{{ url_for('loadouts') }}#players-tab">Loadouts Players</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('views.loadouts') }}#players-tab">Loadouts Players</a></li>
             {% else %}
-            <li class="breadcrumb-item"><a href="{{ url_for('loadouts') }}#custom-tab">Loadouts Custom</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('views.loadouts') }}#custom-tab">Loadouts Custom</a></li>
             {% endif %}
             <li class="breadcrumb-item active" aria-current="page">{% if is_edit %}Editar{% else %}Criar{% endif %} Loadout</li>
             {% endif %}

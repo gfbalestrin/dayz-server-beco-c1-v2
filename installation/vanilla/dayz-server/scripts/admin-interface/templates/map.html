@@ -550,5 +550,18 @@
 {% block extra_js %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<!-- Módulos do Mapa - Ordem de carregamento importante -->
+<script src="{{ url_for('static', filename='js/map/map-state.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map/map-utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map/map-icons.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map/map-core.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map/map-history.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map/map-notifications.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map/map-players.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map/map-vehicles.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map/map-containers.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map/map-fences.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map/map-events.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map/map-teleport.js') }}"></script>
 <script src="{{ url_for('static', filename='js/map.js') }}"></script>
 {% endblock %}

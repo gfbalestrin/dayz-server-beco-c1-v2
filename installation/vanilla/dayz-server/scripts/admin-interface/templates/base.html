@@ -21,7 +21,7 @@
     <!-- Navbar -->
     <nav class="navbar navbar-dark bg-dark navbar-expand-lg fixed-top">
         <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('index') }}">
+            <a class="navbar-brand" href="{{ url_for('views.index') }}">
                 <i class="fas fa-gamepad me-2"></i>DayZ Admin Interface - Beco Gaming
             </a>
             
@@ -35,39 +35,39 @@
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     {% if session.user_type != 'player' %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">
+                        <a class="nav-link {% if request.endpoint == 'views.index' %}active{% endif %}" href="{{ url_for('views.index') }}">
                             <i class="fas fa-users me-1"></i>Jogadores
                         </a>
                     </li>
                     {% endif %}
                     {% if session.user_type in ['super_admin', 'admin'] %}
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if request.endpoint in ['logs_adm', 'logs_custom', 'logs_audit'] %}active{% endif %}" href="#" id="logsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ['views.logs_adm', 'views.logs_custom', 'views.logs_audit'] %}active{% endif %}" href="#" id="logsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-file-alt me-1"></i>Logs
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="logsDropdown">
                             <li>
-                                <a class="dropdown-item {% if request.endpoint == 'logs_adm' %}active{% endif %}" href="{{ url_for('logs_adm') }}">
+                                <a class="dropdown-item {% if request.endpoint == 'views.logs_adm' %}active{% endif %}" href="{{ url_for('views.logs_adm') }}">
                                     <i class="fas fa-clipboard-list me-1"></i>Logs DayZServer.ADM
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {% if request.endpoint == 'logs_custom' %}active{% endif %}" href="{{ url_for('logs_custom') }}">
+                                <a class="dropdown-item {% if request.endpoint == 'views.logs_custom' %}active{% endif %}" href="{{ url_for('views.logs_custom') }}">
                                     <i class="fas fa-file-alt me-1"></i>Logs Custom
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {% if request.endpoint == 'logs_audit' %}active{% endif %}" href="{{ url_for('logs_audit') }}">
+                                <a class="dropdown-item {% if request.endpoint == 'views.logs_audit' %}active{% endif %}" href="{{ url_for('views.logs_audit') }}">
                                     <i class="fas fa-user-shield me-1"></i>Logs Auditoria
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {% if request.endpoint == 'logs_init' %}active{% endif %}" href="{{ url_for('logs_init') }}">
+                                <a class="dropdown-item {% if request.endpoint == 'views.logs_init' %}active{% endif %}" href="{{ url_for('views.logs_init') }}">
                                     <i class="fas fa-terminal me-1"></i>Logs init.log
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {% if request.endpoint == 'logs_dayz_err' %}active{% endif %}" href="{{ url_for('logs_dayz_err') }}">
+                                <a class="dropdown-item {% if request.endpoint == 'views.logs_dayz_err' %}active{% endif %}" href="{{ url_for('views.logs_dayz_err') }}">
                                     <i class="fas fa-bug me-1"></i>Logs Dayz-server.err
                                 </a>
                             </li>
@@ -76,67 +76,67 @@
                     {% endif %}
                     {% if session.user_type != 'player' %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'vehicles' %}active{% endif %}" href="{{ url_for('vehicles') }}">
+                        <a class="nav-link {% if request.endpoint == 'views.vehicles' %}active{% endif %}" href="{{ url_for('views.vehicles') }}">
                             <i class="fas fa-car me-1"></i>Veículos
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'spawning' %}active{% endif %}" href="{{ url_for('spawning') }}">
+                        <a class="nav-link {% if request.endpoint == 'views.spawning' %}active{% endif %}" href="{{ url_for('views.spawning') }}">
                             <i class="fas fa-magic me-1"></i>Spawning
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'map_view' %}active{% endif %}" href="{{ url_for('map_view') }}">
+                        <a class="nav-link {% if request.endpoint == 'views.map_view' %}active{% endif %}" href="{{ url_for('views.map_view') }}">
                             <i class="fas fa-map me-1"></i>Mapa
                         </a>
                     </li>
                     {% endif %}
                     {% if session.user_type in ['super_admin', 'admin'] %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'deathmatch' %}active{% endif %}" href="{{ url_for('deathmatch') }}">
+                        <a class="nav-link {% if request.endpoint == 'views.deathmatch' %}active{% endif %}" href="{{ url_for('views.deathmatch') }}">
                             <i class="fas fa-crosshairs me-1"></i>Deathmatch
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'cheat_detection' %}active{% endif %}" href="{{ url_for('cheat_detection') }}">
+                        <a class="nav-link {% if request.endpoint == 'views.cheat_detection' %}active{% endif %}" href="{{ url_for('views.cheat_detection') }}">
                             <i class="fas fa-shield-alt me-1"></i>Detecção de Cheaters
                         </a>
                     </li>
                     {% endif %}
                     {% if session.user_type != 'player' %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'items_manage' %}active{% endif %}" href="{{ url_for('items_manage') }}">
+                        <a class="nav-link {% if request.endpoint == 'views.items_manage' %}active{% endif %}" href="{{ url_for('views.items_manage') }}">
                             <i class="fas fa-database me-1"></i>Itens DB
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'kits_manage' %}active{% endif %}" href="{{ url_for('kits_manage') }}">
+                        <a class="nav-link {% if request.endpoint == 'views.kits_manage' %}active{% endif %}" href="{{ url_for('views.kits_manage') }}">
                             <i class="fas fa-box-open me-1"></i>Kits
                         </a>
                     </li>
                     {% endif %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'my_loadout' %}active{% endif %}" href="{{ url_for('my_loadout') }}">
+                        <a class="nav-link {% if request.endpoint == 'views.my_loadout' %}active{% endif %}" href="{{ url_for('views.my_loadout') }}">
                             <i class="fas fa-user-circle me-1"></i>Meu Loadout
                         </a>
                     </li>
                     {% if session.user_type != 'player' %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'loadouts' %}active{% endif %}" href="{{ url_for('loadouts') }}">
+                        <a class="nav-link {% if request.endpoint == 'views.loadouts' %}active{% endif %}" href="{{ url_for('views.loadouts') }}">
                             <i class="fas fa-layer-group me-1"></i>Loadouts
                         </a>
                     </li>
                     {% endif %}
                     {% if session.user_type in ['super_admin', 'admin'] %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'loadout_rules' %}active{% endif %}" href="{{ url_for('loadout_rules') }}">
+                        <a class="nav-link {% if request.endpoint == 'views.loadout_rules' %}active{% endif %}" href="{{ url_for('views.loadout_rules') }}">
                             <i class="fas fa-shield-alt me-1"></i>Regras Loadouts
                         </a>
                     </li>
                     {% endif %}
                     {% if session.user_type in ['super_admin', 'admin'] %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'users_manage' %}active{% endif %}" href="{{ url_for('users_manage') }}">
+                        <a class="nav-link {% if request.endpoint == 'views.users_manage' %}active{% endif %}" href="{{ url_for('views.users_manage') }}">
                             <i class="fas fa-users-cog me-1"></i>Usuários
                         </a>
                     </li>
@@ -153,7 +153,7 @@
                             <span class="badge bg-info ms-2">Jogador</span>
                         {% endif %}
                     </span>
-                    <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">
+                    <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-light btn-sm">
                         <i class="fas fa-sign-out-alt me-1"></i>Sair
                     </a>
                 </div>

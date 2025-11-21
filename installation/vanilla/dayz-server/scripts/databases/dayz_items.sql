@@ -94,7 +94,8 @@ CREATE TABLE IF NOT EXISTS item (
     FOREIGN KEY (type_id) REFERENCES item_types(id)
 );
 
--- Tabela de logins de jogadores
+-- Tabela de logins de jogadores: Usada apenas por shell scripts (player_loadout_manager.sh)
+-- Não é utilizada diretamente pela aplicação admin-interface
 CREATE TABLE IF NOT EXISTS player_logins (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     player_id TEXT UNIQUE NOT NULL,

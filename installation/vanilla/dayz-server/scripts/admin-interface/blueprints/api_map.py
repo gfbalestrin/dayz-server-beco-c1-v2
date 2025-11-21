@@ -1,0 +1,751 @@
+"""
+Blueprint de API do Mapa
+Rotas de API para posições e trails de players, vehicles, containers e fences
+"""
+from flask import Blueprint, request, jsonify
+from datetime import datetime
+from database import (
+    get_players_last_position, get_online_players, get_player_trail,
+    get_online_players_positions, get_vehicles_map_positions,
+    get_vehicle_trail, get_containers_last_position, get_container_trail,
+    get_fences_last_position, get_watchtowers_last_position, get_flags_last_position,
+    get_fence_trail, get_watchtower_trail, get_flag_trail,
+    get_item_details_from_items_db, dayz_to_pixel
+)
+from blueprints.auth import admin_required
+from blueprints.helpers import convert_timestamp_to_br
+
+api_map_bp = Blueprint('api_map', __name__)
+
+@api_map_bp.route('/api/players/positions')
+@admin_required
+def api_positions():
+    """API com posições atuais de todos os jogadores"""
+    positions = get_players_last_position()
+    
+    # Buscar lista de jogadores online
+    online_players = get_online_players()
+    online_ids = set(p['PlayerID'] for p in online_players)
+    
+    # Converter para formato esperado pelo frontend
+    result = {
+        'timestamp': datetime.now().isoformat(),
+        'players': []
+    }
+    
+    for pos in positions:
+        # TESTE: CoordY do banco é a coordenada Norte-Sul
+        # Mas pode estar invertido (Norte no topo ou embaixo da imagem)
+        # Vamos testar com inversão
+        pixel_coords = dayz_to_pixel(pos['CoordX'], pos['CoordY'])
+        result['players'].append({
+            'player_id': pos['PlayerID'],
+            'player_name': pos['PlayerName'] or 'Sem nome',
+            'steam_name': pos['SteamName'] or 'Sem steam name',
+            'coord_x': pos['CoordX'],
+            'coord_y': pos['CoordY'],  # Essa é Sul-Norte
+            'coord_z': pos['CoordZ'],  # Essa é Altitude
+            'pixel_coords': pixel_coords,
+            'last_update': pos['Data'] or '',
+            'is_online': pos['PlayerID'] in online_ids,
+            'health': pos.get('Health'),
+            'blood': pos.get('Blood'),
+            'shock': pos.get('Shock'),
+            'energy': pos.get('Energy'),
+            'water': pos.get('Water'),
+            'is_alive': bool(pos.get('IsAlive')) if pos.get('IsAlive') is not None else None,
+            'is_admin': bool(pos.get('IsAdmin')) if pos.get('IsAdmin') is not None else None,
+            'stamina': pos.get('Stamina'),
+            'stamina_max': pos.get('StaminaMax'),
+            'items_in_hands': pos.get('ItemsInHands'),
+            'items_count': pos.get('ItemsCount'),
+            'main_items': pos.get('MainItems')
+        })
+    
+    return jsonify(result)
+
+@api_map_bp.route('/api/players/<player_id>/trail')
+@admin_required
+def api_player_trail(player_id):
+    """API com trail de um jogador específico"""
+    limit = request.args.get('limit', 100, type=int)
+    trail = get_player_trail(player_id, limit)
+    
+    result = {
+        'player_id': player_id,
+        'trail': []
+    }
+    
+    for point in trail:
+        pixel_coords = dayz_to_pixel(point['CoordX'], point['CoordY'])
+        result['trail'].append({
+            'player_coord_id': point['PlayerCoordId'],
+            'coord_x': point['CoordX'],
+            'coord_y': point['CoordY'],
+            'coord_z': point['CoordZ'],
+            'pixel_coords': pixel_coords,
+            'timestamp': point['Data'] or '',
+            'has_backup': bool(point.get('HasBackup', 0))
+        })
+    
+    return jsonify(result)
+
+@api_map_bp.route('/api/players/online/positions')
+@admin_required
+def api_online_positions():
+    """API com posições apenas de jogadores online"""
+    positions = get_online_players_positions()
+    
+    result = {
+        'timestamp': datetime.now().isoformat(),
+        'players': []
+    }
+    
+    for pos in positions:
+        pixel_coords = dayz_to_pixel(pos['CoordX'], pos['CoordY'])
+        result['players'].append({
+            'player_id': pos['PlayerID'],
+            'player_name': pos['PlayerName'] or 'Sem nome',
+            'steam_name': pos['SteamName'] or 'Sem steam name',
+            'coord_x': pos['CoordX'],
+            'coord_y': pos['CoordY'],
+            'coord_z': pos['CoordZ'],
+            'pixel_coords': pixel_coords,
+            'last_update': pos['Data'] or '',
+            'is_online': True,
+            'health': pos.get('Health'),
+            'blood': pos.get('Blood'),
+            'shock': pos.get('Shock'),
+            'energy': pos.get('Energy'),
+            'water': pos.get('Water'),
+            'is_alive': bool(pos.get('IsAlive')) if pos.get('IsAlive') is not None else None,
+            'is_admin': bool(pos.get('IsAdmin')) if pos.get('IsAdmin') is not None else None,
+            'stamina': pos.get('Stamina'),
+            'stamina_max': pos.get('StaminaMax'),
+            'items_in_hands': pos.get('ItemsInHands'),
+            'items_count': pos.get('ItemsCount'),
+            'main_items': pos.get('MainItems')
+        })
+    
+    return jsonify(result)
+
+@api_map_bp.route('/api/vehicles/positions')
+@admin_required
+def api_vehicles_positions():
+    """API com posições atuais de todos os veículos"""
+    include_destroyed = request.args.get('include_destroyed', 'false').lower() == 'true'
+    vehicles = get_vehicles_map_positions(include_destroyed=include_destroyed)
+    
+    result = {
+        'timestamp': datetime.now().isoformat(),
+        'vehicles': []
+    }
+    
+    for veh in vehicles:
+        # Para veículos (diferente dos jogadores):
+        # PositionX = Leste-Oeste
+        # PositionY = Sul-Norte (Y do mapa) ← usar este
+        # PositionZ = Altitude (ignorar)
+        pixel_coords = dayz_to_pixel(veh['PositionX'], veh['PositionY'])
+        
+        # Buscar informações de items do banco de dados
+        items = veh.get('items', [])
+        attachments = veh.get('attachments', [])
+        health_parts = veh.get('health_parts')
+        
+        # Converter items e attachments para formato esperado pelo frontend
+        items_formatted = []
+        for item in items:
+            item_type = item.get('type', '')
+            item_health = item.get('health')
+            # Buscar informações do item no banco de itens
+            item_info = get_item_details_from_items_db(item_type)
+            items_formatted.append({
+                'type': item_type,
+                'name': item_info.get('name', item_type) if item_info else item_type,
+                'health': item_health,
+                'img': item_info.get('img', '') if item_info else ''
+            })
+        
+        attachments_formatted = []
+        for attachment in attachments:
+            attachment_type = attachment.get('type', '')
+            attachment_health = attachment.get('health')
+            # Buscar informações do attachment no banco de itens
+            attachment_info = get_item_details_from_items_db(attachment_type)
+            attachments_formatted.append({
+                'type': attachment_type,
+                'name': attachment_info.get('name', attachment_type) if attachment_info else attachment_type,
+                'health': attachment_health,
+                'img': attachment_info.get('img', '') if attachment_info else ''
+            })
+        
+        result['vehicles'].append({
+            'vehicle_id': veh['VehicleId'],
+            'vehicle_name': veh['VehicleName'] or 'Veículo',
+            'coord_x': veh['PositionX'],
+            'coord_y': veh['PositionY'],  # Sul-Norte (Y do mapa)
+            'coord_z': veh['PositionZ'],  # Altitude
+            'pixel_coords': pixel_coords,
+            'last_update': veh['TimeStamp'] or '',
+            'is_destroyed': bool(veh.get('IsDestroyed', 0)) if include_destroyed else False,
+            'destroyed_at': veh.get('DestroyedAt') if include_destroyed else None,
+            'has_moved': bool(veh.get('has_moved', False)),
+            'items': items_formatted,
+            'attachments': attachments_formatted,
+            'health_parts': health_parts
+        })
+    
+    return jsonify(result)
+
+@api_map_bp.route('/api/vehicles/map-positions')
+@admin_required
+def api_vehicles_map_positions():
+    """API com posições atuais dos veículos para o mapa (otimizado)"""
+    vehicles = get_vehicles_map_positions()
+    
+    result = {
+        'timestamp': datetime.now().isoformat(),
+        'vehicles': []
+    }
+    
+    for veh in vehicles:
+        # Para veículos (diferente dos jogadores):
+        # PositionX = Leste-Oeste
+        # PositionY = Sul-Norte (Y do mapa) ← usar este
+        # PositionZ = Altitude (ignorar)
+        pixel_coords = dayz_to_pixel(veh['PositionX'], veh['PositionY'])
+        
+        # Buscar informações de items do banco de dados
+        items = veh.get('items', [])
+        attachments = veh.get('attachments', [])
+        health_parts = veh.get('health_parts')
+        
+        # Converter items e attachments para formato esperado pelo frontend
+        items_formatted = []
+        for item in items:
+            item_type = item.get('type', '')
+            item_health = item.get('health')
+            # Buscar informações do item no banco de itens
+            item_info = get_item_details_from_items_db(item_type)
+            items_formatted.append({
+                'type': item_type,
+                'name': item_info.get('name', item_type) if item_info else item_type,
+                'health': item_health,
+                'img': item_info.get('img', '') if item_info else ''
+            })
+        
+        attachments_formatted = []
+        for attachment in attachments:
+            attachment_type = attachment.get('type', '')
+            attachment_health = attachment.get('health')
+            # Buscar informações do attachment no banco de itens
+            attachment_info = get_item_details_from_items_db(attachment_type)
+            attachments_formatted.append({
+                'type': attachment_type,
+                'name': attachment_info.get('name', attachment_type) if attachment_info else attachment_type,
+                'health': attachment_health,
+                'img': attachment_info.get('img', '') if attachment_info else ''
+            })
+        
+        result['vehicles'].append({
+            'vehicle_id': veh['VehicleId'],
+            'vehicle_name': veh['VehicleName'] or 'Veículo',
+            'coord_x': veh['PositionX'],
+            'coord_y': veh['PositionY'],  # Sul-Norte (Y do mapa)
+            'coord_z': veh['PositionZ'],  # Altitude
+            'pixel_coords': pixel_coords,
+            'last_update': veh['TimeStamp'] or ''
+        })
+    
+    return jsonify(result)
+
+@api_map_bp.route('/api/vehicles/<vehicle_id>/trail')
+@admin_required
+def api_vehicle_trail(vehicle_id):
+    """API com trail de um veículo específico"""
+    limit = request.args.get('limit', 100, type=int)
+    trail = get_vehicle_trail(vehicle_id, limit)
+    
+    result = {
+        'vehicle_id': vehicle_id,
+        'trail': []
+    }
+    
+    for point in trail:
+        pixel_coords = dayz_to_pixel(point['PositionX'], point['PositionY'])
+        result['trail'].append({
+            'vehicle_tracking_id': point['IdVehicleTracking'],
+            'vehicle_name': point['VehicleName'],
+            'coord_x': point['PositionX'],
+            'coord_y': point['PositionY'],
+            'coord_z': point['PositionZ'],
+            'pixel_coords': pixel_coords,
+            'timestamp': point['TimeStamp'] or ''
+        })
+    
+    return jsonify(result)
+
+@api_map_bp.route('/api/containers/positions')
+@admin_required
+def api_containers_positions():
+    """API com posições atuais dos containers com seus items"""
+    include_destroyed = request.args.get('include_destroyed', 'false').lower() == 'true'
+    containers = get_containers_last_position(include_destroyed=include_destroyed)
+    
+    result = {
+        'timestamp': datetime.now().isoformat(),
+        'containers': []
+    }
+    
+    for container in containers:
+        # Converter coordenadas para pixel
+        pixel_coords = dayz_to_pixel(container['PositionX'], container['PositionY'])
+        
+        # Processar items do container
+        items = []
+        for item in container.get('items', []):
+            # Buscar detalhes do item no banco dayz_items.db
+            item_details = get_item_details_from_items_db(item['ItemType'])
+            
+            item_data = {
+                'type': item['ItemType'],
+                'health': item.get('ItemHealth'),
+                'name': item_details['name'] if item_details else item['ItemType'],
+                'img': item_details['img'] if item_details else ''
+            }
+            items.append(item_data)
+        
+        # Debug: log para containers WoodenCrate
+        if 'WoodenCrate' in container.get('ContainerName', ''):
+            print(f"DEBUG WoodenCrate {container.get('ContainerId')}: {len(items)} items")
+            for item_data in items:
+                print(f"  - {item_data['type']}: img={item_data['img']}")
+        
+        result['containers'].append({
+            'container_id': container['ContainerId'],
+            'container_name': container['ContainerName'],
+            'container_type': container['ContainerName'],
+            'coord_x': container['PositionX'],
+            'coord_y': container['PositionY'],  # Sul-Norte (Y do mapa)
+            'coord_z': container['PositionZ'],  # Altitude
+            'pixel_coords': pixel_coords,
+            'items': items,
+            'last_update': container['TimeStamp'] or '',
+            'is_destroyed': bool(container.get('IsDestroyed', 0)) if include_destroyed else False,
+            'destroyed_at': container.get('DestroyedAt') if include_destroyed else None
+        })
+    
+    return jsonify(result)
+
+@api_map_bp.route('/api/containers/<container_id>/trail')
+@admin_required
+def api_container_trail(container_id):
+    """API com trail de um container específico"""
+    limit = request.args.get('limit', 50, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    date_from = request.args.get('date_from', None)
+    date_to = request.args.get('date_to', None)
+    filter_by_items_only = request.args.get('filter_by_items_only', 'false').lower() == 'true'
+    
+    trail, total_count = get_container_trail(container_id, limit, offset, date_from, date_to, filter_by_items_only)
+    
+    result = {
+        'container_id': container_id,
+        'trail': [],
+        'pagination': {
+            'limit': limit,
+            'offset': offset,
+            'total': total_count,
+            'has_more': (offset + limit) < total_count
+        }
+    }
+    
+    for point in trail:
+        pixel_coords = dayz_to_pixel(point['PositionX'], point['PositionY'])
+        
+        # Processar items do container
+        items = []
+        for item in point.get('items', []):
+            item_details = get_item_details_from_items_db(item['ItemType'])
+            items.append({
+                'type': item['ItemType'],
+                'health': item.get('ItemHealth'),
+                'name': item_details['name'] if item_details else item['ItemType'],
+                'img': item_details['img'] if item_details else ''
+            })
+        
+        result['trail'].append({
+            'container_tracking_id': point['IdContainerTracking'],
+            'container_name': point['ContainerName'],
+            'coord_x': point['PositionX'],
+            'coord_y': point['PositionY'],
+            'coord_z': point['PositionZ'],
+            'pixel_coords': pixel_coords,
+            'items': items,
+            'timestamp': point['TimeStamp'] or ''
+        })
+    
+    return jsonify(result)
+
+@api_map_bp.route('/api/fences/positions')
+@admin_required
+def api_fences_positions():
+    """API com posições atuais dos fences (construções)"""
+    include_destroyed = request.args.get('include_destroyed', 'false').lower() == 'true'
+    fences = get_fences_last_position(include_destroyed=include_destroyed)
+    watchtowers = get_watchtowers_last_position(include_destroyed=include_destroyed)
+    flags = get_flags_last_position(include_destroyed=include_destroyed)
+    
+    result = {
+        'timestamp': datetime.now().isoformat(),
+        'fences': []
+    }
+    
+    for fence in fences:
+        # Converter coordenadas para pixel
+        pixel_coords = dayz_to_pixel(fence['PositionX'], fence['PositionY'])
+        has_base = fence.get('HasBase')
+        lower_panel_built = fence.get('LowerPanelBuilt')
+        upper_panel_built = fence.get('UpperPanelBuilt')
+        
+        result['fences'].append({
+            'fence_id': fence['FenceId'],
+            'fence_name': fence['FenceName'],
+            'coord_x': fence['PositionX'],
+            'coord_y': fence['PositionY'],  # Sul-Norte (Y do mapa)
+            'coord_z': fence['PositionZ'],  # Altitude
+            'pixel_coords': pixel_coords,
+            'last_update': fence['TimeStamp'] or '',
+            'has_base': (has_base == 1) if has_base is not None else None,
+            'lower_panel_built': (lower_panel_built == 1) if lower_panel_built is not None else None,
+            'upper_panel_built': (upper_panel_built == 1) if upper_panel_built is not None else None,
+            'is_destroyed': bool(fence.get('IsDestroyed', 0)) if include_destroyed else False,
+            'destroyed_at': fence.get('DestroyedAt') if include_destroyed else None,
+            'has_recent_attack': bool(fence.get('has_recent_attack', False)),
+            'structure_type': 'fence',
+            'watchtower_details': None,
+            'orientation': None
+        })
+
+    def normalize_watchtower_bool(value):
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        try:
+            return bool(int(value))
+        except (TypeError, ValueError):
+            if isinstance(value, str):
+                return value.lower() in ('true', '1', 'yes')
+            return bool(value)
+
+    def safe_float(value):
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    for watchtower in watchtowers:
+        pixel_coords = dayz_to_pixel(watchtower['PositionX'], watchtower['PositionY'])
+        details = {
+            'has_base': normalize_watchtower_bool(watchtower.get('HasBase')),
+            'level_1_base': normalize_watchtower_bool(watchtower.get('Level1BaseBuilt')),
+            'level_2_base': normalize_watchtower_bool(watchtower.get('Level2BaseBuilt')),
+            'level_3_base': normalize_watchtower_bool(watchtower.get('Level3BaseBuilt')),
+            'level_1_stairs': normalize_watchtower_bool(watchtower.get('Level1StairsBuilt')),
+            'level_2_stairs': normalize_watchtower_bool(watchtower.get('Level2StairsBuilt')),
+            'has_roof': normalize_watchtower_bool(watchtower.get('HasRoof')),
+            'level_1_wall_1_lower_built': normalize_watchtower_bool(watchtower.get('Level1Wall1LowerBuilt')),
+            'level_1_wall_1_upper_built': normalize_watchtower_bool(watchtower.get('Level1Wall1UpperBuilt')),
+            'level_1_wall_2_lower_built': normalize_watchtower_bool(watchtower.get('Level1Wall2LowerBuilt')),
+            'level_1_wall_2_upper_built': normalize_watchtower_bool(watchtower.get('Level1Wall2UpperBuilt')),
+            'level_1_wall_3_lower_built': normalize_watchtower_bool(watchtower.get('Level1Wall3LowerBuilt')),
+            'level_1_wall_3_upper_built': normalize_watchtower_bool(watchtower.get('Level1Wall3UpperBuilt')),
+            'level_2_wall_1_lower_built': normalize_watchtower_bool(watchtower.get('Level2Wall1LowerBuilt')),
+            'level_2_wall_1_upper_built': normalize_watchtower_bool(watchtower.get('Level2Wall1UpperBuilt')),
+            'level_2_wall_2_lower_built': normalize_watchtower_bool(watchtower.get('Level2Wall2LowerBuilt')),
+            'level_2_wall_2_upper_built': normalize_watchtower_bool(watchtower.get('Level2Wall2UpperBuilt')),
+            'level_2_wall_3_lower_built': normalize_watchtower_bool(watchtower.get('Level2Wall3LowerBuilt')),
+            'level_2_wall_3_upper_built': normalize_watchtower_bool(watchtower.get('Level2Wall3UpperBuilt')),
+            'level_3_wall_1_lower_built': normalize_watchtower_bool(watchtower.get('Level3Wall1LowerBuilt')),
+            'level_3_wall_1_upper_built': normalize_watchtower_bool(watchtower.get('Level3Wall1UpperBuilt')),
+            'level_3_wall_2_lower_built': normalize_watchtower_bool(watchtower.get('Level3Wall2LowerBuilt')),
+            'level_3_wall_2_upper_built': normalize_watchtower_bool(watchtower.get('Level3Wall2UpperBuilt')),
+            'level_3_wall_3_lower_built': normalize_watchtower_bool(watchtower.get('Level3Wall3LowerBuilt')),
+            'level_3_wall_3_upper_built': normalize_watchtower_bool(watchtower.get('Level3Wall3UpperBuilt')),
+        }
+
+        result['fences'].append({
+            'fence_id': watchtower['WatchtowerId'],
+            'fence_name': watchtower.get('WatchtowerName') or 'Watchtower',
+            'coord_x': watchtower['PositionX'],
+            'coord_y': watchtower['PositionY'],
+            'coord_z': watchtower['PositionZ'],
+            'pixel_coords': pixel_coords,
+            'last_update': watchtower.get('TimeStamp') or '',
+            'has_base': details['has_base'],
+            'lower_panel_built': details['level_1_base'],
+            'upper_panel_built': details['level_2_base'],
+            'is_destroyed': bool(watchtower.get('IsDestroyed', 0)) if include_destroyed else False,
+            'destroyed_at': watchtower.get('DestroyedAt') if include_destroyed else None,
+            'has_recent_attack': bool(watchtower.get('has_recent_attack', False)),
+            'structure_type': 'watchtower',
+            'watchtower_details': details,
+            'orientation': {
+                'x': safe_float(watchtower.get('OrientationX')),
+                'y': safe_float(watchtower.get('OrientationY')),
+                'z': safe_float(watchtower.get('OrientationZ'))
+            }
+        })
+
+    for flag in flags:
+        pixel_coords = dayz_to_pixel(flag['PositionX'], flag['PositionY'])
+        flag_details = {
+            'has_base': normalize_watchtower_bool(flag.get('HasBase')),
+            'has_flag_base': normalize_watchtower_bool(flag.get('HasFlagBase')),
+            'flag_raised': normalize_watchtower_bool(flag.get('FlagRaised')),
+            'flag_height': safe_float(flag.get('FlagHeight'))
+        }
+
+        result['fences'].append({
+            'fence_id': flag['FlagId'],
+            'fence_name': flag.get('FlagName') or 'Flag Pole',
+            'coord_x': flag['PositionX'],
+            'coord_y': flag['PositionY'],
+            'coord_z': flag['PositionZ'],
+            'pixel_coords': pixel_coords,
+            'last_update': flag.get('TimeStamp') or '',
+            'has_base': flag_details['has_base'],
+            'lower_panel_built': None,
+            'upper_panel_built': None,
+            'is_destroyed': bool(flag.get('IsDestroyed', 0)) if include_destroyed else False,
+            'destroyed_at': flag.get('DestroyedAt') if include_destroyed else None,
+            'has_recent_attack': False,
+            'structure_type': 'flag',
+            'watchtower_details': None,
+            'flag_details': flag_details,
+            'orientation': {
+                'x': safe_float(flag.get('OrientationX')),
+                'y': safe_float(flag.get('OrientationY')),
+                'z': safe_float(flag.get('OrientationZ'))
+            }
+        })
+    
+    return jsonify(result)
+
+@api_map_bp.route('/api/fences/<fence_id>/trail')
+@admin_required
+def api_fence_trail(fence_id):
+    """API com trail de uma fence específica"""
+    limit = request.args.get('limit', 50, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    date_from = request.args.get('date_from', None)
+    date_to = request.args.get('date_to', None)
+    
+    trail, total_count = get_fence_trail(fence_id, limit, offset, date_from, date_to)
+    
+    result = {
+        'fence_id': fence_id,
+        'trail': [],
+        'pagination': {
+            'limit': limit,
+            'offset': offset,
+            'total': total_count,
+            'has_more': (offset + limit) < total_count
+        }
+    }
+    
+    for point in trail:
+        pixel_coords = dayz_to_pixel(point['PositionX'], point['PositionY'])
+        result['trail'].append({
+            'fence_tracking_id': point['IdFenceTracking'],
+            'fence_name': point['FenceName'],
+            'coord_x': point['PositionX'],
+            'coord_y': point['PositionY'],
+            'coord_z': point['PositionZ'],
+            'pixel_coords': pixel_coords,
+            'has_base': point.get('HasBase'),
+            'lower_panel_built': point.get('LowerPanelBuilt'),
+            'upper_panel_built': point.get('UpperPanelBuilt'),
+            'timestamp': point['TimeStamp'] or ''
+        })
+    
+    return jsonify(result)
+
+@api_map_bp.route('/api/watchtowers/<watchtower_id>/trail')
+@admin_required
+def api_watchtower_trail(watchtower_id):
+    """API com histórico de watchtower"""
+    limit = request.args.get('limit', 50, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+
+    trail, total_count = get_watchtower_trail(
+        watchtower_id,
+        limit=limit,
+        offset=offset,
+        date_from=date_from,
+        date_to=date_to
+    )
+
+    def normalize_bool(value):
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in ('true', '1', 'yes'):
+                return True
+            if lowered in ('false', '0', 'no'):
+                return False
+        try:
+            return bool(int(value))
+        except (TypeError, ValueError):
+            return bool(value)
+
+    def safe_float(value):
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    result_trail = []
+    for point in trail:
+        pixel_coords = dayz_to_pixel(point.get('PositionX') or 0, point.get('PositionY') or 0)
+        result_trail.append({
+            'tracking_id': point.get('WatchtowerTrackingId'),
+            'watchtower_id': point.get('WatchtowerId'),
+            'watchtower_name': point.get('WatchtowerName') or 'Watchtower',
+            'coord_x': point.get('PositionX') or 0,
+            'coord_y': point.get('PositionY') or 0,
+            'coord_z': point.get('PositionZ'),
+            'pixel_coords': pixel_coords,
+            'timestamp': convert_timestamp_to_br(point.get('TimeStamp')),
+            'level_1_wall_1_lower_built': normalize_bool(point.get('Level1Wall1LowerBuilt')),
+            'level_1_wall_1_upper_built': normalize_bool(point.get('Level1Wall1UpperBuilt')),
+            'level_1_wall_2_lower_built': normalize_bool(point.get('Level1Wall2LowerBuilt')),
+            'level_1_wall_2_upper_built': normalize_bool(point.get('Level1Wall2UpperBuilt')),
+            'level_1_wall_3_lower_built': normalize_bool(point.get('Level1Wall3LowerBuilt')),
+            'level_1_wall_3_upper_built': normalize_bool(point.get('Level1Wall3UpperBuilt')),
+            'level_2_wall_1_lower_built': normalize_bool(point.get('Level2Wall1LowerBuilt')),
+            'level_2_wall_1_upper_built': normalize_bool(point.get('Level2Wall1UpperBuilt')),
+            'level_2_wall_2_lower_built': normalize_bool(point.get('Level2Wall2LowerBuilt')),
+            'level_2_wall_2_upper_built': normalize_bool(point.get('Level2Wall2UpperBuilt')),
+            'level_2_wall_3_lower_built': normalize_bool(point.get('Level2Wall3LowerBuilt')),
+            'level_2_wall_3_upper_built': normalize_bool(point.get('Level2Wall3UpperBuilt')),
+            'level_3_wall_1_lower_built': normalize_bool(point.get('Level3Wall1LowerBuilt')),
+            'level_3_wall_1_upper_built': normalize_bool(point.get('Level3Wall1UpperBuilt')),
+            'level_3_wall_2_lower_built': normalize_bool(point.get('Level3Wall2LowerBuilt')),
+            'level_3_wall_2_upper_built': normalize_bool(point.get('Level3Wall2UpperBuilt')),
+            'level_3_wall_3_lower_built': normalize_bool(point.get('Level3Wall3LowerBuilt')),
+            'level_3_wall_3_upper_built': normalize_bool(point.get('Level3Wall3UpperBuilt')),
+            'has_base': normalize_bool(point.get('HasBase')),
+            'level_1_base': normalize_bool(point.get('Level1BaseBuilt')),
+            'level_2_base': normalize_bool(point.get('Level2BaseBuilt')),
+            'level_3_base': normalize_bool(point.get('Level3BaseBuilt')),
+            'level_1_stairs': normalize_bool(point.get('Level1StairsBuilt')),
+            'level_2_stairs': normalize_bool(point.get('Level2StairsBuilt')),
+            'has_roof': normalize_bool(point.get('HasRoof')),
+            'orientation': {
+                'x': safe_float(point.get('OrientationX')),
+                'y': safe_float(point.get('OrientationY')),
+                'z': safe_float(point.get('OrientationZ'))
+            }
+        })
+
+    pagination = {
+        'limit': limit,
+        'offset': offset,
+        'total': total_count,
+        'has_more': (offset + limit) < total_count
+    }
+
+    return jsonify({
+        'watchtower_id': watchtower_id,
+        'trail': result_trail,
+        'pagination': pagination
+    })
+
+@api_map_bp.route('/api/flags/<flag_id>/trail')
+@admin_required
+def api_flag_trail(flag_id):
+    """API com histórico de flag"""
+    limit = request.args.get('limit', 50, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+
+    trail, total_count = get_flag_trail(
+        flag_id,
+        limit=limit,
+        offset=offset,
+        date_from=date_from,
+        date_to=date_to
+    )
+
+    def normalize_bool(value):
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in ('true', '1', 'yes'):
+                return True
+            if lowered in ('false', '0', 'no'):
+                return False
+        try:
+            return bool(int(value))
+        except (TypeError, ValueError):
+            return bool(value)
+
+    def safe_float(value):
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    result_trail = []
+    for point in trail:
+        pixel_coords = dayz_to_pixel(point.get('PositionX') or 0, point.get('PositionY') or 0)
+        result_trail.append({
+            'tracking_id': point.get('FlagTrackingId'),
+            'flag_id': point.get('FlagId'),
+            'flag_name': point.get('FlagName') or 'Flag Pole',
+            'coord_x': point.get('PositionX') or 0,
+            'coord_y': point.get('PositionY') or 0,
+            'coord_z': point.get('PositionZ'),
+            'pixel_coords': pixel_coords,
+            'timestamp': convert_timestamp_to_br(point.get('TimeStamp')),
+            'has_base': normalize_bool(point.get('HasBase')),
+            'has_flag_base': normalize_bool(point.get('HasFlagBase')),
+            'flag_raised': normalize_bool(point.get('FlagRaised')),
+            'flag_height': safe_float(point.get('FlagHeight')),
+            'orientation': {
+                'x': safe_float(point.get('OrientationX')),
+                'y': safe_float(point.get('OrientationY')),
+                'z': safe_float(point.get('OrientationZ'))
+            }
+        })
+
+    pagination = {
+        'limit': limit,
+        'offset': offset,
+        'total': total_count,
+        'has_more': (offset + limit) < total_count
+    }
+
+    return jsonify({
+        'flag_id': flag_id,
+        'trail': result_trail,
+        'pagination': pagination
+    })
