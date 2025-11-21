@@ -66,6 +66,21 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Log de Notificações -->
+        <div class="card mt-3" id="notificationLogCard" style="display: none;">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-list-alt me-2"></i><strong>Log de Notificações</strong>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-light" id="clearNotificationLogBtn" onclick="clearNotificationLog()">
+                    <i class="fas fa-trash me-1"></i>Limpar
+                </button>
+            </div>
+            <div class="card-body p-2" style="max-height: 250px; overflow-y: auto; background-color: #f8f9fa;" id="notificationLogContent">
+                <div class="text-muted text-center small">Nenhuma notificação ainda</div>
+            </div>
+        </div>
     </div>
     
     <!-- Sidebar Direita com Controles -->
