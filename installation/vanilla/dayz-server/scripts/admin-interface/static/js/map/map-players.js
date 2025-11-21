@@ -1220,8 +1220,23 @@ function generateRequestId() {
  * Escanear região do mapa
  */
 function scanRegion(coordX, coordY, coordZ, radius) {
+    // Verificar se já está escaneando
+    if (MapState.isScanning) {
+        showToast('Aviso', 'Já existe um escaneamento em andamento. Aguarde a conclusão.', 'warning');
+        return;
+    }
+    
+    // Marcar como escaneando
+    MapState.isScanning = true;
+    
+    // Desabilitar botão de escaneamento
+    $('#btnModeScan').prop('disabled', true);
+    
     // Gerar request_id único
     const requestId = generateRequestId();
+    
+    // Mostrar feedback visual no mapa
+    showScanRegionVisual(coordX, coordY, coordZ, radius);
     
     // Mostrar loading
     showToast('Info', `Escaneando região em X=${coordX.toFixed(1)}, Y=${coordY.toFixed(1)} (raio: ${radius}m)...`, 'info');
@@ -1240,25 +1255,84 @@ function scanRegion(coordX, coordY, coordZ, radius) {
         }),
         success: function(response) {
             // Iniciar polling para obter resultado
-            startScanPolling(requestId, 0);
+            startScanPolling(requestId, 0, coordX, coordY, coordZ, radius);
         },
         error: function(xhr) {
             const error = xhr.responseJSON || {};
             const errorMsg = error.message || error.error || 'Erro ao iniciar escaneamento de região';
             showToast('Erro', errorMsg, 'error');
+            // Limpar estado de escaneamento
+            clearScanState();
         }
     });
 }
 
 /**
+ * Mostrar círculo visual permanente no mapa durante escaneamento
+ */
+function showScanRegionVisual(centerX, centerY, centerZ, radius) {
+    // Remover círculo anterior se existir
+    if (MapState.scanRegionCircle) {
+        MapState.map.removeLayer(MapState.scanRegionCircle);
+        MapState.scanRegionCircle = null;
+    }
+    
+    // Converter coordenadas DayZ para coordenadas do mapa
+    // centerX = leste-oeste (X do DayZ)
+    // centerY = norte-sul (Z do DayZ) - mas vem como coord_y do frontend
+    // centerZ = altura (Y do DayZ) - mas vem como coord_z do frontend
+    const pixelSize = MapState.currentMapConfig ? MapState.currentMapConfig.pixelSize : 4096;
+    const pixelX = (centerY / 15360.0) * pixelSize; // Y (norte-sul) vira lat do mapa
+    const pixelY = (centerX / 15360.0) * pixelSize; // X (leste-oeste) vira lng do mapa
+    const radiusInPixels = (radius / 15360.0) * pixelSize;
+    
+    const mapCoords = [pixelX, pixelY];
+    
+    // Criar círculo visual permanente (diferente do círculo do cursor)
+    MapState.scanRegionCircle = L.circle(mapCoords, {
+        radius: radiusInPixels,
+        color: '#007bff',
+        fillColor: '#007bff',
+        fillOpacity: 0.3,
+        weight: 3,
+        dashArray: '10, 5'
+    }).addTo(MapState.map);
+    
+    // Adicionar popup informativo
+    MapState.scanRegionCircle.bindPopup(`
+        <div>
+            <strong>Escaneando região...</strong><br>
+            <small>Centro: X=${centerX.toFixed(1)}, Y=${centerY.toFixed(1)}</small><br>
+            <small>Raio: ${radius}m</small>
+        </div>
+    `).openPopup();
+}
+
+/**
+ * Limpar estado de escaneamento
+ */
+function clearScanState() {
+    MapState.isScanning = false;
+    $('#btnModeScan').prop('disabled', false);
+    
+    // Remover círculo visual
+    if (MapState.scanRegionCircle) {
+        MapState.map.removeLayer(MapState.scanRegionCircle);
+        MapState.scanRegionCircle = null;
+    }
+}
+
+/**
  * Iniciar polling para obter resultado do escaneamento
  */
-function startScanPolling(requestId, attempt) {
+function startScanPolling(requestId, attempt, centerX, centerY, centerZ, radius) {
     const MAX_ATTEMPTS = 30; // 30 tentativas
     const POLL_INTERVAL = 2000; // 2 segundos entre tentativas
     
     if (attempt >= MAX_ATTEMPTS) {
         showToast('Aviso', 'Tempo limite excedido. O servidor pode estar processando o comando.', 'warning');
+        clearScanState();
+        setMode('normal');
         return;
     }
     
@@ -1269,15 +1343,17 @@ function startScanPolling(requestId, attempt) {
                 // Resultado disponível
                 markObjectsOnMap(response.data);
                 showToast('Sucesso', `Escaneamento concluído: ${response.data.objects ? response.data.objects.length : 0} objetos encontrados`, 'success');
+                clearScanState();
+                setMode('normal');
             } else if (response.status === 'not_found' || response.status === 'processing') {
                 // Resultado não encontrado ainda, continuar polling
                 setTimeout(function() {
-                    startScanPolling(requestId, attempt + 1);
+                    startScanPolling(requestId, attempt + 1, centerX, centerY, centerZ, radius);
                 }, POLL_INTERVAL);
             } else {
                 // Status desconhecido, continuar tentando
                 setTimeout(function() {
-                    startScanPolling(requestId, attempt + 1);
+                    startScanPolling(requestId, attempt + 1, centerX, centerY, centerZ, radius);
                 }, POLL_INTERVAL);
             }
         })
@@ -1285,10 +1361,12 @@ function startScanPolling(requestId, attempt) {
             // Em caso de erro, continuar tentando por algumas vezes
             if (attempt < 5) {
                 setTimeout(function() {
-                    startScanPolling(requestId, attempt + 1);
+                    startScanPolling(requestId, attempt + 1, centerX, centerY, centerZ, radius);
                 }, POLL_INTERVAL);
             } else {
                 showToast('Erro', 'Erro ao buscar resultado do escaneamento.', 'error');
+                clearScanState();
+                setMode('normal');
             }
         });
 }
@@ -1377,9 +1455,9 @@ function markObjectsOnMap(scanData) {
     
     if (markedCount === 0) {
         showToast('Aviso', `Nenhum objeto válido foi marcado no mapa. ${skippedCount} objetos foram ignorados (sem tipo ou fora dos bounds)`, 'warning');
-    } else {
-        showToast('Sucesso', `${markedCount} objetos marcados no mapa`, 'success');
     }
+    
+    // Nota: clearScanState() e setMode('normal') são chamados em startScanPolling()
 }
 
 /**

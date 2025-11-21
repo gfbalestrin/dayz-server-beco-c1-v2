@@ -67,6 +67,8 @@ const MapState = {
     vehicleTeleportUseMapPosition: false,
     scanCircle: null,
     scanMarkers: {},
+    scanRegionCircle: null,
+    isScanning: false,
     
     // Notificações
     notificationsEnabled: true,

@@ -122,6 +122,27 @@ bool ExecuteCommand(TStringArray tokens)
                     
                     // Obter informações do objeto
                     string objType = scannedObj.GetType();
+                    
+                    // Filtrar objetos de natureza (árvores, arbustos)
+                    if (objType.Length() > 0)
+                    {
+                        // Verificar prefixos de natureza
+                        if (objType.Length() >= 8 && objType.Substring(0, 8) == "BushSoft")
+                            continue;
+                        if (objType.Length() >= 8 && objType.Substring(0, 8) == "BushHard")
+                            continue;
+                        if (objType.Length() >= 8 && objType.Substring(0, 8) == "TreeSoft")
+                            continue;
+                        if (objType.Length() >= 8 && objType.Substring(0, 8) == "TreeHard")
+                            continue;
+                        
+                        // Verificar se contém palavras-chave de natureza
+                        if (objType.Contains("Tree"))
+                            continue;
+                        if (objType.Contains("Bush"))
+                            continue;
+                    }
+                    
                     string objName = "";
                     
                     // Tentar obter nome do objeto

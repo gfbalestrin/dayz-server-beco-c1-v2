@@ -397,7 +397,11 @@ def api_scan_region():
                 'message': 'Arquivo de comandos não encontrado'
             }), 500
         
-        # Formato: SYSTEM scanregion coord_x coord_y coord_z radius request_id
+        # Formato: SYSTEM scanregion coord_x coord_z coord_y radius request_id
+        # O Commands.c lê: tokens[2]=X, tokens[3]=Z (norte-sul), tokens[4]=Y (altura)
+        # Frontend envia: coord_x=X (leste-oeste), coord_y=Z (norte-sul), coord_z=Y (altura)
+        # Commands.c espera: scanCoordX=X, scanCoordZ=Z, scanCoordY=Y
+        # Então enviamos: coord_x, coord_y (que é Z do DayZ), coord_z (que é Y do DayZ)
         command_line = f"SYSTEM scanregion {coord_x} {coord_y} {coord_z} {radius} {request_id}\n"
         
         logger.info(f"Adicionando comando de escaneamento de região: {command_line.strip()}")

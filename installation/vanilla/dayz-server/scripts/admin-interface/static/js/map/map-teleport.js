@@ -23,6 +23,12 @@ function setMode(mode) {
         MapState.scanCircle = null;
     }
     
+    // Remover círculo de região escaneada se existir (mas não se estiver escaneando)
+    if (MapState.scanRegionCircle && !MapState.isScanning) {
+        MapState.map.removeLayer(MapState.scanRegionCircle);
+        MapState.scanRegionCircle = null;
+    }
+    
     if (mode === 'normal') {
         $('#btnModeNormal').addClass('active');
         MapState.map.getContainer().style.cursor = '';
@@ -38,6 +44,12 @@ function setMode(mode) {
         // Atualizar mensagem do teleportInfo baseado no contexto
         updateTeleportInfo();
     } else if (mode === 'scan') {
+        // Verificar se está escaneando
+        if (MapState.isScanning) {
+            showToast('Aviso', 'Não é possível mudar de modo enquanto um escaneamento está em andamento', 'warning');
+            return;
+        }
+        
         $('#btnModeScan').addClass('active');
         $('#scanRadiusControl').show();
         $('#clearScanMarkersBtn').show();
