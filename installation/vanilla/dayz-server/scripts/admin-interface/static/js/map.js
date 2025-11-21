@@ -3095,7 +3095,7 @@ function updateVehicles(data) {
             autoPanPaddingTopLeft: [60, 60],
             autoPanPaddingBottomRight: [60, 60],
             maxWidth: 300,
-            maxHeight: 500,
+            maxHeight: 600,
             offset: popupOffset
         });
         
@@ -3151,7 +3151,7 @@ function createVehiclePopup(vehicle) {
     const items = vehicle.items || [];
     
     if (items.length > 0) {
-        itemsHtml += '<div class="mt-2"><strong>📦 Itens:</strong><div class="mt-1" style="max-height: 200px; overflow-y: auto;">';
+        itemsHtml += '<div class="mt-2"><strong>📦 Itens:</strong><div class="mt-1" style="max-height: 150px; overflow-y: auto; padding-right: 4px;">';
         items.forEach(function(item) {
             const imgTag = item.img ? `<img src="${item.img}" onerror="this.style.display='none'" style="width: 24px; height: 24px; margin-right: 4px; vertical-align: middle;">` : '';
             const healthText = item.health ? ` (HP: ${item.health.toFixed(2)})` : '';
@@ -3166,7 +3166,7 @@ function createVehiclePopup(vehicle) {
     const attachments = vehicle.attachments || [];
     
     if (attachments.length > 0) {
-        attachmentsHtml += '<div class="mt-2"><strong>🔧 Partes do Veículo:</strong><div class="mt-1" style="max-height: 200px; overflow-y: auto;">';
+        attachmentsHtml += '<div class="mt-2"><strong>🔧 Partes do Veículo:</strong><div class="mt-1" style="max-height: 150px; overflow-y: auto; padding-right: 4px;">';
         attachments.forEach(function(attachment) {
             const imgTag = attachment.img ? `<img src="${attachment.img}" onerror="this.style.display='none'" style="width: 24px; height: 24px; margin-right: 4px; vertical-align: middle;">` : '';
             const healthText = attachment.health ? ` (HP: ${attachment.health.toFixed(2)})` : '';
@@ -3205,31 +3205,35 @@ function createVehiclePopup(vehicle) {
     ` : '';
     
     return `
-        <div class="player-popup">
-            <strong><i class="fas fa-car me-2"></i>${vehicle.vehicle_name}</strong>
-            <div class="info-row">
-                <span class="info-label">ID:</span>
-                <span class="info-value">${vehicle.vehicle_id}</span>
+        <div class="player-popup" style="display: flex; flex-direction: column; max-height: 580px;">
+            <div style="flex: 1; overflow-y: auto; padding-right: 4px; min-height: 0;">
+                <strong><i class="fas fa-car me-2"></i>${vehicle.vehicle_name}</strong>
+                <div class="info-row">
+                    <span class="info-label">ID:</span>
+                    <span class="info-value">${vehicle.vehicle_id}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Coords:</span>
+                    <span class="info-value">X: ${vehicle.coord_x.toFixed(2)}, Y: ${vehicle.coord_y.toFixed(2)} (altura: ${vehicle.coord_z ? vehicle.coord_z.toFixed(2) : 'N/A'})</span>
+                </div>
+                ${healthPartsHtml}
+                ${itemsHtml}
+                ${attachmentsHtml}
+                <div class="info-row mt-2">
+                    <span class="info-label">Atualizado:</span>
+                    <span class="info-value">${vehicle.last_update || 'Desconhecido'}</span>
+                </div>
+                ${destroyedInfo}
             </div>
-            <div class="info-row">
-                <span class="info-label">Coords:</span>
-                <span class="info-value">X: ${vehicle.coord_x.toFixed(2)}, Y: ${vehicle.coord_y.toFixed(2)} (altura: ${vehicle.coord_z ? vehicle.coord_z.toFixed(2) : 'N/A'})</span>
-            </div>
-            ${healthPartsHtml}
-            ${itemsHtml}
-            ${attachmentsHtml}
-            <div class="info-row mt-2">
-                <span class="info-label">Atualizado:</span>
-                <span class="info-value">${vehicle.last_update || 'Desconhecido'}</span>
-            </div>
-            ${destroyedInfo}
-            <div class="info-row mt-2">
-                <button type="button" class="btn btn-sm btn-success me-2" onclick="toggleVehicleTrail('${vehicle.vehicle_id}')">
-                    <i class="fas fa-route me-1"></i><span id="vehicleTrailBtn_${vehicle.vehicle_id}">${vehicleTrails[vehicle.vehicle_id] ? 'Ocultar Trail' : 'Mostrar Trail'}</span>
-                </button>
-                <button type="button" class="btn btn-sm btn-warning" onclick="showVehicleTeleportModal('${vehicle.vehicle_id}')">
-                    <i class="fas fa-map-marker-alt me-1"></i>Teleportar
-                </button>
+            <div style="flex-shrink: 0; border-top: 1px solid #dee2e6; padding-top: 8px; margin-top: 8px; background-color: #fff;">
+                <div class="info-row">
+                    <button type="button" class="btn btn-sm btn-success me-2" onclick="toggleVehicleTrail('${vehicle.vehicle_id}')">
+                        <i class="fas fa-route me-1"></i><span id="vehicleTrailBtn_${vehicle.vehicle_id}">${vehicleTrails[vehicle.vehicle_id] ? 'Ocultar Trail' : 'Mostrar Trail'}</span>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-warning" onclick="showVehicleTeleportModal('${vehicle.vehicle_id}')">
+                        <i class="fas fa-map-marker-alt me-1"></i>Teleportar
+                    </button>
+                </div>
             </div>
         </div>
     `;
