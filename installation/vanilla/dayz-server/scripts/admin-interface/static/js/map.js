@@ -172,8 +172,8 @@ function createFenceIcon(fence, hasRecentAttack = false) {
     
     if (structureType === 'flag') {
         const details = fence.flag_details || {};
-        let color = '#6c757d';
-        if (details.has_base) {
+        let color = '#dc3545';
+        if (details.has_flag_base) {
             color = '#1cc88a';
         }
         return L.divIcon({
@@ -1210,6 +1210,8 @@ function applyHistoryFilters() {
                 loadContainerHistory(currentHistoryId, 0, dateFrom, dateTo);
             } else if (currentHistoryType === 'fence') {
                 loadFenceHistory(currentHistoryId, 0, dateFrom, dateTo);
+            } else if (currentHistoryType === 'flag') {
+                loadFlagHistory(currentHistoryId, 0, dateFrom, dateTo);
             }
         });
         modal.hide();
@@ -1235,6 +1237,8 @@ function loadHistoryPage(offset) {
         loadFenceHistory(currentHistoryId, offset, currentHistoryPagination.date_from, currentHistoryPagination.date_to);
     } else if (currentHistoryType === 'watchtower') {
         loadWatchtowerHistory(currentHistoryId, offset, currentHistoryPagination.date_from, currentHistoryPagination.date_to);
+    } else if (currentHistoryType === 'flag') {
+        loadFlagHistory(currentHistoryId, offset, currentHistoryPagination.date_from, currentHistoryPagination.date_to);
     }
 }
 
@@ -1293,6 +1297,33 @@ function loadWatchtowerHistory(watchtowerId, offset = 0, dateFrom = null, dateTo
 }
 
 /**
+ * Carregar histórico da flag com filtros e paginação
+ */
+function loadFlagHistory(flagId, offset = 0, dateFrom = null, dateTo = null) {
+    currentHistoryType = 'flag';
+    currentHistoryId = flagId;
+    currentHistoryPagination.offset = offset;
+    currentHistoryPagination.date_from = dateFrom;
+    currentHistoryPagination.date_to = dateTo;
+
+    const params = {
+        limit: currentHistoryPagination.limit,
+        offset: offset
+    };
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+
+    $.get(`/api/flags/${flagId}/trail`, params)
+        .done(function(data) {
+            console.log('Trail da flag recebido:', flagId, data);
+            showFenceHistoryModal(flagId, data.trail, data.pagination);
+        })
+        .fail(function() {
+            console.error('Erro ao carregar histórico da flag:', flagId);
+        });
+}
+
+/**
  * Exibir modal com histórico da fence
  */
 function showFenceHistoryModal(fenceId, trail, pagination) {
@@ -1302,8 +1333,10 @@ function showFenceHistoryModal(fenceId, trail, pagination) {
     const modalTitle = document.getElementById('trailHistoryModalTitle');
     const modalBody = document.getElementById('trailHistoryModalBody');
     const isWatchtower = fence.structure_type === 'watchtower';
-    const modalIcon = isWatchtower ? 'fa-chess-rook' : 'fa-home';
-    modalTitle.innerHTML = `<i class="fas ${modalIcon} me-2"></i>Histórico - ${fence.fence_name || (isWatchtower ? 'Watchtower' : 'Fence')}`;
+    const isFlag = fence.structure_type === 'flag';
+    const modalIcon = isWatchtower ? 'fa-chess-rook' : (isFlag ? 'fa-flag' : 'fa-home');
+    const modalName = isWatchtower ? 'Watchtower' : (isFlag ? 'Flag Pole' : 'Fence');
+    modalTitle.innerHTML = `<i class="fas ${modalIcon} me-2"></i>Histórico - ${fence.fence_name || modalName}`;
     
     function formatDateForInput(dateStr) {
         if (!dateStr) return '';
@@ -1367,6 +1400,8 @@ function showFenceHistoryModal(fenceId, trail, pagination) {
             let borderColor = i === 0 ? '4caf50' : 'ffc107';
             if (isWatchtower) {
                 borderColor = i === 0 ? '4e73df' : '36b9cc';
+            } else if (isFlag) {
+                borderColor = i === 0 ? '1cc88a' : 'f6c23e';
             } else if (prevPoint) {
                 const prevLower = normalizeFlag(prevPoint.lower_panel_built);
                 const prevUpper = normalizeFlag(prevPoint.upper_panel_built);
@@ -1422,6 +1457,45 @@ function showFenceHistoryModal(fenceId, trail, pagination) {
                     html += `<div class="alert alert-danger mt-2 mb-0" style="padding: 6px; font-size: 12px;">
                         <i class="fas fa-exclamation-triangle me-1"></i><strong>Componentes perdidos:</strong> ${lostFlags.join(', ')}
                     </div>`;
+                }
+            } else if (isFlag) {
+                const flagDefs = [
+                    { key: 'has_base', label: 'Suporte/Base' },
+                    { key: 'has_flag_base', label: 'Bandeira Anexada' },
+                    { key: 'flag_raised', label: 'Bandeira Hasteada' }
+                ];
+                html += `<div class="mt-2">`;
+                flagDefs.forEach(def => {
+                    const currentVal = normalizeFlag(point[def.key]);
+                    const prevVal = prevPoint ? normalizeFlag(prevPoint[def.key]) : null;
+                    let changeIndicator = '';
+                    if (prevVal !== null && prevVal !== currentVal) {
+                        changeIndicator = currentVal ? ' <span class="text-success">(+)</span>' : ' <span class="text-danger">(-)</span>';
+                    }
+                    html += `
+                        <div class="info-row">
+                            <span class="info-label">${def.label}:</span>
+                            <span class="info-value">${formatStatusLabel(point[def.key])}${changeIndicator}</span>
+                        </div>
+                    `;
+                });
+                if (point.flag_height !== null && point.flag_height !== undefined && point.flag_height > 0) {
+                    const prevHeight = prevPoint ? (prevPoint.flag_height || 0) : null;
+                    const heightChange = prevHeight !== null && prevHeight !== point.flag_height ? 
+                        (point.flag_height > prevHeight ? ' <span class="text-success">(↑)</span>' : ' <span class="text-warning">(↓)</span>') : '';
+                    html += `
+                        <div class="info-row">
+                            <span class="info-label">Altura da Bandeira:</span>
+                            <span class="info-value">${point.flag_height.toFixed(2)}m${heightChange}</span>
+                        </div>
+                    `;
+                }
+                html += `</div>`;
+                
+                if (point.orientation && (point.orientation.x !== null || point.orientation.y !== null)) {
+                    const pitch = point.orientation.x !== null && point.orientation.x !== undefined ? Number(point.orientation.x).toFixed(1) : 'N/A';
+                    const yaw = point.orientation.y !== null && point.orientation.y !== undefined ? Number(point.orientation.y).toFixed(1) : 'N/A';
+                    html += `<div class="info-row mt-2"><span class="info-label">Orientação:</span><span class="info-value">Pitch: ${pitch}°, Yaw: ${yaw}°</span></div>`;
                 }
             } else {
                 let hasAttack = false;
@@ -3097,6 +3171,11 @@ function createFencePopup(fence) {
                 <div class="info-row mt-2">
                     <span class="info-label">Atualizado:</span>
                     <span class="info-value">${fence.last_update || 'Desconhecido'}</span>
+                </div>
+                <div class="info-row mt-2">
+                    <button type="button" class="btn btn-sm btn-warning" onclick="loadFlagHistory('${fence.fence_id}')">
+                        <i class="fas fa-history me-1"></i>Histórico de Alterações
+                    </button>
                 </div>
             </div>
         `;

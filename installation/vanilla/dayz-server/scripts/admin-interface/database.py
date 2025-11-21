@@ -894,6 +894,103 @@ def get_watchtower_trail(watchtower_id: str, limit: int = 100, offset: int = 0, 
 
         return paginated_rows, len(filtered_rows)
 
+def get_flag_trail(flag_id: str, limit: int = 100, offset: int = 0, date_from: str = None, date_to: str = None) -> tuple:
+    """
+    Retorna histórico de mudanças de uma flag com filtros
+    Retorna: (trail, total_count)
+    """
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='flags_tracking';")
+        if not cursor.fetchone():
+            return [], 0
+
+        where_clauses = ["ft.FlagId = ?"]
+        params = [flag_id]
+
+        if date_from:
+            where_clauses.append("ft.TimeStamp >= ?")
+            params.append(date_from)
+        if date_to:
+            where_clauses.append("ft.TimeStamp <= ?")
+            params.append(date_to)
+
+        where_sql = " AND ".join(where_clauses)
+
+        cursor.execute(f"""
+            SELECT COUNT(DISTINCT ft.FlagTrackingId)
+            FROM flags_tracking ft
+            WHERE {where_sql}
+        """, params)
+        total_count = cursor.fetchone()[0]
+
+        cursor.execute(f"""
+            SELECT ft.FlagTrackingId, ft.FlagId, ft.FlagName,
+                   ft.PositionX, ft.PositionY, ft.PositionZ, ft.OrientationX,
+                   ft.OrientationY, ft.OrientationZ, ft.TimeStamp,
+                   ft.HasBase, ft.HasFlagBase, ft.FlagRaised, ft.FlagHeight
+            FROM flags_tracking ft
+            WHERE {where_sql}
+            ORDER BY ft.TimeStamp DESC, ft.FlagTrackingId DESC
+        """, params)
+        all_rows = [dict(row) for row in cursor.fetchall()]
+
+        def normalize_bool(value):
+            if value is None:
+                return None
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                value = value.strip().lower()
+                if value in ('true', '1', 'yes'):
+                    return True
+                if value in ('false', '0', 'no'):
+                    return False
+            try:
+                return bool(int(value))
+            except (TypeError, ValueError):
+                return bool(value)
+
+        def safe_round(value):
+            if value is None:
+                return None
+            try:
+                return round(float(value), 1)
+            except (TypeError, ValueError):
+                return None
+
+        filtered_rows = []
+        prev_state_key = None
+
+        for row in all_rows:
+            state_key = (
+                safe_round(row.get('PositionX')),
+                safe_round(row.get('PositionY')),
+                safe_round(row.get('PositionZ')),
+                normalize_bool(row.get('HasBase')),
+                normalize_bool(row.get('HasFlagBase')),
+                normalize_bool(row.get('FlagRaised')),
+                safe_round(row.get('FlagHeight')),
+            )
+
+            if prev_state_key is None or prev_state_key != state_key:
+                filtered_rows.append(row)
+                prev_state_key = state_key
+
+        paginated_rows = filtered_rows[offset:offset + limit]
+
+        for row in paginated_rows:
+            for key in ('HasBase', 'HasFlagBase', 'FlagRaised'):
+                row[key] = normalize_bool(row.get(key))
+            if row.get('FlagHeight') is not None:
+                try:
+                    row['FlagHeight'] = round(float(row['FlagHeight']), 2)
+                except (TypeError, ValueError):
+                    row['FlagHeight'] = None
+
+        return paginated_rows, len(filtered_rows)
+
 def get_fence_trail(fence_id: str, limit: int = 100, offset: int = 0, date_from: str = None, date_to: str = None) -> tuple:
     """
     Retorna histórico de mudanças de uma fence com filtros
