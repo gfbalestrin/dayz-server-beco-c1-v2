@@ -689,7 +689,7 @@ function initMap() {
     map = L.map('map', {
         crs: L.CRS.Simple,  // Sem projeção geográfica
         minZoom: -2,
-        maxZoom: 3,
+        maxZoom: 5,  // Aumentado de 3 para 5 para facilitar seleção de construções próximas
         maxBounds: getCurrentMapBounds(),
         maxBoundsViscosity: 1.0,  // Impede arrastar para fora dos limites
         zoom: -2,  // Iniciar no zoom mínimo para ver mapa completo
@@ -3545,7 +3545,10 @@ function updateFences(data) {
     
     // Limpar fences antigos
     Object.keys(fenceMarkers).forEach(function(key) {
-        map.removeLayer(fenceMarkers[key]);
+        const marker = fenceMarkers[key];
+        if (marker) {
+            map.removeLayer(marker);
+        }
     });
     fenceMarkers = {};
     
@@ -3602,6 +3605,7 @@ function updateFences(data) {
             maxHeight: 500,
             offset: popupOffset
         });
+        
         
         fenceMarkers[fenceId] = marker;
     });
