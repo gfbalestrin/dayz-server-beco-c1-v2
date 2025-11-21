@@ -127,26 +127,27 @@ bool ExecuteCommand(TStringArray tokens)
                     // Tentar obter nome do objeto
                     if (scannedObj.IsInherited(ItemBase))
                     {
-                        ItemBase itemBase = ItemBase.Cast(scannedObj);
-                        if (itemBase)
+                        ItemBase scanItemBase = ItemBase.Cast(scannedObj);
+                        if (scanItemBase)
                         {
-                            objName = itemBase.GetDisplayName();
+                            objName = scanItemBase.GetDisplayName();
                         }
                     }
                     else if (scannedObj.IsInherited(CarScript))
                     {
-                        CarScript vehicle = CarScript.Cast(scannedObj);
-                        if (vehicle)
+                        CarScript scanVehicle = CarScript.Cast(scannedObj);
+                        if (scanVehicle)
                         {
-                            objName = vehicle.GetDisplayName();
+                            objName = scanVehicle.GetDisplayName();
                         }
                     }
-                    else if (scannedObj.IsInherited(ContainerBase))
+                    else
                     {
-                        ContainerBase container = ContainerBase.Cast(scannedObj);
-                        if (container)
+                        // Para containers e outros objetos, usar EntityAI
+                        EntityAI scanEntity = EntityAI.Cast(scannedObj);
+                        if (scanEntity)
                         {
-                            objName = container.GetDisplayName();
+                            objName = scanEntity.GetDisplayName();
                         }
                     }
                     
@@ -155,21 +156,21 @@ bool ExecuteCommand(TStringArray tokens)
                     
                     vector objPosition = scannedObj.GetPosition();
                     
-                    string sanitizedType = SanitizeForJson(objType);
-                    string sanitizedName = SanitizeForJson(objName);
+                    string scanSanitizedType = SanitizeForJson(objType);
+                    string scanSanitizedName = SanitizeForJson(objName);
                     
                     if (objectsJson != "")
                         objectsJson = objectsJson + ",";
                     
-                    objectsJson = objectsJson + "{\"type\":\"" + sanitizedType + "\",\"name\":\"" + sanitizedName + "\",\"position\":{\"x\":" + objPosition[0].ToString() + ",\"y\":" + objPosition[1].ToString() + ",\"z\":" + objPosition[2].ToString() + "}}";
+                    objectsJson = objectsJson + "{\"type\":\"" + scanSanitizedType + "\",\"name\":\"" + scanSanitizedName + "\",\"position\":{\"x\":" + objPosition[0].ToString() + ",\"y\":" + objPosition[1].ToString() + ",\"z\":" + objPosition[2].ToString() + "}}";
                     
                     objectCount++;
                 }
                 
-                string sanitizedRequestId = SanitizeForJson(scanRequestId);
-                string resultJson = "{\"request_id\":\"" + sanitizedRequestId + "\",\"command\":\"scanregion\",\"center\":{\"x\":" + scanCoordX.ToString() + ",\"y\":" + scanCoordY.ToString() + ",\"z\":" + scanCoordZ.ToString() + "},\"radius\":" + scanRadius.ToString() + ",\"objects\":[" + objectsJson + "]}";
+                string scanSanitizedRequestId = SanitizeForJson(scanRequestId);
+                string scanResultJson = "{\"request_id\":\"" + scanSanitizedRequestId + "\",\"command\":\"scanregion\",\"center\":{\"x\":" + scanCoordX.ToString() + ",\"y\":" + scanCoordY.ToString() + ",\"z\":" + scanCoordZ.ToString() + "},\"radius\":" + scanRadius.ToString() + ",\"objects\":[" + objectsJson + "]}";
                 
-                AppendCommandResult(resultJson, false);
+                AppendCommandResult(scanResultJson, false);
                 
                 WriteToLog("ExecuteCommand(): scanregion - Escaneamento concluído: " + objectCount.ToString() + " objetos encontrados (request_id: " + scanRequestId + ")", LogFile.INIT, false, LogType.INFO);
                 
