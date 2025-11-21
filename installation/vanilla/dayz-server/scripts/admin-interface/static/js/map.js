@@ -19,6 +19,14 @@ let playersData = {}; // Armazenar dados dos jogadores
 let vehiclesData = {}; // Armazenar dados dos veículos
 let containersData = {}; // Armazenar dados dos containers
 let fencesData = {}; // Armazenar dados das fences
+
+// Estado anterior para detecção de mudanças e notificações
+let previousPlayersData = {}; // Estado anterior dos jogadores
+let previousVehiclesData = {}; // Estado anterior dos veículos
+let previousContainersData = {}; // Estado anterior dos containers
+let previousFencesData = {}; // Estado anterior das construções
+let previousKillsData = []; // Estado anterior dos kills
+let previousDamagesData = []; // Estado anterior dos damages
 let currentPointContext = null; // Contexto do ponto para ações
 let currentPlayerContext = null; // Contexto do jogador para ações
 let selectedPlayerFilters = []; // Array de player IDs selecionados
@@ -30,6 +38,7 @@ let showContainers = false;
 let showFences = false;
 let showKills = false;
 let showDamages = false;
+let notificationsEnabled = true; // Controla se as notificações estão ativas
 let currentMode = 'normal'; // normal, teleport
 let teleportTargetPlayer = null;
 let trailDateFilter = {
@@ -600,9 +609,13 @@ $(document).ready(function() {
     setupMapSelector();
     loadPositions();
     
+    // Atualizar visibilidade inicial do botão de trails
+    updateTrailButtonVisibility();
+    
     // Event listeners
     $('#refreshBtn').on('click', loadPositions);
     $('#autoRefreshCheck').on('change', toggleAutoRefresh);
+    $('#notificationsCheck').on('change', toggleNotifications);
     $('#onlineOnlyCheck').on('change', filterPlayers);
     $('#showDestroyedCheck').on('change', function() {
         if (showVehicles) loadVehicles();
@@ -804,9 +817,315 @@ function loadPositions() {
 }
 
 /**
+ * Detectar mudanças de posição de jogadores
+ */
+function detectPlayerChanges(newData, oldData) {
+    if (!showPlayers) return [];
+    
+    const changes = [];
+    if (newData && newData.players) {
+        newData.players.forEach(function(player) {
+            const playerId = player.player_id;
+            const oldPlayer = oldData[playerId];
+            
+            if (oldPlayer) {
+                const oldX = oldPlayer.coord_x;
+                const oldY = oldPlayer.coord_y;
+                const newX = player.coord_x;
+                const newY = player.coord_y;
+                
+                if (oldX !== newX || oldY !== newY) {
+                    const distance = Math.sqrt(Math.pow(newX - oldX, 2) + Math.pow(newY - oldY, 2));
+                    changes.push({
+                        playerId: playerId,
+                        playerName: player.player_name,
+                        oldX: oldX,
+                        oldY: oldY,
+                        newX: newX,
+                        newY: newY,
+                        distance: distance
+                    });
+                }
+            }
+        });
+    }
+    
+    return changes;
+}
+
+/**
+ * Detectar mudanças em veículos
+ */
+function detectVehicleChanges(newData, oldData) {
+    if (!showVehicles) return [];
+    
+    const changes = [];
+    newData.vehicles.forEach(function(vehicle) {
+        const vehicleId = vehicle.vehicle_id;
+        const oldVehicle = oldData[vehicleId];
+        
+        if (!oldVehicle) {
+            changes.push({
+                type: 'new',
+                vehicleId: vehicleId,
+                vehicleName: vehicle.vehicle_name,
+                message: `Novo veículo: ${vehicle.vehicle_name}`
+            });
+            return;
+        }
+        
+        const changeMessages = [];
+        
+        if (oldVehicle.coord_x !== vehicle.coord_x || oldVehicle.coord_y !== vehicle.coord_y) {
+            changeMessages.push('mudou de posição');
+        }
+        
+        if (oldVehicle.is_destroyed !== vehicle.is_destroyed) {
+            if (vehicle.is_destroyed) {
+                changeMessages.push('foi destruído');
+            } else {
+                changeMessages.push('foi restaurado');
+            }
+        }
+        
+        const oldItemsCount = (oldVehicle.items || []).length;
+        const newItemsCount = (vehicle.items || []).length;
+        if (oldItemsCount !== newItemsCount) {
+            changeMessages.push(`itens: ${oldItemsCount} → ${newItemsCount}`);
+        }
+        
+        const oldAttachmentsCount = (oldVehicle.attachments || []).length;
+        const newAttachmentsCount = (vehicle.attachments || []).length;
+        if (oldAttachmentsCount !== newAttachmentsCount) {
+            changeMessages.push(`anexos: ${oldAttachmentsCount} → ${newAttachmentsCount}`);
+        }
+        
+        if (oldVehicle.engine_health !== vehicle.engine_health) {
+            changeMessages.push(`motor: ${(oldVehicle.engine_health || 0).toFixed(1)} → ${(vehicle.engine_health || 0).toFixed(1)}`);
+        }
+        
+        if (oldVehicle.body_health !== vehicle.body_health) {
+            changeMessages.push(`carroceria: ${(oldVehicle.body_health || 0).toFixed(1)} → ${(vehicle.body_health || 0).toFixed(1)}`);
+        }
+        
+        if (changeMessages.length > 0) {
+            changes.push({
+                type: 'change',
+                vehicleId: vehicleId,
+                vehicleName: vehicle.vehicle_name,
+                message: `Veículo ${vehicle.vehicle_name}: ${changeMessages.join(', ')}`
+            });
+        }
+    });
+    
+    return changes;
+}
+
+/**
+ * Detectar mudanças em containers
+ */
+function detectContainerChanges(newData, oldData) {
+    if (!showContainers) return [];
+    
+    const changes = [];
+    newData.containers.forEach(function(container) {
+        const containerId = container.container_id;
+        const oldContainer = oldData[containerId];
+        
+        if (!oldContainer) {
+            changes.push({
+                type: 'new',
+                containerId: containerId,
+                containerType: container.container_type,
+                message: `Novo container: ${container.container_type}`
+            });
+            return;
+        }
+        
+        const changeMessages = [];
+        
+        if (oldContainer.coord_x !== container.coord_x || oldContainer.coord_y !== container.coord_y) {
+            changeMessages.push('mudou de posição');
+        }
+        
+        if (oldContainer.is_destroyed !== container.is_destroyed) {
+            if (container.is_destroyed) {
+                changeMessages.push('foi destruído');
+            } else {
+                changeMessages.push('foi restaurado');
+            }
+        }
+        
+        const oldItemsCount = (oldContainer.items || []).length;
+        const newItemsCount = (container.items || []).length;
+        if (oldItemsCount !== newItemsCount) {
+            changeMessages.push(`itens: ${oldItemsCount} → ${newItemsCount}`);
+        }
+        
+        if (changeMessages.length > 0) {
+            changes.push({
+                type: 'change',
+                containerId: containerId,
+                containerType: container.container_type,
+                message: `Container ${container.container_type}: ${changeMessages.join(', ')}`
+            });
+        }
+    });
+    
+    return changes;
+}
+
+/**
+ * Detectar mudanças em construções (fences, watchtowers, flags)
+ */
+function detectFenceChanges(newData, oldData) {
+    if (!showFences) return [];
+    
+    const changes = [];
+    newData.fences.forEach(function(fence) {
+        const fenceId = fence.fence_id;
+        const oldFence = oldData[fenceId];
+        
+        if (!oldFence) {
+            const structureType = fence.structure_type || 'fence';
+            const structureName = structureType === 'watchtower' ? 'Watchtower' : (structureType === 'flag' ? 'Flag Pole' : 'Fence');
+            changes.push({
+                type: 'new',
+                fenceId: fenceId,
+                structureType: structureType,
+                message: `Nova construção: ${structureName}`
+            });
+            return;
+        }
+        
+        const changeMessages = [];
+        const structureType = fence.structure_type || 'fence';
+        
+        if (oldFence.coord_x !== fence.coord_x || oldFence.coord_y !== fence.coord_y) {
+            changeMessages.push('mudou de posição');
+        }
+        
+        if (oldFence.is_destroyed !== fence.is_destroyed) {
+            if (fence.is_destroyed) {
+                changeMessages.push('foi destruída');
+            } else {
+                changeMessages.push('foi restaurada');
+            }
+        }
+        
+        if (structureType === 'fence') {
+            if (oldFence.has_base !== fence.has_base) {
+                changeMessages.push(fence.has_base ? 'base construída' : 'base removida');
+            }
+            if (oldFence.lower_panel_built !== fence.lower_panel_built) {
+                changeMessages.push(fence.lower_panel_built ? 'painel inferior construído' : 'painel inferior removido');
+            }
+            if (oldFence.upper_panel_built !== fence.upper_panel_built) {
+                changeMessages.push(fence.upper_panel_built ? 'painel superior construído' : 'painel superior removido');
+            }
+        } else if (structureType === 'watchtower') {
+            const oldDetails = oldFence.watchtower_details || {};
+            const newDetails = fence.watchtower_details || {};
+            
+            if (oldDetails.has_base !== newDetails.has_base) {
+                changeMessages.push(newDetails.has_base ? 'base construída' : 'base removida');
+            }
+            if (oldDetails.level_1_base !== newDetails.level_1_base) {
+                changeMessages.push(newDetails.level_1_base ? 'nível 1 construído' : 'nível 1 removido');
+            }
+            if (oldDetails.level_2_base !== newDetails.level_2_base) {
+                changeMessages.push(newDetails.level_2_base ? 'nível 2 construído' : 'nível 2 removido');
+            }
+            if (oldDetails.level_3_base !== newDetails.level_3_base) {
+                changeMessages.push(newDetails.level_3_base ? 'nível 3 construído' : 'nível 3 removido');
+            }
+            if (oldDetails.has_roof !== newDetails.has_roof) {
+                changeMessages.push(newDetails.has_roof ? 'telhado construído' : 'telhado removido');
+            }
+        } else if (structureType === 'flag') {
+            const oldDetails = oldFence.flag_details || {};
+            const newDetails = fence.flag_details || {};
+            
+            if (oldDetails.has_base !== newDetails.has_base) {
+                changeMessages.push(newDetails.has_base ? 'suporte construído' : 'suporte removido');
+            }
+            if (oldDetails.has_flag_base !== newDetails.has_flag_base) {
+                changeMessages.push(newDetails.has_flag_base ? 'bandeira anexada' : 'bandeira removida');
+            }
+            if (oldDetails.flag_raised !== newDetails.flag_raised) {
+                changeMessages.push(newDetails.flag_raised ? 'bandeira hasteada' : 'bandeira abaixada');
+            }
+            if (oldDetails.flag_height !== newDetails.flag_height) {
+                const oldHeight = oldDetails.flag_height || 0;
+                const newHeight = newDetails.flag_height || 0;
+                changeMessages.push(`altura: ${oldHeight.toFixed(2)}m → ${newHeight.toFixed(2)}m`);
+            }
+        }
+        
+        if (changeMessages.length > 0) {
+            const structureName = structureType === 'watchtower' ? 'Watchtower' : (structureType === 'flag' ? 'Flag Pole' : 'Fence');
+            changes.push({
+                type: 'change',
+                fenceId: fenceId,
+                structureType: structureType,
+                message: `${structureName}: ${changeMessages.join(', ')}`
+            });
+        }
+    });
+    
+    return changes;
+}
+
+/**
+ * Detectar novos kills
+ */
+function detectKillChanges(newData, oldData) {
+    if (!showKills) return [];
+    
+    const oldKillIds = new Set(oldData.map(k => k.kill_id || `${k.killer_id}_${k.victim_id}_${k.timestamp}`));
+    const newKills = [];
+    
+    newData.events.forEach(function(kill) {
+        const killId = kill.kill_id || `${kill.killer_id}_${kill.victim_id}_${kill.timestamp}`;
+        if (!oldKillIds.has(killId)) {
+            newKills.push(kill);
+        }
+    });
+    
+    return newKills;
+}
+
+/**
+ * Detectar novos damages
+ */
+function detectDamageChanges(newData, oldData) {
+    if (!showDamages) return [];
+    
+    const oldDamageIds = new Set(oldData.map(d => d.damage_id || `${d.attacker_id}_${d.victim_id}_${d.timestamp}`));
+    const newDamages = [];
+    
+    newData.events.forEach(function(damage) {
+        const damageId = damage.damage_id || `${damage.attacker_id}_${damage.victim_id}_${damage.timestamp}`;
+        if (!oldDamageIds.has(damageId)) {
+            newDamages.push(damage);
+        }
+    });
+    
+    return newDamages;
+}
+
+/**
  * Atualizar posições no mapa
  */
 function updatePositions(data) {
+    // Detectar mudanças antes de atualizar
+    if (Object.keys(previousPlayersData).length > 0 && notificationsEnabled) {
+        const playerChanges = detectPlayerChanges(data, previousPlayersData);
+        playerChanges.forEach(function(change) {
+            showToast('Jogador Moveu-se', `${change.playerName} moveu-se para X=${change.newX.toFixed(1)}, Y=${change.newY.toFixed(1)} (distância: ${change.distance.toFixed(1)}m)`, 'info');
+        });
+    }
+    
     // Remover marcadores antigos se não houver filtro
     if (selectedPlayerFilters.length === 0) {
         Object.keys(playerMarkers).forEach(function(key) {
@@ -991,6 +1310,15 @@ function updatePositions(data) {
     
     hideLoading();
     console.log(`Posições atualizadas: ${data.players.length} jogadores`);
+    
+    // Salvar estado anterior para próxima comparação
+    previousPlayersData = {};
+    data.players.forEach(function(player) {
+        previousPlayersData[player.player_id] = {
+            coord_x: player.coord_x,
+            coord_y: player.coord_y
+        };
+    });
 }
 
 /**
@@ -1011,9 +1339,14 @@ function loadPlayerTrail(playerId) {
 /**
  * Carregar trail de um veículo
  */
-function loadVehicleTrail(vehicleId) {
-    if (vehicleTrails[vehicleId]) {
-        return; // Trail já carregado
+function loadVehicleTrail(vehicleId, forceReload = false) {
+    if (vehicleTrails[vehicleId] && !forceReload) {
+        return; // Trail já carregado e não é recarregamento forçado
+    }
+    
+    // Se forceReload, remover trail antigo antes de carregar novo
+    if (forceReload && vehicleTrails[vehicleId]) {
+        removeVehicleTrail(vehicleId);
     }
     
     $.get(`/api/vehicles/${vehicleId}/trail`, { limit: 100 })
@@ -1028,13 +1361,18 @@ function loadVehicleTrail(vehicleId) {
 /**
  * Carregar trail de um container
  */
-function loadContainerTrail(containerId) {
-    if (containerTrails[containerId]) {
+function loadContainerTrail(containerId, forceReload = false) {
+    if (containerTrails[containerId] && !forceReload) {
         console.log('Container trail já carregado:', containerId);
-        return; // Trail já carregado
+        return; // Trail já carregado e não é recarregamento forçado
     }
     
-    console.log('Carregando trail do container:', containerId);
+    // Se forceReload, remover trail antigo antes de carregar novo
+    if (forceReload && containerTrails[containerId]) {
+        removeContainerTrail(containerId);
+    }
+    
+    console.log('Carregando trail do container:', containerId, forceReload ? '(recarregamento forçado)' : '');
     // Para o trail no mapa, não filtrar apenas por itens (mostrar todas as posições)
     $.get(`/api/containers/${containerId}/trail`, { limit: 100, filter_by_items_only: false })
         .done(function(data) {
@@ -2115,9 +2453,55 @@ function removeFenceTrail(fenceId) {
 }
 
 /**
+ * Atualizar visibilidade do botão de trails baseado no estado de showPlayers
+ */
+function updateTrailButtonVisibility() {
+    if (showPlayers) {
+        $('#toggleTrailsBtn').show();
+    } else {
+        $('#toggleTrailsBtn').hide();
+        $('#trailDateFilter').hide();
+    }
+}
+
+/**
+ * Desativar trails e remover do mapa
+ */
+function disableTrails() {
+    if (showTrails) {
+        showTrails = false;
+        $('#toggleTrailsBtn').html('<i class="fas fa-route me-1"></i>Mostrar Trails');
+        $('#trailDateFilter').hide();
+        // Limpar filtros
+        trailDateFilter.enabled = false;
+        trailDateFilter.startDate = null;
+        trailDateFilter.endDate = null;
+        $('#trailStartDate').val('');
+        $('#trailStartTime').val('');
+        $('#trailEndDate').val('');
+        $('#trailEndTime').val('');
+        // Remover todos os trails
+        Object.keys(playerTrails).forEach(function(key) {
+            const trail = playerTrails[key];
+            if (Array.isArray(trail)) {
+                trail.forEach(item => map.removeLayer(item));
+            } else {
+                map.removeLayer(trail);
+            }
+        });
+        playerTrails = {};
+    }
+}
+
+/**
  * Toggle mostrar trails
  */
 function toggleTrails() {
+    // Validar se jogadores estão visíveis antes de ativar
+    if (!showPlayers) {
+        showToast('Aviso', 'É necessário ativar "Mostrar Jogadores" para usar trails', 'warning');
+        return;
+    }
     showTrails = !showTrails;
     
     if (showTrails) {
@@ -2159,13 +2543,19 @@ function togglePlayersDisplay() {
         $('#togglePlayersBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar Jogadores');
         // Recarregar posições
         loadPositions();
+        // Atualizar visibilidade do botão de trails
+        updateTrailButtonVisibility();
     } else {
         $('#togglePlayersBtn').html('<i class="fas fa-user me-1"></i>Mostrar Jogadores');
+        // Desativar e remover trails se estiverem ativos
+        disableTrails();
         // Remover todos os marcadores de jogadores
         Object.keys(playerMarkers).forEach(function(key) {
             map.removeLayer(playerMarkers[key]);
         });
         playerMarkers = {};
+        // Atualizar visibilidade do botão de trails
+        updateTrailButtonVisibility();
     }
 }
 
@@ -2465,6 +2855,14 @@ function applyTrailDateFilter() {
 }
 
 /**
+ * Toggle notificações
+ */
+function toggleNotifications() {
+    notificationsEnabled = $('#notificationsCheck').is(':checked');
+    console.log('Notificações:', notificationsEnabled ? 'ativadas' : 'desativadas');
+}
+
+/**
  * Toggle auto-refresh
  */
 function toggleAutoRefresh() {
@@ -2519,6 +2917,14 @@ function loadVehicles() {
  * Atualizar veículos no mapa
  */
 function updateVehicles(data) {
+    // Detectar mudanças antes de atualizar
+    if (Object.keys(previousVehiclesData).length > 0 && notificationsEnabled) {
+        const vehicleChanges = detectVehicleChanges(data, previousVehiclesData);
+        vehicleChanges.forEach(function(change) {
+            showToast('Veículo', change.message, 'info');
+        });
+    }
+    
     // Limpar veículos antigos
     Object.keys(vehicleMarkers).forEach(function(key) {
         map.removeLayer(vehicleMarkers[key]);
@@ -2529,6 +2935,19 @@ function updateVehicles(data) {
     $('#vehicleCount').text(data.vehicles.length);
     
     if (!showVehicles) {
+        // Salvar estado anterior mesmo se não estiver mostrando
+        previousVehiclesData = {};
+        data.vehicles.forEach(function(vehicle) {
+            previousVehiclesData[vehicle.vehicle_id] = {
+                coord_x: vehicle.coord_x,
+                coord_y: vehicle.coord_y,
+                is_destroyed: vehicle.is_destroyed,
+                items: vehicle.items || [],
+                attachments: vehicle.attachments || [],
+                engine_health: vehicle.engine_health,
+                body_health: vehicle.body_health
+            };
+        });
         return;
     }
     
@@ -2567,6 +2986,29 @@ function updateVehicles(data) {
     });
     
     console.log(`Veículos atualizados: ${data.vehicles.length} veículos`);
+    
+    // Recarregar trails de veículos que já estão ativos (para atualizar com novos dados)
+    setTimeout(function() {
+        Object.keys(vehicleTrails).forEach(function(vehicleId) {
+            if (vehicleMarkers[vehicleId]) {
+                loadVehicleTrail(vehicleId, true); // forceReload = true
+            }
+        });
+    }, 500);
+    
+    // Salvar estado anterior para próxima comparação
+    previousVehiclesData = {};
+    data.vehicles.forEach(function(vehicle) {
+        previousVehiclesData[vehicle.vehicle_id] = {
+            coord_x: vehicle.coord_x,
+            coord_y: vehicle.coord_y,
+            is_destroyed: vehicle.is_destroyed,
+            items: vehicle.items || [],
+            attachments: vehicle.attachments || [],
+            engine_health: vehicle.engine_health,
+            body_health: vehicle.body_health
+        };
+    });
 }
 
 /**
@@ -2776,6 +3218,14 @@ function updateContainerPopup(containerId) {
  * Atualizar containers no mapa
  */
 function updateContainers(data) {
+    // Detectar mudanças antes de atualizar
+    if (Object.keys(previousContainersData).length > 0 && notificationsEnabled) {
+        const containerChanges = detectContainerChanges(data, previousContainersData);
+        containerChanges.forEach(function(change) {
+            showToast('Container', change.message, 'info');
+        });
+    }
+    
     // Limpar containers antigos
     if (containerClusterGroup) {
         containerClusterGroup.clearLayers();
@@ -2791,6 +3241,16 @@ function updateContainers(data) {
     $('#containerCount').text(data.containers.length);
     
     if (!showContainers) {
+        // Salvar estado anterior mesmo se não estiver mostrando
+        previousContainersData = {};
+        data.containers.forEach(function(container) {
+            previousContainersData[container.container_id] = {
+                coord_x: container.coord_x,
+                coord_y: container.coord_y,
+                is_destroyed: container.is_destroyed,
+                items: container.items || []
+            };
+        });
         return;
     }
     
@@ -2845,6 +3305,26 @@ function updateContainers(data) {
     }
     
     console.log(`Containers atualizados: ${data.containers.length} containers`);
+    
+    // Recarregar trails de containers que já estão ativos (para atualizar com novos dados)
+    setTimeout(function() {
+        Object.keys(containerTrails).forEach(function(containerId) {
+            if (containerMarkers[containerId]) {
+                loadContainerTrail(containerId, true); // forceReload = true
+            }
+        });
+    }, 500);
+    
+    // Salvar estado anterior para próxima comparação
+    previousContainersData = {};
+    data.containers.forEach(function(container) {
+        previousContainersData[container.container_id] = {
+            coord_x: container.coord_x,
+            coord_y: container.coord_y,
+            is_destroyed: container.is_destroyed,
+            items: container.items || []
+        };
+    });
 }
 
 /**
@@ -2999,6 +3479,14 @@ function updateFencePopup(fenceId) {
  * Atualizar fences no mapa
  */
 function updateFences(data) {
+    // Detectar mudanças antes de atualizar
+    if (Object.keys(previousFencesData).length > 0 && notificationsEnabled) {
+        const fenceChanges = detectFenceChanges(data, previousFencesData);
+        fenceChanges.forEach(function(change) {
+            showToast('Construção', change.message, 'info');
+        });
+    }
+    
     // Limpar fences antigos
     Object.keys(fenceMarkers).forEach(function(key) {
         map.removeLayer(fenceMarkers[key]);
@@ -3009,6 +3497,21 @@ function updateFences(data) {
     $('#fenceCount').text(data.fences.length);
     
     if (!showFences) {
+        // Salvar estado anterior mesmo se não estiver mostrando
+        previousFencesData = {};
+        data.fences.forEach(function(fence) {
+            previousFencesData[fence.fence_id] = {
+                coord_x: fence.coord_x,
+                coord_y: fence.coord_y,
+                is_destroyed: fence.is_destroyed,
+                has_base: fence.has_base,
+                lower_panel_built: fence.lower_panel_built,
+                upper_panel_built: fence.upper_panel_built,
+                structure_type: fence.structure_type,
+                watchtower_details: fence.watchtower_details || {},
+                flag_details: fence.flag_details || {}
+            };
+        });
         return;
     }
     
@@ -3048,6 +3551,22 @@ function updateFences(data) {
     });
     
     console.log(`Fences atualizados: ${data.fences.length} fences`);
+    
+    // Salvar estado anterior para próxima comparação
+    previousFencesData = {};
+    data.fences.forEach(function(fence) {
+        previousFencesData[fence.fence_id] = {
+            coord_x: fence.coord_x,
+            coord_y: fence.coord_y,
+            is_destroyed: fence.is_destroyed,
+            has_base: fence.has_base,
+            lower_panel_built: fence.lower_panel_built,
+            upper_panel_built: fence.upper_panel_built,
+            structure_type: fence.structure_type,
+            watchtower_details: fence.watchtower_details || {},
+            flag_details: fence.flag_details || {}
+        };
+    });
 }
 
 /**
@@ -3344,6 +3863,18 @@ function loadKills() {
  * Atualizar kills no mapa
  */
 function updateKills(data) {
+    // Detectar novos kills antes de atualizar
+    if (previousKillsData.length > 0 && notificationsEnabled) {
+        const newKills = detectKillChanges(data, previousKillsData);
+        newKills.forEach(function(kill) {
+            const killerName = kill.killer_name || 'Desconhecido';
+            const victimName = kill.victim_name || 'Desconhecido';
+            const weapon = kill.weapon || 'Desconhecida';
+            const distance = kill.distance ? `${kill.distance.toFixed(0)}m` : 'N/A';
+            showToast('Kill', `${killerName} matou ${victimName} com ${weapon} (${distance})`, 'danger');
+        });
+    }
+    
     // Limpar kills antigos
     killMarkers.forEach(item => {
         if (item.killerMarker) map.removeLayer(item.killerMarker);
@@ -3353,6 +3884,15 @@ function updateKills(data) {
     killMarkers = [];
     
     if (!showKills) {
+        // Salvar estado anterior mesmo se não estiver mostrando
+        previousKillsData = data.events.map(function(kill) {
+            return {
+                kill_id: kill.kill_id,
+                killer_id: kill.killer_id,
+                victim_id: kill.victim_id,
+                timestamp: kill.timestamp
+            };
+        });
         return;
     }
     
@@ -3533,6 +4073,16 @@ function updateKills(data) {
     });
     
     console.log(`Kills carregados: ${data.events.length}`);
+    
+    // Salvar estado anterior para próxima comparação
+    previousKillsData = data.events.map(function(kill) {
+        return {
+            kill_id: kill.kill_id,
+            killer_id: kill.killer_id,
+            victim_id: kill.victim_id,
+            timestamp: kill.timestamp
+        };
+    });
 }
 
 /**
@@ -3572,6 +4122,19 @@ function loadDamages() {
  * Atualizar damages no mapa
  */
 function updateDamages(data) {
+    // Detectar novos damages antes de atualizar
+    if (previousDamagesData.length > 0 && notificationsEnabled) {
+        const newDamages = detectDamageChanges(data, previousDamagesData);
+        newDamages.forEach(function(damage) {
+            const attackerName = damage.attacker_name || 'Desconhecido';
+            const victimName = damage.victim_name || 'Desconhecido';
+            const weapon = damage.weapon || 'Desconhecida';
+            const distance = damage.distance ? `${damage.distance.toFixed(0)}m` : 'N/A';
+            const damageAmount = damage.damage ? damage.damage.toFixed(1) : 'N/A';
+            showToast('Dano', `${attackerName} causou ${damageAmount} de dano em ${victimName} com ${weapon} (${distance})`, 'warning');
+        });
+    }
+    
     // Limpar damages antigos
     damageMarkers.forEach(item => {
         if (item.attackerMarker) map.removeLayer(item.attackerMarker);
@@ -3581,6 +4144,15 @@ function updateDamages(data) {
     damageMarkers = [];
     
     if (!showDamages) {
+        // Salvar estado anterior mesmo se não estiver mostrando
+        previousDamagesData = data.events.map(function(damage) {
+            return {
+                damage_id: damage.damage_id,
+                attacker_id: damage.attacker_id,
+                victim_id: damage.victim_id,
+                timestamp: damage.timestamp
+            };
+        });
         return;
     }
     
@@ -3799,6 +4371,16 @@ function updateDamages(data) {
     });
     
     console.log(`Damages carregados: ${data.events.length}`);
+    
+    // Salvar estado anterior para próxima comparação
+    previousDamagesData = data.events.map(function(damage) {
+        return {
+            damage_id: damage.damage_id,
+            attacker_id: damage.attacker_id,
+            victim_id: damage.victim_id,
+            timestamp: damage.timestamp
+        };
+    });
 }
 
 /**
