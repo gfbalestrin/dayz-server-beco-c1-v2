@@ -212,12 +212,36 @@ $(document).ready(function() {
         }
     });
     
+    $('#teleportPlayerDirectBtn').on('click', function() {
+        if (MapState.currentPlayerContext) {
+            // Fechar modal de ações
+            bootstrap.Modal.getInstance(document.getElementById('playerMarkerActionsModal')).hide();
+            
+            // Abrir modal de teleporte direto
+            showPlayerTeleportModal();
+        }
+    });
+    
     $('#checkInventoryActionBtn').on('click', function() {
         if (MapState.currentPlayerContext) {
             checkPlayerInventory(
                 MapState.currentPlayerContext.playerId,
                 MapState.currentPlayerContext.playerName
             );
+        }
+    });
+    
+    // Botões do modal de teleporte de jogador
+    $('#confirmPlayerTeleportBtn').on('click', executePlayerTeleport);
+    $('#useMapPositionForPlayerBtn').on('click', useMapPositionForPlayer);
+    
+    // Atualizar modo quando modal de teleporte de jogador for fechado
+    $('#playerTeleportModal').on('hidden.bs.modal', function(e) {
+        // Voltar ao modo normal se não houver jogador selecionado no filtro
+        if (MapState.selectedPlayerFilters.length === 0 && !MapState.teleportTargetVehicle && !MapState.teleportTargetContainer) {
+            setMode('normal');
+        } else {
+            updateTeleportInfo();
         }
     });
     

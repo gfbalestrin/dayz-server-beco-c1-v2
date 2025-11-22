@@ -1204,6 +1204,133 @@ function showTeleportToPlayerModal() {
 }
 
 /**
+ * Mostrar modal de teleporte direto de jogador
+ */
+function showPlayerTeleportModal() {
+    if (!MapState.currentPlayerContext) {
+        showToast('Erro', 'Contexto do jogador não encontrado', 'error');
+        return;
+    }
+    
+    const playerId = MapState.currentPlayerContext.playerId;
+    const playerName = MapState.currentPlayerContext.playerName;
+    const coordX = MapState.currentPlayerContext.coordX;
+    const coordY = MapState.currentPlayerContext.coordY;
+    const coordZ = MapState.currentPlayerContext.coordZ;
+    
+    // Limpar targets de veículo e container se houver
+    MapState.teleportTargetVehicle = null;
+    MapState.teleportTargetContainer = null;
+    
+    // Preencher informações do jogador no modal
+    $('#teleportPlayerId').val(playerId);
+    $('#teleportPlayerName').text(playerName || 'Jogador');
+    $('#teleportPlayerCurrentCoords').text(`X=${coordX.toFixed(1)}, Y=${coordY.toFixed(1)}, Z=${coordZ ? coordZ.toFixed(1) : 'N/A'}`);
+    
+    // Limpar campos de coordenadas
+    $('#teleportPlayerX').val('');
+    $('#teleportPlayerY').val('');
+    $('#teleportPlayerZ').val('');
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('playerTeleportModal'));
+    modal.show();
+}
+
+/**
+ * Executar teleporte direto de jogador (coordenadas manuais)
+ */
+function executePlayerTeleport() {
+    const playerId = $('#teleportPlayerId').val();
+    const coordX = parseFloat($('#teleportPlayerX').val());
+    const coordY = parseFloat($('#teleportPlayerY').val());
+    const coordZ = $('#teleportPlayerZ').val() ? parseFloat($('#teleportPlayerZ').val()) : null;
+    
+    if (!playerId) {
+        showToast('Erro', 'ID do jogador não encontrado', 'error');
+        return;
+    }
+    
+    if (isNaN(coordX) || isNaN(coordY)) {
+        showToast('Aviso', 'Preencha as coordenadas X e Y', 'warning');
+        return;
+    }
+    
+    // Desabilitar botão e mostrar loading
+    $('#confirmPlayerTeleportBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Teleportando...');
+    
+    const payload = {
+        coord_x: coordX,
+        coord_y: coordY
+    };
+    
+    if (coordZ !== null && !isNaN(coordZ)) {
+        payload.coord_z = coordZ;
+    }
+    
+    $.ajax({
+        url: `/api/players/${playerId}/teleport`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function(response) {
+            // Fechar modal
+            bootstrap.Modal.getInstance(document.getElementById('playerTeleportModal')).hide();
+            
+            // Mostrar mensagem de sucesso
+            showToast('Sucesso', response.message, 'success');
+            
+            // Voltar ao modo normal se não houver outro target
+            if (MapState.selectedPlayerFilters.length === 0 && !MapState.teleportTargetVehicle && !MapState.teleportTargetContainer) {
+                setMode('normal');
+            } else {
+                updateTeleportInfo();
+            }
+            
+            // Recarregar posições após um delay
+            setTimeout(() => {
+                loadPositions();
+            }, 1000);
+        },
+        error: function(xhr) {
+            console.error('Erro ao teleportar jogador:', xhr);
+            const error = xhr.responseJSON || {};
+            const errorMsg = error.message || error.error || 'Erro desconhecido ao teleportar jogador';
+            showToast('Erro', errorMsg, 'error');
+        },
+        complete: function() {
+            // Reabilitar botão
+            $('#confirmPlayerTeleportBtn').prop('disabled', false).html('<i class="fas fa-map-marker-alt me-1"></i>Teleportar');
+        }
+    });
+}
+
+/**
+ * Fechar modal e aguardar clique no mapa para definir posição do jogador
+ */
+function useMapPositionForPlayer() {
+    const playerId = $('#teleportPlayerId').val();
+    
+    if (!playerId) {
+        showToast('Erro', 'ID do jogador não encontrado', 'error');
+        return;
+    }
+    
+    // Adicionar jogador ao filtro (se ainda não estiver)
+    if (!MapState.selectedPlayerFilters.includes(playerId)) {
+        addPlayerToFilter(playerId);
+    }
+    
+    // Fechar modal
+    bootstrap.Modal.getInstance(document.getElementById('playerTeleportModal')).hide();
+    
+    // Ativar modo teleporte (o cursor mudará para crosshair automaticamente)
+    setMode('teleport');
+    
+    showToast('Info', 'Clique no mapa para definir a posição do jogador', 'info');
+}
+
+/**
  * Executar teleporte de jogador para posição
  */
 function executeTeleportToPlayer() {

@@ -63,7 +63,6 @@ const MapState = {
     
     // Modos e teleporte
     currentMode: 'normal',
-    teleportTargetPlayer: null,
     teleportTargetVehicle: null,
     teleportTargetContainer: null,
     vehicleTeleportUseMapPosition: false,

@@ -32,9 +32,12 @@ function setMode(mode) {
     if (mode === 'normal') {
         $('#btnModeNormal').addClass('active');
         MapState.map.getContainer().style.cursor = '';
-        // Limpar teleportTargetVehicle ao voltar ao modo normal
-        if (MapState.teleportTargetVehicle) {
+        // Limpar targets ao voltar ao modo normal (apenas se não estiver usando posição do mapa)
+        if (MapState.teleportTargetVehicle && !MapState.vehicleTeleportUseMapPosition) {
             MapState.teleportTargetVehicle = null;
+        }
+        if (MapState.teleportTargetContainer) {
+            MapState.teleportTargetContainer = null;
         }
     } else if (mode === 'teleport') {
         $('#btnModeTeleport').addClass('active');
@@ -67,6 +70,7 @@ function setMode(mode) {
 function updateTeleportInfo() {
     const teleportInfo = $('#teleportInfo');
     
+    // Prioridade 1: Veículo
     if (MapState.teleportTargetVehicle) {
         const vehicle = MapState.vehiclesData[MapState.teleportTargetVehicle];
         const vehicleName = vehicle ? (vehicle.vehicle_name || 'Veículo') : 'Veículo';
@@ -76,7 +80,24 @@ function updateTeleportInfo() {
                 <small>Clique no mapa para teleportar <strong>${vehicleName}</strong></small>
             </div>
         `);
-    } else if (MapState.selectedPlayerFilters.length > 0) {
+        return;
+    }
+    
+    // Prioridade 2: Container
+    if (MapState.teleportTargetContainer) {
+        const container = MapState.containersData[MapState.teleportTargetContainer];
+        const containerName = container ? (container.container_type || 'Container') : 'Container';
+        teleportInfo.html(`
+            <div class="alert alert-warning mb-0">
+                <i class="fas fa-box me-2"></i><strong>Modo Teleporte de Container</strong><br>
+                <small>Clique no mapa para teleportar <strong>${containerName}</strong></small>
+            </div>
+        `);
+        return;
+    }
+    
+    // Prioridade 3: Jogador do filtro
+    if (MapState.selectedPlayerFilters.length > 0) {
         const playerId = MapState.selectedPlayerFilters[0];
         const player = MapState.playersData[playerId];
         const playerName = player ? (player.name || playerId) : playerId;
@@ -86,21 +107,23 @@ function updateTeleportInfo() {
                 <small>Clique no mapa para teleportar <strong>${playerName}</strong></small>
             </div>
         `);
-    } else {
-        teleportInfo.html(`
-            <div class="alert alert-secondary mb-0">
-                <i class="fas fa-map-marker-alt me-2"></i><strong>Modo Teleporte</strong><br>
-                <small>Selecione um jogador no filtro acima ou um veículo no mapa</small>
-            </div>
-        `);
+        return;
     }
+    
+    // Padrão: sem target selecionado
+    teleportInfo.html(`
+        <div class="alert alert-secondary mb-0">
+            <i class="fas fa-map-marker-alt me-2"></i><strong>Modo Teleporte</strong><br>
+            <small>Selecione um jogador no filtro acima ou um veículo/container no mapa</small>
+        </div>
+    `);
 }
 
 /**
  * Handler para clique no mapa em modo teleporte
  */
 function handleTeleportClick(e) {
-    // Verificar se é teleporte de container ou veículo (prioridade sobre jogador)
+    // Verificar se é teleporte de container ou veículo (prioridade sobre jogador do filtro)
     const isContainer = MapState.teleportTargetContainer !== null && MapState.teleportTargetContainer !== undefined;
     const isVehicle = MapState.teleportTargetVehicle !== null && MapState.teleportTargetVehicle !== undefined;
     
