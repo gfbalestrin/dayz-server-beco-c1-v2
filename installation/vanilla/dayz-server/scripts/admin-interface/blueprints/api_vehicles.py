@@ -7,6 +7,12 @@ import os
 import logging
 import fcntl
 from blueprints.auth import admin_required, audit_action
+from database import (
+    get_vehicles_paginated, 
+    get_vehicle_history, 
+    get_vehicle_tracking_items, 
+    get_vehicle_tracking_attachments
+)
 
 api_vehicles_bp = Blueprint('api_vehicles', __name__)
 
@@ -72,4 +78,74 @@ def api_teleport_vehicle(vehicle_id):
         return jsonify({
             'success': False,
             'message': f'Erro inesperado: {str(e)}'
+        }), 500
+
+@api_vehicles_bp.route('/api/vehicles/data', methods=['GET'])
+@admin_required
+def api_vehicles_data():
+    """Endpoint para dados paginados de veículos com filtros"""
+    try:
+        # Parâmetros de paginação
+        start = int(request.args.get('start', 0))
+        length = int(request.args.get('length', 50))
+        
+        # Filtros
+        include_destroyed = request.args.get('include_destroyed', 'false').lower() == 'true'
+        date_from = request.args.get('date_from', None)
+        date_to = request.args.get('date_to', None)
+        search = request.args.get('search', None)
+        
+        # Buscar dados paginados
+        data, total_records = get_vehicles_paginated(
+            include_destroyed=include_destroyed,
+            date_from=date_from,
+            date_to=date_to,
+            start=start,
+            length=length,
+            search=search
+        )
+        
+        return jsonify({
+            'data': data,
+            'recordsTotal': total_records,
+            'recordsFiltered': total_records
+        })
+        
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Erro ao buscar dados de veículos: {e}", exc_info=True)
+        return jsonify({
+            'error': 'Erro ao buscar dados de veículos',
+            'message': str(e)
+        }), 500
+
+@api_vehicles_bp.route('/api/vehicles/<vehicle_id>/history', methods=['GET'])
+@admin_required
+def api_vehicle_history(vehicle_id):
+    """Endpoint para histórico completo de um veículo"""
+    try:
+        limit = int(request.args.get('limit', 100))
+        
+        # Buscar histórico
+        history = get_vehicle_history(vehicle_id, limit=limit)
+        
+        # Para cada registro, buscar items e attachments
+        for record in history:
+            tracking_id = record['IdVehicleTracking']
+            record['items'] = get_vehicle_tracking_items(tracking_id)
+            record['attachments'] = get_vehicle_tracking_attachments(tracking_id)
+        
+        return jsonify({
+            'success': True,
+            'vehicle_id': vehicle_id,
+            'history': history
+        })
+        
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Erro ao buscar histórico do veículo {vehicle_id}: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': 'Erro ao buscar histórico do veículo',
+            'message': str(e)
         }), 500

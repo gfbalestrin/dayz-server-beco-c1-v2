@@ -304,6 +304,201 @@ def get_vehicle_trail(vehicle_id: str, limit: int = 100) -> List[Dict]:
         
         return filtered_vehicles
 
+def get_vehicles_overview(include_destroyed: bool = False, date_from: str = None, date_to: str = None) -> List[Dict]:
+    """Retorna último registro de cada veículo com filtros opcionais"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        
+        # Verificar colunas disponíveis
+        cursor.execute("PRAGMA table_info(vehicles_tracking)")
+        columns = [row[1] for row in cursor.fetchall()]
+        has_is_destroyed = 'IsDestroyed' in columns
+        has_health = 'EngineHealth' in columns or 'BodyHealth' in columns or 'FuelTankHealth' in columns
+        
+        health_columns = ""
+        if 'EngineHealth' in columns:
+            health_columns += ", vt.EngineHealth"
+        if 'BodyHealth' in columns:
+            health_columns += ", vt.BodyHealth"
+        if 'FuelTankHealth' in columns:
+            health_columns += ", vt.FuelTankHealth"
+        
+        # Construir query base
+        where_conditions = []
+        params = []
+        
+        if has_is_destroyed and not include_destroyed:
+            where_conditions.append("(vt.IsDestroyed = 0 OR vt.IsDestroyed IS NULL)")
+        
+        if date_from:
+            where_conditions.append("vt.TimeStamp >= ?")
+            params.append(date_from)
+        
+        if date_to:
+            where_conditions.append("vt.TimeStamp <= ?")
+            params.append(date_to)
+        
+        where_clause = ""
+        if where_conditions:
+            where_clause = "WHERE " + " AND ".join(where_conditions)
+        
+        query = f"""
+            SELECT vt.IdVehicleTracking, vt.VehicleId, vt.VehicleName,
+                   vt.PositionX, vt.PositionY, vt.PositionZ, vt.TimeStamp,
+                   IFNULL(vt.IsDestroyed, 0) as IsDestroyed, vt.DestroyedAt{health_columns}
+            FROM vehicles_tracking vt
+            INNER JOIN (
+                SELECT VehicleId, MAX(TimeStamp) as MaxTimeStamp
+                FROM vehicles_tracking
+                GROUP BY VehicleId
+            ) AS latest_vt ON vt.VehicleId = latest_vt.VehicleId AND vt.TimeStamp = latest_vt.MaxTimeStamp
+            {where_clause}
+            ORDER BY vt.TimeStamp DESC, vt.VehicleName
+        """
+        
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_vehicle_history(vehicle_id: str, limit: int = 100) -> List[Dict]:
+    """Retorna histórico completo de um veículo com informações de saúde"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        
+        # Verificar colunas de saúde
+        cursor.execute("PRAGMA table_info(vehicles_tracking)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        health_columns = ""
+        if 'EngineHealth' in columns:
+            health_columns += ", EngineHealth"
+        if 'BodyHealth' in columns:
+            health_columns += ", BodyHealth"
+        if 'FuelTankHealth' in columns:
+            health_columns += ", FuelTankHealth"
+        
+        query = f"""
+            SELECT IdVehicleTracking, VehicleId, VehicleName,
+                   PositionX, PositionY, PositionZ, TimeStamp,
+                   IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt{health_columns}
+            FROM vehicles_tracking
+            WHERE VehicleId = ?
+            ORDER BY TimeStamp DESC
+            LIMIT ?
+        """
+        
+        cursor.execute(query, (vehicle_id, limit))
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_vehicle_tracking_items(tracking_id: int) -> List[Dict]:
+    """Retorna items de um registro específico de tracking"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT IdVehicleItem, ItemType, ItemHealth, TimeStamp
+            FROM vehicles_items
+            WHERE VehicleTrackingId = ?
+            ORDER BY ItemType
+        """, (tracking_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_vehicle_tracking_attachments(tracking_id: int) -> List[Dict]:
+    """Retorna attachments de um registro específico de tracking"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT IdVehicleAttachment, AttachmentType, AttachmentHealth, TimeStamp
+            FROM vehicles_attachments
+            WHERE VehicleTrackingId = ?
+            ORDER BY AttachmentType
+        """, (tracking_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str, 
+                          start: int, length: int, search: str = None) -> Tuple[List[Dict], int]:
+    """Retorna dados paginados de veículos com busca e filtros"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        
+        # Verificar colunas disponíveis
+        cursor.execute("PRAGMA table_info(vehicles_tracking)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        health_columns = ""
+        if 'EngineHealth' in columns:
+            health_columns += ", vt.EngineHealth"
+        if 'BodyHealth' in columns:
+            health_columns += ", vt.BodyHealth"
+        if 'FuelTankHealth' in columns:
+            health_columns += ", vt.FuelTankHealth"
+        
+        # Construir condições WHERE
+        where_conditions = []
+        params = []
+        
+        if not include_destroyed:
+            where_conditions.append("(vt.IsDestroyed = 0 OR vt.IsDestroyed IS NULL)")
+        
+        if date_from:
+            where_conditions.append("vt.TimeStamp >= ?")
+            params.append(date_from)
+        
+        if date_to:
+            where_conditions.append("vt.TimeStamp <= ?")
+            params.append(date_to)
+        
+        if search:
+            where_conditions.append("(vt.VehicleId LIKE ? OR vt.VehicleName LIKE ?)")
+            search_param = f"%{search}%"
+            params.extend([search_param, search_param])
+        
+        where_clause = ""
+        if where_conditions:
+            where_clause = "WHERE " + " AND ".join(where_conditions)
+        
+        # Query para contar total de registros (sem paginação)
+        # Primeiro contar total sem filtros
+        cursor.execute("SELECT COUNT(DISTINCT VehicleId) FROM vehicles_tracking")
+        total_all = cursor.fetchone()[0]
+        
+        # Se há filtros, contar com filtros aplicados
+        if where_conditions:
+            count_query = f"""
+                SELECT COUNT(DISTINCT vt.VehicleId)
+                FROM vehicles_tracking vt
+                INNER JOIN (
+                    SELECT VehicleId, MAX(TimeStamp) as MaxTimeStamp
+                    FROM vehicles_tracking
+                    GROUP BY VehicleId
+                ) AS latest_vt ON vt.VehicleId = latest_vt.VehicleId AND vt.TimeStamp = latest_vt.MaxTimeStamp
+                {where_clause}
+            """
+            cursor.execute(count_query, params)
+            total_records = cursor.fetchone()[0]
+        else:
+            total_records = total_all
+        
+        # Query para dados paginados
+        data_query = f"""
+            SELECT vt.IdVehicleTracking, vt.VehicleId, vt.VehicleName,
+                   vt.PositionX, vt.PositionY, vt.PositionZ, vt.TimeStamp,
+                   IFNULL(vt.IsDestroyed, 0) as IsDestroyed, vt.DestroyedAt{health_columns}
+            FROM vehicles_tracking vt
+            INNER JOIN (
+                SELECT VehicleId, MAX(TimeStamp) as MaxTimeStamp
+                FROM vehicles_tracking
+                GROUP BY VehicleId
+            ) AS latest_vt ON vt.VehicleId = latest_vt.VehicleId AND vt.TimeStamp = latest_vt.MaxTimeStamp
+            {where_clause}
+            ORDER BY vt.TimeStamp DESC, vt.VehicleName
+            LIMIT ? OFFSET ?
+        """
+        
+        params.extend([length, start])
+        cursor.execute(data_query, params)
+        data = [dict(row) for row in cursor.fetchall()]
+        
+        return data, total_records
+
 
 def get_active_vehicle_name_counts() -> Dict[str, int]:
     """Agrupa veículos ativos (não destruídos) por nome exibido"""

@@ -9,7 +9,7 @@ import config
 from database import (
     get_all_players, get_all_players_with_status, get_player_by_id,
     get_player_coords, get_player_coords_backup,
-    get_logs_adm, get_logs_custom, get_vehicles_tracking,
+    get_logs_adm, get_logs_custom,
     get_user_audit_logs, get_all_users, get_unique_audit_actions,
     get_loadouts_by_player
 )
@@ -182,8 +182,7 @@ def logs_audit():
 @admin_required
 def vehicles():
     """Tracking de veículos"""
-    vehicles = get_vehicles_tracking()
-    return render_template('vehicles.html', vehicles=vehicles)
+    return render_template('vehicles.html')
 
 
 @views_bp.route('/map')
