@@ -100,12 +100,21 @@ function updateTeleportInfo() {
  * Handler para clique no mapa em modo teleporte
  */
 function handleTeleportClick(e) {
-    // Verificar se é teleporte de veículo (prioridade sobre jogador)
-    if (MapState.teleportTargetVehicle) {
-        const vehicle = MapState.vehiclesData[MapState.teleportTargetVehicle];
-        if (!vehicle) {
-            showToast('Erro', 'Veículo não encontrado', 'error');
-            MapState.teleportTargetVehicle = null;
+    // Verificar se é teleporte de container ou veículo (prioridade sobre jogador)
+    const isContainer = MapState.teleportTargetContainer !== null && MapState.teleportTargetContainer !== undefined;
+    const isVehicle = MapState.teleportTargetVehicle !== null && MapState.teleportTargetVehicle !== undefined;
+    
+    if (isContainer || isVehicle) {
+        const targetId = isContainer ? MapState.teleportTargetContainer : MapState.teleportTargetVehicle;
+        const targetData = isContainer ? MapState.containersData[targetId] : MapState.vehiclesData[targetId];
+        
+        if (!targetData) {
+            showToast('Erro', isContainer ? 'Container não encontrado' : 'Veículo não encontrado', 'error');
+            if (isContainer) {
+                MapState.teleportTargetContainer = null;
+            } else {
+                MapState.teleportTargetVehicle = null;
+            }
             // Voltar ao modo normal se não houver jogador selecionado
             if (MapState.selectedPlayerFilters.length === 0) {
                 setMode('normal');
@@ -117,9 +126,9 @@ function handleTeleportClick(e) {
         const pixelCoords = [e.latlng.lat, e.latlng.lng];
         const dayzCoords = pixelToDayz(pixelCoords);
         
-        const vehicleName = vehicle.vehicle_name || 'Veículo';
+        const targetName = isContainer ? (targetData.container_type || 'Container') : (targetData.vehicle_name || 'Veículo');
         
-        if (!confirm(`Teleportar ${vehicleName} para X=${dayzCoords.x.toFixed(1)}, Y=${dayzCoords.y.toFixed(1)}?`)) {
+        if (!confirm(`Teleportar ${targetName} para X=${dayzCoords.x.toFixed(1)}, Y=${dayzCoords.y.toFixed(1)}?`)) {
             return;
         }
         
@@ -135,16 +144,16 @@ function handleTeleportClick(e) {
             executeVehicleTeleport();
         } else {
             // Se modal está fechado, executar teleporte diretamente
-            const vehicleId = MapState.teleportTargetVehicle;
             const coordX = dayzCoords.x;
             const coordY = dayzCoords.y;
+            const apiUrl = isContainer ? `/api/containers/${targetId}/teleport` : `/api/vehicles/${targetId}/teleport`;
             
             // Desabilitar modo teleporte temporariamente para evitar múltiplos cliques
             const originalMode = MapState.currentMode;
             setMode('normal');
             
             $.ajax({
-                url: `/api/vehicles/${vehicleId}/teleport`,
+                url: apiUrl,
                 method: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify({
@@ -154,24 +163,30 @@ function handleTeleportClick(e) {
                 success: function(response) {
                     showToast('Sucesso', response.message, 'success');
                     // Limpar target após teleporte bem-sucedido
-                    MapState.teleportTargetVehicle = null;
+                    if (isContainer) {
+                        MapState.teleportTargetContainer = null;
+                    } else {
+                        MapState.teleportTargetVehicle = null;
+                    }
                     // Voltar ao modo normal se não houver jogador selecionado
                     if (MapState.selectedPlayerFilters.length === 0) {
                         setMode('normal');
                     } else {
                         setMode(originalMode);
                     }
-                    // Recarregar veículos após um delay
+                    // Recarregar containers ou veículos após um delay
                     setTimeout(() => {
-                        if (MapState.showVehicles) {
+                        if (isContainer && MapState.showContainers) {
+                            loadContainers();
+                        } else if (!isContainer && MapState.showVehicles) {
                             loadVehicles();
                         }
                     }, 1000);
                 },
                 error: function(xhr) {
-                    console.error('Erro ao teleportar veículo:', xhr);
+                    console.error(`Erro ao teleportar ${isContainer ? 'container' : 'veículo'}:`, xhr);
                     const error = xhr.responseJSON || {};
-                    const errorMsg = error.message || error.error || 'Erro desconhecido ao teleportar veículo';
+                    const errorMsg = error.message || error.error || `Erro desconhecido ao teleportar ${isContainer ? 'container' : 'veículo'}`;
                     showToast('Erro', errorMsg, 'error');
                     // Restaurar modo
                     setMode(originalMode);
@@ -331,10 +346,17 @@ function showVehicleTeleportModal(vehicleId) {
         return;
     }
     
+    // Limpar target de container se houver
+    MapState.teleportTargetContainer = null;
+    
     // Preencher informações do veículo
     $('#teleportVehicleId').val(vehicleId);
     $('#teleportVehicleName').text(vehicle.vehicle_name || 'Veículo');
     $('#teleportVehicleCurrentCoords').text(`X=${vehicle.coord_x.toFixed(1)}, Y=${vehicle.coord_y.toFixed(1)}`);
+    
+    // Atualizar título e texto do modal para veículo
+    $('#vehicleTeleportModal .modal-title').html('<i class="fas fa-map-marker-alt me-2"></i>Teleportar Veículo');
+    $('#vehicleTeleportModal .alert-info strong').first().text('Veículo:');
     
     // Limpar campos de coordenadas
     $('#teleportVehicleX').val('');
@@ -384,16 +406,16 @@ function useMapPositionForVehicle() {
 }
 
 /**
- * Executar teleporte de veículo
+ * Executar teleporte de veículo ou container
  */
 function executeVehicleTeleport() {
-    const vehicleId = $('#teleportVehicleId').val();
+    const targetId = $('#teleportVehicleId').val();
     const coordX = parseFloat($('#teleportVehicleX').val());
     const coordY = parseFloat($('#teleportVehicleY').val());
     const coordZ = $('#teleportVehicleZ').val() ? parseFloat($('#teleportVehicleZ').val()) : null;
     
-    if (!vehicleId) {
-        showToast('Erro', 'ID do veículo não encontrado', 'error');
+    if (!targetId) {
+        showToast('Erro', 'ID não encontrado', 'error');
         return;
     }
     
@@ -401,6 +423,11 @@ function executeVehicleTeleport() {
         showToast('Aviso', 'Preencha as coordenadas X e Y', 'warning');
         return;
     }
+    
+    // Verificar se é veículo ou container
+    const isContainer = MapState.teleportTargetContainer === targetId;
+    const apiUrl = isContainer ? `/api/containers/${targetId}/teleport` : `/api/vehicles/${targetId}/teleport`;
+    const targetType = isContainer ? 'container' : 'veículo';
     
     // Desabilitar botão e mostrar loading
     $('#confirmVehicleTeleportBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Teleportando...');
@@ -415,7 +442,7 @@ function executeVehicleTeleport() {
     }
     
     $.ajax({
-        url: `/api/vehicles/${vehicleId}/teleport`,
+        url: apiUrl,
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify(payload),
@@ -428,6 +455,7 @@ function executeVehicleTeleport() {
             
             // Limpar target após teleporte bem-sucedido
             MapState.teleportTargetVehicle = null;
+            MapState.teleportTargetContainer = null;
             
             // Voltar ao modo normal se não houver jogador selecionado
             if (MapState.selectedPlayerFilters.length === 0) {
@@ -436,17 +464,19 @@ function executeVehicleTeleport() {
                 updateTeleportInfo();
             }
             
-            // Recarregar veículos após um delay
+            // Recarregar veículos ou containers após um delay
             setTimeout(() => {
-                if (MapState.showVehicles) {
+                if (isContainer && MapState.showContainers) {
+                    loadContainers();
+                } else if (!isContainer && MapState.showVehicles) {
                     loadVehicles();
                 }
             }, 1000);
         },
         error: function(xhr) {
-            console.error('Erro ao teleportar veículo:', xhr);
+            console.error(`Erro ao teleportar ${targetType}:`, xhr);
             const error = xhr.responseJSON || {};
-            const errorMsg = error.message || error.error || 'Erro desconhecido ao teleportar veículo';
+            const errorMsg = error.message || error.error || `Erro desconhecido ao teleportar ${targetType}`;
             showToast('Erro', errorMsg, 'error');
         },
         complete: function() {

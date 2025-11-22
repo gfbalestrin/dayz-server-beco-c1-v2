@@ -44,6 +44,8 @@ function applyHistoryFilters() {
         $(modalElement).one('hidden.bs.modal', function() {
             if (MapState.currentHistoryType === 'container') {
                 loadContainerHistory(MapState.currentHistoryId, 0, dateFrom, dateTo);
+            } else if (MapState.currentHistoryType === 'vehicle') {
+                loadVehicleHistory(MapState.currentHistoryId, 0, dateFrom, dateTo);
             } else if (MapState.currentHistoryType === 'fence') {
                 loadFenceHistory(MapState.currentHistoryId, 0, dateFrom, dateTo);
             } else if (MapState.currentHistoryType === 'flag') {
@@ -57,6 +59,8 @@ function applyHistoryFilters() {
         // Se o modal não estava aberto, executar diretamente
         if (MapState.currentHistoryType === 'container') {
             loadContainerHistory(MapState.currentHistoryId, 0, dateFrom, dateTo);
+        } else if (MapState.currentHistoryType === 'vehicle') {
+            loadVehicleHistory(MapState.currentHistoryId, 0, dateFrom, dateTo);
         } else if (MapState.currentHistoryType === 'fence') {
             loadFenceHistory(MapState.currentHistoryId, 0, dateFrom, dateTo);
         } else if (MapState.currentHistoryType === 'watchtower') {
@@ -73,6 +77,8 @@ function applyHistoryFilters() {
 function loadHistoryPage(offset) {
     if (MapState.currentHistoryType === 'container') {
         loadContainerHistory(MapState.currentHistoryId, offset, MapState.currentHistoryPagination.date_from, MapState.currentHistoryPagination.date_to);
+    } else if (MapState.currentHistoryType === 'vehicle') {
+        loadVehicleHistory(MapState.currentHistoryId, offset, MapState.currentHistoryPagination.date_from, MapState.currentHistoryPagination.date_to);
     } else if (MapState.currentHistoryType === 'fence') {
         loadFenceHistory(MapState.currentHistoryId, offset, MapState.currentHistoryPagination.date_from, MapState.currentHistoryPagination.date_to);
     } else if (MapState.currentHistoryType === 'watchtower') {
@@ -165,6 +171,10 @@ function applyHistoryFilters() {
                 if (typeof loadContainerHistory === 'function') {
                     loadContainerHistory(MapState.currentHistoryId, 0, dateFrom, dateTo);
                 }
+            } else if (MapState.currentHistoryType === 'vehicle') {
+                if (typeof loadVehicleHistory === 'function') {
+                    loadVehicleHistory(MapState.currentHistoryId, 0, dateFrom, dateTo);
+                }
             } else if (MapState.currentHistoryType === 'fence') {
                 if (typeof loadFenceHistory === 'function') {
                     loadFenceHistory(MapState.currentHistoryId, 0, dateFrom, dateTo);
@@ -181,6 +191,10 @@ function applyHistoryFilters() {
         if (MapState.currentHistoryType === 'container') {
             if (typeof loadContainerHistory === 'function') {
                 loadContainerHistory(MapState.currentHistoryId, 0, dateFrom, dateTo);
+            }
+        } else if (MapState.currentHistoryType === 'vehicle') {
+            if (typeof loadVehicleHistory === 'function') {
+                loadVehicleHistory(MapState.currentHistoryId, 0, dateFrom, dateTo);
             }
         } else if (MapState.currentHistoryType === 'fence') {
             if (typeof loadFenceHistory === 'function') {
@@ -202,6 +216,10 @@ function loadHistoryPage(offset) {
     if (MapState.currentHistoryType === 'container') {
         if (typeof loadContainerHistory === 'function') {
             loadContainerHistory(MapState.currentHistoryId, offset, MapState.currentHistoryPagination.date_from, MapState.currentHistoryPagination.date_to);
+        }
+    } else if (MapState.currentHistoryType === 'vehicle') {
+        if (typeof loadVehicleHistory === 'function') {
+            loadVehicleHistory(MapState.currentHistoryId, offset, MapState.currentHistoryPagination.date_from, MapState.currentHistoryPagination.date_to);
         }
     } else if (MapState.currentHistoryType === 'fence') {
         if (typeof loadFenceHistory === 'function') {

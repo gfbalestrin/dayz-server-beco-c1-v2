@@ -158,7 +158,7 @@ function updateVehicles(data) {
             keepInView: true,
             autoPanPaddingTopLeft: [60, 60],
             autoPanPaddingBottomRight: [60, 60],
-            maxWidth: 300,
+            maxWidth: 320,
             maxHeight: 600,
             offset: popupOffset
         });
@@ -216,6 +216,8 @@ function loadVehicleTrail(vehicleId, forceReload = false) {
         })
         .fail(function() {
             console.error('Erro ao carregar trail do veículo');
+            // Atualizar popup mesmo em caso de erro para refletir o estado correto
+            updateVehiclePopup(vehicleId);
         });
 }
 
@@ -236,6 +238,8 @@ function drawVehicleTrail(vehicleId, trail) {
     
     if (!trail || trail.length === 0) {
         console.warn('drawVehicleTrail: trail vazio ou inválido para veículo:', vehicleId);
+        // Trail vazio: não há trail ativo, então atualizar popup para mostrar botão "Trail"
+        updateVehiclePopup(vehicleId);
         return;
     }
     
@@ -256,6 +260,8 @@ function drawVehicleTrail(vehicleId, trail) {
     });
     
     if (processedTrail.length === 0) {
+        // Trail processado vazio: não há trail ativo, então atualizar popup para mostrar botão "Trail"
+        updateVehiclePopup(vehicleId);
         return;
     }
     
@@ -358,6 +364,11 @@ function drawVehicleTrail(vehicleId, trail) {
             MapState.vehicleTrails[vehicleId].push(circleMarker);
         }
     }
+    
+    // Atualizar popup após o trail ser desenhado para refletir o estado do botão
+    if (MapState.vehicleTrails[vehicleId] && MapState.vehicleTrails[vehicleId].length > 0) {
+        updateVehiclePopup(vehicleId);
+    }
 }
 
 /**
@@ -380,12 +391,11 @@ function removeVehicleTrail(vehicleId) {
 function toggleVehicleTrail(vehicleId) {
     if (MapState.vehicleTrails[vehicleId]) {
         removeVehicleTrail(vehicleId);
-        $(`#vehicleTrailBtn_${vehicleId}`).text('Mostrar Trail');
+        // Atualizar popup para refletir que o trail foi removido
         updateVehiclePopup(vehicleId);
     } else {
+        // O popup será atualizado automaticamente após o trail ser carregado
         loadVehicleTrail(vehicleId);
-        $(`#vehicleTrailBtn_${vehicleId}`).text('Ocultar Trail');
-        updateVehiclePopup(vehicleId);
     }
 }
 
@@ -472,11 +482,14 @@ function createVehiclePopup(vehicle) {
                 ${destroyedInfo}
             </div>
             <div style="flex-shrink: 0; border-top: 1px solid #dee2e6; padding-top: 8px; margin-top: 8px; background-color: #fff;">
-                <div class="info-row">
-                    <button type="button" class="btn btn-sm btn-success me-2" onclick="toggleVehicleTrail('${vehicle.vehicle_id}')">
-                        <i class="fas fa-route me-1"></i><span id="vehicleTrailBtn_${vehicle.vehicle_id}">${MapState.vehicleTrails[vehicle.vehicle_id] ? 'Ocultar Trail' : 'Mostrar Trail'}</span>
+                <div style="display: flex; gap: 4px; flex-wrap: nowrap;">
+                    <button type="button" class="btn btn-sm btn-primary" style="flex: 1; min-width: 0; font-size: 0.75rem; padding: 0.25rem 0.4rem;" onclick="toggleVehicleTrail('${vehicle.vehicle_id}')">
+                        <i class="fas fa-route me-1"></i><span id="vehicleTrailBtn_${vehicle.vehicle_id}">${MapState.vehicleTrails[vehicle.vehicle_id] ? 'Ocultar' : 'Trail'}</span>
                     </button>
-                    <button type="button" class="btn btn-sm btn-warning" onclick="showVehicleTeleportModal('${vehicle.vehicle_id}')">
+                    <button type="button" class="btn btn-sm btn-info" style="flex: 1; min-width: 0; font-size: 0.75rem; padding: 0.25rem 0.4rem;" onclick="showVehicleLootHistory('${vehicle.vehicle_id}')">
+                        <i class="fas fa-history me-1"></i>Histórico
+                    </button>
+                    <button type="button" class="btn btn-sm btn-warning" style="flex: 1; min-width: 0; font-size: 0.75rem; padding: 0.25rem 0.4rem;" onclick="showVehicleTeleportModal('${vehicle.vehicle_id}')">
                         <i class="fas fa-map-marker-alt me-1"></i>Teleportar
                     </button>
                 </div>
@@ -706,5 +719,229 @@ function filterVehicles() {
     if (MapState.showVehicles) {
         loadVehicles();
     }
+}
+
+/**
+ * Carregar histórico de loot do veículo com filtros e paginação
+ */
+function loadVehicleHistory(vehicleId, offset = 0, dateFrom = null, dateTo = null) {
+    MapState.currentHistoryType = 'vehicle';
+    MapState.currentHistoryId = vehicleId;
+    MapState.currentHistoryPagination.offset = offset;
+    MapState.currentHistoryPagination.date_from = dateFrom;
+    MapState.currentHistoryPagination.date_to = dateTo;
+    
+    const params = {
+        limit: MapState.currentHistoryPagination.limit,
+        offset: offset,
+        per_page: MapState.currentHistoryPagination.limit,
+        page: Math.floor(offset / MapState.currentHistoryPagination.limit) + 1
+    };
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    
+    console.log('Carregando histórico de loot do veículo:', vehicleId, params);
+    $.get(`/api/vehicles/${vehicleId}/history`, params)
+        .done(function(data) {
+            console.log('Histórico do veículo recebido:', vehicleId, data);
+            showVehicleHistoryModal(vehicleId, data.history || [], data.pagination || { total: data.history ? data.history.length : 0, limit: params.limit, offset: offset, has_more: false });
+        })
+        .fail(function(xhr, status, error) {
+            console.error('Erro ao carregar histórico de loot do veículo:', vehicleId, status, error, xhr.responseText);
+        });
+}
+
+/**
+ * Mostrar histórico de loot do veículo
+ */
+function showVehicleLootHistory(vehicleId) {
+    loadVehicleHistory(vehicleId, 0, null, null);
+}
+
+/**
+ * Filtrar histórico de veículo para mostrar apenas alterações (igual a containers)
+ */
+function filterVehicleHistoryByChanges(history) {
+    if (!history || history.length === 0) {
+        return [];
+    }
+    
+    const filtered = [];
+    let prevItemsState = null;
+    let prevAttachmentsState = null;
+    
+    // Ordenar por timestamp DESC (mais recente primeiro) e depois inverter para comparar
+    const sortedHistory = [...history].sort((a, b) => {
+        const timeA = new Date(a.TimeStamp || a.timestamp || 0);
+        const timeB = new Date(b.TimeStamp || b.timestamp || 0);
+        return timeB - timeA;
+    }).reverse();
+    
+    for (let i = 0; i < sortedHistory.length; i++) {
+        const point = sortedHistory[i];
+        
+        // Criar hash dos itens e attachments (similar ao backend de containers)
+        const items = point.items || [];
+        const attachments = point.attachments || [];
+        
+        // Ordenar itens por tipo e health
+        const itemsSorted = [...items].sort((a, b) => {
+            const typeA = (a.type || a.ItemType || '').toLowerCase();
+            const typeB = (b.type || b.ItemType || '').toLowerCase();
+            if (typeA !== typeB) return typeA.localeCompare(typeB);
+            const healthA = (a.health || a.ItemHealth || 0);
+            const healthB = (b.health || b.ItemHealth || 0);
+            return healthA - healthB;
+        });
+        
+        const itemsTuple = itemsSorted.map(item => ({
+            type: item.type || item.ItemType || '',
+            health: item.health || item.ItemHealth || null
+        }));
+        
+        // Ordenar attachments por tipo e health
+        const attachmentsSorted = [...attachments].sort((a, b) => {
+            const typeA = (a.type || a.AttachmentType || '').toLowerCase();
+            const typeB = (b.type || b.AttachmentType || '').toLowerCase();
+            if (typeA !== typeB) return typeA.localeCompare(typeB);
+            const healthA = (a.health || a.AttachmentHealth || 0);
+            const healthB = (b.health || b.AttachmentHealth || 0);
+            return healthA - healthB;
+        });
+        
+        const attachmentsTuple = attachmentsSorted.map(attach => ({
+            type: attach.type || attach.AttachmentType || '',
+            health: attach.health || attach.AttachmentHealth || null
+        }));
+        
+        // Comparar estados de items e attachments
+        const itemsChanged = JSON.stringify(itemsTuple) !== JSON.stringify(prevItemsState);
+        const attachmentsChanged = JSON.stringify(attachmentsTuple) !== JSON.stringify(prevAttachmentsState);
+        
+        // Se houve mudança em items ou attachments, adicionar ao resultado
+        if (prevItemsState === null || prevAttachmentsState === null || itemsChanged || attachmentsChanged) {
+            filtered.push(point);
+            prevItemsState = itemsTuple;
+            prevAttachmentsState = attachmentsTuple;
+        }
+    }
+    
+    // Reverter para ordem DESC (mais recente primeiro)
+    return filtered.reverse();
+}
+
+/**
+ * Exibir modal com histórico de loot do veículo
+ */
+function showVehicleHistoryModal(vehicleId, history, pagination) {
+    const vehicle = MapState.vehiclesData[vehicleId];
+    if (!vehicle) return;
+    
+    // Filtrar histórico para mostrar apenas alterações (igual a containers)
+    const filteredHistory = filterVehicleHistoryByChanges(history);
+    const filteredTotal = filteredHistory.length;
+    
+    const modalTitle = document.getElementById('trailHistoryModalTitle');
+    const modalBody = document.getElementById('trailHistoryModalBody');
+    
+    modalTitle.innerHTML = `<i class="fas fa-car me-2"></i>Histórico de Loot - ${vehicle.vehicle_name || 'Veículo'}`;
+    
+    // Formatar data para input type="date"
+    function formatDateForInput(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        return date.toISOString().split('T')[0];
+    }
+    
+    let html = `<div class="trail-history-container">`;
+    html += `<div class="mb-3"><strong>ID:</strong> ${vehicleId}</div>`;
+    html += `<div class="mb-3"><strong>Coordenadas:</strong> X=${vehicle.coord_x.toFixed(1)}, Y=${vehicle.coord_y.toFixed(1)}</div>`;
+    
+    // Filtros de data
+    html += `<div class="row mb-3">`;
+    html += `<div class="col-md-5">`;
+    html += `<label class="form-label small">Data inicial:</label>`;
+    html += `<input type="date" class="form-control form-control-sm" id="historyDateFrom" value="${formatDateForInput(MapState.currentHistoryPagination.date_from)}">`;
+    html += `</div>`;
+    html += `<div class="col-md-5">`;
+    html += `<label class="form-label small">Data final:</label>`;
+    html += `<input type="date" class="form-control form-control-sm" id="historyDateTo" value="${formatDateForInput(MapState.currentHistoryPagination.date_to)}">`;
+    html += `</div>`;
+    html += `<div class="col-md-2 d-flex align-items-end">`;
+    html += `<button type="button" class="btn btn-sm btn-primary w-100" onclick="applyHistoryFilters()">Filtrar</button>`;
+    html += `</div>`;
+    html += `</div>`;
+    
+    // Paginação
+    const totalPages = Math.ceil(filteredTotal / (pagination.limit || 10));
+    const currentPage = Math.floor((pagination.offset || 0) / (pagination.limit || 10)) + 1;
+    
+    html += `<div class="d-flex justify-content-between align-items-center mb-3">`;
+    html += `<div><strong>Total de eventos (sem duplicados):</strong> ${filteredTotal}</div>`;
+    html += `<div>`;
+    if ((pagination.offset || 0) > 0) {
+        html += `<button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="loadHistoryPage(${(pagination.offset || 0) - (pagination.limit || 10)})">Anterior</button>`;
+    }
+    html += `<span class="mx-2">Página ${currentPage} de ${totalPages || 1}</span>`;
+    if (pagination.has_more || (history.length >= (pagination.limit || 10))) {
+        html += `<button type="button" class="btn btn-sm btn-outline-primary ms-1" onclick="loadHistoryPage(${(pagination.offset || 0) + (pagination.limit || 10)})">Próxima</button>`;
+    }
+    html += `</div>`;
+    html += `</div>`;
+    
+    html += `<div class="trail-timeline" style="max-height: 500px; overflow-y: auto;">`;
+    
+    if (filteredHistory.length === 0) {
+        html += `<div class="text-muted text-center py-4">Nenhum evento encontrado</div>`;
+    } else {
+        // Timeline reversa (mais recente primeiro)
+        for (let i = 0; i < filteredHistory.length; i++) {
+            const point = filteredHistory[i];
+            html += `<div class="trail-timeline-item" style="border-left: 3px solid #${i === 0 ? '4caf50' : '007bff'}; padding-left: 15px; margin-bottom: 20px;">`;
+            html += `<strong>${point.TimeStamp || point.timestamp || 'Sem data'}</strong><br>`;
+            html += `📍 Coords: X=${(point.PositionX || point.coord_x || 0).toFixed(1)}, Y=${(point.PositionY || point.coord_y || 0).toFixed(1)}`;
+            
+            // Processar items e attachments
+            const items = point.items || [];
+            const attachments = point.attachments || [];
+            
+            if (items.length > 0 || attachments.length > 0) {
+                if (items.length > 0) {
+                    html += `<br><strong>📦 Itens (${items.length}):</strong><br>`;
+                    html += `<div class="container-items-list" style="margin-top: 8px;">`;
+                    items.forEach(function(item) {
+                        const itemType = item.type || item.ItemType || '';
+                        const itemHealth = item.health || item.ItemHealth || '';
+                        const healthText = itemHealth ? ` (HP: ${itemHealth})` : '';
+                        html += `<div class="mb-1"><span>${itemType}${healthText}</span></div>`;
+                    });
+                    html += `</div>`;
+                }
+                
+                if (attachments.length > 0) {
+                    html += `<br><strong>🔧 Anexos (${attachments.length}):</strong><br>`;
+                    html += `<div class="container-items-list" style="margin-top: 8px;">`;
+                    attachments.forEach(function(attachment) {
+                        const attachType = attachment.type || attachment.AttachmentType || '';
+                        const attachHealth = attachment.health || attachment.AttachmentHealth || '';
+                        const healthText = attachHealth ? ` (HP: ${attachHealth})` : '';
+                        html += `<div class="mb-1"><span>${attachType}${healthText}</span></div>`;
+                    });
+                    html += `</div>`;
+                }
+            } else {
+                html += `<br><span class="text-muted">Veículo vazio</span>`;
+            }
+            
+            html += `</div>`;
+        }
+    }
+    
+    html += `</div></div>`;
+    modalBody.innerHTML = html;
+    
+    // Abrir modal usando Bootstrap 5
+    const modal = new bootstrap.Modal(document.getElementById('trailHistoryModal'));
+    modal.show();
 }
 

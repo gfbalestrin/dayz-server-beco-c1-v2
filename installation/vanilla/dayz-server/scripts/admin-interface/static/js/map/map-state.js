@@ -65,6 +65,7 @@ const MapState = {
     currentMode: 'normal',
     teleportTargetPlayer: null,
     teleportTargetVehicle: null,
+    teleportTargetContainer: null,
     vehicleTeleportUseMapPosition: false,
     scanCircle: null,
     scanMarkers: {},

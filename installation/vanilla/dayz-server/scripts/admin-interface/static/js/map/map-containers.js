@@ -152,7 +152,7 @@ function updateContainers(data) {
             keepInView: true,
             autoPanPaddingTopLeft: [60, 60],
             autoPanPaddingBottomRight: [60, 60],
-            maxWidth: 300,
+            maxWidth: 320,
             maxHeight: 500,
             offset: popupOffset
         });
@@ -212,6 +212,8 @@ function loadContainerTrail(containerId, forceReload = false) {
         })
         .fail(function(xhr, status, error) {
             console.error('Erro ao carregar trail do container:', containerId, status, error, xhr.responseText);
+            // Atualizar popup mesmo em caso de erro para refletir o estado correto
+            updateContainerPopup(containerId);
         });
 }
 
@@ -234,6 +236,8 @@ function drawContainerTrail(containerId, trail) {
     
     if (!trail || trail.length === 0) {
         console.warn('drawContainerTrail: trail vazio ou inválido para container:', containerId);
+        // Trail vazio: não há trail ativo, então atualizar popup para mostrar botão "Trail"
+        updateContainerPopup(containerId);
         return;
     }
     
@@ -255,6 +259,8 @@ function drawContainerTrail(containerId, trail) {
     
     if (processedTrail.length === 0) {
         console.warn('drawContainerTrail: processedTrail vazio após conversão para container:', containerId);
+        // Trail processado vazio: não há trail ativo, então atualizar popup para mostrar botão "Trail"
+        updateContainerPopup(containerId);
         return;
     }
     
@@ -358,6 +364,11 @@ function drawContainerTrail(containerId, trail) {
         }
         console.log('drawContainerTrail: polyline e', processedTrail.length, 'círculos criados para container:', containerId);
     }
+    
+    // Atualizar popup após o trail ser desenhado para refletir o estado do botão
+    if (MapState.containerTrails[containerId] && MapState.containerTrails[containerId].length > 0) {
+        updateContainerPopup(containerId);
+    }
 }
 
 /**
@@ -380,12 +391,11 @@ function removeContainerTrail(containerId) {
 function toggleContainerTrail(containerId) {
     if (MapState.containerTrails[containerId]) {
         removeContainerTrail(containerId);
-        $(`#containerTrailBtn_${containerId}`).text('Mostrar Trail');
+        // Atualizar popup para refletir que o trail foi removido
         updateContainerPopup(containerId);
     } else {
+        // O popup será atualizado automaticamente após o trail ser carregado
         loadContainerTrail(containerId);
-        $(`#containerTrailBtn_${containerId}`).text('Ocultar Trail');
-        updateContainerPopup(containerId);
     }
 }
 
@@ -445,12 +455,15 @@ function createContainerPopup(container) {
                 <span class="info-value">${container.last_update || 'Desconhecido'}</span>
             </div>
             ${destroyedInfo}
-            <div class="info-row mt-2">
-                <button type="button" class="btn btn-sm btn-info me-2" onclick="showContainerLootHistory('${container.container_id}')">
-                    <i class="fas fa-history me-1"></i>Histórico de Loot
+            <div class="mt-2" style="display: flex; gap: 4px; flex-wrap: nowrap;">
+                <button type="button" class="btn btn-sm btn-primary" style="flex: 1; min-width: 0; font-size: 0.75rem; padding: 0.25rem 0.4rem;" onclick="toggleContainerTrail('${container.container_id}')">
+                    <i class="fas fa-route me-1"></i><span id="containerTrailBtn_${container.container_id}">${MapState.containerTrails[container.container_id] ? 'Ocultar' : 'Trail'}</span>
                 </button>
-                <button type="button" class="btn btn-sm btn-primary" onclick="toggleContainerTrail('${container.container_id}')">
-                    <i class="fas fa-route me-1"></i><span id="containerTrailBtn_${container.container_id}">${MapState.containerTrails[container.container_id] ? 'Ocultar Trail' : 'Mostrar Trail'}</span>
+                <button type="button" class="btn btn-sm btn-info" style="flex: 1; min-width: 0; font-size: 0.75rem; padding: 0.25rem 0.4rem;" onclick="showContainerLootHistory('${container.container_id}')">
+                    <i class="fas fa-history me-1"></i>Histórico
+                </button>
+                <button type="button" class="btn btn-sm btn-warning" style="flex: 1; min-width: 0; font-size: 0.75rem; padding: 0.25rem 0.4rem;" onclick="showContainerTeleportModal('${container.container_id}')">
+                    <i class="fas fa-map-marker-alt me-1"></i>Teleportar
                 </button>
             </div>
         </div>
@@ -637,5 +650,48 @@ function showContainerHistoryModal(containerId, trail, pagination) {
     // Abrir modal usando Bootstrap 5
     const modal = new bootstrap.Modal(document.getElementById('trailHistoryModal'));
     modal.show();
+}
+
+/**
+ * Mostrar modal de teleporte de container
+ */
+function showContainerTeleportModal(containerId) {
+    const container = MapState.containersData[containerId];
+    if (!container) {
+        showToast('Erro', 'Container não encontrado', 'error');
+        return;
+    }
+    
+    // Limpar target de veículo se houver
+    MapState.teleportTargetVehicle = null;
+    
+    // Usar o mesmo modal de teleporte de veículos
+    $('#teleportVehicleId').val(containerId);
+    $('#teleportVehicleName').text(container.container_type || 'Container');
+    $('#teleportVehicleCurrentCoords').text(`X=${container.coord_x.toFixed(1)}, Y=${container.coord_y.toFixed(1)}`);
+    
+    // Atualizar título e texto do modal para container
+    $('#vehicleTeleportModal .modal-title').html('<i class="fas fa-map-marker-alt me-2"></i>Teleportar Container');
+    $('#vehicleTeleportModal .alert-info strong').first().text('Container:');
+    
+    // Limpar campos de coordenadas
+    $('#teleportVehicleX').val('');
+    $('#teleportVehicleY').val('');
+    $('#teleportVehicleZ').val('');
+    
+    // Armazenar containerId para uso no clique do mapa
+    MapState.teleportTargetContainer = containerId;
+    
+    // Verificar se está no modo de teleporte
+    if (MapState.currentMode !== 'teleport') {
+        // Mudar para modo de teleporte
+        setMode('teleport');
+    } else {
+        // Atualizar mensagem do teleportInfo
+        updateTeleportInfo();
+    }
+    
+    // Mostrar modal
+    $('#vehicleTeleportModal').modal('show');
 }
 

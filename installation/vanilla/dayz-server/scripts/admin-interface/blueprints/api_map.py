@@ -4,6 +4,10 @@ Rotas de API para posições e trails de players, vehicles, containers e fences
 """
 from flask import Blueprint, request, jsonify
 from datetime import datetime
+import logging
+import os
+import fcntl
+import config
 from database import (
     get_players_last_position, get_online_players, get_player_trail,
     get_online_players_positions, get_vehicles_map_positions,
@@ -749,3 +753,66 @@ def api_flag_trail(flag_id):
         'trail': result_trail,
         'pagination': pagination
     })
+
+@api_map_bp.route('/api/containers/<container_id>/teleport', methods=['POST'])
+@admin_required
+def api_teleport_container(container_id):
+    """API para teleportar container para uma posição usando sistema de comandos DayZ"""
+    logger = logging.getLogger(__name__)
+    
+    try:
+        data = request.get_json()
+        coord_x = data.get('coord_x')
+        coord_y = data.get('coord_y')
+        coord_z = data.get('coord_z')
+        
+        logger.debug(f"Teleport container request: container_id={container_id}, x={coord_x}, y={coord_y}, z={coord_z}")
+        
+        if coord_x is None or coord_y is None:
+            return jsonify({'success': False, 'message': 'Coordenadas não fornecidas'}), 400
+        
+        commands_file = config.COMMANDS_FILE
+        
+        if not os.path.exists(commands_file):
+            logger.error(f"Arquivo de comandos não encontrado: {commands_file}")
+            return jsonify({
+                'success': False,
+                'message': 'Arquivo de comandos não encontrado'
+            }), 500
+        
+        if coord_z is not None and coord_z != 0:
+            command_line = f"SYSTEM teleportcontainer {container_id} {coord_x} {coord_z} {coord_y}\n"
+        else:
+            command_line = f"SYSTEM teleportcontainer {container_id} {coord_x} 0 {coord_y}\n"
+        
+        logger.info(f"Adicionando comando de teleporte de container: {command_line.strip()}")
+        
+        try:
+            with open(commands_file, 'a') as f:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.write(command_line)
+                    f.flush()
+                    os.fsync(f.fileno())
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            
+            logger.info("Comando de teleporte de container adicionado com sucesso")
+            return jsonify({
+                'success': True,
+                'message': 'Comando de teleporte enviado! O container será teleportado em instantes.'
+            })
+            
+        except IOError as e:
+            logger.error(f"Erro ao escrever comando de teleporte de container: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'Erro ao adicionar comando: {str(e)}'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Erro inesperado ao teleportar container: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'Erro inesperado: {str(e)}'
+        }), 500
