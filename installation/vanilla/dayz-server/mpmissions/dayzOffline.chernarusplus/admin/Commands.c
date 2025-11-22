@@ -123,7 +123,7 @@ bool ExecuteCommand(TStringArray tokens)
                     // Obter informações do objeto
                     string objType = scannedObj.GetType();
                     
-                    // Filtrar objetos de natureza (árvores, arbustos)
+                    // Filtrar objetos de natureza (árvores, arbustos, pedras, rochas)
                     if (objType.Length() > 0)
                     {
                         // Verificar prefixos de natureza
@@ -136,10 +136,36 @@ bool ExecuteCommand(TStringArray tokens)
                         if (objType.Length() >= 8 && objType.Substring(0, 8) == "TreeHard")
                             continue;
                         
+                        // Verificar prefixos de pedras e rochas estáticas
+                        if (objType.Length() >= 12 && objType.Substring(0, 12) == "Static_rock_")
+                            continue;
+                        if (objType.Length() >= 13 && objType.Substring(0, 13) == "Static_stone")
+                            continue;
+                        if (objType.Length() >= 14 && objType.Substring(0, 14) == "Static_stones_")
+                            continue;
+                        
+                        // Verificar objetos específicos de pedras e rochas
+                        if (objType == "Static_stone5")
+                            continue;
+                        if (objType == "Static_stone4")
+                            continue;
+                        if (objType == "Static_stones_erosion")
+                            continue;
+                        if (objType == "Static_rock_spike1")
+                            continue;
+                        if (objType == "Static_rock_wallh1")
+                            continue;
+                        if (objType == "Static_rock_monolith1")
+                            continue;
+                        
                         // Verificar se contém palavras-chave de natureza
                         if (objType.Contains("Tree"))
                             continue;
                         if (objType.Contains("Bush"))
+                            continue;
+                        if (objType.Contains("Static_rock"))
+                            continue;
+                        if (objType.Contains("Static_stone"))
                             continue;
                     }
                     
