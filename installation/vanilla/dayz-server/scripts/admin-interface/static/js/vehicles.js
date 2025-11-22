@@ -742,8 +742,25 @@ $(document).ready(function() {
             html += '<strong>Items (' + (prev.items ? prev.items.length : 0) + '):</strong><br>';
             html += '<div class="ms-2">';
             
+            // Ordenar arrays alfabeticamente por type
+            const sortedRemoved = itemsDiff.removed.slice().sort(function(a, b) {
+                const typeA = (a.type || '').toLowerCase();
+                const typeB = (b.type || '').toLowerCase();
+                return typeA.localeCompare(typeB);
+            });
+            const sortedUnchanged = itemsDiff.unchanged.slice().sort(function(a, b) {
+                const typeA = (a.type || '').toLowerCase();
+                const typeB = (b.type || '').toLowerCase();
+                return typeA.localeCompare(typeB);
+            });
+            const sortedAdded = itemsDiff.added.slice().sort(function(a, b) {
+                const typeA = (a.type || '').toLowerCase();
+                const typeB = (b.type || '').toLowerCase();
+                return typeA.localeCompare(typeB);
+            });
+            
             // Mostrar items removidos (estavam em curr mas não em prev = foram removidos entre curr e prev)
-            itemsDiff.removed.forEach(function(item) {
+            sortedRemoved.forEach(function(item) {
                 const health = item.item.ItemHealth !== null ? 
                     ' (' + parseFloat(item.item.ItemHealth || 0).toFixed(0) + '%)' : '';
                 html += '<small class="change-removed">' +
@@ -752,14 +769,14 @@ $(document).ready(function() {
             });
             
             // Mostrar items inalterados (presentes em ambos)
-            itemsDiff.unchanged.forEach(function(item) {
+            sortedUnchanged.forEach(function(item) {
                 const health = item.prevItem.ItemHealth !== null ? 
                     ' (' + parseFloat(item.prevItem.ItemHealth || 0).toFixed(0) + '%)' : '';
                 html += '<small>• ' + escapeHtml(item.type) + health + '</small><br>';
             });
             
             // Mostrar items adicionados (estavam em prev mas não em curr = foram adicionados entre curr e prev)
-            itemsDiff.added.forEach(function(item) {
+            sortedAdded.forEach(function(item) {
                 const health = item.item.ItemHealth !== null ? 
                     ' (' + parseFloat(item.item.ItemHealth || 0).toFixed(0) + '%)' : '';
                 html += '<small class="change-added">' +
@@ -783,8 +800,25 @@ $(document).ready(function() {
             html += '<strong>Attachments (' + (prev.attachments ? prev.attachments.length : 0) + '):</strong><br>';
             html += '<div class="ms-2">';
             
+            // Ordenar arrays alfabeticamente por type
+            const sortedRemovedAtt = attachmentsDiff.removed.slice().sort(function(a, b) {
+                const typeA = (a.type || '').toLowerCase();
+                const typeB = (b.type || '').toLowerCase();
+                return typeA.localeCompare(typeB);
+            });
+            const sortedUnchangedAtt = attachmentsDiff.unchanged.slice().sort(function(a, b) {
+                const typeA = (a.type || '').toLowerCase();
+                const typeB = (b.type || '').toLowerCase();
+                return typeA.localeCompare(typeB);
+            });
+            const sortedAddedAtt = attachmentsDiff.added.slice().sort(function(a, b) {
+                const typeA = (a.type || '').toLowerCase();
+                const typeB = (b.type || '').toLowerCase();
+                return typeA.localeCompare(typeB);
+            });
+            
             // Mostrar attachments removidos (estavam em curr mas não em prev = foram removidos entre curr e prev)
-            attachmentsDiff.removed.forEach(function(attachment) {
+            sortedRemovedAtt.forEach(function(attachment) {
                 const health = attachment.attachment.AttachmentHealth !== null ? 
                     ' (' + parseFloat(attachment.attachment.AttachmentHealth || 0).toFixed(0) + '%)' : '';
                 html += '<small class="change-removed">' +
@@ -793,14 +827,14 @@ $(document).ready(function() {
             });
             
             // Mostrar attachments inalterados (presentes em ambos)
-            attachmentsDiff.unchanged.forEach(function(attachment) {
+            sortedUnchangedAtt.forEach(function(attachment) {
                 const health = attachment.prevAttachment.AttachmentHealth !== null ? 
                     ' (' + parseFloat(attachment.prevAttachment.AttachmentHealth || 0).toFixed(0) + '%)' : '';
                 html += '<small>• ' + escapeHtml(attachment.type) + health + '</small><br>';
             });
             
             // Mostrar attachments adicionados (estavam em prev mas não em curr = foram adicionados entre curr e prev)
-            attachmentsDiff.added.forEach(function(attachment) {
+            sortedAddedAtt.forEach(function(attachment) {
                 const health = attachment.attachment.AttachmentHealth !== null ? 
                     ' (' + parseFloat(attachment.attachment.AttachmentHealth || 0).toFixed(0) + '%)' : '';
                 html += '<small class="change-added">' +
@@ -826,7 +860,13 @@ $(document).ready(function() {
             html += '<div class="mb-2">';
             html += '<strong>Items (' + record.items.length + '):</strong><br>';
             html += '<div class="ms-2">';
-            record.items.forEach(function(item) {
+            // Ordenar items alfabeticamente por ItemType
+            const sortedItems = record.items.slice().sort(function(a, b) {
+                const typeA = (a.ItemType || '').toLowerCase();
+                const typeB = (b.ItemType || '').toLowerCase();
+                return typeA.localeCompare(typeB);
+            });
+            sortedItems.forEach(function(item) {
                 const health = item.ItemHealth !== null ? 
                     ' (' + parseFloat(item.ItemHealth || 0).toFixed(0) + '%)' : '';
                 html += '<small>• ' + escapeHtml(item.ItemType) + health + '</small><br>';
@@ -838,7 +878,13 @@ $(document).ready(function() {
             html += '<div>';
             html += '<strong>Attachments (' + record.attachments.length + '):</strong><br>';
             html += '<div class="ms-2">';
-            record.attachments.forEach(function(attachment) {
+            // Ordenar attachments alfabeticamente por AttachmentType
+            const sortedAttachments = record.attachments.slice().sort(function(a, b) {
+                const typeA = (a.AttachmentType || '').toLowerCase();
+                const typeB = (b.AttachmentType || '').toLowerCase();
+                return typeA.localeCompare(typeB);
+            });
+            sortedAttachments.forEach(function(attachment) {
                 const health = attachment.AttachmentHealth !== null ? 
                     ' (' + parseFloat(attachment.AttachmentHealth || 0).toFixed(0) + '%)' : '';
                 html += '<small>• ' + escapeHtml(attachment.AttachmentType) + health + '</small><br>';
