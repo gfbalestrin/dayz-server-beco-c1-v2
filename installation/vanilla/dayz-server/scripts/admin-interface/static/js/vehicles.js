@@ -119,10 +119,15 @@ $(document).ready(function() {
                 {
                     data: 'VehicleId',
                     orderable: false,
-                    render: function(data) {
-                        return '<button class="btn btn-sm btn-primary view-history-btn" data-vehicle-id="' + 
-                            escapeHtml(data) + '">' +
-                            '<i class="fas fa-history me-1"></i>Ver Histórico</button>';
+                    render: function(data, type, row) {
+                        const vehicleId = escapeHtml(data);
+                        const mapUrl = '/map?vehicle_id=' + encodeURIComponent(vehicleId);
+                        return '<div class="btn-group" role="group">' +
+                            '<button class="btn btn-sm btn-primary view-history-btn" data-vehicle-id="' + vehicleId + '">' +
+                            '<i class="fas fa-history me-1"></i>Ver Histórico</button>' +
+                            '<a href="' + mapUrl + '" class="btn btn-sm btn-info" title="Ver no Mapa">' +
+                            '<i class="fas fa-map-marker-alt"></i></a>' +
+                            '</div>';
                     }
                 }
             ],

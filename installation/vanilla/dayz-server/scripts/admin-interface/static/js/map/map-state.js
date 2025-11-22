@@ -50,6 +50,7 @@ const MapState = {
     
     // Filtros e seleções
     selectedPlayerFilters: [],
+    selectedVehicleFilters: [],
     trailDateFilter: {
         enabled: false,
         startDate: null,

@@ -124,8 +124,16 @@ function updateVehicles(data) {
         return;
     }
     
+    // Aplicar filtro de veículos se houver filtros selecionados
+    let vehiclesToShow = data.vehicles;
+    if (MapState.selectedVehicleFilters.length > 0) {
+        vehiclesToShow = data.vehicles.filter(function(vehicle) {
+            return MapState.selectedVehicleFilters.includes(vehicle.vehicle_id);
+        });
+    }
+    
     // Adicionar veículos
-    data.vehicles.forEach(function(vehicle) {
+    vehiclesToShow.forEach(function(vehicle) {
         const vehicleId = vehicle.vehicle_id;
         const coords = convertToMapCoords(vehicle.pixel_coords);
         
@@ -159,6 +167,11 @@ function updateVehicles(data) {
     });
     
     console.log(`Veículos atualizados: ${data.vehicles.length} veículos`);
+    
+    // Atualizar badges de veículos selecionados (para mostrar nomes corretos)
+    if (MapState.selectedVehicleFilters.length > 0) {
+        updateSelectedVehiclesBadges();
+    }
     
     // Recarregar trails de veículos que já estão ativos (para atualizar com novos dados)
     setTimeout(function() {
@@ -517,6 +530,181 @@ function toggleVehiclesDisplay() {
         
         // Resetar contador de veículos
         $('#vehicleCount').text('0');
+    }
+}
+
+/**
+ * Buscar veículos para filtro
+ */
+function handleVehicleSearch() {
+    const searchTerm = $('#vehicleSearchInput').val().toLowerCase().trim();
+    const resultsContainer = $('#vehicleSearchResults');
+    
+    if (searchTerm === '') {
+        resultsContainer.hide();
+        return;
+    }
+    
+    // Filtrar veículos que correspondem à pesquisa
+    const matchingVehicles = Object.keys(MapState.vehiclesData)
+        .filter(vehicleId => {
+            const vehicle = MapState.vehiclesData[vehicleId];
+            const name = (vehicle.vehicle_name || '').toLowerCase();
+            
+            // Não mostrar veículos já selecionados
+            if (MapState.selectedVehicleFilters.includes(vehicleId)) {
+                return false;
+            }
+            
+            return name.includes(searchTerm) || 
+                   vehicleId.toLowerCase().includes(searchTerm);
+        })
+        .slice(0, 10); // Limitar a 10 resultados
+    
+    if (matchingVehicles.length === 0) {
+        resultsContainer.html('<div class="list-group-item text-muted">Nenhum veículo encontrado</div>');
+        resultsContainer.show();
+        return;
+    }
+    
+    // Renderizar resultados
+    resultsContainer.empty();
+    matchingVehicles.forEach(vehicleId => {
+        const vehicle = MapState.vehiclesData[vehicleId];
+        if (!vehicle) {
+            return; // Pular se veículo não estiver carregado
+        }
+        
+        const vehicleName = vehicle.vehicle_name || '';
+        // Sempre mostrar nome (ID), exceto se o nome for vazio ou igual ao ID
+        let displayName;
+        if (vehicleName && vehicleName.trim() !== '' && vehicleName !== vehicleId) {
+            displayName = `${vehicleName} (${vehicleId})`;
+        } else {
+            displayName = vehicleId;
+        }
+        
+        const statusIcon = vehicle.is_destroyed ? '🔴' : '🟢';
+        
+        const item = $('<div class="list-group-item"></div>')
+            .html(`${statusIcon} ${displayName}`)
+            .on('click', function() {
+                addVehicleToFilter(vehicleId);
+            });
+        
+        resultsContainer.append(item);
+    });
+    
+    resultsContainer.show();
+}
+
+/**
+ * Adicionar veículo ao filtro
+ */
+function addVehicleToFilter(vehicleId) {
+    if (MapState.selectedVehicleFilters.includes(vehicleId)) {
+        return;
+    }
+    
+    MapState.selectedVehicleFilters.push(vehicleId);
+    
+    // Limpar campo de pesquisa
+    $('#vehicleSearchInput').val('');
+    $('#vehicleSearchResults').hide();
+    
+    // Atualizar UI
+    updateSelectedVehiclesBadges();
+    
+    // Aplicar filtro
+    filterVehicles();
+}
+
+/**
+ * Remover veículo do filtro
+ */
+function removeVehicleFromFilter(vehicleId) {
+    const index = MapState.selectedVehicleFilters.indexOf(vehicleId);
+    if (index > -1) {
+        MapState.selectedVehicleFilters.splice(index, 1);
+    }
+    
+    // Atualizar UI
+    updateSelectedVehiclesBadges();
+    
+    // Aplicar filtro
+    filterVehicles();
+}
+
+/**
+ * Atualizar badges de veículos selecionados
+ */
+function updateSelectedVehiclesBadges() {
+    const container = $('#selectedVehiclesBadges');
+    container.empty();
+    
+    if (MapState.selectedVehicleFilters.length === 0) {
+        $('#clearAllVehicleFiltersBtn').hide();
+        return;
+    }
+    
+    $('#clearAllVehicleFiltersBtn').show();
+    
+    MapState.selectedVehicleFilters.forEach(vehicleId => {
+        const vehicle = MapState.vehiclesData[vehicleId];
+        if (!vehicle) {
+            // Se veículo ainda não foi carregado, mostrar apenas o ID
+            const badge = $('<span class="badge bg-info me-1 mb-1"></span>')
+                .html(`🟢 ${vehicleId} <i class="fas fa-times remove-vehicle"></i>`)
+                .find('.remove-vehicle')
+                .on('click', function(e) {
+                    e.stopPropagation();
+                    removeVehicleFromFilter(vehicleId);
+                })
+                .end();
+            container.append(badge);
+            return;
+        }
+        
+        const vehicleName = vehicle.vehicle_name || '';
+        // Sempre mostrar nome (ID), exceto se o nome for vazio ou igual ao ID
+        let displayName;
+        if (vehicleName && vehicleName.trim() !== '' && vehicleName !== vehicleId) {
+            displayName = `${vehicleName} (${vehicleId})`;
+        } else {
+            displayName = vehicleId;
+        }
+        
+        const statusIcon = vehicle.is_destroyed ? '🔴' : '🟢';
+        
+        const badge = $('<span class="badge bg-info me-1 mb-1"></span>')
+            .html(`${statusIcon} ${displayName} <i class="fas fa-times remove-vehicle"></i>`)
+            .find('.remove-vehicle')
+            .on('click', function(e) {
+                e.stopPropagation();
+                removeVehicleFromFilter(vehicleId);
+            })
+            .end();
+        
+        container.append(badge);
+    });
+}
+
+/**
+ * Limpar todos os filtros de veículos
+ */
+function clearAllVehicleFilters() {
+    MapState.selectedVehicleFilters = [];
+    updateSelectedVehiclesBadges();
+    filterVehicles();
+}
+
+/**
+ * Filtrar veículos
+ */
+function filterVehicles() {
+    // Recarregar veículos para aplicar filtro
+    if (MapState.showVehicles) {
+        loadVehicles();
     }
 }
 

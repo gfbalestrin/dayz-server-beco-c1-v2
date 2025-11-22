@@ -207,6 +207,30 @@
                     </button>
                 </div>
                 <div class="mb-2">
+                    <label class="form-label small">Filtrar Veículos:</label>
+                    
+                    <!-- Campo de pesquisa -->
+                    <input type="text" 
+                           class="form-control form-control-sm mb-2" 
+                           id="vehicleSearchInput" 
+                           placeholder="Pesquisar veículo...">
+                    
+                    <!-- Lista de veículos filtrados (dropdown) -->
+                    <div class="list-group" id="vehicleSearchResults" style="max-height: 150px; overflow-y: auto; display: none;">
+                        <!-- Resultados da pesquisa aparecerão aqui -->
+                    </div>
+                    
+                    <!-- Badges dos veículos selecionados -->
+                    <div id="selectedVehiclesBadges" class="mt-2">
+                        <!-- Badges aparecerão aqui -->
+                    </div>
+                    
+                    <!-- Botão para limpar todos -->
+                    <button type="button" class="btn btn-sm btn-outline-secondary w-100 mt-2" id="clearAllVehicleFiltersBtn" style="display: none;">
+                        <i class="fas fa-times me-1"></i>Limpar Filtros
+                    </button>
+                </div>
+                <div class="mb-2">
                     <label class="form-label small">Auto-Refresh:</label>
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" id="autoRefreshCheck" checked>

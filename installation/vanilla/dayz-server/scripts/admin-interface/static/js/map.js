@@ -60,6 +60,15 @@ $(document).ready(function() {
     });
     $('#clearAllFiltersBtn').on('click', clearAllPlayerFilters);
     
+    // Event listeners para o novo sistema de filtro de veículos
+    $('#vehicleSearchInput').on('input', handleVehicleSearch);
+    $('#vehicleSearchInput').on('focus', handleVehicleSearch);
+    $('#vehicleSearchInput').on('blur', function() {
+        // Delay para permitir clique nos resultados
+        setTimeout(() => $('#vehicleSearchResults').hide(), 200);
+    });
+    $('#clearAllVehicleFiltersBtn').on('click', clearAllVehicleFilters);
+    
     // Event listener para atalhos de filtro de trails
     $('[data-filter]').on('click', function() {
         const filter = $(this).data('filter');
@@ -90,6 +99,23 @@ $(document).ready(function() {
             MapState.selectedPlayerFilters.push(playerIdFilter);
             updateSelectedPlayersBadges();
             filterPlayers();
+        }, 500); // Aguardar carga completa do mapa
+    }
+    
+    // Verificar se há filtro de vehicle_id na URL e aplicar
+    const vehicleIdFilter = urlParams.get('vehicle_id');
+    if (vehicleIdFilter) {
+        setTimeout(function() {
+            // Garantir que veículos estão sendo exibidos
+            if (!MapState.showVehicles) {
+                MapState.showVehicles = true;
+                $('#toggleVehiclesBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar Veículos');
+            }
+            // Adicionar ao array de filtros
+            MapState.selectedVehicleFilters.push(vehicleIdFilter);
+            updateSelectedVehiclesBadges();
+            // Carregar veículos (que aplicará o filtro automaticamente)
+            loadVehicles();
         }, 500); // Aguardar carga completa do mapa
     }
     
