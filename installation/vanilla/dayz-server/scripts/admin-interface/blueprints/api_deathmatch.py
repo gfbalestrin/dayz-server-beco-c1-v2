@@ -6,6 +6,7 @@ from flask import Blueprint, request, jsonify
 import os
 import json
 import logging
+import config
 from blueprints.auth import admin_required
 
 logger = logging.getLogger(__name__)
@@ -14,11 +15,7 @@ api_deathmatch_bp = Blueprint('api_deathmatch', __name__)
 
 
 def _dm_cfg_path():
-    # No blueprint, __file__ está em blueprints/, então precisamos de mais um .. para chegar ao diretório raiz do servidor
-    return os.path.normpath(os.path.join(
-        os.path.dirname(__file__),
-        '..', '..', '..', 'mpmissions', 'dayzOffline.chernarusplus', 'admin', 'files', 'deathmatch_config.json'
-    ))
+    return config.DEATHMATCH_CONFIG_FILE
 
 
 def _dm_read_all():
@@ -37,16 +34,8 @@ def api_deathmatch_config():
     """Retorna um mapa do deathmatch_config.json com listas de pontos (X,Z).
     Se query param 'regionId' for fornecido, retorna esse; caso contrário, retorna o ativo.
     """
-    # Caminho do arquivo de configuração
-    cfg_path = os.path.join(
-        os.path.dirname(__file__),
-        '..', '..', 'mpmissions', 'dayzOffline.chernarusplus', 'admin', 'files', 'deathmatch_config.json'
-    )
-    cfg_path = os.path.normpath(cfg_path)
-
     try:
-        with open(cfg_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        data = _dm_read_all()
     except Exception as e:
         return jsonify({ 'error': f'Falha ao ler configuração: {str(e)}' }), 500
 

@@ -55,6 +55,9 @@ MESSAGES_TO_SEND_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffl
 # Arquivo de administradores
 ADMIN_IDS_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/admin_ids.txt'
 
+# Arquivo de configuração do deathmatch
+DEATHMATCH_CONFIG_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/deathmatch_config.json'
+
 # Banco de dados de itens
 DB_ITEMS = os.path.join(BASE_DIR, "..", "databases", "dayz_items.db")
 
