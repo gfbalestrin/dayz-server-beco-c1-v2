@@ -219,6 +219,8 @@ function loadPlayerTrail(playerId) {
     
     $.get(`/api/players/${playerId}/trail`, { limit: 100 })
         .done(function(data) {
+            // Armazenar trail completo para comparação entre pontos
+            MapState.playerTrailsData[playerId] = data.trail;
             drawTrail(playerId, data.trail);
         })
         .fail(function() {
@@ -358,7 +360,41 @@ function drawTrail(playerId, trail) {
         
         // Adicionar evento de clique (sempre, para mostrar menu de ações)
         circleMarker.on('click', function() {
-            showPointActionsMenu(playerId, point, trail.length - i);
+            // Encontrar índice do ponto no trail completo
+            const fullTrail = MapState.playerTrailsData[playerId] || trail;
+            let pointIndexInFullTrail = -1;
+            
+            // Tentar encontrar pelo player_coord_id primeiro
+            if (point.player_coord_id) {
+                for (let j = 0; j < fullTrail.length; j++) {
+                    if (fullTrail[j].player_coord_id === point.player_coord_id) {
+                        pointIndexInFullTrail = j;
+                        break;
+                    }
+                }
+            }
+            
+            // Se não encontrou, tentar por coordenadas e timestamp
+            if (pointIndexInFullTrail === -1) {
+                for (let j = 0; j < fullTrail.length; j++) {
+                    const trailPoint = fullTrail[j];
+                    const coordMatch = Math.abs(trailPoint.coord_x - point.coord_x) < 0.1 &&
+                                     Math.abs(trailPoint.coord_y - point.coord_y) < 0.1;
+                    const timeMatch = trailPoint.timestamp === point.timestamp;
+                    
+                    if (coordMatch && timeMatch) {
+                        pointIndexInFullTrail = j;
+                        break;
+                    }
+                }
+            }
+            
+            // Se ainda não encontrou, usar índice no trail filtrado como fallback
+            if (pointIndexInFullTrail === -1) {
+                pointIndexInFullTrail = trail.indexOf(point);
+            }
+            
+            showPointActionsMenu(playerId, point, trail.length - i, pointIndexInFullTrail, fullTrail);
         });
         
         // Adicionar cursor pointer
@@ -782,7 +818,77 @@ function applyTrailDateFilter() {
 /**
  * Mostrar menu de ações do ponto
  */
-function showPointActionsMenu(playerId, point, pointNumber) {
+/**
+ * Comparar ponto atual com ponto anterior e calcular diferenças
+ */
+function comparePointWithPrevious(currentPoint, previousPoint) {
+    const TOLERANCE = 0.1; // Tolerância para considerar mudanças significativas
+    const changes = {};
+    
+    // Função auxiliar para calcular delta
+    const calculateDelta = (current, previous) => {
+        if (current === null || current === undefined || previous === null || previous === undefined) {
+            return null;
+        }
+        const delta = current - previous;
+        return Math.abs(delta) < TOLERANCE ? null : delta;
+    };
+    
+    // Comparar campos numéricos
+    changes.health = calculateDelta(currentPoint.health, previousPoint.health);
+    changes.blood = calculateDelta(currentPoint.blood, previousPoint.blood);
+    changes.shock = calculateDelta(currentPoint.shock, previousPoint.shock);
+    changes.energy = calculateDelta(currentPoint.energy, previousPoint.energy);
+    changes.water = calculateDelta(currentPoint.water, previousPoint.water);
+    changes.stamina = calculateDelta(currentPoint.stamina, previousPoint.stamina);
+    changes.items_count = calculateDelta(currentPoint.items_count, previousPoint.items_count);
+    
+    // Comparar estado (vivo/morto) - apenas indicar mudança, não delta
+    if (currentPoint.is_alive !== null && currentPoint.is_alive !== undefined &&
+        previousPoint.is_alive !== null && previousPoint.is_alive !== undefined) {
+        changes.is_alive_changed = currentPoint.is_alive !== previousPoint.is_alive;
+        if (changes.is_alive_changed) {
+            changes.is_alive_new = currentPoint.is_alive;
+        }
+    }
+    
+    return changes;
+}
+
+/**
+ * Renderizar valor com indicador de mudança
+ */
+function renderValueWithChange(value, delta, fieldName) {
+    if (delta === null || delta === undefined) {
+        return value;
+    }
+    
+    const absDelta = Math.abs(delta);
+    const sign = delta > 0 ? '+' : '';
+    let iconClass, colorClass;
+    
+    if (delta > 0) {
+        iconClass = 'fa-arrow-up';
+        colorClass = 'text-success';
+    } else {
+        iconClass = 'fa-arrow-down';
+        colorClass = 'text-danger';
+    }
+    
+    // Formatar delta conforme o campo
+    let deltaText = '';
+    if (fieldName === 'health' || fieldName === 'energy' || fieldName === 'water' || fieldName === 'stamina') {
+        deltaText = `${sign}${absDelta.toFixed(1)}`;
+    } else if (fieldName === 'blood' || fieldName === 'shock' || fieldName === 'items_count') {
+        deltaText = `${sign}${absDelta.toFixed(0)}`;
+    } else {
+        deltaText = `${sign}${absDelta.toFixed(1)}`;
+    }
+    
+    return `${value} <span class="${colorClass}"><i class="fas ${iconClass}"></i> ${deltaText}</span>`;
+}
+
+function showPointActionsMenu(playerId, point, pointNumber, pointIndexInTrail, fullTrail) {
     // Função auxiliar para formatar arrays JSON de itens
     const formatItemsArray = (itemsStr) => {
         if (!itemsStr) return 'Nenhum';
@@ -797,12 +903,30 @@ function showPointActionsMenu(playerId, point, pointNumber) {
         return 'Nenhum';
     };
     
+    // Buscar ponto anterior se disponível
+    let previousPoint = null;
+    let pointChanges = null;
+    
+    if (fullTrail && pointIndexInTrail !== undefined && pointIndexInTrail !== -1 && pointIndexInTrail >= 0 && pointIndexInTrail < fullTrail.length) {
+        // Trail está ordenado do mais recente (índice 0) para o mais antigo (índice N)
+        // Para calcular mudanças desde o ponto anterior no tempo, devemos comparar com o ponto mais antigo (índice +1)
+        // Exemplo: Ponto 4 (índice 4) vs Ponto 3 (índice 5, mais antigo)
+        // Delta = valor_atual - valor_anterior_mais_antigo
+        const previousIndex = pointIndexInTrail + 1;
+        if (previousIndex >= 0 && previousIndex < fullTrail.length) {
+            previousPoint = fullTrail[previousIndex];
+            pointChanges = comparePointWithPrevious(point, previousPoint);
+        }
+    }
+    
     // Armazenar contexto
     MapState.currentPointContext = {
         playerId: playerId,
         point: point,
         pointNumber: pointNumber,
-        hasBackup: point.has_backup
+        hasBackup: point.has_backup,
+        previousPoint: previousPoint,
+        changes: pointChanges
     };
     
     // Buscar dados do jogador
@@ -830,6 +954,7 @@ function showPointActionsMenu(playerId, point, pointNumber) {
     
     // Preencher informações básicas - Cabeçalho
     $('#pointMarkerName').html(`<i class="fas fa-user me-2"></i><strong>${playerName}</strong>`);
+    $('#pointMarkerNumber').text(`Ponto #${pointNumber}`);
     
     // Preencher informações básicas - Card
     $('#pointMarkerSteam').text(steamName || 'N/A');
@@ -853,22 +978,43 @@ function showPointActionsMenu(playerId, point, pointNumber) {
     if (hasHealthData) {
         $('#pointMarkerHealthSection').show();
         if (health !== null && health !== undefined) {
-            $('#pointMarkerHealth').show().find('span.fw-bold').text(health.toFixed(1));
+            let healthText = health.toFixed(1);
+            if (pointChanges && pointChanges.health !== null && pointChanges.health !== undefined) {
+                healthText = renderValueWithChange(health.toFixed(1), pointChanges.health, 'health');
+            }
+            $('#pointMarkerHealth').show().find('span.fw-bold').html(healthText);
         } else {
             $('#pointMarkerHealth').hide();
         }
         if (blood !== null && blood !== undefined) {
-            $('#pointMarkerBlood').show().find('span.fw-bold').text(blood.toFixed(0));
+            let bloodText = blood.toFixed(0);
+            if (pointChanges && pointChanges.blood !== null && pointChanges.blood !== undefined) {
+                bloodText = renderValueWithChange(blood.toFixed(0), pointChanges.blood, 'blood');
+            }
+            $('#pointMarkerBlood').show().find('span.fw-bold').html(bloodText);
         } else {
             $('#pointMarkerBlood').hide();
         }
         if (shock !== null && shock !== undefined) {
-            $('#pointMarkerShock').show().find('span.fw-bold').text(shock.toFixed(0));
+            let shockText = shock.toFixed(0);
+            if (pointChanges && pointChanges.shock !== null && pointChanges.shock !== undefined) {
+                shockText = renderValueWithChange(shock.toFixed(0), pointChanges.shock, 'shock');
+            }
+            $('#pointMarkerShock').show().find('span.fw-bold').html(shockText);
         } else {
             $('#pointMarkerShock').hide();
         }
         if (isAlive !== null && isAlive !== undefined) {
-            $('#pointMarkerAlive').show().find('span').last().html(isAlive ? '<span class="badge bg-success">Vivo</span>' : '<span class="badge bg-danger">Morto</span>');
+            let aliveHtml = isAlive ? '<span class="badge bg-success">Vivo</span>' : '<span class="badge bg-danger">Morto</span>';
+            if (pointChanges && pointChanges.is_alive_changed) {
+                // Adicionar indicador de mudança
+                const changeIcon = pointChanges.is_alive_new ? 
+                    '<i class="fas fa-arrow-up text-success ms-1"></i>' : 
+                    '<i class="fas fa-arrow-down text-danger ms-1"></i>';
+                aliveHtml += changeIcon;
+            }
+            // Substituir todo o conteúdo do span para evitar badges duplicados
+            $('#pointMarkerAlive').show().find('span.d-block').html(aliveHtml);
         } else {
             $('#pointMarkerAlive').hide();
         }
@@ -885,12 +1031,20 @@ function showPointActionsMenu(playerId, point, pointNumber) {
     if (hasResourcesData) {
         $('#pointMarkerResourcesSection').show();
         if (energy !== null && energy !== undefined) {
-            $('#pointMarkerEnergy').show().find('span.fw-bold').text(energy.toFixed(1));
+            let energyText = energy.toFixed(1);
+            if (pointChanges && pointChanges.energy !== null && pointChanges.energy !== undefined) {
+                energyText = renderValueWithChange(energy.toFixed(1), pointChanges.energy, 'energy');
+            }
+            $('#pointMarkerEnergy').show().find('span.fw-bold').html(energyText);
         } else {
             $('#pointMarkerEnergy').hide();
         }
         if (water !== null && water !== undefined) {
-            $('#pointMarkerWater').show().find('span.fw-bold').text(water.toFixed(1));
+            let waterText = water.toFixed(1);
+            if (pointChanges && pointChanges.water !== null && pointChanges.water !== undefined) {
+                waterText = renderValueWithChange(water.toFixed(1), pointChanges.water, 'water');
+            }
+            $('#pointMarkerWater').show().find('span.fw-bold').html(waterText);
         } else {
             $('#pointMarkerWater').hide();
         }
@@ -901,7 +1055,11 @@ function showPointActionsMenu(playerId, point, pointNumber) {
             } else if (stamina !== null && stamina !== undefined) {
                 staminaText = stamina.toFixed(1);
             }
-            $('#pointMarkerStamina').show().find('span.fw-bold').text(staminaText);
+            // Aplicar mudança se houver
+            if (pointChanges && pointChanges.stamina !== null && pointChanges.stamina !== undefined) {
+                staminaText = renderValueWithChange(staminaText, pointChanges.stamina, 'stamina');
+            }
+            $('#pointMarkerStamina').show().find('span.fw-bold').html(staminaText);
         } else {
             $('#pointMarkerStamina').hide();
         }
@@ -921,7 +1079,11 @@ function showPointActionsMenu(playerId, point, pointNumber) {
             $('#pointMarkerItemsHands').hide();
         }
         if (itemsCount !== null && itemsCount !== undefined) {
-            $('#pointMarkerItemsCount').show().find('span.fw-bold').text(itemsCount.toString());
+            let itemsCountText = itemsCount.toString();
+            if (pointChanges && pointChanges.items_count !== null && pointChanges.items_count !== undefined) {
+                itemsCountText = renderValueWithChange(itemsCount.toString(), pointChanges.items_count, 'items_count');
+            }
+            $('#pointMarkerItemsCount').show().find('span.fw-bold').html(itemsCountText);
         } else {
             $('#pointMarkerItemsCount').hide();
         }

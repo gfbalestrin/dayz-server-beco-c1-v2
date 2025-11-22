@@ -31,6 +31,9 @@ const MapState = {
     containerTrails: {},
     fenceTrails: {},
     
+    // Dados completos dos trails (para comparação entre pontos)
+    playerTrailsData: {},
+    
     // Estados anteriores (para detecção de mudanças)
     previousPlayersData: {},
     previousVehiclesData: {},
