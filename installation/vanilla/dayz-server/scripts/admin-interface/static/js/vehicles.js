@@ -3,6 +3,16 @@ $(document).ready(function() {
     let currentVehicleId = null;
     let autoRefreshInterval = null;
     
+    // Estado de paginação do histórico
+    let historyState = {
+        currentPage: 1,
+        totalPages: 1,
+        totalRecords: 0,
+        perPage: 10,
+        dateFrom: null,
+        dateTo: null
+    };
+    
     // Função para atualizar contador de veículos
     function updateVehiclesCount(recordsTotal, recordsFiltered) {
         const total = parseInt(recordsTotal) || 0;
@@ -282,19 +292,61 @@ $(document).ready(function() {
     // Mostrar histórico do veículo
     function showVehicleHistory(vehicleId) {
         currentVehicleId = vehicleId;
+        
+        // Resetar estado de paginação
+        historyState.currentPage = 1;
+        historyState.totalPages = 1;
+        historyState.totalRecords = 0;
+        historyState.dateFrom = null;
+        historyState.dateTo = null;
+        
+        // Limpar filtros
+        $('#historyDateFrom').val('');
+        $('#historyDateTo').val('');
+        
         const modal = new bootstrap.Modal(document.getElementById('historyModal'));
         modal.show();
         
+        // Carregar primeira página
+        loadHistoryPage(1);
+    }
+    
+    // Carregar página do histórico
+    function loadHistoryPage(page) {
+        if (!currentVehicleId) {
+            return;
+        }
+        
         $('#historyLoading').show();
         $('#historyContent').hide();
-        $('#historyModalLabel').html('<i class="fas fa-history me-2"></i>Histórico: ' + escapeHtml(vehicleId));
+        $('#historyModalLabel').html('<i class="fas fa-history me-2"></i>Histórico: ' + escapeHtml(currentVehicleId));
+        
+        // Construir URL com parâmetros
+        const params = new URLSearchParams();
+        params.append('page', page);
+        params.append('per_page', historyState.perPage);
+        
+        if (historyState.dateFrom) {
+            params.append('date_from', historyState.dateFrom);
+        }
+        if (historyState.dateTo) {
+            params.append('date_to', historyState.dateTo);
+        }
         
         $.ajax({
-            url: '/api/vehicles/' + encodeURIComponent(vehicleId) + '/history',
+            url: '/api/vehicles/' + encodeURIComponent(currentVehicleId) + '/history?' + params.toString(),
             type: 'GET',
             success: function(response) {
                 if (response.success && response.history) {
+                    // Atualizar estado de paginação
+                    if (response.pagination) {
+                        historyState.currentPage = response.pagination.current_page;
+                        historyState.totalPages = response.pagination.total_pages;
+                        historyState.totalRecords = response.pagination.total_records;
+                    }
+                    
                     renderHistoryTimeline(response.history);
+                    updateHistoryPaginationControls();
                     $('#historyLoading').hide();
                     $('#historyContent').show();
                 } else {
@@ -306,6 +358,77 @@ $(document).ready(function() {
             }
         });
     }
+    
+    // Atualizar controles de paginação
+    function updateHistoryPaginationControls() {
+        const prevBtn = $('#historyPrevPage');
+        const nextBtn = $('#historyNextPage');
+        const pageInfo = $('#historyPageInfo');
+        const totalRecords = $('#historyTotalRecords');
+        
+        // Atualizar informações de página
+        pageInfo.text(`Página ${historyState.currentPage} de ${historyState.totalPages}`);
+        totalRecords.text(`(${historyState.totalRecords.toLocaleString('pt-BR')} registro${historyState.totalRecords !== 1 ? 's' : ''})`);
+        
+        // Habilitar/desabilitar botões
+        prevBtn.prop('disabled', historyState.currentPage <= 1);
+        nextBtn.prop('disabled', historyState.currentPage >= historyState.totalPages);
+    }
+    
+    // Navegar para página anterior
+    function prevHistoryPage() {
+        if (historyState.currentPage > 1) {
+            loadHistoryPage(historyState.currentPage - 1);
+        }
+    }
+    
+    // Navegar para próxima página
+    function nextHistoryPage() {
+        if (historyState.currentPage < historyState.totalPages) {
+            loadHistoryPage(historyState.currentPage + 1);
+        }
+    }
+    
+    // Aplicar filtros de data
+    function applyHistoryDateFilters() {
+        historyState.dateFrom = $('#historyDateFrom').val() || null;
+        historyState.dateTo = $('#historyDateTo').val() || null;
+        
+        // Resetar para primeira página ao aplicar filtros
+        historyState.currentPage = 1;
+        loadHistoryPage(1);
+    }
+    
+    // Limpar filtros de data
+    function clearHistoryDateFilters() {
+        $('#historyDateFrom').val('');
+        $('#historyDateTo').val('');
+        historyState.dateFrom = null;
+        historyState.dateTo = null;
+        
+        // Resetar para primeira página
+        historyState.currentPage = 1;
+        loadHistoryPage(1);
+    }
+    
+    // Event listeners para paginação e filtros do histórico
+    $('#historyPrevPage').on('click', function() {
+        prevHistoryPage();
+    });
+    
+    $('#historyNextPage').on('click', function() {
+        nextHistoryPage();
+    });
+    
+    // Aplicar filtros quando as datas mudarem
+    $('#historyDateFrom, #historyDateTo').on('change', function() {
+        applyHistoryDateFilters();
+    });
+    
+    // Limpar filtros
+    $('#clearHistoryFilters').on('click', function() {
+        clearHistoryDateFilters();
+    });
     
     // Renderizar timeline do histórico
     function renderHistoryTimeline(history) {

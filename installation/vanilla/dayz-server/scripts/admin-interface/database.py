@@ -359,8 +359,9 @@ def get_vehicles_overview(include_destroyed: bool = False, date_from: str = None
         cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
 
-def get_vehicle_history(vehicle_id: str, limit: int = 100) -> List[Dict]:
-    """Retorna histórico completo de um veículo com informações de saúde"""
+def get_vehicle_history(vehicle_id: str, limit: int = 100, offset: int = 0, 
+                       date_from: str = None, date_to: str = None) -> List[Dict]:
+    """Retorna histórico de um veículo com informações de saúde, com suporte a filtros de data e paginação"""
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
         
@@ -376,18 +377,61 @@ def get_vehicle_history(vehicle_id: str, limit: int = 100) -> List[Dict]:
         if 'FuelTankHealth' in columns:
             health_columns += ", FuelTankHealth"
         
+        # Construir WHERE clause com filtros de data
+        where_conditions = ["VehicleId = ?"]
+        params = [vehicle_id]
+        
+        if date_from:
+            where_conditions.append("TimeStamp >= ?")
+            params.append(date_from)
+        
+        if date_to:
+            where_conditions.append("TimeStamp <= ?")
+            params.append(date_to)
+        
+        where_clause = "WHERE " + " AND ".join(where_conditions)
+        
         query = f"""
             SELECT IdVehicleTracking, VehicleId, VehicleName,
                    PositionX, PositionY, PositionZ, TimeStamp,
                    IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt{health_columns}
             FROM vehicles_tracking
-            WHERE VehicleId = ?
+            {where_clause}
             ORDER BY TimeStamp DESC
-            LIMIT ?
+            LIMIT ? OFFSET ?
         """
         
-        cursor.execute(query, (vehicle_id, limit))
+        params.extend([limit, offset])
+        cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
+
+def count_vehicle_history(vehicle_id: str, date_from: str = None, date_to: str = None) -> int:
+    """Conta o total de registros de histórico de um veículo com filtros de data aplicados"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        
+        # Construir WHERE clause com filtros de data
+        where_conditions = ["VehicleId = ?"]
+        params = [vehicle_id]
+        
+        if date_from:
+            where_conditions.append("TimeStamp >= ?")
+            params.append(date_from)
+        
+        if date_to:
+            where_conditions.append("TimeStamp <= ?")
+            params.append(date_to)
+        
+        where_clause = "WHERE " + " AND ".join(where_conditions)
+        
+        query = f"""
+            SELECT COUNT(*)
+            FROM vehicles_tracking
+            {where_clause}
+        """
+        
+        cursor.execute(query, params)
+        return cursor.fetchone()[0]
 
 def get_vehicle_tracking_items(tracking_id: int) -> List[Dict]:
     """Retorna items de um registro específico de tracking"""

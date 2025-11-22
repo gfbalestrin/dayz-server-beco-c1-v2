@@ -11,7 +11,8 @@ from database import (
     get_vehicles_paginated, 
     get_vehicle_history, 
     get_vehicle_tracking_items, 
-    get_vehicle_tracking_attachments
+    get_vehicle_tracking_attachments,
+    count_vehicle_history
 )
 
 api_vehicles_bp = Blueprint('api_vehicles', __name__)
@@ -159,12 +160,74 @@ def api_vehicles_data():
 @api_vehicles_bp.route('/api/vehicles/<vehicle_id>/history', methods=['GET'])
 @admin_required
 def api_vehicle_history(vehicle_id):
-    """Endpoint para histórico completo de um veículo"""
+    """Endpoint para histórico de um veículo com suporte a filtros de data e paginação"""
     try:
-        limit = int(request.args.get('limit', 100))
+        # Parâmetros de paginação (compatibilidade: se não houver, usar comportamento padrão)
+        page = request.args.get('page', None)
+        per_page = request.args.get('per_page', None)
+        
+        # Filtros de data
+        date_from = request.args.get('date_from', None)
+        date_to = request.args.get('date_to', None)
+        
+        # Validar formato de data se fornecido
+        if date_from:
+            try:
+                # Validar formato YYYY-MM-DD
+                from datetime import datetime
+                datetime.strptime(date_from, '%Y-%m-%d')
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Formato de data inválido. Use YYYY-MM-DD'
+                }), 400
+        
+        if date_to:
+            try:
+                from datetime import datetime
+                datetime.strptime(date_to, '%Y-%m-%d')
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Formato de data inválido. Use YYYY-MM-DD'
+                }), 400
+        
+        # Se não há parâmetros de paginação, usar comportamento padrão (limit 100)
+        if page is None and per_page is None:
+            limit = int(request.args.get('limit', 100))
+            offset = 0
+            total_records = None
+            total_pages = None
+            current_page = 1
+            per_page_value = limit
+        else:
+            # Paginação ativa
+            page = int(page) if page else 1
+            per_page_value = int(per_page) if per_page else 10
+            
+            # Validar valores
+            if page < 1:
+                page = 1
+            if per_page_value < 1:
+                per_page_value = 10
+            
+            # Calcular offset
+            offset = (page - 1) * per_page_value
+            limit = per_page_value
+            
+            # Contar total de registros com filtros aplicados
+            total_records = count_vehicle_history(vehicle_id, date_from=date_from, date_to=date_to)
+            total_pages = (total_records + per_page_value - 1) // per_page_value if total_records > 0 else 1
+            current_page = page
         
         # Buscar histórico
-        history = get_vehicle_history(vehicle_id, limit=limit)
+        history = get_vehicle_history(
+            vehicle_id, 
+            limit=limit, 
+            offset=offset,
+            date_from=date_from,
+            date_to=date_to
+        )
         
         # Para cada registro, buscar items e attachments
         for record in history:
@@ -172,11 +235,23 @@ def api_vehicle_history(vehicle_id):
             record['items'] = get_vehicle_tracking_items(tracking_id)
             record['attachments'] = get_vehicle_tracking_attachments(tracking_id)
         
-        return jsonify({
+        # Preparar resposta
+        response = {
             'success': True,
             'vehicle_id': vehicle_id,
             'history': history
-        })
+        }
+        
+        # Adicionar metadados de paginação se paginação estiver ativa
+        if total_records is not None:
+            response['pagination'] = {
+                'total_records': total_records,
+                'total_pages': total_pages,
+                'current_page': current_page,
+                'per_page': per_page_value
+            }
+        
+        return jsonify(response)
         
     except Exception as e:
         logger = logging.getLogger(__name__)

@@ -90,9 +90,20 @@
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="historyModalLabel">
-                    <i class="fas fa-history me-2"></i>Histórico do Veículo
-                </h5>
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <h5 class="modal-title mb-0" id="historyModalLabel">
+                        <i class="fas fa-history me-2"></i>Histórico do Veículo
+                    </h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <label for="historyDateFrom" class="form-label mb-0 small">Data Inicial:</label>
+                        <input type="date" class="form-control form-control-sm" id="historyDateFrom" style="width: 150px;">
+                        <label for="historyDateTo" class="form-label mb-0 small">Data Final:</label>
+                        <input type="date" class="form-control form-control-sm" id="historyDateTo" style="width: 150px;">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="clearHistoryFilters" title="Limpar filtros">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -107,6 +118,16 @@
                 </div>
             </div>
             <div class="modal-footer">
+                <div class="d-flex align-items-center gap-2 me-auto">
+                    <button type="button" class="btn btn-sm btn-primary" id="historyPrevPage" disabled>
+                        <i class="fas fa-chevron-left me-1"></i>Anterior
+                    </button>
+                    <span class="text-muted small" id="historyPageInfo">Página 1 de 1</span>
+                    <button type="button" class="btn btn-sm btn-primary" id="historyNextPage" disabled>
+                        Próxima<i class="fas fa-chevron-right ms-1"></i>
+                    </button>
+                    <span class="text-muted small ms-2" id="historyTotalRecords">(0 registros)</span>
+                </div>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
             </div>
         </div>
