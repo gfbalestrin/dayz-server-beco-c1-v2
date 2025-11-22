@@ -1219,7 +1219,8 @@ function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
             $('#playerMarkerShock').hide();
         }
         if (isAlive !== null && isAlive !== undefined) {
-            $('#playerMarkerAlive').show().find('span').last().html(isAlive ? '<span class="badge bg-success">Vivo</span>' : '<span class="badge bg-danger">Morto</span>');
+            // Substituir todo o conteúdo do span para evitar badges duplicados
+            $('#playerMarkerAlive').show().find('span.d-block').html(isAlive ? '<span class="badge bg-success">Vivo</span>' : '<span class="badge bg-danger">Morto</span>');
         } else {
             $('#playerMarkerAlive').hide();
         }
@@ -1460,15 +1461,31 @@ function selectPlayerForTeleport(player) {
  * Função auxiliar chamada pelo modal de ações
  */
 function showTeleportToPlayerModal() {
-    if (!MapState.currentPlayerContext) {
+    let targetPlayerId, playerName, coordX, coordY, coordZ;
+    
+    // Verificar se temos contexto do jogador ou do ponto
+    if (MapState.currentPlayerContext) {
+        // Usar contexto do jogador online (comportamento original)
+        targetPlayerId = MapState.currentPlayerContext.playerId;
+        playerName = MapState.currentPlayerContext.playerName;
+        coordX = MapState.currentPlayerContext.coordX;
+        coordY = MapState.currentPlayerContext.coordY;
+        coordZ = MapState.currentPlayerContext.coordZ;
+    } else if (MapState.currentPointContext) {
+        // Usar contexto do ponto do trail
+        targetPlayerId = MapState.currentPointContext.playerId;
+        const point = MapState.currentPointContext.point;
+        coordX = point.coord_x;
+        coordY = point.coord_y;
+        coordZ = point.coord_z;
+        
+        // Buscar nome do jogador
+        const playerData = MapState.playersData[targetPlayerId];
+        playerName = playerData ? playerData.name : 'Desconhecido';
+    } else {
+        // Nenhum contexto disponível
         return;
     }
-    
-    const targetPlayerId = MapState.currentPlayerContext.playerId;
-    const playerName = MapState.currentPlayerContext.playerName;
-    const coordX = MapState.currentPlayerContext.coordX;
-    const coordY = MapState.currentPlayerContext.coordY;
-    const coordZ = MapState.currentPlayerContext.coordZ;
     
     // Preencher informações do jogador/ponto de destino
     $('#teleportToTargetPlayerName').text(playerName);

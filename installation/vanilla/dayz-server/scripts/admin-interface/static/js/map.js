@@ -145,11 +145,8 @@ $(document).ready(function() {
             // Fechar menu de ações
             bootstrap.Modal.getInstance(document.getElementById('pointActionsModal')).hide();
             
-            // Abrir modal de teleporte com dropdown de jogadores
-            showPlayerMarkerActions(
-                MapState.currentPointContext.point,
-                MapState.currentPointContext.playerId
-            );
+            // Abrir modal de teleporte de jogador para posição (igual ao botão do jogador online)
+            showTeleportToPlayerModal();
         }
     });
     
