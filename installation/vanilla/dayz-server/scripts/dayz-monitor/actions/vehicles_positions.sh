@@ -79,8 +79,10 @@ handle_vehicles_positions() {
         fuel_tank_health=$(echo "$vehicle_data" | jq -r '.health_parts.fuel_tank // empty')
         
         local current_items current_attachments
-        current_items=$(echo "$vehicle_data" | jq -c '.items[]? // empty' 2>/dev/null)
-        current_attachments=$(echo "$vehicle_data" | jq -c '.attachments[]? // empty' 2>/dev/null)
+        # Processar items - filtrar apenas objetos válidos com tipo não vazio
+        current_items=$(echo "$vehicle_data" | jq -c '.items[]? | select(.type != null and .type != "" and .type != "empty")' 2>/dev/null)
+        # Processar attachments - filtrar apenas objetos válidos com tipo não vazio e ordenar por tipo para consistência
+        current_attachments=$(echo "$vehicle_data" | jq -c '[.attachments[]? | select(.type != null and .type != "" and .type != "empty") | {type: .type, health: (.health // null)}] | sort_by(.type)[]' 2>/dev/null)
 
         local coord_x_fmt coord_z_fmt coord_y_fmt
         coord_x_fmt=$(format_coord "$coord_x")
@@ -121,16 +123,20 @@ handle_vehicles_positions() {
                 local inserted_item_count item_data item_type item_health
                 inserted_item_count=0
                 while IFS= read -r item_data; do
-                    if [[ -z "$item_data" ]]; then
+                    if [[ -z "$item_data" || "$item_data" == "null" || "$item_data" == "empty" ]]; then
                         continue
                     fi
 
-                    item_type=$(echo "$item_data" | jq -r '.type')
-                    item_health=$(echo "$item_data" | jq -r '.health // empty')
+                    # Extrair tipo e health do item
+                    item_type=$(echo "$item_data" | jq -r '.type // empty' 2>/dev/null)
+                    item_health=$(echo "$item_data" | jq -r 'if .health != null and .health != "" then .health else empty end' 2>/dev/null)
 
-                    if [[ -n "$item_type" ]]; then
+                    # Validar que o tipo não está vazio e não é "empty"
+                    if [[ -n "$item_type" && "$item_type" != "empty" && "$item_type" != "null" ]]; then
                         INSERT_VEHICLE_ITEM "$VehicleTrackingId" "$item_type" "$item_health" "$current_timestamp" >/dev/null
-                        inserted_item_count=$((inserted_item_count + 1))
+                        if [[ $? -eq 0 ]]; then
+                            inserted_item_count=$((inserted_item_count + 1))
+                        fi
                     fi
                 done <<< "$current_items"
 
@@ -144,16 +150,20 @@ handle_vehicles_positions() {
                 local inserted_attachment_count attachment_data attachment_type attachment_health
                 inserted_attachment_count=0
                 while IFS= read -r attachment_data; do
-                    if [[ -z "$attachment_data" ]]; then
+                    if [[ -z "$attachment_data" || "$attachment_data" == "null" || "$attachment_data" == "empty" ]]; then
                         continue
                     fi
 
-                    attachment_type=$(echo "$attachment_data" | jq -r '.type')
-                    attachment_health=$(echo "$attachment_data" | jq -r '.health // empty')
+                    # Extrair tipo e health do attachment
+                    attachment_type=$(echo "$attachment_data" | jq -r '.type // empty' 2>/dev/null)
+                    attachment_health=$(echo "$attachment_data" | jq -r 'if .health != null and .health != "" then .health else empty end' 2>/dev/null)
 
-                    if [[ -n "$attachment_type" ]]; then
+                    # Validar que o tipo não está vazio e não é "empty"
+                    if [[ -n "$attachment_type" && "$attachment_type" != "empty" && "$attachment_type" != "null" ]]; then
                         INSERT_VEHICLE_ATTACHMENT "$VehicleTrackingId" "$attachment_type" "$attachment_health" "$current_timestamp" >/dev/null
-                        inserted_attachment_count=$((inserted_attachment_count + 1))
+                        if [[ $? -eq 0 ]]; then
+                            inserted_attachment_count=$((inserted_attachment_count + 1))
+                        fi
                     fi
                 done <<< "$current_attachments"
 

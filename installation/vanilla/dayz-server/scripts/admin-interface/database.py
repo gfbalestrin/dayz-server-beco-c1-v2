@@ -443,33 +443,45 @@ def count_vehicle_changes(vehicle_id: str) -> int:
         if tracking_ids:
             placeholders = ','.join(['?'] * len(tracking_ids))
             
-            # Carregar items
+            # Carregar items (filtrar apenas tipos válidos, não nulos e não vazios)
             try:
                 cursor.execute(f"""
                     SELECT VehicleTrackingId, ItemType
                     FROM vehicles_items
                     WHERE VehicleTrackingId IN ({placeholders})
+                    AND ItemType IS NOT NULL
+                    AND ItemType != ''
+                    AND ItemType != 'empty'
                 """, tracking_ids)
                 for row in cursor.fetchall():
                     tracking_id = row[0]
-                    if tracking_id not in items_map:
-                        items_map[tracking_id] = []
-                    items_map[tracking_id].append(row[1])
+                    item_type = row[1]
+                    # Validar novamente no código (segurança extra)
+                    if item_type and item_type.strip() and item_type != 'empty':
+                        if tracking_id not in items_map:
+                            items_map[tracking_id] = []
+                        items_map[tracking_id].append(item_type)
             except:
                 pass
             
-            # Carregar attachments
+            # Carregar attachments (filtrar apenas tipos válidos, não nulos e não vazios)
             try:
                 cursor.execute(f"""
                     SELECT VehicleTrackingId, AttachmentType
                     FROM vehicles_attachments
                     WHERE VehicleTrackingId IN ({placeholders})
+                    AND AttachmentType IS NOT NULL
+                    AND AttachmentType != ''
+                    AND AttachmentType != 'empty'
                 """, tracking_ids)
                 for row in cursor.fetchall():
                     tracking_id = row[0]
-                    if tracking_id not in attachments_map:
-                        attachments_map[tracking_id] = []
-                    attachments_map[tracking_id].append(row[1])
+                    attachment_type = row[1]
+                    # Validar novamente no código (segurança extra)
+                    if attachment_type and attachment_type.strip() and attachment_type != 'empty':
+                        if tracking_id not in attachments_map:
+                            attachments_map[tracking_id] = []
+                        attachments_map[tracking_id].append(attachment_type)
             except:
                 pass
         
@@ -520,11 +532,15 @@ def count_vehicle_changes(vehicle_id: str) -> int:
             
             prev_items_count = {}
             for item_type in prev_items_list:
-                prev_items_count[item_type] = prev_items_count.get(item_type, 0) + 1
+                # Filtrar tipos inválidos (segurança extra)
+                if item_type and item_type.strip() and item_type != 'empty':
+                    prev_items_count[item_type] = prev_items_count.get(item_type, 0) + 1
             
             curr_items_count = {}
             for item_type in curr_items_list:
-                curr_items_count[item_type] = curr_items_count.get(item_type, 0) + 1
+                # Filtrar tipos inválidos (segurança extra)
+                if item_type and item_type.strip() and item_type != 'empty':
+                    curr_items_count[item_type] = curr_items_count.get(item_type, 0) + 1
             
             # Comparar contadores (ignora ordem, apenas tipos e quantidades)
             if prev_items_count != curr_items_count:
@@ -536,11 +552,15 @@ def count_vehicle_changes(vehicle_id: str) -> int:
             
             prev_attachments_count = {}
             for attachment_type in prev_attachments_list:
-                prev_attachments_count[attachment_type] = prev_attachments_count.get(attachment_type, 0) + 1
+                # Filtrar tipos inválidos (segurança extra)
+                if attachment_type and attachment_type.strip() and attachment_type != 'empty':
+                    prev_attachments_count[attachment_type] = prev_attachments_count.get(attachment_type, 0) + 1
             
             curr_attachments_count = {}
             for attachment_type in curr_attachments_list:
-                curr_attachments_count[attachment_type] = curr_attachments_count.get(attachment_type, 0) + 1
+                # Filtrar tipos inválidos (segurança extra)
+                if attachment_type and attachment_type.strip() and attachment_type != 'empty':
+                    curr_attachments_count[attachment_type] = curr_attachments_count.get(attachment_type, 0) + 1
             
             # Comparar contadores (ignora ordem, apenas tipos e quantidades)
             if prev_attachments_count != curr_attachments_count:
@@ -639,8 +659,11 @@ def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str
                 {order_clause}
             """
             # Usar apenas os parâmetros de WHERE, sem LIMIT e OFFSET
-            query_params = params if len(params) <= 2 else params[:-2]
-            cursor.execute(data_query_all, query_params)
+            # Só passar parâmetros se houver WHERE clause
+            if where_clause and params:
+                cursor.execute(data_query_all, params)
+            else:
+                cursor.execute(data_query_all)
             all_data = [dict(row) for row in cursor.fetchall()]
             
             # Calcular ChangeCount para todos
@@ -696,8 +719,9 @@ def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str
                 LIMIT ? OFFSET ?
             """
             
-            params.extend([length, start])
-            cursor.execute(data_query, params)
+            # Adicionar LIMIT e OFFSET aos parâmetros
+            query_params = list(params) + [length, start]
+            cursor.execute(data_query, query_params)
             data = [dict(row) for row in cursor.fetchall()]
             
             # Adicionar contagem de alterações para cada veículo
@@ -727,8 +751,11 @@ def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str
                 ) AS latest_vt ON vt.VehicleId = latest_vt.VehicleId AND vt.TimeStamp = latest_vt.MaxTimeStamp
                 {where_clause}
             """
-            count_params = params[:-2] if len(params) > 2 else params  # Remover LIMIT e OFFSET se existirem
-            cursor.execute(count_query_all, count_params)
+            # Só passar parâmetros se houver WHERE clause (e portanto parâmetros)
+            if where_clause and params:
+                cursor.execute(count_query_all, params)
+            else:
+                cursor.execute(count_query_all)
             all_vehicle_ids = [row[0] for row in cursor.fetchall()]
             
             # Contar quantos têm alterações
