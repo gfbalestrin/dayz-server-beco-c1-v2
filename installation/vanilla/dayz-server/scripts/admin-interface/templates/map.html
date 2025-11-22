@@ -409,88 +409,154 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <!-- Informações em grid horizontal compacto -->
-                <div id="playerMarkerInfoSection" style="font-size: 0.85rem;">
-                    <div class="row g-2 mb-1">
-                        <div class="col-4">
-                            <span class="text-muted" style="font-size: 0.75rem;">Nome:</span>
-                            <span id="playerMarkerName" class="d-block" style="font-size: 0.85rem;"><strong>--</strong></span>
-                        </div>
-                        <div class="col-4">
-                            <span class="text-muted" style="font-size: 0.75rem;">Steam:</span>
-                            <span id="playerMarkerSteam" class="d-block" style="font-size: 0.85rem;">--</span>
-                        </div>
-                        <div class="col-4">
-                            <span class="text-muted" style="font-size: 0.75rem;">Status:</span>
-                            <span id="playerMarkerStatus" class="d-block" style="font-size: 0.85rem;">--</span>
-                        </div>
-                    </div>
-                    
-                    <div class="row g-2 mb-1" id="playerMarkerHealthSection" style="display: none;">
-                        <div class="col-3" id="playerMarkerHealth" style="display: none;">
-                            <span class="text-muted" style="font-size: 0.75rem;">Saúde:</span>
-                            <span class="d-block" style="font-size: 0.85rem;">--</span>
-                        </div>
-                        <div class="col-3" id="playerMarkerBlood" style="display: none;">
-                            <span class="text-muted" style="font-size: 0.75rem;">Sangue:</span>
-                            <span class="d-block" style="font-size: 0.85rem;">--</span>
-                        </div>
-                        <div class="col-3" id="playerMarkerShock" style="display: none;">
-                            <span class="text-muted" style="font-size: 0.75rem;">Shock:</span>
-                            <span class="d-block" style="font-size: 0.85rem;">--</span>
-                        </div>
-                        <div class="col-3" id="playerMarkerAlive" style="display: none;">
-                            <span class="text-muted" style="font-size: 0.75rem;">Estado:</span>
-                            <span class="d-block" style="font-size: 0.85rem;">--</span>
+                <!-- Cabeçalho: Nome do Jogador -->
+                <div class="text-center mb-3">
+                    <h5 id="playerMarkerName" class="mb-0"><i class="fas fa-user me-2"></i><strong>--</strong></h5>
+                </div>
+                
+                <!-- Informações Básicas -->
+                <div class="card mb-3 shadow-sm">
+                    <div class="card-body p-2">
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-user-tag me-1"></i>Steam
+                                </small>
+                                <span id="playerMarkerSteam" class="d-block fw-bold" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-circle me-1"></i>Status
+                                </small>
+                                <span id="playerMarkerStatus" class="d-block" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-user-shield me-1"></i>Admin
+                                </small>
+                                <span id="playerMarkerAdmin" class="d-block" style="font-size: 0.9rem;">--</span>
+                            </div>
                         </div>
                     </div>
-                    
-                    <div class="row g-2 mb-1" id="playerMarkerResourcesSection" style="display: none;">
-                        <div class="col-4" id="playerMarkerEnergy" style="display: none;">
-                            <span class="text-muted" style="font-size: 0.75rem;">Energia:</span>
-                            <span class="d-block" style="font-size: 0.85rem;">--</span>
-                        </div>
-                        <div class="col-4" id="playerMarkerWater" style="display: none;">
-                            <span class="text-muted" style="font-size: 0.75rem;">Água:</span>
-                            <span class="d-block" style="font-size: 0.85rem;">--</span>
-                        </div>
-                        <div class="col-4" id="playerMarkerStamina" style="display: none;">
-                            <span class="text-muted" style="font-size: 0.75rem;">Stamina:</span>
-                            <span class="d-block" style="font-size: 0.85rem;">--</span>
+                </div>
+                
+                <!-- Status de Vida -->
+                <div class="card mb-3 shadow-sm" id="playerMarkerHealthSection" style="display: none;">
+                    <div class="card-header bg-danger text-white py-1 px-2">
+                        <small><i class="fas fa-heartbeat me-1"></i>Status de Vida</small>
+                    </div>
+                    <div class="card-body p-2">
+                        <div class="row g-2">
+                            <div class="col-3" id="playerMarkerHealth" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-heart text-danger me-1"></i>Saúde
+                                </small>
+                                <span class="d-block fw-bold text-danger" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-3" id="playerMarkerBlood" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-tint text-danger me-1"></i>Sangue
+                                </small>
+                                <span class="d-block fw-bold text-danger" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-3" id="playerMarkerShock" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-bolt text-warning me-1"></i>Shock
+                                </small>
+                                <span class="d-block fw-bold text-warning" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-3" id="playerMarkerAlive" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-heartbeat me-1"></i>Estado
+                                </small>
+                                <span class="d-block" style="font-size: 0.9rem;">--</span>
+                            </div>
                         </div>
                     </div>
-                    
-                    <div class="row g-2 mb-1" id="playerMarkerInventorySection" style="display: none;">
-                        <div class="col-6" id="playerMarkerItemsHands" style="display: none;">
-                            <span class="text-muted" style="font-size: 0.75rem;">Mãos:</span>
-                            <span class="d-block" style="font-size: 0.85rem;">--</span>
-                        </div>
-                        <div class="col-6" id="playerMarkerItemsCount" style="display: none;">
-                            <span class="text-muted" style="font-size: 0.75rem;">Total Itens:</span>
-                            <span class="d-block" style="font-size: 0.85rem;">--</span>
+                </div>
+                
+                <!-- Recursos -->
+                <div class="card mb-3 shadow-sm" id="playerMarkerResourcesSection" style="display: none;">
+                    <div class="card-header bg-info text-white py-1 px-2">
+                        <small><i class="fas fa-battery-full me-1"></i>Recursos</small>
+                    </div>
+                    <div class="card-body p-2">
+                        <div class="row g-2">
+                            <div class="col-4" id="playerMarkerEnergy" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-battery-full text-success me-1"></i>Energia
+                                </small>
+                                <span class="d-block fw-bold text-success" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-4" id="playerMarkerWater" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-tint text-primary me-1"></i>Água
+                                </small>
+                                <span class="d-block fw-bold text-primary" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-4" id="playerMarkerStamina" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-running text-info me-1"></i>Stamina
+                                </small>
+                                <span class="d-block fw-bold text-info" style="font-size: 0.9rem;">--</span>
+                            </div>
                         </div>
                     </div>
-                    
-                    <div class="row g-2 mb-1">
-                        <div class="col-4">
-                            <span class="text-muted" style="font-size: 0.75rem;">Coords:</span>
-                            <span id="playerMarkerCoords" class="d-block" style="font-size: 0.85rem;">--</span>
-                        </div>
-                        <div class="col-4" id="playerMarkerHeight">
-                            <span class="text-muted" style="font-size: 0.75rem;">Altura:</span>
-                            <span class="d-block" style="font-size: 0.85rem;">--</span>
-                        </div>
-                        <div class="col-4">
-                            <span class="text-muted" style="font-size: 0.75rem;">Admin:</span>
-                            <span id="playerMarkerAdmin" class="d-block" style="font-size: 0.85rem;">--</span>
+                </div>
+                
+                <!-- Inventário -->
+                <div class="card mb-3 shadow-sm" id="playerMarkerInventorySection" style="display: none;">
+                    <div class="card-header bg-warning text-dark py-1 px-2">
+                        <small><i class="fas fa-box me-1"></i>Inventário</small>
+                    </div>
+                    <div class="card-body p-2">
+                        <div class="row g-2">
+                            <div class="col-6" id="playerMarkerItemsHands" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-hand-paper me-1"></i>Mãos
+                                </small>
+                                <span class="d-block fw-bold" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-6" id="playerMarkerItemsCount" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-box me-1"></i>Total Itens
+                                </small>
+                                <span class="d-block fw-bold" style="font-size: 0.9rem;">--</span>
+                            </div>
                         </div>
                     </div>
-                    
-                    <div class="row g-2">
-                        <div class="col-12">
-                            <span class="text-muted" style="font-size: 0.75rem;">Atualizado:</span>
-                            <span id="playerMarkerLastUpdate" class="d-block" style="font-size: 0.85rem;">--</span>
+                </div>
+                
+                <!-- Localização -->
+                <div class="card mb-3 shadow-sm">
+                    <div class="card-header bg-secondary text-white py-1 px-2">
+                        <small><i class="fas fa-map-marker-alt me-1"></i>Localização</small>
+                    </div>
+                    <div class="card-body p-2">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-map-marker-alt text-danger me-1"></i>Coordenadas
+                                </small>
+                                <span id="playerMarkerCoords" class="d-block fw-bold" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-6" id="playerMarkerHeight">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-mountain text-secondary me-1"></i>Altura
+                                </small>
+                                <span class="d-block fw-bold" style="font-size: 0.9rem;">--</span>
+                            </div>
                         </div>
+                    </div>
+                </div>
+                
+                <!-- Última Atualização -->
+                <div class="card mb-3 shadow-sm bg-light">
+                    <div class="card-body p-2">
+                        <small class="text-muted d-block mb-1">
+                            <i class="fas fa-clock me-1"></i>Última Atualização
+                        </small>
+                        <span id="playerMarkerLastUpdate" class="d-block fw-bold" style="font-size: 0.9rem;">--</span>
                     </div>
                 </div>
                 
