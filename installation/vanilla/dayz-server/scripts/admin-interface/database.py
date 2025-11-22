@@ -510,18 +510,40 @@ def count_vehicle_changes(vehicle_id: str) -> int:
             elif not health_changed and prev.get('FuelTankHealth') != curr.get('FuelTankHealth'):
                 health_changed = True
             
-            # Verificar mudança em items/attachments (usando dados já carregados)
+            # Verificar mudança em items/attachments (apenas tipos e quantidades, ignorando ordem)
             items_changed = False
             attachments_changed = False
             
-            prev_items = sorted(items_map.get(prev['IdVehicleTracking'], []))
-            curr_items = sorted(items_map.get(curr['IdVehicleTracking'], []))
-            if prev_items != curr_items:
+            # Criar contadores por tipo para items (ignorando ordem)
+            prev_items_list = items_map.get(prev['IdVehicleTracking'], [])
+            curr_items_list = items_map.get(curr['IdVehicleTracking'], [])
+            
+            prev_items_count = {}
+            for item_type in prev_items_list:
+                prev_items_count[item_type] = prev_items_count.get(item_type, 0) + 1
+            
+            curr_items_count = {}
+            for item_type in curr_items_list:
+                curr_items_count[item_type] = curr_items_count.get(item_type, 0) + 1
+            
+            # Comparar contadores (ignora ordem, apenas tipos e quantidades)
+            if prev_items_count != curr_items_count:
                 items_changed = True
             
-            prev_attachments = sorted(attachments_map.get(prev['IdVehicleTracking'], []))
-            curr_attachments = sorted(attachments_map.get(curr['IdVehicleTracking'], []))
-            if prev_attachments != curr_attachments:
+            # Criar contadores por tipo para attachments (ignorando ordem)
+            prev_attachments_list = attachments_map.get(prev['IdVehicleTracking'], [])
+            curr_attachments_list = attachments_map.get(curr['IdVehicleTracking'], [])
+            
+            prev_attachments_count = {}
+            for attachment_type in prev_attachments_list:
+                prev_attachments_count[attachment_type] = prev_attachments_count.get(attachment_type, 0) + 1
+            
+            curr_attachments_count = {}
+            for attachment_type in curr_attachments_list:
+                curr_attachments_count[attachment_type] = curr_attachments_count.get(attachment_type, 0) + 1
+            
+            # Comparar contadores (ignora ordem, apenas tipos e quantidades)
+            if prev_attachments_count != curr_attachments_count:
                 attachments_changed = True
             
             # Se houve qualquer mudança significativa, incrementar contador

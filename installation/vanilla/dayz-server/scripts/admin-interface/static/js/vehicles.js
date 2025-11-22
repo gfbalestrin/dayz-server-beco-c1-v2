@@ -250,9 +250,11 @@ $(document).ready(function() {
             }
             
             // Comparar com o último registro incluído (mais recente)
+            // Como o histórico vem em DESC, lastIncluded é mais recente que currentRecord
             const lastIncluded = filteredHistory[filteredHistory.length - 1];
             
-            // Se há mudanças significativas, incluir este registro
+            // Comparar o mais recente (lastIncluded) com o mais antigo (currentRecord)
+            // Se há mudanças significativas, incluir o registro mais antigo
             if (hasSignificantChanges(currentRecord, lastIncluded)) {
                 filteredHistory.push(currentRecord);
             }
@@ -260,10 +262,17 @@ $(document).ready(function() {
         }
         
         // Renderizar apenas os registros filtrados
-        let previousRecord = null;
+        // O histórico vem em ordem DESC: [mais recente, ..., mais antigo]
+        // Cada registro deve ser comparado com o PRÓXIMO na lista (mais antigo)
+        // para mostrar as mudanças que aconteceram neste momento específico
         
         filteredHistory.forEach(function(record, index) {
-            const hasChanges = previousRecord && hasSignificantChanges(previousRecord, record);
+            // Obter o próximo registro na lista (mais antigo)
+            const nextRecord = index < filteredHistory.length - 1 ? filteredHistory[index + 1] : null;
+            
+            // Comparar este registro com o próximo (mais antigo) para detectar mudanças
+            // Se há próximo registro, comparar para ver o que mudou DESSE registro PARA o próximo
+            const hasChanges = nextRecord && hasSignificantChanges(record, nextRecord);
             const changeClass = hasChanges ? 'border-warning bg-light' : '';
             
             const recordHtml = `
@@ -285,22 +294,21 @@ $(document).ready(function() {
                                         '<span class="badge bg-success">Ativo</span>'}
                                 </div>
                                 <div class="card-body">
+                                    ${nextRecord && hasSignificantChanges(record, nextRecord) ? 
+                                        '<div class="alert alert-info mb-3"><i class="fas fa-info-circle me-2"></i><strong>Mudanças detectadas neste momento</strong></div>' : 
+                                        ''}
                                     <div class="row">
                                         <div class="col-md-4">
                                             <h6><i class="fas fa-map-marker-alt me-2"></i>Posição</h6>
-                                            <p class="mb-0">
-                                                X: ${parseFloat(record.PositionX || 0).toFixed(2)}<br>
-                                                Y: ${parseFloat(record.PositionY || 0).toFixed(2)}<br>
-                                                Z: ${parseFloat(record.PositionZ || 0).toFixed(2)}
-                                            </p>
+                                            ${renderPositionWithChanges(record, nextRecord)}
                                         </div>
                                         <div class="col-md-4">
                                             <h6><i class="fas fa-heartbeat me-2"></i>Saúde</h6>
-                                            ${renderHealthSection(record)}
+                                            ${renderHealthSectionWithChanges(record, nextRecord)}
                                         </div>
                                         <div class="col-md-4">
                                             <h6><i class="fas fa-box me-2"></i>Items e Attachments</h6>
-                                            ${renderItemsAndAttachments(record)}
+                                            ${renderItemsAndAttachmentsWithChanges(record, nextRecord)}
                                         </div>
                                     </div>
                                 </div>
@@ -311,7 +319,6 @@ $(document).ready(function() {
             `;
             
             timeline.append(recordHtml);
-            previousRecord = record;
         });
     }
     
@@ -351,47 +358,33 @@ $(document).ready(function() {
         return statusChanged || posChanged || healthChanged || itemsChanged || attachmentsChanged;
     }
     
-    // Comparar listas de items
+    // Comparar listas de items (apenas tipos e quantidades, ignorando ordem)
     function itemsListChanged(prevItems, currItems) {
-        if (prevItems.length !== currItems.length) {
-            return true;
-        }
-        
-        // Criar mapas para comparação
-        const prevMap = {};
+        // Criar contadores por tipo (ignorando ordem e outros detalhes)
+        const prevCount = {};
         prevItems.forEach(function(item) {
             const key = item.ItemType || '';
-            const health = item.ItemHealth || 0;
-            if (!prevMap[key]) {
-                prevMap[key] = [];
-            }
-            prevMap[key].push(health);
+            prevCount[key] = (prevCount[key] || 0) + 1;
         });
         
-        const currMap = {};
+        const currCount = {};
         currItems.forEach(function(item) {
             const key = item.ItemType || '';
-            const health = item.ItemHealth || 0;
-            if (!currMap[key]) {
-                currMap[key] = [];
-            }
-            currMap[key].push(health);
+            currCount[key] = (currCount[key] || 0) + 1;
         });
         
-        // Comparar chaves
-        const prevKeys = Object.keys(prevMap).sort();
-        const currKeys = Object.keys(currMap).sort();
+        // Comparar tipos presentes
+        const prevTypes = Object.keys(prevCount).sort();
+        const currTypes = Object.keys(currCount).sort();
         
-        if (prevKeys.length !== currKeys.length) {
+        if (prevTypes.length !== currTypes.length) {
             return true;
         }
         
-        for (let i = 0; i < prevKeys.length; i++) {
-            if (prevKeys[i] !== currKeys[i]) {
-                return true;
-            }
-            // Comparar quantidades de cada tipo
-            if (prevMap[prevKeys[i]].length !== currMap[currKeys[i]].length) {
+        // Comparar quantidades de cada tipo
+        for (let i = 0; i < prevTypes.length; i++) {
+            const type = prevTypes[i];
+            if (prevCount[type] !== currCount[type]) {
                 return true;
             }
         }
@@ -399,52 +392,165 @@ $(document).ready(function() {
         return false;
     }
     
-    // Comparar listas de attachments
+    // Comparar listas de attachments (apenas tipos e quantidades, ignorando ordem)
     function attachmentsListChanged(prevAttachments, currAttachments) {
-        if (prevAttachments.length !== currAttachments.length) {
-            return true;
-        }
-        
-        // Criar mapas para comparação
-        const prevMap = {};
+        // Criar contadores por tipo (ignorando ordem e outros detalhes)
+        const prevCount = {};
         prevAttachments.forEach(function(attachment) {
             const key = attachment.AttachmentType || '';
-            const health = attachment.AttachmentHealth || 0;
-            if (!prevMap[key]) {
-                prevMap[key] = [];
-            }
-            prevMap[key].push(health);
+            prevCount[key] = (prevCount[key] || 0) + 1;
         });
         
-        const currMap = {};
+        const currCount = {};
         currAttachments.forEach(function(attachment) {
             const key = attachment.AttachmentType || '';
-            const health = attachment.AttachmentHealth || 0;
-            if (!currMap[key]) {
-                currMap[key] = [];
-            }
-            currMap[key].push(health);
+            currCount[key] = (currCount[key] || 0) + 1;
         });
         
-        // Comparar chaves
-        const prevKeys = Object.keys(prevMap).sort();
-        const currKeys = Object.keys(currMap).sort();
+        // Comparar tipos presentes
+        const prevTypes = Object.keys(prevCount).sort();
+        const currTypes = Object.keys(currCount).sort();
         
-        if (prevKeys.length !== currKeys.length) {
+        if (prevTypes.length !== currTypes.length) {
             return true;
         }
         
-        for (let i = 0; i < prevKeys.length; i++) {
-            if (prevKeys[i] !== currKeys[i]) {
-                return true;
-            }
-            // Comparar quantidades de cada tipo
-            if (prevMap[prevKeys[i]].length !== currMap[currKeys[i]].length) {
+        // Comparar quantidades de cada tipo
+        for (let i = 0; i < prevTypes.length; i++) {
+            const type = prevTypes[i];
+            if (prevCount[type] !== currCount[type]) {
                 return true;
             }
         }
         
         return false;
+    }
+    
+    // Obter diferenças detalhadas entre listas de items
+    function getItemsDiff(prevItems, currItems) {
+        const prevMap = {};
+        prevItems.forEach(function(item) {
+            const key = item.ItemType || '';
+            if (!prevMap[key]) {
+                prevMap[key] = [];
+            }
+            prevMap[key].push(item);
+        });
+        
+        const currMap = {};
+        currItems.forEach(function(item) {
+            const key = item.ItemType || '';
+            if (!currMap[key]) {
+                currMap[key] = [];
+            }
+            currMap[key].push(item);
+        });
+        
+        const added = [];
+        const removed = [];
+        const unchanged = [];
+        
+        // Encontrar items adicionados
+        Object.keys(currMap).forEach(function(key) {
+            const prevCount = (prevMap[key] || []).length;
+            const currCount = currMap[key].length;
+            
+            if (currCount > prevCount) {
+                const diff = currCount - prevCount;
+                for (let i = 0; i < diff; i++) {
+                    added.push({ type: key, item: currMap[key][prevCount + i] });
+                }
+            }
+        });
+        
+        // Encontrar items removidos
+        Object.keys(prevMap).forEach(function(key) {
+            const prevCount = prevMap[key].length;
+            const currCount = (currMap[key] || []).length;
+            
+            if (prevCount > currCount) {
+                const diff = prevCount - currCount;
+                for (let i = 0; i < diff; i++) {
+                    removed.push({ type: key, item: prevMap[key][currCount + i] });
+                }
+            }
+        });
+        
+        // Encontrar items inalterados (presentes em ambos)
+        Object.keys(prevMap).forEach(function(key) {
+            if (currMap[key]) {
+                const minCount = Math.min(prevMap[key].length, currMap[key].length);
+                for (let i = 0; i < minCount; i++) {
+                    unchanged.push({ type: key, prevItem: prevMap[key][i], currItem: currMap[key][i] });
+                }
+            }
+        });
+        
+        return { added: added, removed: removed, unchanged: unchanged };
+    }
+    
+    // Obter diferenças detalhadas entre listas de attachments
+    function getAttachmentsDiff(prevAttachments, currAttachments) {
+        const prevMap = {};
+        prevAttachments.forEach(function(attachment) {
+            const key = attachment.AttachmentType || '';
+            if (!prevMap[key]) {
+                prevMap[key] = [];
+            }
+            prevMap[key].push(attachment);
+        });
+        
+        const currMap = {};
+        currAttachments.forEach(function(attachment) {
+            const key = attachment.AttachmentType || '';
+            if (!currMap[key]) {
+                currMap[key] = [];
+            }
+            currMap[key].push(attachment);
+        });
+        
+        const added = [];
+        const removed = [];
+        const unchanged = [];
+        
+        // Encontrar attachments adicionados
+        Object.keys(currMap).forEach(function(key) {
+            const prevCount = (prevMap[key] || []).length;
+            const currCount = currMap[key].length;
+            
+            if (currCount > prevCount) {
+                const diff = currCount - prevCount;
+                for (let i = 0; i < diff; i++) {
+                    added.push({ type: key, attachment: currMap[key][prevCount + i] });
+                }
+            }
+        });
+        
+        // Encontrar attachments removidos
+        Object.keys(prevMap).forEach(function(key) {
+            const prevCount = prevMap[key].length;
+            const currCount = (currMap[key] || []).length;
+            
+            // Se há mais attachments deste tipo em prev do que em curr, os extras foram removidos
+            if (prevCount > currCount) {
+                const diff = prevCount - currCount;
+                for (let i = 0; i < diff; i++) {
+                    removed.push({ type: key, attachment: prevMap[key][currCount + i] });
+                }
+            }
+        });
+        
+        // Encontrar attachments inalterados (presentes em ambos)
+        Object.keys(prevMap).forEach(function(key) {
+            if (currMap[key]) {
+                const minCount = Math.min(prevMap[key].length, currMap[key].length);
+                for (let i = 0; i < minCount; i++) {
+                    unchanged.push({ type: key, prevAttachment: prevMap[key][i], currAttachment: currMap[key][i] });
+                }
+            }
+        });
+        
+        return { added: added, removed: removed, unchanged: unchanged };
     }
     
     // Renderizar seção de saúde
@@ -470,6 +576,246 @@ $(document).ready(function() {
         }
         
         return html || '<span class="text-muted">N/A</span>';
+    }
+    
+    // Renderizar posição com indicadores de mudança
+    // prev = registro atual sendo renderizado (mais recente na timeline)
+    // curr = próximo registro (mais antigo, para comparação, pode ser null se for o último)
+    function renderPositionWithChanges(prev, curr) {
+        // Se não há próximo registro (curr é null), mostrar apenas o registro atual sem comparação
+        if (!curr) {
+            return renderPosition(prev);
+        }
+        
+        const posThreshold = 0.1;
+        // Mostrar valores do registro atual (prev = mais recente)
+        const x = parseFloat(prev.PositionX || 0);
+        const y = parseFloat(prev.PositionY || 0);
+        const z = parseFloat(prev.PositionZ || 0);
+        
+        // Comparar com o próximo registro (curr = mais antigo)
+        const currX = parseFloat(curr.PositionX || 0);
+        const currY = parseFloat(curr.PositionY || 0);
+        const currZ = parseFloat(curr.PositionZ || 0);
+        
+        const xChanged = Math.abs(x - currX) > posThreshold;
+        const yChanged = Math.abs(y - currY) > posThreshold;
+        const zChanged = Math.abs(z - currZ) > posThreshold;
+        
+        let html = '<p class="mb-0">';
+        
+        if (xChanged) {
+            const diff = x - currX; // Diferença do atual (recente) para o próximo (antigo)
+            const arrow = diff > 0 ? '→' : '←';
+            html += `X: <span class="change-modified">${x.toFixed(2)}</span> <small class="text-muted">(${arrow} ${Math.abs(diff).toFixed(2)})</small><br>`;
+        } else {
+            html += `X: ${x.toFixed(2)}<br>`;
+        }
+        
+        if (yChanged) {
+            const diff = y - currY;
+            const arrow = diff > 0 ? '↑' : '↓';
+            html += `Y: <span class="change-modified">${y.toFixed(2)}</span> <small class="text-muted">(${arrow} ${Math.abs(diff).toFixed(2)})</small><br>`;
+        } else {
+            html += `Y: ${y.toFixed(2)}<br>`;
+        }
+        
+        if (zChanged) {
+            const diff = z - currZ;
+            const arrow = diff > 0 ? '↗' : '↘';
+            html += `Z: <span class="change-modified">${z.toFixed(2)}</span> <small class="text-muted">(${arrow} ${Math.abs(diff).toFixed(2)})</small>`;
+        } else {
+            html += `Z: ${z.toFixed(2)}`;
+        }
+        
+        html += '</p>';
+        return html;
+    }
+    
+    // Renderizar posição simples (sem comparação)
+    function renderPosition(record) {
+        const x = parseFloat(record.PositionX || 0).toFixed(2);
+        const y = parseFloat(record.PositionY || 0).toFixed(2);
+        const z = parseFloat(record.PositionZ || 0).toFixed(2);
+        return `<p class="mb-0">X: ${x}<br>Y: ${y}<br>Z: ${z}</p>`;
+    }
+    
+    // Renderizar seção de saúde com indicadores de mudança
+    // prev = registro atual sendo renderizado (mais recente na timeline)
+    // curr = próximo registro (mais antigo, para comparação, pode ser null se for o último)
+    function renderHealthSectionWithChanges(prev, curr) {
+        // Se não há próximo registro (curr é null), mostrar apenas o registro atual sem comparação
+        if (!curr) {
+            return renderHealthSection(prev);
+        }
+        
+        let html = '';
+        const healthThreshold = 0.05;
+        
+        // Motor - mostrar valor do registro atual (prev)
+        if (prev.EngineHealth !== null && prev.EngineHealth !== undefined) {
+            const engineHealth = parseFloat(prev.EngineHealth || 0) * 100;
+            let changeIndicator = '';
+            
+            // Comparar com o próximo registro (curr)
+            if (curr.EngineHealth !== null && curr.EngineHealth !== undefined) {
+                const currHealth = parseFloat(curr.EngineHealth || 0) * 100;
+                const diff = engineHealth - currHealth; // Diferença do atual (recente) para o próximo (antigo)
+                
+                if (Math.abs(diff) > (healthThreshold * 100)) {
+                    const arrow = diff > 0 ? '↑' : '↓';
+                    const colorClass = diff > 0 ? 'text-success' : 'text-danger';
+                    changeIndicator = ` <small class="${colorClass}">(${arrow} ${Math.abs(diff).toFixed(1)}%)</small>`;
+                }
+            }
+            
+            html += '<div class="mb-2"><small>Motor:</small> ' + 
+                renderHealthBar(engineHealth) + changeIndicator + '</div>';
+        }
+        
+        // Carroceria - mostrar valor do registro atual (prev)
+        if (prev.BodyHealth !== null && prev.BodyHealth !== undefined) {
+            const bodyHealth = parseFloat(prev.BodyHealth || 0) * 100;
+            let changeIndicator = '';
+            
+            // Comparar com o próximo registro (curr)
+            if (curr.BodyHealth !== null && curr.BodyHealth !== undefined) {
+                const currHealth = parseFloat(curr.BodyHealth || 0) * 100;
+                const diff = bodyHealth - currHealth;
+                
+                if (Math.abs(diff) > (healthThreshold * 100)) {
+                    const arrow = diff > 0 ? '↑' : '↓';
+                    const colorClass = diff > 0 ? 'text-success' : 'text-danger';
+                    changeIndicator = ` <small class="${colorClass}">(${arrow} ${Math.abs(diff).toFixed(1)}%)</small>`;
+                }
+            }
+            
+            html += '<div class="mb-2"><small>Carroceria:</small> ' + 
+                renderHealthBar(bodyHealth) + changeIndicator + '</div>';
+        }
+        
+        // Tanque - mostrar valor do registro atual (prev)
+        if (prev.FuelTankHealth !== null && prev.FuelTankHealth !== undefined) {
+            const fuelHealth = parseFloat(prev.FuelTankHealth || 0) * 100;
+            let changeIndicator = '';
+            
+            // Comparar com o próximo registro (curr)
+            if (curr.FuelTankHealth !== null && curr.FuelTankHealth !== undefined) {
+                const currHealth = parseFloat(curr.FuelTankHealth || 0) * 100;
+                const diff = fuelHealth - currHealth;
+                
+                if (Math.abs(diff) > (healthThreshold * 100)) {
+                    const arrow = diff > 0 ? '↑' : '↓';
+                    const colorClass = diff > 0 ? 'text-success' : 'text-danger';
+                    changeIndicator = ` <small class="${colorClass}">(${arrow} ${Math.abs(diff).toFixed(1)}%)</small>`;
+                }
+            }
+            
+            html += '<div><small>Tanque:</small> ' + 
+                renderHealthBar(fuelHealth) + changeIndicator + '</div>';
+        }
+        
+        return html || '<span class="text-muted">N/A</span>';
+    }
+    
+    // Renderizar items e attachments com indicadores de mudança
+    // prev = registro atual sendo renderizado (mais recente na timeline)
+    // curr = próximo registro na lista (mais antigo, para comparação, pode ser null se for o último)
+    function renderItemsAndAttachmentsWithChanges(prev, curr) {
+        // Se não há próximo registro (curr é null), mostrar apenas o registro atual sem comparação
+        if (!curr) {
+            return renderItemsAndAttachments(prev);
+        }
+        
+        let html = '';
+        
+        // Comparar items
+        // prev = registro atual sendo renderizado (mais recente)
+        // curr = próximo registro (mais antigo, para comparação)
+        // Invertemos a ordem para comparar do mais antigo (curr) para o mais recente (prev)
+        // Isso mostra o que mudou DO curr (antigo) PARA o prev (recente)
+        const itemsDiff = getItemsDiff(curr.items || [], prev.items || []);
+        
+        // Mostrar items do registro atual (prev = mais recente), não do curr
+        if (itemsDiff.added.length > 0 || itemsDiff.removed.length > 0 || (prev.items && prev.items.length > 0)) {
+            html += '<div class="mb-2">';
+            html += '<strong>Items (' + (prev.items ? prev.items.length : 0) + '):</strong><br>';
+            html += '<div class="ms-2">';
+            
+            // Mostrar items removidos (estavam em curr mas não em prev = foram removidos entre curr e prev)
+            itemsDiff.removed.forEach(function(item) {
+                const health = item.item.ItemHealth !== null ? 
+                    ' (' + parseFloat(item.item.ItemHealth || 0).toFixed(0) + '%)' : '';
+                html += '<small class="change-removed">' +
+                    '<i class="fas fa-minus-circle me-1"></i>' +
+                    escapeHtml(item.type) + health + '</small><br>';
+            });
+            
+            // Mostrar items inalterados (presentes em ambos)
+            itemsDiff.unchanged.forEach(function(item) {
+                const health = item.prevItem.ItemHealth !== null ? 
+                    ' (' + parseFloat(item.prevItem.ItemHealth || 0).toFixed(0) + '%)' : '';
+                html += '<small>• ' + escapeHtml(item.type) + health + '</small><br>';
+            });
+            
+            // Mostrar items adicionados (estavam em prev mas não em curr = foram adicionados entre curr e prev)
+            itemsDiff.added.forEach(function(item) {
+                const health = item.item.ItemHealth !== null ? 
+                    ' (' + parseFloat(item.item.ItemHealth || 0).toFixed(0) + '%)' : '';
+                html += '<small class="change-added">' +
+                    '<i class="fas fa-plus-circle me-1"></i>' +
+                    escapeHtml(item.type) + health + '</small><br>';
+            });
+            
+            html += '</div></div>';
+        }
+        
+        // Comparar attachments
+        // prev = registro atual sendo renderizado (mais recente)
+        // curr = próximo registro (mais antigo, para comparação)
+        // Invertemos a ordem para comparar do mais antigo (curr) para o mais recente (prev)
+        // Isso mostra o que mudou DO curr (antigo) PARA o prev (recente)
+        const attachmentsDiff = getAttachmentsDiff(curr.attachments || [], prev.attachments || []);
+        
+        // Mostrar attachments do registro atual (prev = mais recente), não do curr
+        if (attachmentsDiff.added.length > 0 || attachmentsDiff.removed.length > 0 || (prev.attachments && prev.attachments.length > 0)) {
+            html += '<div>';
+            html += '<strong>Attachments (' + (prev.attachments ? prev.attachments.length : 0) + '):</strong><br>';
+            html += '<div class="ms-2">';
+            
+            // Mostrar attachments removidos (estavam em curr mas não em prev = foram removidos entre curr e prev)
+            attachmentsDiff.removed.forEach(function(attachment) {
+                const health = attachment.attachment.AttachmentHealth !== null ? 
+                    ' (' + parseFloat(attachment.attachment.AttachmentHealth || 0).toFixed(0) + '%)' : '';
+                html += '<small class="change-removed">' +
+                    '<i class="fas fa-minus-circle me-1"></i>' +
+                    escapeHtml(attachment.type) + health + '</small><br>';
+            });
+            
+            // Mostrar attachments inalterados (presentes em ambos)
+            attachmentsDiff.unchanged.forEach(function(attachment) {
+                const health = attachment.prevAttachment.AttachmentHealth !== null ? 
+                    ' (' + parseFloat(attachment.prevAttachment.AttachmentHealth || 0).toFixed(0) + '%)' : '';
+                html += '<small>• ' + escapeHtml(attachment.type) + health + '</small><br>';
+            });
+            
+            // Mostrar attachments adicionados (estavam em prev mas não em curr = foram adicionados entre curr e prev)
+            attachmentsDiff.added.forEach(function(attachment) {
+                const health = attachment.attachment.AttachmentHealth !== null ? 
+                    ' (' + parseFloat(attachment.attachment.AttachmentHealth || 0).toFixed(0) + '%)' : '';
+                html += '<small class="change-added">' +
+                    '<i class="fas fa-plus-circle me-1"></i>' +
+                    escapeHtml(attachment.type) + health + '</small><br>';
+            });
+            
+            html += '</div></div>';
+        }
+        
+        if (!html) {
+            html = '<span class="text-muted">Nenhum item ou attachment</span>';
+        }
+        
+        return html;
     }
     
     // Renderizar items e attachments
