@@ -276,9 +276,11 @@ void SendVehiclesPositions()
                     itemsJson += "{\"type\":\"" + safeCargoType + "\",\"health\":" + cargoHealth.ToString() + "}";
                 }
             }
+			
+			int AttachmentCount = vehicle.GetInventory().AttachmentCount();
 
             // Coletar attachments (partes do veículo)
-            for (int attachmentIndex = 0; attachmentIndex < vehicle.GetInventory().AttachmentCount(); attachmentIndex++)
+            for (int attachmentIndex = 0; attachmentIndex < AttachmentCount; attachmentIndex++)
             {
                 EntityAI attachmentItem = vehicle.GetInventory().GetAttachmentFromIndex(attachmentIndex);
                 if (!attachmentItem)
@@ -314,7 +316,7 @@ void SendVehiclesPositions()
         
         vehiclesJson += vehicleJson;
 
-        WriteToLog("[LIFETIME] VehicleId=" + vehicleIdentifier + " (" + safeName + ") lifetime=" + vehicleLifetime.ToString() + " lifetime_max=" + vehicleLifetimeMax.ToString(), LogFile.INIT, false, LogType.DEBUG);
+        WriteToLog("[LIFETIME] VehicleId=" + vehicleIdentifier + " (" + safeName + ") attachments=" + AttachmentCount.ToString() + " lifetime=" + vehicleLifetime.ToString() + " lifetime_max=" + vehicleLifetimeMax.ToString(), LogFile.INIT, false, LogType.DEBUG);
     }
 
     string jsonAction = "{\"action\":\"vehicles_positions\",\"vehicles\":[" + vehiclesJson + "]}";
