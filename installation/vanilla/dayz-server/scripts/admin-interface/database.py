@@ -413,6 +413,123 @@ def get_vehicle_tracking_attachments(tracking_id: int) -> List[Dict]:
         """, (tracking_id,))
         return [dict(row) for row in cursor.fetchall()]
 
+def count_vehicle_changes(vehicle_id: str) -> int:
+    """Conta o número de alterações significativas no histórico de um veículo"""
+    with DatabaseConnection(config.DB_LOGS) as conn:
+        cursor = conn.cursor()
+        
+        # Buscar histórico ordenado por timestamp (limitar a últimos 500 registros para performance)
+        cursor.execute("""
+            SELECT IdVehicleTracking, PositionX, PositionY, PositionZ, TimeStamp,
+                   IFNULL(IsDestroyed, 0) as IsDestroyed,
+                   EngineHealth, BodyHealth, FuelTankHealth
+            FROM vehicles_tracking
+            WHERE VehicleId = ?
+            ORDER BY TimeStamp DESC
+            LIMIT 500
+        """, (vehicle_id,))
+        
+        # Reverter para ordem ASC para comparação
+        records = list(reversed([dict(row) for row in cursor.fetchall()]))
+        
+        if len(records) <= 1:
+            return 0
+        
+        # Carregar todos os items e attachments de uma vez (otimização)
+        tracking_ids = [r['IdVehicleTracking'] for r in records]
+        items_map = {}
+        attachments_map = {}
+        
+        if tracking_ids:
+            placeholders = ','.join(['?'] * len(tracking_ids))
+            
+            # Carregar items
+            try:
+                cursor.execute(f"""
+                    SELECT VehicleTrackingId, ItemType
+                    FROM vehicles_items
+                    WHERE VehicleTrackingId IN ({placeholders})
+                """, tracking_ids)
+                for row in cursor.fetchall():
+                    tracking_id = row[0]
+                    if tracking_id not in items_map:
+                        items_map[tracking_id] = []
+                    items_map[tracking_id].append(row[1])
+            except:
+                pass
+            
+            # Carregar attachments
+            try:
+                cursor.execute(f"""
+                    SELECT VehicleTrackingId, AttachmentType
+                    FROM vehicles_attachments
+                    WHERE VehicleTrackingId IN ({placeholders})
+                """, tracking_ids)
+                for row in cursor.fetchall():
+                    tracking_id = row[0]
+                    if tracking_id not in attachments_map:
+                        attachments_map[tracking_id] = []
+                    attachments_map[tracking_id].append(row[1])
+            except:
+                pass
+        
+        change_count = 0
+        pos_threshold = 0.1
+        health_threshold = 0.05
+        
+        # Comparar registros consecutivos
+        for i in range(1, len(records)):
+            prev = records[i - 1]
+            curr = records[i]
+            
+            # Verificar mudança de posição
+            pos_changed = (abs((prev.get('PositionX') or 0) - (curr.get('PositionX') or 0)) > pos_threshold or
+                          abs((prev.get('PositionY') or 0) - (curr.get('PositionY') or 0)) > pos_threshold or
+                          abs((prev.get('PositionZ') or 0) - (curr.get('PositionZ') or 0)) > pos_threshold)
+            
+            # Verificar mudança de status
+            status_changed = (prev.get('IsDestroyed') or 0) != (curr.get('IsDestroyed') or 0)
+            
+            # Verificar mudança de saúde
+            health_changed = False
+            if prev.get('EngineHealth') is not None and curr.get('EngineHealth') is not None:
+                if abs(prev['EngineHealth'] - curr['EngineHealth']) > health_threshold:
+                    health_changed = True
+            elif prev.get('EngineHealth') != curr.get('EngineHealth'):
+                health_changed = True
+            
+            if not health_changed and prev.get('BodyHealth') is not None and curr.get('BodyHealth') is not None:
+                if abs(prev['BodyHealth'] - curr['BodyHealth']) > health_threshold:
+                    health_changed = True
+            elif not health_changed and prev.get('BodyHealth') != curr.get('BodyHealth'):
+                health_changed = True
+            
+            if not health_changed and prev.get('FuelTankHealth') is not None and curr.get('FuelTankHealth') is not None:
+                if abs(prev['FuelTankHealth'] - curr['FuelTankHealth']) > health_threshold:
+                    health_changed = True
+            elif not health_changed and prev.get('FuelTankHealth') != curr.get('FuelTankHealth'):
+                health_changed = True
+            
+            # Verificar mudança em items/attachments (usando dados já carregados)
+            items_changed = False
+            attachments_changed = False
+            
+            prev_items = sorted(items_map.get(prev['IdVehicleTracking'], []))
+            curr_items = sorted(items_map.get(curr['IdVehicleTracking'], []))
+            if prev_items != curr_items:
+                items_changed = True
+            
+            prev_attachments = sorted(attachments_map.get(prev['IdVehicleTracking'], []))
+            curr_attachments = sorted(attachments_map.get(curr['IdVehicleTracking'], []))
+            if prev_attachments != curr_attachments:
+                attachments_changed = True
+            
+            # Se houve qualquer mudança significativa, incrementar contador
+            if pos_changed or status_changed or health_changed or items_changed or attachments_changed:
+                change_count += 1
+        
+        return change_count
+
 def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str, 
                           start: int, length: int, search: str = None) -> Tuple[List[Dict], int]:
     """Retorna dados paginados de veículos com busca e filtros"""
@@ -498,6 +615,16 @@ def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str
         params.extend([length, start])
         cursor.execute(data_query, params)
         data = [dict(row) for row in cursor.fetchall()]
+        
+        # Adicionar contagem de alterações para cada veículo
+        # Otimização: calcular em batch para melhor performance
+        for vehicle in data:
+            vehicle_id = vehicle['VehicleId']
+            try:
+                vehicle['ChangeCount'] = count_vehicle_changes(vehicle_id)
+            except Exception as e:
+                # Em caso de erro, definir como 0
+                vehicle['ChangeCount'] = 0
         
         return data, total_records
 

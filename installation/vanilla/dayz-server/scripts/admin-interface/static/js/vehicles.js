@@ -49,6 +49,31 @@ $(document).ready(function() {
                     }
                 },
                 {
+                    data: 'ChangeCount',
+                    render: function(data) {
+                        const count = parseInt(data || 0);
+                        let badgeClass = 'bg-success';
+                        let icon = '';
+                        
+                        if (count === 0) {
+                            badgeClass = 'bg-secondary';
+                        } else if (count >= 1 && count <= 2) {
+                            badgeClass = 'bg-success';
+                        } else if (count >= 3 && count <= 5) {
+                            badgeClass = 'bg-warning';
+                        } else if (count >= 6 && count <= 10) {
+                            badgeClass = 'bg-warning text-dark';
+                            icon = '<i class="fas fa-exclamation-triangle me-1"></i>';
+                        } else {
+                            badgeClass = 'bg-danger';
+                            icon = '<i class="fas fa-exclamation-circle me-1"></i>';
+                        }
+                        
+                        return '<span class="badge ' + badgeClass + '" title="Número de alterações significativas detectadas no histórico do veículo">' + 
+                               icon + count + '</span>';
+                    }
+                },
+                {
                     data: null,
                     render: function(data) {
                         const x = parseFloat(data.PositionX || 0).toFixed(2);
@@ -104,10 +129,19 @@ $(document).ready(function() {
             language: {
                 url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/pt-BR.json'
             },
-            order: [[5, 'desc']],
+            order: [[6, 'desc']], // Ordenar por Última Atualização (coluna 6)
             pageLength: 50,
             responsive: true,
-            searchDelay: 500
+            searchDelay: 500,
+            createdRow: function(row, data, dataIndex) {
+                // Adicionar classe CSS para destacar veículos com muitas alterações
+                const changeCount = parseInt(data.ChangeCount || 0);
+                if (changeCount >= 6) {
+                    $(row).addClass('vehicle-high-changes');
+                } else if (changeCount >= 3) {
+                    $(row).addClass('vehicle-medium-changes');
+                }
+            }
         });
     }
     

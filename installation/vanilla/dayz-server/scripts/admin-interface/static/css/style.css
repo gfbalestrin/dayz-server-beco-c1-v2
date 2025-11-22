@@ -355,6 +355,21 @@ code {
     background-color: #dc3545 !important;
 }
 
+/* Destaque para veículos com alterações */
+.vehicle-high-changes {
+    background-color: #fff3cd !important;
+    border-left: 4px solid #ffc107;
+}
+
+.vehicle-high-changes:hover {
+    background-color: #ffe69c !important;
+}
+
+.vehicle-medium-changes {
+    background-color: #f8f9fa !important;
+    border-left: 2px solid #ffc107;
+}
+
 /* Barras de progresso customizadas */
 .progress {
     border-radius: 4px;
