@@ -155,73 +155,14 @@ function updatePositions(data) {
             return 'Nenhum';
         };
         
-        // Formatar conteúdo do tooltip seguindo padrão dos trails
+        // Formatar conteúdo do tooltip com informações essenciais apenas
         let tooltipContent = `
             <strong>👤 ${player.player_name}${player.steam_name ? ` (${player.steam_name})` : ''}</strong><br>
             ${player.is_online ? '🟢 <span class="value">Online</span>' : '🔴 <span class="value">Offline</span>'}<br>
-            ${player.is_admin ? '👑 <span class="value">Admin</span><br>' : ''}
             📍 Coords: <span class="value">X=${player.coord_x.toFixed(1)}, Y=${player.coord_y.toFixed(1)}</span><br>
             ${player.coord_z ? `📏 Altura: <span class="value">${player.coord_z.toFixed(1)}m</span><br>` : ''}
+            ⏰ Atualizado: <span class="value">${player.last_update || 'Desconhecido'}</span>
         `;
-        
-        // Adicionar informações de status de vida se disponíveis
-        if ((player.health !== null && player.health !== undefined) || 
-            (player.blood !== null && player.blood !== undefined) ||
-            (player.shock !== null && player.shock !== undefined)) {
-            tooltipContent += '<br><strong>💚 Status de Vida:</strong><br>';
-            if (player.health !== null && player.health !== undefined) {
-                tooltipContent += `❤️ Saúde: <span class="value">${player.health.toFixed(1)}</span><br>`;
-            }
-            if (player.blood !== null && player.blood !== undefined) {
-                tooltipContent += `🩸 Sangue: <span class="value">${player.blood.toFixed(0)}</span><br>`;
-            }
-            if (player.shock !== null && player.shock !== undefined) {
-                tooltipContent += `⚡ Shock: <span class="value">${player.shock.toFixed(0)}</span><br>`;
-            }
-            if (player.is_alive !== null && player.is_alive !== undefined) {
-                tooltipContent += `${player.is_alive ? '✅ <span class="value">Vivo</span>' : '💀 <span class="value">Morto</span>'}<br>`;
-            }
-        }
-        
-        // Adicionar informações de recursos se disponíveis
-        if ((player.energy !== null && player.energy !== undefined) || 
-            (player.water !== null && player.water !== undefined)) {
-            tooltipContent += '<br><strong>📦 Recursos:</strong><br>';
-            if (player.energy !== null && player.energy !== undefined) {
-                tooltipContent += `⚡ Energia: <span class="value">${player.energy.toFixed(1)}</span><br>`;
-            }
-            if (player.water !== null && player.water !== undefined) {
-                tooltipContent += `💧 Água: <span class="value">${player.water.toFixed(1)}</span><br>`;
-            }
-        }
-        
-        // Adicionar informações de stamina se disponíveis
-        if ((player.stamina !== null && player.stamina !== undefined) || 
-            (player.stamina_max !== null && player.stamina_max !== undefined)) {
-            tooltipContent += '<br><strong>🏃 Stamina:</strong><br>';
-            if (player.stamina !== null && player.stamina !== undefined && 
-                player.stamina_max !== null && player.stamina_max !== undefined) {
-                tooltipContent += `<span class="value">${player.stamina.toFixed(1)}/${player.stamina_max.toFixed(1)}</span><br>`;
-            } else if (player.stamina !== null && player.stamina !== undefined) {
-                tooltipContent += `<span class="value">${player.stamina.toFixed(1)}</span><br>`;
-            }
-        }
-        
-        // Adicionar informações de items se disponíveis
-        if (player.items_in_hands || 
-            (player.items_count !== null && player.items_count !== undefined)) {
-            tooltipContent += '<br><strong>🎒 Inventário:</strong><br>';
-            if (player.items_in_hands) {
-                const itemsHands = formatItemsArray(player.items_in_hands);
-                tooltipContent += `🤲 Mãos: <span class="value">${itemsHands}</span><br>`;
-            }
-            if (player.items_count !== null && player.items_count !== undefined) {
-                tooltipContent += `📊 Items: <span class="value">${player.items_count}</span><br>`;
-            }
-        }
-        
-        // Adicionar timestamp
-        tooltipContent += `<br>⏰ Atualizado: <span class="value">${player.last_update || 'Desconhecido'}</span>`;
         
         // Direção dinâmica baseada na posição no mapa
         const tooltipDirection = getTooltipDirectionForPoint(lat, lng);
@@ -867,24 +808,66 @@ function showPointActionsMenu(playerId, point, pointNumber) {
  * Aceita tanto dados de marcador principal quanto de pontos do trail
  */
 function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
+    // Função auxiliar para formatar arrays JSON de itens
+    const formatItemsArray = (itemsStr) => {
+        if (!itemsStr) return 'Nenhum';
+        try {
+            const items = JSON.parse(itemsStr);
+            if (Array.isArray(items) && items.length > 0) {
+                return items.join(', ');
+            }
+        } catch (e) {
+            return itemsStr;
+        }
+        return 'Nenhum';
+    };
+    
     // Determinar se é marcador principal ou ponto do trail
-    let playerName, coordX, coordY, coordZ, isOnline;
+    let playerName, steamName, coordX, coordY, coordZ, isOnline, isAdmin;
+    let health, blood, shock, isAlive, energy, water, stamina, staminaMax;
+    let itemsInHands, itemsCount, lastUpdate;
     
     if (targetPlayer.player_name !== undefined) {
         // Dados do marcador principal (player object completo)
         playerName = targetPlayer.player_name;
+        steamName = targetPlayer.steam_name;
         coordX = targetPlayer.coord_x;
         coordY = targetPlayer.coord_y;
         coordZ = targetPlayer.coord_z;
         isOnline = targetPlayer.is_online || false;
+        isAdmin = targetPlayer.is_admin || false;
+        health = targetPlayer.health;
+        blood = targetPlayer.blood;
+        shock = targetPlayer.shock;
+        isAlive = targetPlayer.is_alive;
+        energy = targetPlayer.energy;
+        water = targetPlayer.water;
+        stamina = targetPlayer.stamina;
+        staminaMax = targetPlayer.stamina_max;
+        itemsInHands = targetPlayer.items_in_hands;
+        itemsCount = targetPlayer.items_count;
+        lastUpdate = targetPlayer.last_update;
     } else {
         // Dados do ponto do trail (currentPointContext)
         const playerData = MapState.playersData[targetPlayerId];
         playerName = playerData ? playerData.name : 'Desconhecido';
+        steamName = playerData ? playerData.steamName : null;
         coordX = targetPlayer.coord_x;
         coordY = targetPlayer.coord_y;
         coordZ = targetPlayer.coord_z;
         isOnline = playerData ? playerData.isOnline : false;
+        isAdmin = false;
+        health = targetPlayer.health;
+        blood = targetPlayer.blood;
+        shock = targetPlayer.shock;
+        isAlive = targetPlayer.is_alive;
+        energy = targetPlayer.energy;
+        water = targetPlayer.water;
+        stamina = targetPlayer.stamina;
+        staminaMax = targetPlayer.stamina_max;
+        itemsInHands = targetPlayer.items_in_hands;
+        itemsCount = targetPlayer.items_count;
+        lastUpdate = targetPlayer.timestamp || targetPlayer.last_update;
     }
     
     // Armazenar contexto do jogador
@@ -896,6 +879,104 @@ function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
         coordZ: coordZ,
         isOnline: isOnline
     };
+    
+    // Preencher informações básicas
+    $('#playerMarkerName').html(`<strong>${playerName}</strong>`);
+    $('#playerMarkerSteam').text(steamName || 'N/A');
+    $('#playerMarkerStatus').html(isOnline ? '<span class="badge bg-success">Online</span>' : '<span class="badge bg-secondary">Offline</span>');
+    $('#playerMarkerAdmin').html(isAdmin ? '<span class="badge bg-warning">Sim</span>' : '<span class="badge bg-secondary">Não</span>');
+    $('#playerMarkerCoords').text(`X=${coordX.toFixed(1)}, Y=${coordY.toFixed(1)}`);
+    $('#playerMarkerHeight').find('p').text(coordZ ? `${coordZ.toFixed(1)}m` : 'N/A');
+    $('#playerMarkerLastUpdate').text(lastUpdate || 'Desconhecido');
+    
+    // Preencher status de vida
+    const hasHealthData = (health !== null && health !== undefined) || 
+                         (blood !== null && blood !== undefined) ||
+                         (shock !== null && shock !== undefined) ||
+                         (isAlive !== null && isAlive !== undefined);
+    
+    if (hasHealthData) {
+        $('#playerMarkerHealthSection').show();
+        if (health !== null && health !== undefined) {
+            $('#playerMarkerHealth').show().find('p').text(health.toFixed(1));
+        } else {
+            $('#playerMarkerHealth').hide();
+        }
+        if (blood !== null && blood !== undefined) {
+            $('#playerMarkerBlood').show().find('p').text(blood.toFixed(0));
+        } else {
+            $('#playerMarkerBlood').hide();
+        }
+        if (shock !== null && shock !== undefined) {
+            $('#playerMarkerShock').show().find('p').text(shock.toFixed(0));
+        } else {
+            $('#playerMarkerShock').hide();
+        }
+        if (isAlive !== null && isAlive !== undefined) {
+            $('#playerMarkerAlive').show().find('p').html(isAlive ? '<span class="badge bg-success">Vivo</span>' : '<span class="badge bg-danger">Morto</span>');
+        } else {
+            $('#playerMarkerAlive').hide();
+        }
+    } else {
+        $('#playerMarkerHealthSection').hide();
+    }
+    
+    // Preencher recursos
+    const hasResourcesData = (energy !== null && energy !== undefined) || 
+                            (water !== null && water !== undefined);
+    
+    if (hasResourcesData) {
+        $('#playerMarkerResourcesSection').show();
+        if (energy !== null && energy !== undefined) {
+            $('#playerMarkerEnergy').show().find('p').text(energy.toFixed(1));
+        } else {
+            $('#playerMarkerEnergy').hide();
+        }
+        if (water !== null && water !== undefined) {
+            $('#playerMarkerWater').show().find('p').text(water.toFixed(1));
+        } else {
+            $('#playerMarkerWater').hide();
+        }
+    } else {
+        $('#playerMarkerResourcesSection').hide();
+    }
+    
+    // Preencher stamina
+    const hasStaminaData = (stamina !== null && stamina !== undefined) || 
+                          (staminaMax !== null && staminaMax !== undefined);
+    
+    if (hasStaminaData) {
+        $('#playerMarkerStaminaSection').show();
+        let staminaText = '--';
+        if (stamina !== null && stamina !== undefined && staminaMax !== null && staminaMax !== undefined) {
+            staminaText = `${stamina.toFixed(1)}/${staminaMax.toFixed(1)}`;
+        } else if (stamina !== null && stamina !== undefined) {
+            staminaText = stamina.toFixed(1);
+        }
+        $('#playerMarkerStamina').find('p').text(staminaText);
+    } else {
+        $('#playerMarkerStaminaSection').hide();
+    }
+    
+    // Preencher inventário
+    const hasInventoryData = itemsInHands || (itemsCount !== null && itemsCount !== undefined);
+    
+    if (hasInventoryData) {
+        $('#playerMarkerInventorySection').show();
+        if (itemsInHands) {
+            const itemsHands = formatItemsArray(itemsInHands);
+            $('#playerMarkerItemsHands').show().find('p').text(itemsHands);
+        } else {
+            $('#playerMarkerItemsHands').hide();
+        }
+        if (itemsCount !== null && itemsCount !== undefined) {
+            $('#playerMarkerItemsCount').show().find('p').text(itemsCount.toString());
+        } else {
+            $('#playerMarkerItemsCount').hide();
+        }
+    } else {
+        $('#playerMarkerInventorySection').hide();
+    }
     
     // Mostrar modal de ações
     const modal = new bootstrap.Modal(document.getElementById('playerMarkerActionsModal'));

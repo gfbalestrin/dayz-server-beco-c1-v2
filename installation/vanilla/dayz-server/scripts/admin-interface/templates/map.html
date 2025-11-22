@@ -376,22 +376,146 @@
 
 <!-- Modal de Ações do Jogador -->
 <div class="modal fade" id="playerMarkerActionsModal" tabindex="-1">
-    <div class="modal-dialog modal-sm">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-user me-2"></i>Ações do Jogador
+                    <i class="fas fa-user me-2"></i>Informações e Ações do Jogador
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div class="d-grid gap-2">
-                    <button type="button" class="btn btn-primary" id="teleportPlayerActionBtn">
-                        <i class="fas fa-map-marker-alt me-2"></i>Teleportar Jogador
-                    </button>
-                    <button type="button" class="btn btn-info" id="checkInventoryActionBtn">
-                        <i class="fas fa-box me-2"></i>Verificar Inventário
-                    </button>
+                <!-- Seção de Informações Detalhadas -->
+                <div id="playerMarkerInfoSection" class="mb-4">
+                    <!-- Informações básicas -->
+                    <div class="mb-3">
+                        <h6 class="border-bottom pb-2">
+                            <i class="fas fa-info-circle me-2"></i>Informações Básicas
+                        </h6>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <small class="text-muted">Nome:</small>
+                                <p class="mb-0" id="playerMarkerName"><strong>--</strong></p>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Steam:</small>
+                                <p class="mb-0" id="playerMarkerSteam">--</p>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Status:</small>
+                                <p class="mb-0" id="playerMarkerStatus">--</p>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Admin:</small>
+                                <p class="mb-0" id="playerMarkerAdmin">--</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Status de Vida -->
+                    <div class="mb-3" id="playerMarkerHealthSection" style="display: none;">
+                        <h6 class="border-bottom pb-2">
+                            <i class="fas fa-heartbeat me-2"></i>Status de Vida
+                        </h6>
+                        <div class="row g-2">
+                            <div class="col-6" id="playerMarkerHealth" style="display: none;">
+                                <small class="text-muted">Saúde:</small>
+                                <p class="mb-0">--</p>
+                            </div>
+                            <div class="col-6" id="playerMarkerBlood" style="display: none;">
+                                <small class="text-muted">Sangue:</small>
+                                <p class="mb-0">--</p>
+                            </div>
+                            <div class="col-6" id="playerMarkerShock" style="display: none;">
+                                <small class="text-muted">Shock:</small>
+                                <p class="mb-0">--</p>
+                            </div>
+                            <div class="col-6" id="playerMarkerAlive" style="display: none;">
+                                <small class="text-muted">Estado:</small>
+                                <p class="mb-0">--</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Recursos -->
+                    <div class="mb-3" id="playerMarkerResourcesSection" style="display: none;">
+                        <h6 class="border-bottom pb-2">
+                            <i class="fas fa-battery-half me-2"></i>Recursos
+                        </h6>
+                        <div class="row g-2">
+                            <div class="col-6" id="playerMarkerEnergy" style="display: none;">
+                                <small class="text-muted">Energia:</small>
+                                <p class="mb-0">--</p>
+                            </div>
+                            <div class="col-6" id="playerMarkerWater" style="display: none;">
+                                <small class="text-muted">Água:</small>
+                                <p class="mb-0">--</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Stamina -->
+                    <div class="mb-3" id="playerMarkerStaminaSection" style="display: none;">
+                        <h6 class="border-bottom pb-2">
+                            <i class="fas fa-running me-2"></i>Stamina
+                        </h6>
+                        <div class="row g-2">
+                            <div class="col-12" id="playerMarkerStamina">
+                                <small class="text-muted">Stamina:</small>
+                                <p class="mb-0">--</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Inventário -->
+                    <div class="mb-3" id="playerMarkerInventorySection" style="display: none;">
+                        <h6 class="border-bottom pb-2">
+                            <i class="fas fa-box me-2"></i>Inventário
+                        </h6>
+                        <div class="row g-2">
+                            <div class="col-12" id="playerMarkerItemsHands" style="display: none;">
+                                <small class="text-muted">Mãos:</small>
+                                <p class="mb-0">--</p>
+                            </div>
+                            <div class="col-12" id="playerMarkerItemsCount" style="display: none;">
+                                <small class="text-muted">Total de Itens:</small>
+                                <p class="mb-0">--</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Coordenadas e Data -->
+                    <div class="mb-3">
+                        <h6 class="border-bottom pb-2">
+                            <i class="fas fa-map-marker-alt me-2"></i>Localização
+                        </h6>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <small class="text-muted">Coordenadas:</small>
+                                <p class="mb-0" id="playerMarkerCoords">--</p>
+                            </div>
+                            <div class="col-6" id="playerMarkerHeight">
+                                <small class="text-muted">Altura:</small>
+                                <p class="mb-0">--</p>
+                            </div>
+                            <div class="col-12">
+                                <small class="text-muted">Última Atualização:</small>
+                                <p class="mb-0" id="playerMarkerLastUpdate">--</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Botões de Ação -->
+                <div class="border-top pt-3">
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-primary" id="teleportPlayerActionBtn">
+                            <i class="fas fa-map-marker-alt me-2"></i>Teleportar Jogador
+                        </button>
+                        <button type="button" class="btn btn-info" id="checkInventoryActionBtn">
+                            <i class="fas fa-box me-2"></i>Verificar Inventário
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
