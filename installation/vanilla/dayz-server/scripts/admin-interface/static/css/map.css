@@ -550,3 +550,26 @@
 #selectedPlayersBadges .badge .remove-player:hover {
     opacity: 1;
 }
+
+/* Pesquisa de jogadores para teleporte */
+#teleportToPlayerSearchResults {
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin-top: 4px;
+}
+
+#teleportToPlayerSearchResults .list-group-item {
+    padding: 0.5rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    border: none;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+#teleportToPlayerSearchResults .list-group-item:hover {
+    background-color: #f8f9fa;
+}
+
+#teleportToPlayerSearchResults .list-group-item:last-child {
+    border-bottom: none;
+}

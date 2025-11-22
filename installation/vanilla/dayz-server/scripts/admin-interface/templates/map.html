@@ -410,131 +410,131 @@
             </div>
             <div class="modal-body">
                 <!-- Seção de Informações Detalhadas -->
-                <div id="playerMarkerInfoSection" class="mb-4">
+                <div id="playerMarkerInfoSection" class="mb-2">
                     <!-- Informações básicas -->
-                    <div class="mb-3">
-                        <h6 class="border-bottom pb-2">
+                    <div class="mb-2">
+                        <h6 class="border-bottom pb-1" style="font-size: 0.95rem; margin-bottom: 0.5rem;">
                             <i class="fas fa-info-circle me-2"></i>Informações Básicas
                         </h6>
                         <div class="row g-2">
                             <div class="col-6">
-                                <small class="text-muted">Nome:</small>
-                                <p class="mb-0" id="playerMarkerName"><strong>--</strong></p>
+                                <small class="text-muted d-block" style="font-size: 0.8rem;">Nome:</small>
+                                <span id="playerMarkerName" style="font-size: 0.9rem;"><strong>--</strong></span>
                             </div>
                             <div class="col-6">
-                                <small class="text-muted">Steam:</small>
-                                <p class="mb-0" id="playerMarkerSteam">--</p>
+                                <small class="text-muted d-block" style="font-size: 0.8rem;">Steam:</small>
+                                <span id="playerMarkerSteam" style="font-size: 0.9rem;">--</span>
                             </div>
                             <div class="col-6">
-                                <small class="text-muted">Status:</small>
-                                <p class="mb-0" id="playerMarkerStatus">--</p>
+                                <small class="text-muted d-block" style="font-size: 0.8rem;">Status:</small>
+                                <span id="playerMarkerStatus" style="font-size: 0.9rem;">--</span>
                             </div>
                             <div class="col-6">
-                                <small class="text-muted">Admin:</small>
-                                <p class="mb-0" id="playerMarkerAdmin">--</p>
+                                <small class="text-muted d-block" style="font-size: 0.8rem;">Admin:</small>
+                                <span id="playerMarkerAdmin" style="font-size: 0.9rem;">--</span>
                             </div>
                         </div>
                     </div>
                     
                     <!-- Status de Vida -->
-                    <div class="mb-3" id="playerMarkerHealthSection" style="display: none;">
-                        <h6 class="border-bottom pb-2">
+                    <div class="mb-2" id="playerMarkerHealthSection" style="display: none;">
+                        <h6 class="border-bottom pb-1" style="font-size: 0.95rem; margin-bottom: 0.5rem;">
                             <i class="fas fa-heartbeat me-2"></i>Status de Vida
                         </h6>
                         <div class="row g-2">
                             <div class="col-6" id="playerMarkerHealth" style="display: none;">
-                                <small class="text-muted">Saúde:</small>
-                                <p class="mb-0">--</p>
+                                <small class="text-muted d-block" style="font-size: 0.8rem;">Saúde:</small>
+                                <span style="font-size: 0.9rem;">--</span>
                             </div>
                             <div class="col-6" id="playerMarkerBlood" style="display: none;">
-                                <small class="text-muted">Sangue:</small>
-                                <p class="mb-0">--</p>
+                                <small class="text-muted d-block" style="font-size: 0.8rem;">Sangue:</small>
+                                <span style="font-size: 0.9rem;">--</span>
                             </div>
                             <div class="col-6" id="playerMarkerShock" style="display: none;">
-                                <small class="text-muted">Shock:</small>
-                                <p class="mb-0">--</p>
+                                <small class="text-muted d-block" style="font-size: 0.8rem;">Shock:</small>
+                                <span style="font-size: 0.9rem;">--</span>
                             </div>
                             <div class="col-6" id="playerMarkerAlive" style="display: none;">
-                                <small class="text-muted">Estado:</small>
-                                <p class="mb-0">--</p>
+                                <small class="text-muted d-block" style="font-size: 0.8rem;">Estado:</small>
+                                <span style="font-size: 0.9rem;">--</span>
                             </div>
                         </div>
                     </div>
                     
                     <!-- Recursos -->
-                    <div class="mb-3" id="playerMarkerResourcesSection" style="display: none;">
-                        <h6 class="border-bottom pb-2">
+                    <div class="mb-2" id="playerMarkerResourcesSection" style="display: none;">
+                        <h6 class="border-bottom pb-1" style="font-size: 0.95rem; margin-bottom: 0.5rem;">
                             <i class="fas fa-battery-half me-2"></i>Recursos
                         </h6>
                         <div class="row g-2">
                             <div class="col-6" id="playerMarkerEnergy" style="display: none;">
-                                <small class="text-muted">Energia:</small>
-                                <p class="mb-0">--</p>
+                                <small class="text-muted d-block" style="font-size: 0.8rem;">Energia:</small>
+                                <span style="font-size: 0.9rem;">--</span>
                             </div>
                             <div class="col-6" id="playerMarkerWater" style="display: none;">
-                                <small class="text-muted">Água:</small>
-                                <p class="mb-0">--</p>
+                                <small class="text-muted d-block" style="font-size: 0.8rem;">Água:</small>
+                                <span style="font-size: 0.9rem;">--</span>
                             </div>
                         </div>
                     </div>
                     
                     <!-- Stamina -->
-                    <div class="mb-3" id="playerMarkerStaminaSection" style="display: none;">
-                        <h6 class="border-bottom pb-2">
+                    <div class="mb-2" id="playerMarkerStaminaSection" style="display: none;">
+                        <h6 class="border-bottom pb-1" style="font-size: 0.95rem; margin-bottom: 0.5rem;">
                             <i class="fas fa-running me-2"></i>Stamina
                         </h6>
                         <div class="row g-2">
                             <div class="col-12" id="playerMarkerStamina">
-                                <small class="text-muted">Stamina:</small>
-                                <p class="mb-0">--</p>
+                                <small class="text-muted d-block" style="font-size: 0.8rem;">Stamina:</small>
+                                <span style="font-size: 0.9rem;">--</span>
                             </div>
                         </div>
                     </div>
                     
                     <!-- Inventário -->
-                    <div class="mb-3" id="playerMarkerInventorySection" style="display: none;">
-                        <h6 class="border-bottom pb-2">
+                    <div class="mb-2" id="playerMarkerInventorySection" style="display: none;">
+                        <h6 class="border-bottom pb-1" style="font-size: 0.95rem; margin-bottom: 0.5rem;">
                             <i class="fas fa-box me-2"></i>Inventário
                         </h6>
                         <div class="row g-2">
                             <div class="col-12" id="playerMarkerItemsHands" style="display: none;">
-                                <small class="text-muted">Mãos:</small>
-                                <p class="mb-0">--</p>
+                                <small class="text-muted d-block" style="font-size: 0.8rem;">Mãos:</small>
+                                <span style="font-size: 0.9rem;">--</span>
                             </div>
                             <div class="col-12" id="playerMarkerItemsCount" style="display: none;">
-                                <small class="text-muted">Total de Itens:</small>
-                                <p class="mb-0">--</p>
+                                <small class="text-muted d-block" style="font-size: 0.8rem;">Total de Itens:</small>
+                                <span style="font-size: 0.9rem;">--</span>
                             </div>
                         </div>
                     </div>
                     
                     <!-- Coordenadas e Data -->
-                    <div class="mb-3">
-                        <h6 class="border-bottom pb-2">
+                    <div class="mb-2">
+                        <h6 class="border-bottom pb-1" style="font-size: 0.95rem; margin-bottom: 0.5rem;">
                             <i class="fas fa-map-marker-alt me-2"></i>Localização
                         </h6>
                         <div class="row g-2">
                             <div class="col-6">
-                                <small class="text-muted">Coordenadas:</small>
-                                <p class="mb-0" id="playerMarkerCoords">--</p>
+                                <small class="text-muted d-block" style="font-size: 0.8rem;">Coordenadas:</small>
+                                <span id="playerMarkerCoords" style="font-size: 0.9rem;">--</span>
                             </div>
                             <div class="col-6" id="playerMarkerHeight">
-                                <small class="text-muted">Altura:</small>
-                                <p class="mb-0">--</p>
+                                <small class="text-muted d-block" style="font-size: 0.8rem;">Altura:</small>
+                                <span style="font-size: 0.9rem;">--</span>
                             </div>
                             <div class="col-12">
-                                <small class="text-muted">Última Atualização:</small>
-                                <p class="mb-0" id="playerMarkerLastUpdate">--</p>
+                                <small class="text-muted d-block" style="font-size: 0.8rem;">Última Atualização:</small>
+                                <span id="playerMarkerLastUpdate" style="font-size: 0.9rem;">--</span>
                             </div>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Botões de Ação -->
-                <div class="border-top pt-3">
+                <div class="border-top pt-2">
                     <div class="d-grid gap-2">
                         <button type="button" class="btn btn-primary" id="teleportPlayerActionBtn">
-                            <i class="fas fa-map-marker-alt me-2"></i>Teleportar Jogador
+                            <i class="fas fa-map-marker-alt me-2"></i>Teleportar Jogador Para Esta Posição
                         </button>
                         <button type="button" class="btn btn-info" id="checkInventoryActionBtn">
                             <i class="fas fa-box me-2"></i>Verificar Inventário
@@ -552,24 +552,29 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-map-marker-alt me-2"></i>Teleportar Jogador
+                    <i class="fas fa-map-marker-alt me-2"></i>Teleportar Jogador Para Esta Posição
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle me-2"></i>
-                    Selecione um jogador para teleportar para a posição indicada.
+                    Selecione um <strong>outro jogador online</strong> para teleportar para a posição do jogador selecionado.
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Jogador a Teleportar:</label>
-                    <select class="form-select" id="teleportToPlayerDropdown">
-                        <option value="">Carregando jogadores...</option>
-                    </select>
+                <div class="mb-3" style="position: relative;">
+                    <label class="form-label">Pesquisar Jogador Online:</label>
+                    <input type="text" class="form-control" id="teleportToPlayerSearch" placeholder="Digite o nome do jogador...">
+                    <div id="teleportToPlayerSearchResults" style="display: none; border: 1px solid #dee2e6; border-radius: 4px; margin-top: 4px; max-height: 200px; overflow-y: auto; background-color: white; position: absolute; z-index: 1000; width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.15);"></div>
                 </div>
-                <div id="teleportToPlayerInfo">
-                    <p><strong>Jogador de Destino:</strong> <span id="teleportToTargetPlayerName"></span></p>
-                    <p><strong>Coordenadas:</strong> <span id="teleportToTargetCoords"></span></p>
+                <div id="teleportToPlayerInfo" class="mt-3">
+                    <p class="mb-1"><strong>Jogador de Destino:</strong> <span id="teleportToTargetPlayerName"></span></p>
+                    <p class="mb-0"><strong>Coordenadas:</strong> <span id="teleportToTargetCoords"></span></p>
+                </div>
+                <div id="teleportToPlayerSelected" class="mt-3" style="display: none;">
+                    <div class="alert alert-success mb-0">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>Jogador selecionado:</strong> <span id="teleportToPlayerSelectedName"></span>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">

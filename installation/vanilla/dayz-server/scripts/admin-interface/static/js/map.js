@@ -170,6 +170,14 @@ $(document).ready(function() {
     
     // Botão de teleporte entre jogadores
     $('#confirmTeleportToPlayerBtn').on('click', executeTeleportToPlayer);
+    $('#teleportToPlayerSearch').on('input', handleTeleportToPlayerSearch);
+    
+    // Esconder resultados quando clicar fora
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('#teleportToPlayerSearch, #teleportToPlayerSearchResults').length) {
+            $('#teleportToPlayerSearchResults').hide();
+        }
+    });
     
     // Botão de confirmação de clonagem
     $('#confirmCloneCharacterBtn').on('click', executeCloneCharacter);

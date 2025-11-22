@@ -886,7 +886,7 @@ function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
     $('#playerMarkerStatus').html(isOnline ? '<span class="badge bg-success">Online</span>' : '<span class="badge bg-secondary">Offline</span>');
     $('#playerMarkerAdmin').html(isAdmin ? '<span class="badge bg-warning">Sim</span>' : '<span class="badge bg-secondary">Não</span>');
     $('#playerMarkerCoords').text(`X=${coordX.toFixed(1)}, Y=${coordY.toFixed(1)}`);
-    $('#playerMarkerHeight').find('p').text(coordZ ? `${coordZ.toFixed(1)}m` : 'N/A');
+    $('#playerMarkerHeight').find('span').text(coordZ ? `${coordZ.toFixed(1)}m` : 'N/A');
     $('#playerMarkerLastUpdate').text(lastUpdate || 'Desconhecido');
     
     // Preencher status de vida
@@ -898,22 +898,22 @@ function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
     if (hasHealthData) {
         $('#playerMarkerHealthSection').show();
         if (health !== null && health !== undefined) {
-            $('#playerMarkerHealth').show().find('p').text(health.toFixed(1));
+            $('#playerMarkerHealth').show().find('span').text(health.toFixed(1));
         } else {
             $('#playerMarkerHealth').hide();
         }
         if (blood !== null && blood !== undefined) {
-            $('#playerMarkerBlood').show().find('p').text(blood.toFixed(0));
+            $('#playerMarkerBlood').show().find('span').text(blood.toFixed(0));
         } else {
             $('#playerMarkerBlood').hide();
         }
         if (shock !== null && shock !== undefined) {
-            $('#playerMarkerShock').show().find('p').text(shock.toFixed(0));
+            $('#playerMarkerShock').show().find('span').text(shock.toFixed(0));
         } else {
             $('#playerMarkerShock').hide();
         }
         if (isAlive !== null && isAlive !== undefined) {
-            $('#playerMarkerAlive').show().find('p').html(isAlive ? '<span class="badge bg-success">Vivo</span>' : '<span class="badge bg-danger">Morto</span>');
+            $('#playerMarkerAlive').show().find('span').html(isAlive ? '<span class="badge bg-success">Vivo</span>' : '<span class="badge bg-danger">Morto</span>');
         } else {
             $('#playerMarkerAlive').hide();
         }
@@ -928,12 +928,12 @@ function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
     if (hasResourcesData) {
         $('#playerMarkerResourcesSection').show();
         if (energy !== null && energy !== undefined) {
-            $('#playerMarkerEnergy').show().find('p').text(energy.toFixed(1));
+            $('#playerMarkerEnergy').show().find('span').text(energy.toFixed(1));
         } else {
             $('#playerMarkerEnergy').hide();
         }
         if (water !== null && water !== undefined) {
-            $('#playerMarkerWater').show().find('p').text(water.toFixed(1));
+            $('#playerMarkerWater').show().find('span').text(water.toFixed(1));
         } else {
             $('#playerMarkerWater').hide();
         }
@@ -953,7 +953,7 @@ function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
         } else if (stamina !== null && stamina !== undefined) {
             staminaText = stamina.toFixed(1);
         }
-        $('#playerMarkerStamina').find('p').text(staminaText);
+        $('#playerMarkerStamina').find('span').text(staminaText);
     } else {
         $('#playerMarkerStaminaSection').hide();
     }
@@ -965,12 +965,12 @@ function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
         $('#playerMarkerInventorySection').show();
         if (itemsInHands) {
             const itemsHands = formatItemsArray(itemsInHands);
-            $('#playerMarkerItemsHands').show().find('p').text(itemsHands);
+            $('#playerMarkerItemsHands').show().find('span').text(itemsHands);
         } else {
             $('#playerMarkerItemsHands').hide();
         }
         if (itemsCount !== null && itemsCount !== undefined) {
-            $('#playerMarkerItemsCount').show().find('p').text(itemsCount.toString());
+            $('#playerMarkerItemsCount').show().find('span').text(itemsCount.toString());
         } else {
             $('#playerMarkerItemsCount').hide();
         }
@@ -1071,6 +1071,89 @@ function executeRestoreBackup() {
 }
 
 /**
+ * Armazenar lista de jogadores online para pesquisa
+ */
+let teleportToPlayerList = [];
+
+/**
+ * Pesquisar jogadores para teleporte
+ */
+function handleTeleportToPlayerSearch() {
+    const searchTerm = $('#teleportToPlayerSearch').val().toLowerCase().trim();
+    const resultsContainer = $('#teleportToPlayerSearchResults');
+    const selectedContainer = $('#teleportToPlayerSelected');
+    
+    // Limpar seleção se pesquisa mudou
+    $('#confirmTeleportToPlayerBtn').data('selectedPlayerId', null);
+    selectedContainer.hide();
+    
+    if (searchTerm === '') {
+        resultsContainer.hide();
+        return;
+    }
+    
+    // Filtrar jogadores que correspondem à pesquisa
+    const matchingPlayers = teleportToPlayerList
+        .filter(player => {
+            const name = (player.player_name || '').toLowerCase();
+            const steamName = (player.steam_name || '').toLowerCase();
+            const playerId = (player.player_id || '').toLowerCase();
+            
+            return name.includes(searchTerm) || 
+                   steamName.includes(searchTerm) || 
+                   playerId.includes(searchTerm);
+        })
+        .slice(0, 10); // Limitar a 10 resultados
+    
+    if (matchingPlayers.length === 0) {
+        resultsContainer.html('<div class="list-group-item text-muted">Nenhum jogador encontrado</div>');
+        resultsContainer.show();
+        return;
+    }
+    
+    // Renderizar resultados
+    resultsContainer.empty();
+    matchingPlayers.forEach(function(player) {
+        const displayName = player.player_name || player.player_id;
+        const steamName = player.steam_name ? ` (${player.steam_name})` : '';
+        const statusIcon = player.is_online ? '🟢' : '🔴';
+        
+        const item = $('<div class="list-group-item"></div>')
+            .html(`${statusIcon} ${displayName}${steamName}`)
+            .on('click', function() {
+                selectPlayerForTeleport(player);
+            });
+        
+        resultsContainer.append(item);
+    });
+    
+    resultsContainer.show();
+}
+
+/**
+ * Selecionar jogador para teleporte
+ */
+function selectPlayerForTeleport(player) {
+    const selectedContainer = $('#teleportToPlayerSelected');
+    const selectedName = $('#teleportToPlayerSelectedName');
+    const searchInput = $('#teleportToPlayerSearch');
+    const resultsContainer = $('#teleportToPlayerSearchResults');
+    
+    // Armazenar ID do jogador selecionado
+    $('#confirmTeleportToPlayerBtn').data('selectedPlayerId', player.player_id);
+    
+    // Mostrar jogador selecionado
+    const displayName = player.player_name || player.player_id;
+    const steamName = player.steam_name ? ` (${player.steam_name})` : '';
+    selectedName.text(`${displayName}${steamName}`);
+    selectedContainer.show();
+    
+    // Limpar pesquisa e esconder resultados
+    searchInput.val('');
+    resultsContainer.hide();
+}
+
+/**
  * Mostrar modal de teleporte de jogador para posição de outro jogador
  * Função auxiliar chamada pelo modal de ações
  */
@@ -1079,6 +1162,7 @@ function showTeleportToPlayerModal() {
         return;
     }
     
+    const targetPlayerId = MapState.currentPlayerContext.playerId;
     const playerName = MapState.currentPlayerContext.playerName;
     const coordX = MapState.currentPlayerContext.coordX;
     const coordY = MapState.currentPlayerContext.coordY;
@@ -1092,25 +1176,30 @@ function showTeleportToPlayerModal() {
     $('#confirmTeleportToPlayerBtn').data('coordX', coordX);
     $('#confirmTeleportToPlayerBtn').data('coordY', coordY);
     $('#confirmTeleportToPlayerBtn').data('coordZ', coordZ);
+    $('#confirmTeleportToPlayerBtn').data('selectedPlayerId', null);
     
-    // Limpar e popular dropdown com jogadores online
-    const dropdown = $('#teleportToPlayerDropdown');
-    dropdown.html('<option value="">Carregando jogadores...</option>');
+    // Limpar campos
+    $('#teleportToPlayerSearch').val('');
+    $('#teleportToPlayerSearchResults').hide();
+    $('#teleportToPlayerSelected').hide();
     
-    // Buscar jogadores online
+    // Buscar jogadores online (excluindo o próprio jogador)
     $.get('/api/players/online/positions')
         .done(function(data) {
-            dropdown.html('<option value="">Selecione um jogador</option>');
-            
-            data.players.forEach(function(player) {
-                const option = $('<option></option>');
-                option.val(player.player_id);
-                option.text(`${player.player_name}${player.steam_name ? ' (' + player.steam_name + ')' : ''}`);
-                dropdown.append(option);
+            // Filtrar o próprio jogador da lista
+            teleportToPlayerList = data.players.filter(function(player) {
+                return player.player_id !== targetPlayerId;
             });
+            
+            if (teleportToPlayerList.length === 0) {
+                $('#teleportToPlayerSearch').prop('disabled', true).attr('placeholder', 'Nenhum outro jogador online disponível');
+            } else {
+                $('#teleportToPlayerSearch').prop('disabled', false).attr('placeholder', 'Digite o nome do jogador...');
+            }
         })
         .fail(function() {
-            dropdown.html('<option value="">Erro ao carregar jogadores</option>');
+            $('#teleportToPlayerSearch').prop('disabled', true).attr('placeholder', 'Erro ao carregar jogadores');
+            teleportToPlayerList = [];
         });
     
     // Mostrar modal
@@ -1122,7 +1211,7 @@ function showTeleportToPlayerModal() {
  * Executar teleporte de jogador para posição
  */
 function executeTeleportToPlayer() {
-    const selectedPlayerId = $('#teleportToPlayerDropdown').val();
+    const selectedPlayerId = $('#confirmTeleportToPlayerBtn').data('selectedPlayerId');
     const coordX = $('#confirmTeleportToPlayerBtn').data('coordX');
     const coordY = $('#confirmTeleportToPlayerBtn').data('coordY');
     const coordZ = $('#confirmTeleportToPlayerBtn').data('coordZ');
