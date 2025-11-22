@@ -311,6 +311,8 @@ bool ExecuteCommand(TStringArray tokens)
                 return false;
             case "teleportvehicle":
                 return ExecuteTeleportVehicle(tokens);
+            case "teleportcontainer":
+                return ExecuteTeleportContainer(tokens);
             case "registercontainer":
                 if (tokens.Count() < 5)
                 {
@@ -2079,6 +2081,84 @@ bool ExecuteTeleportVehicle(TStringArray tokens)
     
     string vehicleName = targetVehicle.GetDisplayName();
     WriteToLog("ExecuteTeleportVehicle(): Veículo " + vehicleName + " (" + vehicleId + ") teleportado para X=" + newPos[0].ToString() + " Y=" + newPos[2].ToString() + " Z=" + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
+    
+    return true;
+}
+
+bool ExecuteTeleportContainer(TStringArray tokens)
+{
+    // Formato: SYSTEM teleportcontainer ContainerId CoordX Altura CoordY
+    // Seguindo o mesmo padrão do comando teleportvehicle
+    if (tokens.Count() < 6)
+    {
+        WriteToLog("ExecuteTeleportContainer(): Parâmetros insuficientes. Formato: SYSTEM teleportcontainer ContainerId CoordX Altura CoordY", LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    string containerIdStr = tokens[2];
+    float coordX = tokens[3].ToFloat();
+    float altura = tokens[4].ToFloat();
+    float coordY = tokens[5].ToFloat();
+    
+    int containerId = containerIdStr.ToInt();
+    
+    // Buscar container no array m_TrackedContainers
+    EntityAI targetContainer = null;
+    
+    if (!m_TrackedContainers || m_TrackedContainers.Count() == 0)
+    {
+        WriteToLog("ExecuteTeleportContainer(): Nenhum container rastreado encontrado", LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    foreach (EntityAI container : m_TrackedContainers)
+    {
+        if (!container)
+            continue;
+        
+        // Comparar ID do container
+        int currentContainerId = container.GetID();
+        if (currentContainerId == containerId)
+        {
+            targetContainer = container;
+            break;
+        }
+    }
+    
+    if (!targetContainer)
+    {
+        WriteToLog("ExecuteTeleportContainer(): Container não encontrado: " + containerIdStr, LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    // Verificar se container não está destruído
+    if (targetContainer.GetHealth("", "") <= 0)
+    {
+        WriteToLog("ExecuteTeleportContainer(): Container está destruído: " + containerIdStr, LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    // Criar vetor de posição
+    vector newPos = Vector(coordX, 0, coordY);
+    
+    // Se altura foi fornecida, usar. Caso contrário, calcular automaticamente
+    if (altura != 0)
+    {
+        newPos[1] = altura;
+        WriteToLog("ExecuteTeleportContainer(): Usando altura fornecida: " + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
+    }
+    else
+    {
+        // Calcular altura do terreno automaticamente
+        newPos[1] = GetGame().SurfaceY(newPos[0], newPos[2]);
+        WriteToLog("ExecuteTeleportContainer(): Ajustando altura automaticamente para: " + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
+    }
+    
+    // Teleportar container
+    targetContainer.SetPosition(newPos);
+    
+    string containerType = targetContainer.GetType();
+    WriteToLog("ExecuteTeleportContainer(): Container " + containerType + " (" + containerIdStr + ") teleportado para X=" + newPos[0].ToString() + " Y=" + newPos[2].ToString() + " Z=" + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
     
     return true;
 }
