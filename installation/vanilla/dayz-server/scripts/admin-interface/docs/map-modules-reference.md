@@ -89,6 +89,9 @@ Este documento lista todas as funções e variáveis públicas de cada módulo p
 - `showTrails`: Boolean indicando se trails estão visíveis
 - `showPlayers`: Boolean indicando se jogadores estão visíveis
 - `trailDateFilter`: Objeto com filtro de data dos trails
+- `scanMarkers`: Objeto com marcadores de objetos escaneados
+- `scanRegionCircle`: Círculo visual permanente durante escaneamento
+- `isScanning`: Boolean indicando se há escaneamento em andamento
 
 ### Funções Públicas
 - `loadPositions()`: Carrega posições dos jogadores
@@ -107,6 +110,20 @@ Este documento lista todas as funções e variáveis públicas de cada módulo p
 - `showPointActionsMenu(playerId, point, pointNumber)`: Mostra menu de ações do ponto
 - `showPlayerMarkerActions(targetPlayer, targetPlayerId)`: Mostra ações do marcador
 - `checkPlayerInventory(playerId, playerName)`: Verifica inventário do jogador
+- `scanRegion(coordX, coordY, coordZ, radius)`: Inicia escaneamento de região
+- `startScanPolling(requestId, attempt, centerX, centerY, centerZ, radius)`: Polling de resultados do escaneamento
+- `markObjectsOnMap(scanData)`: Marca objetos escaneados no mapa
+- `showScanRegionVisual(centerX, centerY, centerZ, radius)`: Mostra círculo visual permanente durante escaneamento
+- `clearScanState()`: Limpa estado de escaneamento
+- `clearScanMarkers()`: Remove todos os marcadores de objetos escaneados
+- `createScanObjectIcon(objectType)`: Cria ícone baseado no tipo de objeto
+- `scanRegion(coordX, coordY, coordZ, radius)`: Inicia escaneamento de região
+- `startScanPolling(requestId, attempt, centerX, centerY, centerZ, radius)`: Polling de resultados do escaneamento
+- `markObjectsOnMap(scanData)`: Marca objetos escaneados no mapa
+- `showScanRegionVisual(centerX, centerY, centerZ, radius)`: Mostra círculo visual permanente durante escaneamento
+- `clearScanState()`: Limpa estado de escaneamento
+- `clearScanMarkers()`: Remove todos os marcadores de objetos escaneados
+- `createScanObjectIcon(objectType)`: Cria ícone baseado no tipo de objeto
 
 ## map-vehicles.js
 
@@ -201,14 +218,21 @@ Este documento lista todas as funções e variáveis públicas de cada módulo p
 ## map-teleport.js
 
 ### Variáveis Globais (via MapState)
-- `currentMode`: Modo atual ('normal' ou 'teleport')
+- `currentMode`: Modo atual ('normal', 'teleport' ou 'scan')
 - `teleportTargetPlayer`: ID do jogador alvo do teleporte
 - `teleportTargetVehicle`: ID do veículo alvo do teleporte
+- `vehicleTeleportUseMapPosition`: Boolean indicando se deve usar posição do mapa para veículo
+- `scanCircle`: Círculo visual do cursor em modo scan
+- `isScanning`: Boolean indicando se há escaneamento em andamento
 
 ### Funções Públicas
-- `setMode(mode)`: Define modo de interação
+- `setMode(mode)`: Define modo de interação ('normal', 'teleport' ou 'scan')
 - `updateTeleportInfo()`: Atualiza mensagem de informação do teleporte
 - `handleTeleportClick(e)`: Processa clique no mapa em modo teleporte
+- `handleScanClick(e)`: Processa clique no mapa em modo scan
+- `updateScanCircle()`: Atualiza círculo visual do raio de escaneamento
+- `updateScanCirclePosition(e)`: Atualiza posição do círculo visual com o cursor
+- `clearScanCircle()`: Remove círculo visual do cursor
 - `showTeleportToPlayerModal()`: Mostra modal de teleporte de jogador
 - `executeTeleportToPlayer()`: Executa teleporte de jogador
 - `showVehicleTeleportModal(vehicleId)`: Mostra modal de teleporte de veículo
@@ -254,5 +278,35 @@ selectedPlayerFilters.push(playerId);
 ### Carregar histórico de container
 ```javascript
 loadContainerHistory(containerId, 0, '2024-01-01', '2024-01-31');
+```
+
+### Escanear região do mapa
+```javascript
+// Ativar modo scan
+setMode('scan');
+// Definir raio (1-100 metros)
+$('#scanRadiusInput').val(50);
+// Clique no mapa executará o escaneamento
+// O modo volta para 'normal' automaticamente após iniciar
+```
+
+### Limpar marcadores de escaneamento
+```javascript
+clearScanMarkers();
+```
+
+### Escanear região do mapa
+```javascript
+// Ativar modo scan
+setMode('scan');
+// Definir raio (1-100 metros)
+$('#scanRadiusInput').val(50);
+// Clique no mapa executará o escaneamento
+// O modo volta para 'normal' automaticamente após iniciar
+```
+
+### Limpar marcadores de escaneamento
+```javascript
+clearScanMarkers();
 ```
 

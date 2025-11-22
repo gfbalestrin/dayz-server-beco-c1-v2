@@ -59,12 +59,15 @@ map.js (principal)
 - Interface visual do log abaixo do mapa
 
 ### 6. map-players.js
-**Responsabilidade**: Lógica completa de jogadores
+**Responsabilidade**: Lógica completa de jogadores e escaneamento
 - Carregamento e atualização de posições
 - Detecção de mudanças
 - Sistema de trails
 - Filtros de jogadores
 - Ações: teleporte, backup, clonagem, inventário
+- Escaneamento de objetos em região do mapa
+- Marcação de objetos escaneados no mapa
+- Polling de resultados de comandos
 
 ### 7. map-vehicles.js
 **Responsabilidade**: Lógica de veículos
@@ -96,10 +99,12 @@ map.js (principal)
 - Ações de teleporte para posições de eventos
 
 ### 11. map-teleport.js
-**Responsabilidade**: Sistema de teleporte
-- Modos de interação (normal/teleporte)
+**Responsabilidade**: Sistema de teleporte e escaneamento
+- Modos de interação (normal/teleporte/scan)
 - Teleporte de jogadores
 - Teleporte de veículos
+- Escaneamento de região do mapa
+- Círculo visual de raio de escaneamento
 - Interface e validações
 
 ### 12. map.js

@@ -66,6 +66,13 @@ const MapState = {
     currentMode: 'normal',
     teleportTargetPlayer: null,
     teleportTargetVehicle: null,
+    vehicleTeleportUseMapPosition: false,
+    
+    // Escaneamento de região
+    scanCircle: null,
+    scanMarkers: {},
+    scanRegionCircle: null,
+    isScanning: false,
     
     // Notificações
     notificationsEnabled: true,
@@ -133,7 +140,27 @@ handleTeleportClick(e) [map-teleport.js]
               └─> $.ajax('/api/players/${id}/teleport')
 ```
 
-### 5. Sistema de Notificações
+### 5. Sistema de Escaneamento de Região
+
+```
+handleScanClick(e) [map-teleport.js]
+  ├─> Obtém raio do input (#scanRadiusInput)
+  ├─> pixelToDayz() [map-utils.js]
+  └─> scanRegion(coordX, coordY, coordZ, radius) [map-players.js]
+        ├─> Verifica MapState.isScanning (prevenção de múltiplos scans)
+        ├─> setMode('normal') (volta ao modo normal imediatamente)
+        ├─> showScanRegionVisual() [map-players.js]
+        │     └─> Cria círculo visual permanente no mapa
+        └─> $.ajax('/api/scan-region')
+              └─> startScanPolling(requestId) [map-players.js]
+                    └─> $.get('/api/commands/results/${requestId}')
+                          └─> markObjectsOnMap(scanData) [map-players.js]
+                                ├─> convertToMapCoords() [map-utils.js]
+                                ├─> createScanObjectIcon() [map-players.js]
+                                └─> MapState.scanMarkers atualizado
+```
+
+### 6. Sistema de Notificações
 
 ```
 detectPlayerChanges() [map-players.js]
@@ -213,7 +240,13 @@ MapState.selectedPlayerFilters = [];
 - `MapState.map` (de map-core.js)
 - `MapState.selectedPlayerFilters` (de map-players.js)
 - `MapState.vehiclesData` (de map-vehicles.js)
+- `MapState.isScanning` (de map-players.js)
 - Funções de map-utils.js
+
+### map-players.js (escaneamento) depende de:
+- `MapState.map` (de map-core.js)
+- `MapState.currentMapConfig` (de map-core.js)
+- Funções de map-utils.js para conversão de coordenadas
 
 ### map-vehicles.js depende de:
 - `MapState.map` (de map-core.js)
