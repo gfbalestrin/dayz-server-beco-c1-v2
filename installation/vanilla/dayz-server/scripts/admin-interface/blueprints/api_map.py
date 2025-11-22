@@ -82,7 +82,7 @@ def api_player_trail(player_id):
     
     for point in trail:
         pixel_coords = dayz_to_pixel(point['CoordX'], point['CoordY'])
-        result['trail'].append({
+        trail_point = {
             'player_coord_id': point['PlayerCoordId'],
             'coord_x': point['CoordX'],
             'coord_y': point['CoordY'],
@@ -90,7 +90,33 @@ def api_player_trail(player_id):
             'pixel_coords': pixel_coords,
             'timestamp': point['Data'] or '',
             'has_backup': bool(point.get('HasBackup', 0))
-        })
+        }
+        
+        # Adicionar campos de informações do jogador se estiverem disponíveis
+        if 'Health' in point and point['Health'] is not None:
+            trail_point['health'] = point['Health']
+        if 'Blood' in point and point['Blood'] is not None:
+            trail_point['blood'] = point['Blood']
+        if 'Shock' in point and point['Shock'] is not None:
+            trail_point['shock'] = point['Shock']
+        if 'Energy' in point and point['Energy'] is not None:
+            trail_point['energy'] = point['Energy']
+        if 'Water' in point and point['Water'] is not None:
+            trail_point['water'] = point['Water']
+        if 'IsAlive' in point and point['IsAlive'] is not None:
+            trail_point['is_alive'] = bool(point['IsAlive'])
+        if 'Stamina' in point and point['Stamina'] is not None:
+            trail_point['stamina'] = point['Stamina']
+        if 'StaminaMax' in point and point['StaminaMax'] is not None:
+            trail_point['stamina_max'] = point['StaminaMax']
+        if 'ItemsInHands' in point and point['ItemsInHands']:
+            trail_point['items_in_hands'] = point['ItemsInHands']
+        if 'ItemsCount' in point and point['ItemsCount'] is not None:
+            trail_point['items_count'] = point['ItemsCount']
+        if 'MainItems' in point and point['MainItems']:
+            trail_point['main_items'] = point['MainItems']
+        
+        result['trail'].append(trail_point)
     
     return jsonify(result)
 

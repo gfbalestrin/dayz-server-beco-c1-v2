@@ -2006,11 +2006,14 @@ def get_players_last_position() -> List[Dict]:
         return [dict(row) for row in cursor.fetchall()]
 
 def get_player_trail(player_id: str, limit: int = 100) -> List[Dict]:
-    """Retorna o histórico de movimento de um jogador com flag de backup"""
+    """Retorna o histórico de movimento de um jogador com flag de backup e informações do jogador"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT pc.PlayerCoordId, pc.CoordX, pc.CoordY, pc.CoordZ, pc.Data,
+                   pc.Health, pc.Blood, pc.Shock, pc.Energy, pc.Water,
+                   pc.IsAlive, pc.IsAdmin, pc.Stamina, pc.StaminaMax,
+                   pc.ItemsInHands, pc.ItemsCount, pc.MainItems,
                    CASE WHEN pcb.PlayerCoordId IS NOT NULL THEN 1 ELSE 0 END as HasBackup
             FROM players_coord pc
             LEFT JOIN (
