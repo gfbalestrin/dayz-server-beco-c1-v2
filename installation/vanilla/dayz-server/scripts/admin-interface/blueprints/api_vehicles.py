@@ -92,9 +92,35 @@ def api_vehicles_data():
         # Filtros
         include_destroyed_param = request.args.get('include_destroyed', 'false')
         include_destroyed = include_destroyed_param.lower() == 'true'
+        only_with_changes_param = request.args.get('only_with_changes', 'false')
+        only_with_changes = only_with_changes_param.lower() == 'true'
         date_from = request.args.get('date_from', None)
         date_to = request.args.get('date_to', None)
         search = request.args.get('search', None)
+        
+        # Parâmetros de ordenação do DataTables
+        order_column = request.args.get('order[0][column]', None)
+        order_dir = request.args.get('order[0][dir]', 'desc')
+        
+        # Mapear índice da coluna para campo do banco
+        column_map = {
+            '0': 'VehicleId',
+            '1': 'VehicleName',
+            '2': 'IsDestroyed',
+            '3': 'ChangeCount',  # Não ordenável no servidor, será ignorado
+            '6': 'TimeStamp'
+        }
+        
+        order_by = None
+        order_by_change_count = False
+        if order_column and order_column in column_map:
+            field = column_map[order_column]
+            # ChangeCount não pode ser ordenado no servidor (calculado depois)
+            if field == 'ChangeCount':
+                order_by_change_count = True
+                order_by_change_count_dir = order_dir.lower()
+            else:
+                order_by = (field, order_dir.lower())
         
         # Log de debug (pode ser removido depois)
         logger = logging.getLogger(__name__)
@@ -103,11 +129,15 @@ def api_vehicles_data():
         # Buscar dados paginados
         data, total_records = get_vehicles_paginated(
             include_destroyed=include_destroyed,
+            only_with_changes=only_with_changes,
             date_from=date_from,
             date_to=date_to,
             start=start,
             length=length,
-            search=search
+            search=search,
+            order_by=order_by,
+            order_by_change_count=order_by_change_count,
+            order_by_change_count_dir=order_by_change_count_dir if order_by_change_count else None
         )
         
         logger.debug(f"API vehicles/data - total_records: {total_records}, data length: {len(data)}")

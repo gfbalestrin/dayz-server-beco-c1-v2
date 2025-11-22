@@ -1,6 +1,30 @@
 $(document).ready(function() {
     let vehiclesTable;
     let currentVehicleId = null;
+    let autoRefreshInterval = null;
+    
+    // Função para atualizar contador de veículos
+    function updateVehiclesCount(recordsTotal, recordsFiltered) {
+        const total = parseInt(recordsTotal) || 0;
+        const filtered = parseInt(recordsFiltered) || 0;
+        
+        let countText = '';
+        if (filtered > 0 || total > 0) {
+            // Se há filtros aplicados e são diferentes, mostrar ambos
+            if (filtered !== total && total > 0 && filtered > 0) {
+                countText = filtered.toLocaleString('pt-BR') + ' de ' + total.toLocaleString('pt-BR');
+            } else if (filtered > 0) {
+                countText = filtered.toLocaleString('pt-BR');
+            } else if (total > 0) {
+                countText = total.toLocaleString('pt-BR');
+            }
+            countText += ' veículo' + ((filtered || total) !== 1 ? 's' : '');
+        } else {
+            countText = 'Nenhum veículo';
+        }
+        
+        $('#vehiclesCount').text(countText);
+    }
     
     // Inicializar DataTable
     function initDataTable() {
@@ -13,6 +37,7 @@ $(document).ready(function() {
                 data: function(d) {
                     // Converter explicitamente para string 'true'/'false' para garantir conversão correta
                     d.include_destroyed = $('#includeDestroyed').is(':checked') ? 'true' : 'false';
+                    d.only_with_changes = $('#onlyWithChanges').is(':checked') ? 'true' : 'false';
                     d.date_from = $('#dateFrom').val() || null;
                     d.date_to = $('#dateTo').val() || null;
                     if (d.search && d.search.value) {
@@ -22,6 +47,10 @@ $(document).ready(function() {
                     }
                 },
                 dataSrc: function(json) {
+                    // Atualizar contador quando receber resposta
+                    if (json && json.recordsTotal !== undefined) {
+                        updateVehiclesCount(json.recordsTotal, json.recordsFiltered);
+                    }
                     return json.data;
                 }
             },
@@ -50,6 +79,7 @@ $(document).ready(function() {
                 },
                 {
                     data: 'ChangeCount',
+                    orderable: true, // Ordenável - ordenação feita em memória no backend
                     render: function(data) {
                         const count = parseInt(data || 0);
                         let badgeClass = 'bg-success';
@@ -75,6 +105,7 @@ $(document).ready(function() {
                 },
                 {
                     data: null,
+                    orderable: false, // Não ordenável - coluna composta
                     render: function(data) {
                         const x = parseFloat(data.PositionX || 0).toFixed(2);
                         const y = parseFloat(data.PositionY || 0).toFixed(2);
@@ -84,6 +115,7 @@ $(document).ready(function() {
                 },
                 {
                     data: null,
+                    orderable: false, // Não ordenável - coluna composta
                     render: function(data) {
                         let healthHtml = '';
                         
@@ -146,6 +178,16 @@ $(document).ready(function() {
                 } else if (changeCount >= 3) {
                     $(row).addClass('vehicle-medium-changes');
                 }
+            },
+            drawCallback: function(settings) {
+                // Atualizar contador de veículos (fallback caso dataSrc não tenha atualizado)
+                try {
+                    const api = this.api();
+                    const pageInfo = api.page.info();
+                    updateVehiclesCount(pageInfo.recordsTotal, pageInfo.recordsFiltered);
+                } catch (e) {
+                    console.error('Erro ao atualizar contador de veículos:', e);
+                }
             }
         });
     }
@@ -179,23 +221,57 @@ $(document).ready(function() {
         return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
     }
     
-    // Event listeners para filtros
-    $('#includeDestroyed, #dateFrom, #dateTo').on('change', function() {
+    // Função para recarregar tabela
+    function reloadTable() {
         if (vehiclesTable) {
-            // Resetar para primeira página e recarregar dados do servidor
             vehiclesTable.page('first');
-            vehiclesTable.ajax.reload(null, false); // false = manter página atual (já resetamos acima)
+            vehiclesTable.ajax.reload(null, false);
         }
+    }
+    
+    // Event listeners para filtros
+    $('#includeDestroyed, #onlyWithChanges, #dateFrom, #dateTo').on('change', function() {
+        reloadTable();
     });
     
     $('#clearFilters').on('click', function() {
         $('#includeDestroyed').prop('checked', false);
+        $('#onlyWithChanges').prop('checked', false);
         $('#dateFrom').val('');
         $('#dateTo').val('');
-        if (vehiclesTable) {
-            vehiclesTable.ajax.reload();
-        }
+        reloadTable();
     });
+    
+    // Função para gerenciar auto refresh
+    function setupAutoRefresh() {
+        // Limpar intervalo anterior
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+            autoRefreshInterval = null;
+        }
+        
+        // Verificar se auto refresh está habilitado
+        if ($('#autoRefreshEnabled').is(':checked')) {
+            const intervalSeconds = parseInt($('#autoRefreshInterval').val()) || 30;
+            const intervalMs = Math.max(5000, intervalSeconds * 1000); // Mínimo 5 segundos
+            
+            autoRefreshInterval = setInterval(function() {
+                reloadTable();
+            }, intervalMs);
+        }
+    }
+    
+    // Event listeners para auto refresh
+    $('#autoRefreshEnabled').on('change', function() {
+        setupAutoRefresh();
+    });
+    
+    $('#autoRefreshInterval').on('change', function() {
+        setupAutoRefresh();
+    });
+    
+    // Inicializar auto refresh
+    setupAutoRefresh();
     
     // Event listener para botão de histórico (usando delegação)
     $(document).on('click', '.view-history-btn', function() {

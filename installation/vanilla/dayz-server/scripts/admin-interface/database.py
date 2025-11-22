@@ -553,7 +553,9 @@ def count_vehicle_changes(vehicle_id: str) -> int:
         return change_count
 
 def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str, 
-                          start: int, length: int, search: str = None) -> Tuple[List[Dict], int]:
+                          start: int, length: int, search: str = None, 
+                          order_by: Tuple[str, str] = None, only_with_changes: bool = False,
+                          order_by_change_count: bool = False, order_by_change_count_dir: str = None) -> Tuple[List[Dict], int]:
     """Retorna dados paginados de veículos com busca e filtros"""
     with DatabaseConnection(config.DB_LOGS) as conn:
         cursor = conn.cursor()
@@ -618,35 +620,128 @@ def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str
         else:
             total_records = total_all
         
-        # Query para dados paginados
-        data_query = f"""
-            SELECT vt.IdVehicleTracking, vt.VehicleId, vt.VehicleName,
-                   vt.PositionX, vt.PositionY, vt.PositionZ, vt.TimeStamp,
-                   IFNULL(vt.IsDestroyed, 0) as IsDestroyed, vt.DestroyedAt{health_columns}
-            FROM vehicles_tracking vt
-            INNER JOIN (
-                SELECT VehicleId, MAX(TimeStamp) as MaxTimeStamp
-                FROM vehicles_tracking
-                GROUP BY VehicleId
-            ) AS latest_vt ON vt.VehicleId = latest_vt.VehicleId AND vt.TimeStamp = latest_vt.MaxTimeStamp
-            {where_clause}
-            ORDER BY vt.TimeStamp DESC, vt.VehicleName
-            LIMIT ? OFFSET ?
-        """
+        # Se ordenação for por ChangeCount, precisamos buscar todos os dados primeiro
+        # para ordenar em memória, depois aplicar paginação
+        if order_by_change_count:
+            # Buscar TODOS os dados (sem paginação) para poder ordenar por ChangeCount
+            order_clause = "ORDER BY vt.TimeStamp DESC, vt.VehicleName"
+            data_query_all = f"""
+                SELECT vt.IdVehicleTracking, vt.VehicleId, vt.VehicleName,
+                       vt.PositionX, vt.PositionY, vt.PositionZ, vt.TimeStamp,
+                       IFNULL(vt.IsDestroyed, 0) as IsDestroyed, vt.DestroyedAt{health_columns}
+                FROM vehicles_tracking vt
+                INNER JOIN (
+                    SELECT VehicleId, MAX(TimeStamp) as MaxTimeStamp
+                    FROM vehicles_tracking
+                    GROUP BY VehicleId
+                ) AS latest_vt ON vt.VehicleId = latest_vt.VehicleId AND vt.TimeStamp = latest_vt.MaxTimeStamp
+                {where_clause}
+                {order_clause}
+            """
+            # Usar apenas os parâmetros de WHERE, sem LIMIT e OFFSET
+            query_params = params if len(params) <= 2 else params[:-2]
+            cursor.execute(data_query_all, query_params)
+            all_data = [dict(row) for row in cursor.fetchall()]
+            
+            # Calcular ChangeCount para todos
+            for vehicle in all_data:
+                vehicle_id = vehicle['VehicleId']
+                try:
+                    vehicle['ChangeCount'] = count_vehicle_changes(vehicle_id)
+                except Exception as e:
+                    vehicle['ChangeCount'] = 0
+            
+            # Aplicar filtro de apenas veículos com alterações (se necessário)
+            if only_with_changes:
+                all_data = [v for v in all_data if v.get('ChangeCount', 0) > 0]
+                # Atualizar total_records para refletir apenas veículos com alterações
+                total_records = len(all_data)
+            else:
+                # Atualizar total_records para refletir todos os veículos filtrados
+                total_records = len(all_data)
+            
+            # Ordenar por ChangeCount em memória
+            reverse_order = (order_by_change_count_dir == 'desc')
+            all_data.sort(key=lambda x: x.get('ChangeCount', 0), reverse=reverse_order)
+            
+            # Aplicar paginação após ordenação
+            data = all_data[start:start + length]
+        else:
+            # Construir ORDER BY normal
+            if order_by:
+                order_field, order_direction = order_by
+                # Validar campo e direção
+                valid_fields = ['VehicleId', 'VehicleName', 'IsDestroyed', 'TimeStamp']
+                if order_field in valid_fields:
+                    order_direction = 'DESC' if order_direction == 'desc' else 'ASC'
+                    order_clause = f"ORDER BY vt.{order_field} {order_direction}, vt.VehicleName"
+                else:
+                    order_clause = "ORDER BY vt.TimeStamp DESC, vt.VehicleName"
+            else:
+                order_clause = "ORDER BY vt.TimeStamp DESC, vt.VehicleName"
+            
+            # Query para dados paginados
+            data_query = f"""
+                SELECT vt.IdVehicleTracking, vt.VehicleId, vt.VehicleName,
+                       vt.PositionX, vt.PositionY, vt.PositionZ, vt.TimeStamp,
+                       IFNULL(vt.IsDestroyed, 0) as IsDestroyed, vt.DestroyedAt{health_columns}
+                FROM vehicles_tracking vt
+                INNER JOIN (
+                    SELECT VehicleId, MAX(TimeStamp) as MaxTimeStamp
+                    FROM vehicles_tracking
+                    GROUP BY VehicleId
+                ) AS latest_vt ON vt.VehicleId = latest_vt.VehicleId AND vt.TimeStamp = latest_vt.MaxTimeStamp
+                {where_clause}
+                {order_clause}
+                LIMIT ? OFFSET ?
+            """
+            
+            params.extend([length, start])
+            cursor.execute(data_query, params)
+            data = [dict(row) for row in cursor.fetchall()]
+            
+            # Adicionar contagem de alterações para cada veículo
+            # Otimização: calcular em batch para melhor performance
+            for vehicle in data:
+                vehicle_id = vehicle['VehicleId']
+                try:
+                    vehicle['ChangeCount'] = count_vehicle_changes(vehicle_id)
+                except Exception as e:
+                    # Em caso de erro, definir como 0
+                    vehicle['ChangeCount'] = 0
         
-        params.extend([length, start])
-        cursor.execute(data_query, params)
-        data = [dict(row) for row in cursor.fetchall()]
-        
-        # Adicionar contagem de alterações para cada veículo
-        # Otimização: calcular em batch para melhor performance
-        for vehicle in data:
-            vehicle_id = vehicle['VehicleId']
-            try:
-                vehicle['ChangeCount'] = count_vehicle_changes(vehicle_id)
-            except Exception as e:
-                # Em caso de erro, definir como 0
-                vehicle['ChangeCount'] = 0
+        # Aplicar filtro de apenas veículos com alterações (se não foi aplicado na ordenação por ChangeCount)
+        if only_with_changes and not order_by_change_count:
+            # Filtrar dados da página atual
+            data = [v for v in data if v.get('ChangeCount', 0) > 0]
+            
+            # Contar total de veículos com alterações (fazendo query sem paginação)
+            # Buscar todos os veículos que passam pelos filtros iniciais
+            count_query_all = f"""
+                SELECT DISTINCT vt.VehicleId
+                FROM vehicles_tracking vt
+                INNER JOIN (
+                    SELECT VehicleId, MAX(TimeStamp) as MaxTimeStamp
+                    FROM vehicles_tracking
+                    GROUP BY VehicleId
+                ) AS latest_vt ON vt.VehicleId = latest_vt.VehicleId AND vt.TimeStamp = latest_vt.MaxTimeStamp
+                {where_clause}
+            """
+            count_params = params[:-2] if len(params) > 2 else params  # Remover LIMIT e OFFSET se existirem
+            cursor.execute(count_query_all, count_params)
+            all_vehicle_ids = [row[0] for row in cursor.fetchall()]
+            
+            # Contar quantos têm alterações
+            vehicles_with_changes_count = 0
+            for vehicle_id in all_vehicle_ids:
+                try:
+                    change_count = count_vehicle_changes(vehicle_id)
+                    if change_count > 0:
+                        vehicles_with_changes_count += 1
+                except:
+                    pass
+            
+            total_records = vehicles_with_changes_count
         
         return data, total_records
 
