@@ -1379,6 +1379,11 @@ function executeRestoreBackup() {
 let teleportToPlayerList = [];
 
 /**
+ * Armazenar lista de jogadores offline para clonagem
+ */
+let cloneCharacterPlayerList = [];
+
+/**
  * Pesquisar jogadores para teleporte
  */
 function handleTeleportToPlayerSearch() {
@@ -1444,6 +1449,84 @@ function selectPlayerForTeleport(player) {
     
     // Armazenar ID do jogador selecionado
     $('#confirmTeleportToPlayerBtn').data('selectedPlayerId', player.player_id);
+    
+    // Mostrar jogador selecionado
+    const displayName = player.player_name || player.player_id;
+    const steamName = player.steam_name ? ` (${player.steam_name})` : '';
+    selectedName.text(`${displayName}${steamName}`);
+    selectedContainer.show();
+    
+    // Limpar pesquisa e esconder resultados
+    searchInput.val('');
+    resultsContainer.hide();
+}
+
+/**
+ * Pesquisar jogadores para clonagem
+ */
+function handleCloneCharacterSearch() {
+    const searchTerm = $('#cloneCharacterSearch').val().toLowerCase().trim();
+    const resultsContainer = $('#cloneCharacterSearchResults');
+    const selectedContainer = $('#cloneCharacterSelected');
+    
+    // Limpar seleção se pesquisa mudou
+    $('#confirmCloneCharacterBtn').data('selectedPlayerId', null);
+    selectedContainer.hide();
+    
+    if (searchTerm === '') {
+        resultsContainer.hide();
+        return;
+    }
+    
+    // Filtrar jogadores que correspondem à pesquisa
+    const matchingPlayers = cloneCharacterPlayerList
+        .filter(player => {
+            const name = (player.player_name || '').toLowerCase();
+            const steamName = (player.steam_name || '').toLowerCase();
+            const playerId = (player.player_id || '').toLowerCase();
+            
+            return name.includes(searchTerm) || 
+                   steamName.includes(searchTerm) || 
+                   playerId.includes(searchTerm);
+        })
+        .slice(0, 10); // Limitar a 10 resultados
+    
+    if (matchingPlayers.length === 0) {
+        resultsContainer.html('<div class="list-group-item text-muted">Nenhum jogador encontrado</div>');
+        resultsContainer.show();
+        return;
+    }
+    
+    // Renderizar resultados
+    resultsContainer.empty();
+    matchingPlayers.forEach(function(player) {
+        const displayName = player.player_name || player.player_id;
+        const steamName = player.steam_name ? ` (${player.steam_name})` : '';
+        const statusIcon = player.is_online ? '🟢' : '🔴';
+        
+        const item = $('<div class="list-group-item"></div>')
+            .html(`${statusIcon} ${displayName}${steamName}`)
+            .on('click', function() {
+                selectPlayerForClone(player);
+            });
+        
+        resultsContainer.append(item);
+    });
+    
+    resultsContainer.show();
+}
+
+/**
+ * Selecionar jogador para clonagem
+ */
+function selectPlayerForClone(player) {
+    const selectedContainer = $('#cloneCharacterSelected');
+    const selectedName = $('#cloneCharacterSelectedName');
+    const searchInput = $('#cloneCharacterSearch');
+    const resultsContainer = $('#cloneCharacterSearchResults');
+    
+    // Armazenar ID do jogador selecionado
+    $('#confirmCloneCharacterBtn').data('selectedPlayerId', player.player_id);
     
     // Mostrar jogador selecionado
     const displayName = player.player_name || player.player_id;
@@ -1717,36 +1800,32 @@ function showCloneCharacterModal(playerId, point, pointNumber) {
     // Armazenar dados
     $('#confirmCloneCharacterBtn').data('sourcePlayerId', playerId);
     $('#confirmCloneCharacterBtn').data('playerCoordId', point.player_coord_id);
+    $('#confirmCloneCharacterBtn').data('selectedPlayerId', null);
     
-    // Limpar e popular dropdown
-    const dropdown = $('#cloneCharacterDropdown');
-    dropdown.html('<option value="">Carregando jogadores...</option>');
+    // Limpar campos de pesquisa e seleção
+    $('#cloneCharacterSearch').val('');
+    $('#cloneCharacterSearchResults').hide();
+    $('#cloneCharacterSelected').hide();
     
     // Buscar TODOS os jogadores para filtrar apenas offline
     $.get('/api/players/positions')
         .done(function(data) {
-            const offlineCount = data.players.filter(p => !p.is_online).length;
+            // Filtrar apenas jogadores offline E diferentes do jogador de origem
+            cloneCharacterPlayerList = data.players.filter(function(player) {
+                return !player.is_online && player.player_id !== playerId;
+            });
             
-            if (offlineCount === 0) {
-                dropdown.html('<option value="">Nenhum jogador offline disponível</option>');
+            if (cloneCharacterPlayerList.length === 0) {
+                $('#cloneCharacterSearch').prop('disabled', true).attr('placeholder', 'Nenhum jogador offline disponível');
                 $('#confirmCloneCharacterBtn').prop('disabled', true);
             } else {
-                dropdown.html('<option value="">Selecione um jogador</option>');
+                $('#cloneCharacterSearch').prop('disabled', false).attr('placeholder', 'Digite o nome do jogador...');
                 $('#confirmCloneCharacterBtn').prop('disabled', false);
-                
-                // Adicionar apenas jogadores offline E diferentes do jogador de origem
-                data.players.forEach(function(player) {
-                    if (!player.is_online && player.player_id !== playerId) {
-                        const option = $('<option></option>');
-                        option.val(player.player_id);
-                        option.text(`${player.player_name}${player.steam_name ? ' (' + player.steam_name + ')' : ''}`);
-                        dropdown.append(option);
-                    }
-                });
             }
         })
         .fail(function() {
-            dropdown.html('<option value="">Erro ao carregar jogadores</option>');
+            $('#cloneCharacterSearch').prop('disabled', true).attr('placeholder', 'Erro ao carregar jogadores');
+            cloneCharacterPlayerList = [];
         });
     
     // Mostrar modal
@@ -1758,7 +1837,7 @@ function showCloneCharacterModal(playerId, point, pointNumber) {
  * Executar clonagem de personagem
  */
 function executeCloneCharacter() {
-    const targetPlayerId = $('#cloneCharacterDropdown').val();
+    const targetPlayerId = $('#confirmCloneCharacterBtn').data('selectedPlayerId');
     const sourcePlayerId = $('#confirmCloneCharacterBtn').data('sourcePlayerId');
     const playerCoordId = $('#confirmCloneCharacterBtn').data('playerCoordId');
     

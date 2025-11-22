@@ -850,11 +850,16 @@
                     <i class="fas fa-info-circle me-2"></i>
                     Selecione um jogador para receber o inventário/estado deste ponto.
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Jogador de Destino:</label>
-                    <select class="form-select" id="cloneCharacterDropdown">
-                        <option value="">Carregando jogadores...</option>
-                    </select>
+                <div class="mb-3" style="position: relative;">
+                    <label class="form-label">Pesquisar Jogador Offline:</label>
+                    <input type="text" class="form-control" id="cloneCharacterSearch" placeholder="Digite o nome do jogador...">
+                    <div id="cloneCharacterSearchResults" style="display: none; border: 1px solid #dee2e6; border-radius: 4px; margin-top: 4px; max-height: 200px; overflow-y: auto; background-color: white; position: absolute; z-index: 1000; width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.15);"></div>
+                </div>
+                <div id="cloneCharacterSelected" class="mt-3" style="display: none;">
+                    <div class="alert alert-success mb-0">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>Jogador selecionado:</strong> <span id="cloneCharacterSelectedName"></span>
+                    </div>
                 </div>
                 <div id="cloneCharacterInfo">
                     <p><strong>Origem:</strong> <span id="cloneSourcePlayerName"></span></p>

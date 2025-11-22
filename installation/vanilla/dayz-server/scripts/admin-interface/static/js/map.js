@@ -179,6 +179,21 @@ $(document).ready(function() {
     // Botão de confirmação de clonagem
     $('#confirmCloneCharacterBtn').on('click', executeCloneCharacter);
     
+    // Event listeners para pesquisa de clonagem
+    $('#cloneCharacterSearch').on('input', handleCloneCharacterSearch);
+    $('#cloneCharacterSearch').on('focus', handleCloneCharacterSearch);
+    $('#cloneCharacterSearch').on('blur', function() {
+        // Delay para permitir clique nos resultados
+        setTimeout(() => $('#cloneCharacterSearchResults').hide(), 200);
+    });
+    
+    // Esconder resultados quando clicar fora do modal de clonagem
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('#cloneCharacterSearch, #cloneCharacterSearchResults').length) {
+            $('#cloneCharacterSearchResults').hide();
+        }
+    });
+    
     // Limpar teleportTargetVehicle apenas quando modal for cancelado explicitamente
     $('#vehicleTeleportModal').on('hidden.bs.modal', function(e) {
         // Não limpar se foi fechado para usar posição do mapa
