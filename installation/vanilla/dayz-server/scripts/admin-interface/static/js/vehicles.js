@@ -11,7 +11,8 @@ $(document).ready(function() {
                 url: '/api/vehicles/data',
                 type: 'GET',
                 data: function(d) {
-                    d.include_destroyed = $('#includeDestroyed').is(':checked');
+                    // Converter explicitamente para string 'true'/'false' para garantir conversão correta
+                    d.include_destroyed = $('#includeDestroyed').is(':checked') ? 'true' : 'false';
                     d.date_from = $('#dateFrom').val() || null;
                     d.date_to = $('#dateTo').val() || null;
                     if (d.search && d.search.value) {
@@ -142,7 +143,9 @@ $(document).ready(function() {
     // Event listeners para filtros
     $('#includeDestroyed, #dateFrom, #dateTo').on('change', function() {
         if (vehiclesTable) {
-            vehiclesTable.ajax.reload();
+            // Resetar para primeira página e recarregar dados do servidor
+            vehiclesTable.page('first');
+            vehiclesTable.ajax.reload(null, false); // false = manter página atual (já resetamos acima)
         }
     });
     

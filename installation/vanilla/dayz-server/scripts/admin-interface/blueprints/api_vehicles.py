@@ -90,10 +90,15 @@ def api_vehicles_data():
         length = int(request.args.get('length', 50))
         
         # Filtros
-        include_destroyed = request.args.get('include_destroyed', 'false').lower() == 'true'
+        include_destroyed_param = request.args.get('include_destroyed', 'false')
+        include_destroyed = include_destroyed_param.lower() == 'true'
         date_from = request.args.get('date_from', None)
         date_to = request.args.get('date_to', None)
         search = request.args.get('search', None)
+        
+        # Log de debug (pode ser removido depois)
+        logger = logging.getLogger(__name__)
+        logger.debug(f"API vehicles/data - include_destroyed param: '{include_destroyed_param}', parsed: {include_destroyed}")
         
         # Buscar dados paginados
         data, total_records = get_vehicles_paginated(
@@ -104,6 +109,8 @@ def api_vehicles_data():
             length=length,
             search=search
         )
+        
+        logger.debug(f"API vehicles/data - total_records: {total_records}, data length: {len(data)}")
         
         return jsonify({
             'data': data,

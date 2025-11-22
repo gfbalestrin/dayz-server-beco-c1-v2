@@ -422,6 +422,7 @@ def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str
         # Verificar colunas disponíveis
         cursor.execute("PRAGMA table_info(vehicles_tracking)")
         columns = [row[1] for row in cursor.fetchall()]
+        has_is_destroyed = 'IsDestroyed' in columns
         
         health_columns = ""
         if 'EngineHealth' in columns:
@@ -435,7 +436,8 @@ def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str
         where_conditions = []
         params = []
         
-        if not include_destroyed:
+        # Aplicar filtro de destruídos apenas se a coluna existir e include_destroyed for False
+        if has_is_destroyed and not include_destroyed:
             where_conditions.append("(vt.IsDestroyed = 0 OR vt.IsDestroyed IS NULL)")
         
         if date_from:
