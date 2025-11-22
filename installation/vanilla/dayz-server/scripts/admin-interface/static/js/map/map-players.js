@@ -886,7 +886,7 @@ function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
     $('#playerMarkerStatus').html(isOnline ? '<span class="badge bg-success">Online</span>' : '<span class="badge bg-secondary">Offline</span>');
     $('#playerMarkerAdmin').html(isAdmin ? '<span class="badge bg-warning">Sim</span>' : '<span class="badge bg-secondary">Não</span>');
     $('#playerMarkerCoords').text(`X=${coordX.toFixed(1)}, Y=${coordY.toFixed(1)}`);
-    $('#playerMarkerHeight').find('span').text(coordZ ? `${coordZ.toFixed(1)}m` : 'N/A');
+    $('#playerMarkerHeight').find('span').last().text(coordZ ? `${coordZ.toFixed(1)}m` : 'N/A');
     $('#playerMarkerLastUpdate').text(lastUpdate || 'Desconhecido');
     
     // Preencher status de vida
@@ -898,22 +898,22 @@ function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
     if (hasHealthData) {
         $('#playerMarkerHealthSection').show();
         if (health !== null && health !== undefined) {
-            $('#playerMarkerHealth').show().find('span').text(health.toFixed(1));
+            $('#playerMarkerHealth').show().find('span').last().text(health.toFixed(1));
         } else {
             $('#playerMarkerHealth').hide();
         }
         if (blood !== null && blood !== undefined) {
-            $('#playerMarkerBlood').show().find('span').text(blood.toFixed(0));
+            $('#playerMarkerBlood').show().find('span').last().text(blood.toFixed(0));
         } else {
             $('#playerMarkerBlood').hide();
         }
         if (shock !== null && shock !== undefined) {
-            $('#playerMarkerShock').show().find('span').text(shock.toFixed(0));
+            $('#playerMarkerShock').show().find('span').last().text(shock.toFixed(0));
         } else {
             $('#playerMarkerShock').hide();
         }
         if (isAlive !== null && isAlive !== undefined) {
-            $('#playerMarkerAlive').show().find('span').html(isAlive ? '<span class="badge bg-success">Vivo</span>' : '<span class="badge bg-danger">Morto</span>');
+            $('#playerMarkerAlive').show().find('span').last().html(isAlive ? '<span class="badge bg-success">Vivo</span>' : '<span class="badge bg-danger">Morto</span>');
         } else {
             $('#playerMarkerAlive').hide();
         }
@@ -921,41 +921,37 @@ function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
         $('#playerMarkerHealthSection').hide();
     }
     
-    // Preencher recursos
+    // Preencher recursos e stamina
     const hasResourcesData = (energy !== null && energy !== undefined) || 
-                            (water !== null && water !== undefined);
+                            (water !== null && water !== undefined) ||
+                            (stamina !== null && stamina !== undefined) || 
+                            (staminaMax !== null && staminaMax !== undefined);
     
     if (hasResourcesData) {
         $('#playerMarkerResourcesSection').show();
         if (energy !== null && energy !== undefined) {
-            $('#playerMarkerEnergy').show().find('span').text(energy.toFixed(1));
+            $('#playerMarkerEnergy').show().find('span').last().text(energy.toFixed(1));
         } else {
             $('#playerMarkerEnergy').hide();
         }
         if (water !== null && water !== undefined) {
-            $('#playerMarkerWater').show().find('span').text(water.toFixed(1));
+            $('#playerMarkerWater').show().find('span').last().text(water.toFixed(1));
         } else {
             $('#playerMarkerWater').hide();
         }
+        if ((stamina !== null && stamina !== undefined) || (staminaMax !== null && staminaMax !== undefined)) {
+            let staminaText = '--';
+            if (stamina !== null && stamina !== undefined && staminaMax !== null && staminaMax !== undefined) {
+                staminaText = `${stamina.toFixed(1)}/${staminaMax.toFixed(1)}`;
+            } else if (stamina !== null && stamina !== undefined) {
+                staminaText = stamina.toFixed(1);
+            }
+            $('#playerMarkerStamina').show().find('span').last().text(staminaText);
+        } else {
+            $('#playerMarkerStamina').hide();
+        }
     } else {
         $('#playerMarkerResourcesSection').hide();
-    }
-    
-    // Preencher stamina
-    const hasStaminaData = (stamina !== null && stamina !== undefined) || 
-                          (staminaMax !== null && staminaMax !== undefined);
-    
-    if (hasStaminaData) {
-        $('#playerMarkerStaminaSection').show();
-        let staminaText = '--';
-        if (stamina !== null && stamina !== undefined && staminaMax !== null && staminaMax !== undefined) {
-            staminaText = `${stamina.toFixed(1)}/${staminaMax.toFixed(1)}`;
-        } else if (stamina !== null && stamina !== undefined) {
-            staminaText = stamina.toFixed(1);
-        }
-        $('#playerMarkerStamina').find('span').text(staminaText);
-    } else {
-        $('#playerMarkerStaminaSection').hide();
     }
     
     // Preencher inventário
@@ -965,12 +961,12 @@ function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
         $('#playerMarkerInventorySection').show();
         if (itemsInHands) {
             const itemsHands = formatItemsArray(itemsInHands);
-            $('#playerMarkerItemsHands').show().find('span').text(itemsHands);
+            $('#playerMarkerItemsHands').show().find('span').last().text(itemsHands);
         } else {
             $('#playerMarkerItemsHands').hide();
         }
         if (itemsCount !== null && itemsCount !== undefined) {
-            $('#playerMarkerItemsCount').show().find('span').text(itemsCount.toString());
+            $('#playerMarkerItemsCount').show().find('span').last().text(itemsCount.toString());
         } else {
             $('#playerMarkerItemsCount').hide();
         }
