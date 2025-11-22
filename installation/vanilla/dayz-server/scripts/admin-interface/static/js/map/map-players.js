@@ -1232,6 +1232,9 @@ function scanRegion(coordX, coordY, coordZ, radius) {
     // Desabilitar botão de escaneamento
     $('#btnModeScan').prop('disabled', true);
     
+    // Voltar para modo normal imediatamente após iniciar escaneamento
+    setMode('normal');
+    
     // Gerar request_id único
     const requestId = generateRequestId();
     
@@ -1332,7 +1335,7 @@ function startScanPolling(requestId, attempt, centerX, centerY, centerZ, radius)
     if (attempt >= MAX_ATTEMPTS) {
         showToast('Aviso', 'Tempo limite excedido. O servidor pode estar processando o comando.', 'warning');
         clearScanState();
-        setMode('normal');
+        // Modo normal já foi definido ao iniciar o escaneamento
         return;
     }
     
@@ -1344,7 +1347,7 @@ function startScanPolling(requestId, attempt, centerX, centerY, centerZ, radius)
                 markObjectsOnMap(response.data);
                 showToast('Sucesso', `Escaneamento concluído: ${response.data.objects ? response.data.objects.length : 0} objetos encontrados`, 'success');
                 clearScanState();
-                setMode('normal');
+                // Modo normal já foi definido ao iniciar o escaneamento
             } else if (response.status === 'not_found' || response.status === 'processing') {
                 // Resultado não encontrado ainda, continuar polling
                 setTimeout(function() {
@@ -1366,7 +1369,7 @@ function startScanPolling(requestId, attempt, centerX, centerY, centerZ, radius)
             } else {
                 showToast('Erro', 'Erro ao buscar resultado do escaneamento.', 'error');
                 clearScanState();
-                setMode('normal');
+                // Modo normal já foi definido ao iniciar o escaneamento
             }
         });
 }
