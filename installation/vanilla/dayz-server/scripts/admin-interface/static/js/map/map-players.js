@@ -783,6 +783,20 @@ function applyTrailDateFilter() {
  * Mostrar menu de ações do ponto
  */
 function showPointActionsMenu(playerId, point, pointNumber) {
+    // Função auxiliar para formatar arrays JSON de itens
+    const formatItemsArray = (itemsStr) => {
+        if (!itemsStr) return 'Nenhum';
+        try {
+            const items = JSON.parse(itemsStr);
+            if (Array.isArray(items) && items.length > 0) {
+                return items.join(', ');
+            }
+        } catch (e) {
+            return itemsStr;
+        }
+        return 'Nenhum';
+    };
+    
     // Armazenar contexto
     MapState.currentPointContext = {
         playerId: playerId,
@@ -790,6 +804,130 @@ function showPointActionsMenu(playerId, point, pointNumber) {
         pointNumber: pointNumber,
         hasBackup: point.has_backup
     };
+    
+    // Buscar dados do jogador
+    const playerData = MapState.playersData[playerId];
+    const playerName = playerData ? playerData.name : 'Desconhecido';
+    const steamName = playerData ? playerData.steamName : null;
+    const isOnline = playerData ? playerData.isOnline : false;
+    const isAdmin = playerData ? playerData.isAdmin : false;
+    
+    // Extrair dados do ponto
+    const coordX = point.coord_x;
+    const coordY = point.coord_y;
+    const coordZ = point.coord_z;
+    const health = point.health;
+    const blood = point.blood;
+    const shock = point.shock;
+    const isAlive = point.is_alive;
+    const energy = point.energy;
+    const water = point.water;
+    const stamina = point.stamina;
+    const staminaMax = point.stamina_max;
+    const itemsInHands = point.items_in_hands;
+    const itemsCount = point.items_count;
+    const pointDate = point.timestamp || point.last_update;
+    
+    // Preencher informações básicas - Cabeçalho
+    $('#pointMarkerName').html(`<i class="fas fa-user me-2"></i><strong>${playerName}</strong>`);
+    
+    // Preencher informações básicas - Card
+    $('#pointMarkerSteam').text(steamName || 'N/A');
+    $('#pointMarkerStatus').html(isOnline ? '<span class="badge bg-success">Online</span>' : '<span class="badge bg-secondary">Offline</span>');
+    $('#pointMarkerAdmin').html(isAdmin ? '<span class="badge bg-warning">Sim</span>' : '<span class="badge bg-secondary">Não</span>');
+    
+    // Preencher localização
+    $('#pointMarkerCoords').text(`X=${coordX.toFixed(1)}, Y=${coordY.toFixed(1)}`);
+    $('#pointMarkerHeight').find('span.fw-bold').text(coordZ ? `${coordZ.toFixed(1)}m` : 'N/A');
+    
+    // Preencher informações do ponto
+    $('#pointMarkerPointNumber').text(pointNumber.toString());
+    $('#pointMarkerPointDate').text(pointDate || 'Desconhecido');
+    
+    // Preencher status de vida
+    const hasHealthData = (health !== null && health !== undefined) || 
+                         (blood !== null && blood !== undefined) ||
+                         (shock !== null && shock !== undefined) ||
+                         (isAlive !== null && isAlive !== undefined);
+    
+    if (hasHealthData) {
+        $('#pointMarkerHealthSection').show();
+        if (health !== null && health !== undefined) {
+            $('#pointMarkerHealth').show().find('span.fw-bold').text(health.toFixed(1));
+        } else {
+            $('#pointMarkerHealth').hide();
+        }
+        if (blood !== null && blood !== undefined) {
+            $('#pointMarkerBlood').show().find('span.fw-bold').text(blood.toFixed(0));
+        } else {
+            $('#pointMarkerBlood').hide();
+        }
+        if (shock !== null && shock !== undefined) {
+            $('#pointMarkerShock').show().find('span.fw-bold').text(shock.toFixed(0));
+        } else {
+            $('#pointMarkerShock').hide();
+        }
+        if (isAlive !== null && isAlive !== undefined) {
+            $('#pointMarkerAlive').show().find('span').last().html(isAlive ? '<span class="badge bg-success">Vivo</span>' : '<span class="badge bg-danger">Morto</span>');
+        } else {
+            $('#pointMarkerAlive').hide();
+        }
+    } else {
+        $('#pointMarkerHealthSection').hide();
+    }
+    
+    // Preencher recursos e stamina
+    const hasResourcesData = (energy !== null && energy !== undefined) || 
+                            (water !== null && water !== undefined) ||
+                            (stamina !== null && stamina !== undefined) || 
+                            (staminaMax !== null && staminaMax !== undefined);
+    
+    if (hasResourcesData) {
+        $('#pointMarkerResourcesSection').show();
+        if (energy !== null && energy !== undefined) {
+            $('#pointMarkerEnergy').show().find('span.fw-bold').text(energy.toFixed(1));
+        } else {
+            $('#pointMarkerEnergy').hide();
+        }
+        if (water !== null && water !== undefined) {
+            $('#pointMarkerWater').show().find('span.fw-bold').text(water.toFixed(1));
+        } else {
+            $('#pointMarkerWater').hide();
+        }
+        if ((stamina !== null && stamina !== undefined) || (staminaMax !== null && staminaMax !== undefined)) {
+            let staminaText = '--';
+            if (stamina !== null && stamina !== undefined && staminaMax !== null && staminaMax !== undefined) {
+                staminaText = `${stamina.toFixed(1)}/${staminaMax.toFixed(1)}`;
+            } else if (stamina !== null && stamina !== undefined) {
+                staminaText = stamina.toFixed(1);
+            }
+            $('#pointMarkerStamina').show().find('span.fw-bold').text(staminaText);
+        } else {
+            $('#pointMarkerStamina').hide();
+        }
+    } else {
+        $('#pointMarkerResourcesSection').hide();
+    }
+    
+    // Preencher inventário
+    const hasInventoryData = itemsInHands || (itemsCount !== null && itemsCount !== undefined);
+    
+    if (hasInventoryData) {
+        $('#pointMarkerInventorySection').show();
+        if (itemsInHands) {
+            const itemsHands = formatItemsArray(itemsInHands);
+            $('#pointMarkerItemsHands').show().find('span.fw-bold').text(itemsHands);
+        } else {
+            $('#pointMarkerItemsHands').hide();
+        }
+        if (itemsCount !== null && itemsCount !== undefined) {
+            $('#pointMarkerItemsCount').show().find('span.fw-bold').text(itemsCount.toString());
+        } else {
+            $('#pointMarkerItemsCount').hide();
+        }
+    } else {
+        $('#pointMarkerInventorySection').hide();
+    }
     
     // Mostrar modal de ações
     const modal = new bootstrap.Modal(document.getElementById('pointActionsModal'));

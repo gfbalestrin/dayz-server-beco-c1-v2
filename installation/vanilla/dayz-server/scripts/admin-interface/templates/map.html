@@ -373,7 +373,7 @@
 
 <!-- Modal de Ações do Ponto -->
 <div class="modal fade" id="pointActionsModal" tabindex="-1">
-    <div class="modal-dialog modal-sm">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
@@ -382,16 +382,180 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div class="d-grid gap-2">
-                    <button type="button" class="btn btn-danger" id="restoreBackupActionBtn">
-                        <i class="fas fa-undo me-2"></i>Restaurar Backup
-                    </button>
-                    <button type="button" class="btn btn-primary" id="teleportActionBtn">
-                        <i class="fas fa-map-marker-alt me-2"></i>Teleportar para Posição
-                    </button>
-                    <button type="button" class="btn btn-success" id="cloneCharacterActionBtn">
-                        <i class="fas fa-clone me-2"></i>Clonar Personagem
-                    </button>
+                <!-- Cabeçalho: Nome do Jogador -->
+                <div class="text-center mb-3">
+                    <h5 id="pointMarkerName" class="mb-0"><i class="fas fa-user me-2"></i><strong>--</strong></h5>
+                </div>
+                
+                <!-- Informações Básicas -->
+                <div class="card mb-3 shadow-sm">
+                    <div class="card-body p-2">
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-user-tag me-1"></i>Steam
+                                </small>
+                                <span id="pointMarkerSteam" class="d-block fw-bold" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-circle me-1"></i>Status
+                                </small>
+                                <span id="pointMarkerStatus" class="d-block" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-user-shield me-1"></i>Admin
+                                </small>
+                                <span id="pointMarkerAdmin" class="d-block" style="font-size: 0.9rem;">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Status de Vida -->
+                <div class="card mb-3 shadow-sm" id="pointMarkerHealthSection" style="display: none;">
+                    <div class="card-header bg-danger text-white py-1 px-2">
+                        <small><i class="fas fa-heartbeat me-1"></i>Status de Vida</small>
+                    </div>
+                    <div class="card-body p-2">
+                        <div class="row g-2">
+                            <div class="col-3" id="pointMarkerHealth" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-heart text-danger me-1"></i>Saúde
+                                </small>
+                                <span class="d-block fw-bold text-danger" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-3" id="pointMarkerBlood" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-tint text-danger me-1"></i>Sangue
+                                </small>
+                                <span class="d-block fw-bold text-danger" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-3" id="pointMarkerShock" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-bolt text-warning me-1"></i>Shock
+                                </small>
+                                <span class="d-block fw-bold text-warning" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-3" id="pointMarkerAlive" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-heartbeat me-1"></i>Estado
+                                </small>
+                                <span class="d-block" style="font-size: 0.9rem;">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recursos -->
+                <div class="card mb-3 shadow-sm" id="pointMarkerResourcesSection" style="display: none;">
+                    <div class="card-header bg-info text-white py-1 px-2">
+                        <small><i class="fas fa-battery-full me-1"></i>Recursos</small>
+                    </div>
+                    <div class="card-body p-2">
+                        <div class="row g-2">
+                            <div class="col-4" id="pointMarkerEnergy" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-battery-full text-success me-1"></i>Energia
+                                </small>
+                                <span class="d-block fw-bold text-success" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-4" id="pointMarkerWater" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-tint text-primary me-1"></i>Água
+                                </small>
+                                <span class="d-block fw-bold text-primary" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-4" id="pointMarkerStamina" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-running text-info me-1"></i>Stamina
+                                </small>
+                                <span class="d-block fw-bold text-info" style="font-size: 0.9rem;">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Inventário -->
+                <div class="card mb-3 shadow-sm" id="pointMarkerInventorySection" style="display: none;">
+                    <div class="card-header bg-warning text-dark py-1 px-2">
+                        <small><i class="fas fa-box me-1"></i>Inventário</small>
+                    </div>
+                    <div class="card-body p-2">
+                        <div class="row g-2">
+                            <div class="col-6" id="pointMarkerItemsHands" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-hand-paper me-1"></i>Mãos
+                                </small>
+                                <span class="d-block fw-bold" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-6" id="pointMarkerItemsCount" style="display: none;">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-box me-1"></i>Total Itens
+                                </small>
+                                <span class="d-block fw-bold" style="font-size: 0.9rem;">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Localização -->
+                <div class="card mb-3 shadow-sm">
+                    <div class="card-header bg-secondary text-white py-1 px-2">
+                        <small><i class="fas fa-map-marker-alt me-1"></i>Localização</small>
+                    </div>
+                    <div class="card-body p-2">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-map-marker-alt text-danger me-1"></i>Coordenadas
+                                </small>
+                                <span id="pointMarkerCoords" class="d-block fw-bold" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-6" id="pointMarkerHeight">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-mountain text-secondary me-1"></i>Altura
+                                </small>
+                                <span class="d-block fw-bold" style="font-size: 0.9rem;">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Informações do Ponto -->
+                <div class="card mb-3 shadow-sm bg-primary text-white">
+                    <div class="card-body p-2">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <small class="d-block mb-1 opacity-75">
+                                    <i class="fas fa-list-ol me-1"></i>Ponto Número
+                                </small>
+                                <span id="pointMarkerPointNumber" class="d-block fw-bold" style="font-size: 0.9rem;">--</span>
+                            </div>
+                            <div class="col-6">
+                                <small class="d-block mb-1 opacity-75">
+                                    <i class="fas fa-clock me-1"></i>Data/Hora do Ponto
+                                </small>
+                                <span id="pointMarkerPointDate" class="d-block fw-bold" style="font-size: 0.9rem;">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Botões de Ação -->
+                <div class="border-top pt-2 mt-2">
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-danger" id="restoreBackupActionBtn">
+                            <i class="fas fa-undo me-2"></i>Restaurar Backup
+                        </button>
+                        <button type="button" class="btn btn-primary" id="teleportActionBtn">
+                            <i class="fas fa-map-marker-alt me-2"></i>Teleportar para Posição
+                        </button>
+                        <button type="button" class="btn btn-success" id="cloneCharacterActionBtn">
+                            <i class="fas fa-clone me-2"></i>Clonar Personagem
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
