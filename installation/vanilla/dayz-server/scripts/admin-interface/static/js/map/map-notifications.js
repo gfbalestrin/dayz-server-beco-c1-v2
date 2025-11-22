@@ -24,7 +24,15 @@ function addNotificationToLog(type, message, timestamp) {
     }
     
     const logContent = $('#notificationLogContent');
-    const isEmpty = logContent.find('.text-muted').length > 0;
+    const logContentElement = logContent[0];
+    
+    // Verificar se está no estado inicial (apenas mensagem "Nenhuma notificação ainda")
+    // Verifica se existe exatamente um filho que seja um div com classe text-muted e texto centralizado
+    const children = logContent.children();
+    const isEmpty = children.length === 1 && 
+                    children.first().hasClass('text-muted') && 
+                    children.first().hasClass('text-center') &&
+                    children.first().text().includes('Nenhuma notificação ainda');
     
     if (isEmpty) {
         logContent.empty();
@@ -66,8 +74,14 @@ function addNotificationToLog(type, message, timestamp) {
     
     logContent.prepend(logEntry);
     
-    if (logContent.children().length > 50) {
+    // Remover logs antigos se exceder o limite de 50
+    while (logContent.children().length > 50) {
         logContent.children().last().remove();
+    }
+    
+    // Scroll automático para o topo para mostrar o novo log
+    if (logContentElement) {
+        logContentElement.scrollTop = 0;
     }
 }
 
@@ -89,7 +103,7 @@ function toggleNotificationLog() {
         logCard.show();
     } else {
         logCard.hide();
-        clearNotificationLog();
+        // Não limpa os logs ao desativar - apenas esconde o card para manter o histórico
     }
 }
 
