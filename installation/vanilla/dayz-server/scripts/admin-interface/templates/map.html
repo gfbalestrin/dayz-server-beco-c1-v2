@@ -25,28 +25,30 @@
     }
 ] %}
 <!-- Topo Minimalista -->
-<div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-2">
-    <h2 class="mb-0">
-        <i class="fas fa-map me-2"></i>Mapa do Servidor
-    </h2>
-    <div class="d-flex gap-2">
-        <div class="badge bg-success">
+<div class="pt-3 pb-2 mb-2">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center mb-2 mb-lg-0">
+        <h2 class="mb-2 mb-lg-0">
+            <i class="fas fa-map me-2"></i>Mapa do Servidor
+        </h2>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+        <div class="badge bg-success map-badge-responsive">
             <i class="fas fa-circle"></i> <span id="mapOnlineCount">0</span> Online
         </div>
-        <div class="badge bg-secondary">
+        <div class="badge bg-secondary map-badge-responsive">
             <i class="fas fa-circle"></i> <span id="mapOfflineCount">0</span> Offline
         </div>
-        <div class="badge bg-primary">
+        <div class="badge bg-primary map-badge-responsive">
             <span id="mapTotalCount">0</span> Total
         </div>
-        <div class="badge bg-info">
+        <div class="badge bg-info map-badge-responsive">
             <i class="fas fa-car"></i> <span id="vehicleCount">0</span> Veículos
         </div>
-        <div class="badge bg-warning">
+        <div class="badge bg-warning map-badge-responsive">
             <i class="fas fa-box"></i> <span id="containerCount">0</span> Containers
         </div>
-        <div class="badge bg-danger">
+        <div class="badge bg-danger map-badge-responsive">
             <i class="fas fa-home"></i> <span id="fenceCount">0</span> Construções
+        </div>
         </div>
     </div>
 </div>
@@ -54,7 +56,7 @@
 <!-- Mapa e Sidebar -->
 <div class="row">
     <!-- Mapa -->
-    <div class="col-lg-9 mb-3">
+    <div class="col-12 col-md-12 col-lg-9 mb-3">
         <div class="position-relative">
             <div id="map" class="map-container" data-map-configs='{{ map_configs | tojson }}' data-map-default="chernarus"></div>
             
@@ -84,7 +86,7 @@
     </div>
     
     <!-- Sidebar Direita com Controles -->
-    <div class="col-lg-3">
+    <div class="col-12 col-md-12 col-lg-3">
         <!-- Botões de Modo -->
         <div class="card mb-2 card-modos">
             <div class="card-header bg-primary">
