@@ -82,7 +82,11 @@ handle_vehicles_positions() {
         # Processar items - filtrar apenas objetos válidos com tipo não vazio
         current_items=$(echo "$vehicle_data" | jq -c '.items[]? | select(.type != null and .type != "" and .type != "empty")' 2>/dev/null)
         # Processar attachments - filtrar apenas objetos válidos com tipo não vazio e ordenar por tipo para consistência
-        current_attachments=$(echo "$vehicle_data" | jq -c '[.attachments[]? | select(.type != null and .type != "" and .type != "empty") | {type: .type, health: (.health // null)}] | sort_by(.type)[]' 2>/dev/null)
+        if echo "$vehicle_data" | jq -e '.attachments | type == "array"' >/dev/null 2>&1; then
+            current_attachments=$(echo "$vehicle_data" | jq -c '.attachments[]? | select(.type != null and .type != "" and .type != "empty") | {type: .type, health: (.health // null)}' 2>/dev/null | sort)
+        else
+            current_attachments=""
+        fi
 
         local coord_x_fmt coord_z_fmt coord_y_fmt
         coord_x_fmt=$(format_coord "$coord_x")
@@ -118,10 +122,12 @@ handle_vehicles_positions() {
         if [[ $? -eq 0 && -n "$VehicleTrackingId" ]]; then
             processed_count=$((processed_count + 1))
             
-            # Inserir itens do veículo
+            # Inserir itens do veículo em lote
             if [[ -n "$current_items" ]]; then
-                local inserted_item_count item_data item_type item_health
-                inserted_item_count=0
+                local items_batch=()
+                local item_data item_type item_health
+                
+                # Coletar todos os items válidos em um array
                 while IFS= read -r item_data; do
                     if [[ -z "$item_data" || "$item_data" == "null" || "$item_data" == "empty" ]]; then
                         continue
@@ -133,22 +139,32 @@ handle_vehicles_positions() {
 
                     # Validar que o tipo não está vazio e não é "empty"
                     if [[ -n "$item_type" && "$item_type" != "empty" && "$item_type" != "null" ]]; then
-                        INSERT_VEHICLE_ITEM "$VehicleTrackingId" "$item_type" "$item_health" "$current_timestamp" >/dev/null
-                        if [[ $? -eq 0 ]]; then
-                            inserted_item_count=$((inserted_item_count + 1))
+                        # Adicionar ao array no formato "type|health"
+                        if [[ -n "$item_health" ]]; then
+                            items_batch+=("${item_type}|${item_health}")
+                        else
+                            items_batch+=("${item_type}")
                         fi
                     fi
                 done <<< "$current_items"
 
-                if [[ $inserted_item_count -gt 0 ]]; then
-                    echo "  -> $inserted_item_count item(s) inseridos no veículo $vehicle_id"
+                # Inserir todos os items em uma única transação
+                if [[ ${#items_batch[@]} -gt 0 ]]; then
+                    local inserted_item_count
+                    inserted_item_count=$(INSERT_VEHICLE_ITEMS_BATCH "$VehicleTrackingId" "$current_timestamp" "${items_batch[@]}" 2>/dev/null)
+                    if [[ $? -eq 0 && -n "$inserted_item_count" ]]; then
+                        Content="$inserted_item_count item(s) inseridos no veículo $vehicle_id"
+                        INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
+                    fi
                 fi
             fi
             
-            # Inserir attachments do veículo
+            # Inserir attachments do veículo em lote
             if [[ -n "$current_attachments" ]]; then
-                local inserted_attachment_count attachment_data attachment_type attachment_health
-                inserted_attachment_count=0
+                local attachments_batch=()
+                local attachment_data attachment_type attachment_health
+                
+                # Coletar todos os attachments válidos em um array
                 while IFS= read -r attachment_data; do
                     if [[ -z "$attachment_data" || "$attachment_data" == "null" || "$attachment_data" == "empty" ]]; then
                         continue
@@ -160,15 +176,26 @@ handle_vehicles_positions() {
 
                     # Validar que o tipo não está vazio e não é "empty"
                     if [[ -n "$attachment_type" && "$attachment_type" != "empty" && "$attachment_type" != "null" ]]; then
-                        INSERT_VEHICLE_ATTACHMENT "$VehicleTrackingId" "$attachment_type" "$attachment_health" "$current_timestamp" >/dev/null
-                        if [[ $? -eq 0 ]]; then
-                            inserted_attachment_count=$((inserted_attachment_count + 1))
+                        # Adicionar ao array no formato "type|health"
+                        if [[ -n "$attachment_health" ]]; then
+                            attachments_batch+=("${attachment_type}|${attachment_health}")
+                        else
+                            attachments_batch+=("${attachment_type}")
                         fi
                     fi
                 done <<< "$current_attachments"
 
-                if [[ $inserted_attachment_count -gt 0 ]]; then
-                    echo "  -> $inserted_attachment_count attachment(s) inseridos no veículo $vehicle_id"
+                # Inserir todos os attachments em uma única transação
+                if [[ ${#attachments_batch[@]} -gt 0 ]]; then
+                    local inserted_attachment_count
+                    inserted_attachment_count=$(INSERT_VEHICLE_ATTACHMENTS_BATCH "$VehicleTrackingId" "$current_timestamp" "${attachments_batch[@]}" 2>/dev/null)
+                    if [[ $? -eq 0 && -n "$inserted_attachment_count" ]]; then
+                        Content="$inserted_attachment_count attachment(s) inseridos no veículo $vehicle_id"
+                        INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
+                    else
+                        Content="Erro ao inserir attachments no veículo $vehicle_id (batch size: ${#attachments_batch[@]})"
+                        INSERT_CUSTOM_LOG "$Content" "ERROR" "$ScriptName"
+                    fi
                 fi
             fi
         else
