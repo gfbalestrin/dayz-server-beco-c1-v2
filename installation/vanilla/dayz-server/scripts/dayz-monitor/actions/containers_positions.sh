@@ -138,9 +138,10 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
         coord_y_cmp="$coord_y_log"
 
         local current_items current_items_str item_count
-        current_items=$(echo "$container_data" | jq -c '.items[]?' 2>/dev/null)
+        # Processar items - filtrar apenas objetos válidos com tipo não vazio
+        current_items=$(echo "$container_data" | jq -c '.items[]? | select(.type != null and .type != "" and .type != "empty")' 2>/dev/null)
         current_items_str=""
-        item_count=$(echo "$container_data" | jq '.items | length' 2>/dev/null || echo "0")
+        item_count=$(echo "$container_data" | jq '[.items[]? | select(.type != null and .type != "" and .type != "empty")] | length' 2>/dev/null || echo "0")
         if [[ -n "$current_items" ]]; then
             while IFS= read -r item_data; do
                 if [[ -z "$item_data" ]]; then
@@ -342,25 +343,43 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
             if [[ $? -eq 0 && -n "$ContainerTrackingId" ]]; then
                 processed_count=$((processed_count + 1))
 
+                # Inserir items do container em lote
                 if [[ -n "$current_items" ]]; then
-                    local inserted_item_count item_data item_type item_health
-                    inserted_item_count=0
+                    local items_batch=()
+                    local item_data item_type item_health
+                    
+                    # Coletar todos os items válidos em um array
                     while IFS= read -r item_data; do
-                        if [[ -z "$item_data" ]]; then
+                        if [[ -z "$item_data" || "$item_data" == "null" || "$item_data" == "empty" ]]; then
                             continue
                         fi
 
-                        item_type=$(echo "$item_data" | jq -r '.type')
-                        item_health=$(echo "$item_data" | jq -r '.health // empty')
+                        # Extrair tipo e health do item
+                        item_type=$(echo "$item_data" | jq -r '.type // empty' 2>/dev/null)
+                        item_health=$(echo "$item_data" | jq -r 'if .health != null and .health != "" then .health else empty end' 2>/dev/null)
 
-                        if [[ -n "$item_type" ]]; then
-                            INSERT_CONTAINER_ITEM "$ContainerTrackingId" "$item_type" "$item_health" "$current_timestamp" >/dev/null
-                            inserted_item_count=$((inserted_item_count + 1))
+                        # Validar que o tipo não está vazio e não é "empty"
+                        if [[ -n "$item_type" && "$item_type" != "empty" && "$item_type" != "null" ]]; then
+                            # Adicionar ao array no formato "type|health"
+                            if [[ -n "$item_health" ]]; then
+                                items_batch+=("${item_type}|${item_health}")
+                            else
+                                items_batch+=("${item_type}")
+                            fi
                         fi
                     done <<< "$current_items"
 
-                    if [[ $inserted_item_count -gt 0 ]]; then
-                        echo "  -> $inserted_item_count item(s) inseridos no container $container_id"
+                    # Inserir todos os items em uma única transação
+                    if [[ ${#items_batch[@]} -gt 0 ]]; then
+                        local inserted_item_count
+                        inserted_item_count=$(INSERT_CONTAINER_ITEMS_BATCH "$ContainerTrackingId" "$current_timestamp" "${items_batch[@]}" 2>/dev/null)
+                        if [[ $? -eq 0 && -n "$inserted_item_count" ]]; then
+                            Content="$inserted_item_count item(s) inseridos no container $container_id"
+                            #INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
+                        else
+                            Content="Erro ao inserir items no container $container_id (batch size: ${#items_batch[@]})"
+                            INSERT_CUSTOM_LOG "$Content" "ERROR" "$ScriptName"
+                        fi
                     fi
                 fi
             fi

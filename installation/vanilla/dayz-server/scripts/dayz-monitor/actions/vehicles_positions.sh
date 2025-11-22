@@ -154,7 +154,7 @@ handle_vehicles_positions() {
                     inserted_item_count=$(INSERT_VEHICLE_ITEMS_BATCH "$VehicleTrackingId" "$current_timestamp" "${items_batch[@]}" 2>/dev/null)
                     if [[ $? -eq 0 && -n "$inserted_item_count" ]]; then
                         Content="$inserted_item_count item(s) inseridos no veículo $vehicle_id"
-                        INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
+                        #INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
                     fi
                 fi
             fi
@@ -191,7 +191,7 @@ handle_vehicles_positions() {
                     inserted_attachment_count=$(INSERT_VEHICLE_ATTACHMENTS_BATCH "$VehicleTrackingId" "$current_timestamp" "${attachments_batch[@]}" 2>/dev/null)
                     if [[ $? -eq 0 && -n "$inserted_attachment_count" ]]; then
                         Content="$inserted_attachment_count attachment(s) inseridos no veículo $vehicle_id"
-                        INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
+                        #INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
                     else
                         Content="Erro ao inserir attachments no veículo $vehicle_id (batch size: ${#attachments_batch[@]})"
                         INSERT_CUSTOM_LOG "$Content" "ERROR" "$ScriptName"
