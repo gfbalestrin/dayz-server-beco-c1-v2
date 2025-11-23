@@ -1944,13 +1944,10 @@ void SendPlayersPositions()
         float energy = 0.0;
         float water = 0.0;
         
-        PlayerStats statsEnergy = player.GetStatEnergy();
-        if (statsEnergy)
-            energy = statsEnergy.Get();
-        
-        PlayerStats statsWater = player.GetStatWater();
-        if (statsWater)
-            water = statsWater.Get();
+        if (player.GetStatEnergy())
+            energy = player.GetStatEnergy().Get();
+        if (player.GetStatWater())
+            water = player.GetStatWater().Get();
 
         // Extrai status do jogador
         bool isAlive = player.IsAlive();
