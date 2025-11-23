@@ -797,29 +797,18 @@ INSERT_PLAYERS_POSITIONS_BATCH() {
             
             # Gerar timestamp único para este registro usando strftime com frações de segundo
             # Usar julianday para adicionar milissegundos incrementais (0.001s por registro)
+            # Sempre usar strftime para garantir que milissegundos sejam preservados
             # Se base_timestamp foi fornecido, usar ele; senão usar 'now'
             local timestamp_value
-            if [[ $row_index -eq 0 ]]; then
-                # Primeiro registro: usar timestamp base (0 milissegundos)
-                if [[ -n "$base_timestamp_param" ]]; then
-                    # Usar timestamp fornecido (momento da captura)
-                    timestamp_value="'$base_timestamp'"
-                else
-                    # Fallback: usar timestamp atual
-                    timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('now', 'localtime'))"
-                fi
+            # Converter milissegundos para fração de dia: row_index * 0.001 / 86400.0
+            local days_fraction
+            days_fraction=$(awk "BEGIN {printf \"%.10f\", $row_index * 0.001 / 86400.0}")
+            if [[ -n "$base_timestamp_param" ]]; then
+                # Usar timestamp fornecido + incremento de milissegundos (mesmo para row_index=0 para garantir formato consistente)
+                timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('$base_timestamp') + $days_fraction)"
             else
-                # Registros subsequentes: adicionar milissegundos incrementais ao timestamp base
-                # Converter milissegundos para fração de dia: row_index * 0.001 / 86400.0
-                local days_fraction
-                days_fraction=$(awk "BEGIN {printf \"%.10f\", $row_index * 0.001 / 86400.0}")
-                if [[ -n "$base_timestamp_param" ]]; then
-                    # Usar timestamp fornecido + incremento de milissegundos
-                    timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('$base_timestamp') + $days_fraction)"
-                else
-                    # Fallback: usar timestamp atual + incremento
-                    timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('now', 'localtime') + $days_fraction)"
-                fi
+                # Fallback: usar timestamp atual + incremento
+                timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('now', 'localtime') + $days_fraction)"
             fi
             
             # Construir valor SQL
