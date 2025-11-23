@@ -205,8 +205,8 @@ substituir_variaveis_script() {
     local steam_account_escaped=$(escape_sed_chars "$SteamAccount")
     local dayz_restart_minutes_escaped=$(escape_sed_chars "$DayzRestartMinutes")
     local app_folder_escaped=$(escape_sed_chars "${DayzFolder}/scripts")
-    local logs_db_escaped=$(escape_sed_chars "${DayzFolder}/databases/server_beco_c1_logs.db")
-    local players_db_escaped=$(escape_sed_chars "${DayzFolder}/databases/players_beco_c1.db")
+    local logs_db_escaped=$(escape_sed_chars "${app_folder_escaped}/databases/server_beco_c1_logs.db")
+    local players_db_escaped=$(escape_sed_chars "${app_folder_escaped}/databases/players_beco_c1.db")
     
     # Copia o template e substitui as variáveis com valores escapados
     if ! sed -e "s|__LINUX_USER_NAME__|${linux_user_escaped}|g" \
