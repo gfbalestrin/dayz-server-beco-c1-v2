@@ -101,12 +101,29 @@ void BuildContainersData(array<Object> worldObjects, out string containersJson, 
 
 		string itemsJson = "";
 		bool containerHasItems = false;
-		int containerId = 0;
+		string containerIdentifier = "";
 
 		EntityAI containerEntity = EntityAI.Cast(candidateObject);
 		if (containerEntity)
 		{
-			containerId = containerEntity.GetID();
+			int pidLow1 = 0;
+			int pidLow2 = 0;
+			int pidHigh1 = 0;
+			int pidHigh2 = 0;
+			containerEntity.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+
+			bool hasPersistent = false;
+			if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+			{
+				hasPersistent = true;
+			}
+
+			string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+			containerIdentifier = persistentKey;
+			if (!hasPersistent)
+			{
+				containerIdentifier = "pending-" + containerEntity.GetID().ToString();
+			}
 			CargoBase containerCargo = containerEntity.GetInventory().GetCargo();
 			if (containerCargo)
 			{
@@ -162,7 +179,7 @@ void BuildContainersData(array<Object> worldObjects, out string containersJson, 
 
 			string positionJson = "{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "}";
 			string orientationJson = "{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "}";
-			string containerJson = "{\"container_id\":\"" + containerId.ToString() + "\",\"container_type\":\"" + objectType + "\",\"position\":" + positionJson + ",\"orientation\":" + orientationJson + ",\"items\":[" + itemsJson + "]}";
+			string containerJson = "{\"container_id\":\"" + containerIdentifier + "\",\"container_type\":\"" + objectType + "\",\"position\":" + positionJson + ",\"orientation\":" + orientationJson + ",\"items\":[" + itemsJson + "]}";
 			if (containersJson != "")
 				containersJson += ",";
 			containersJson += containerJson;
@@ -390,7 +407,25 @@ void CheckContainersForLoot()
 		containersTotal++;
 
 		string containerType = container.GetType();
-		int containerId = container.GetID();
+		int pidLow1 = 0;
+		int pidLow2 = 0;
+		int pidHigh1 = 0;
+		int pidHigh2 = 0;
+		container.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+
+		bool hasPersistent = false;
+		if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+		{
+			hasPersistent = true;
+		}
+
+		string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+		string containerIdentifier = persistentKey;
+		if (!hasPersistent)
+		{
+			containerIdentifier = "pending-" + container.GetID().ToString();
+		}
+
 		vector containerPosition = container.GetPosition();
 		vector containerOrientation = container.GetOrientation();
 
@@ -440,7 +475,7 @@ void CheckContainersForLoot()
 
 		string positionJson = "{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "}";
 		string orientationJson = "{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "}";
-		string containerJson = "{\"container_id\":\"" + containerId.ToString() + "\",\"container_type\":\"" + containerType + "\",\"position\":" + positionJson + ",\"orientation\":" + orientationJson + ",\"items\":[" + itemsJson + "]}";
+		string containerJson = "{\"container_id\":\"" + containerIdentifier + "\",\"container_type\":\"" + containerType + "\",\"position\":" + positionJson + ",\"orientation\":" + orientationJson + ",\"items\":[" + itemsJson + "]}";
 		if (containersJson != "")
 			containersJson += ",";
 		containersJson += containerJson;

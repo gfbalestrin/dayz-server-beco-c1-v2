@@ -2100,8 +2100,6 @@ bool ExecuteTeleportContainer(TStringArray tokens)
     float altura = tokens[4].ToFloat();
     float coordY = tokens[5].ToFloat();
     
-    int containerId = containerIdStr.ToInt();
-    
     // Buscar container no array m_TrackedContainers
     EntityAI targetContainer = null;
     
@@ -2116,9 +2114,28 @@ bool ExecuteTeleportContainer(TStringArray tokens)
         if (!container)
             continue;
         
-        // Comparar ID do container
-        int currentContainerId = container.GetID();
-        if (currentContainerId == containerId)
+        // Gerar identificador do container (mesma lógica do LootTracking.c)
+        int pidLow1 = 0;
+        int pidLow2 = 0;
+        int pidHigh1 = 0;
+        int pidHigh2 = 0;
+        container.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+        
+        bool hasPersistent = false;
+        if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+        {
+            hasPersistent = true;
+        }
+        
+        string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+        string containerIdentifier = persistentKey;
+        if (!hasPersistent)
+        {
+            containerIdentifier = "pending-" + container.GetID().ToString();
+        }
+        
+        // Comparar com o ID fornecido
+        if (containerIdentifier == containerIdStr)
         {
             targetContainer = container;
             break;
