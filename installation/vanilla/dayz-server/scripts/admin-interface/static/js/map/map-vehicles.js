@@ -544,6 +544,11 @@ function toggleVehiclesDisplay() {
         // Resetar contador de veículos
         $('#vehicleCount').text('0');
     }
+    
+    // Atualizar visibilidade dos badges
+    if (typeof updateBadgesVisibility === 'function') {
+        updateBadgesVisibility();
+    }
 }
 
 /**

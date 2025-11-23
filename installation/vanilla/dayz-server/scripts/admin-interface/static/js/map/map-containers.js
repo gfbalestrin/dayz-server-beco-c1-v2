@@ -522,6 +522,11 @@ function toggleContainersDisplay() {
         // Resetar contador de containers
         $('#containerCount').text('0');
     }
+    
+    // Atualizar visibilidade dos badges
+    if (typeof updateBadgesVisibility === 'function') {
+        updateBadgesVisibility();
+    }
 }
 
 /**

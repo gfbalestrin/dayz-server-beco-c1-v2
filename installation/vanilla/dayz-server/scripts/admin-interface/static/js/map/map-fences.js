@@ -282,6 +282,11 @@ function toggleFencesDisplay() {
         // Resetar contador de fences
         $('#fenceCount').text('0');
     }
+    
+    // Atualizar visibilidade dos badges
+    if (typeof updateBadgesVisibility === 'function') {
+        updateBadgesVisibility();
+    }
 }
 
 /**

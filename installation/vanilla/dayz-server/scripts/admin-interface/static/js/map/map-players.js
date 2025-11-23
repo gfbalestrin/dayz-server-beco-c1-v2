@@ -843,6 +843,11 @@ function togglePlayersDisplay() {
         // Atualizar visibilidade do botão de trails
         updateTrailButtonVisibility();
     }
+    
+    // Atualizar visibilidade dos badges
+    if (typeof updateBadgesVisibility === 'function') {
+        updateBadgesVisibility();
+    }
 }
 
 /**

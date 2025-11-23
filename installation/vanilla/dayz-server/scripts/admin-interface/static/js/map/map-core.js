@@ -373,6 +373,9 @@ function initMap() {
     });
     
     console.log('Mapa inicializado com imagem:', MapState.currentMapConfig.image);
+    
+    // Atualizar visibilidade dos badges baseado nos estados iniciais
+    updateBadgesVisibility();
 }
 
 /**
@@ -387,6 +390,44 @@ function showLoading() {
  */
 function hideLoading() {
     $('#mapLoadingIndicator').hide();
+}
+
+/**
+ * Atualizar visibilidade dos badges baseado nos estados de visualização
+ * Badges só são exibidos quando a visualização correspondente está ativa
+ */
+function updateBadgesVisibility() {
+    // Badges de jogadores (Online, Offline, Total) - mostrar apenas se showPlayers estiver ativo
+    const playersBadges = $('#mapOnlineCount, #mapOfflineCount, #mapTotalCount').closest('.badge');
+    if (MapState.showPlayers) {
+        playersBadges.show();
+    } else {
+        playersBadges.hide();
+    }
+    
+    // Badge de veículos - mostrar apenas se showVehicles estiver ativo
+    const vehicleBadge = $('#vehicleCount').closest('.badge');
+    if (MapState.showVehicles) {
+        vehicleBadge.show();
+    } else {
+        vehicleBadge.hide();
+    }
+    
+    // Badge de containers - mostrar apenas se showContainers estiver ativo
+    const containerBadge = $('#containerCount').closest('.badge');
+    if (MapState.showContainers) {
+        containerBadge.show();
+    } else {
+        containerBadge.hide();
+    }
+    
+    // Badge de construções - mostrar apenas se showFences estiver ativo
+    const fenceBadge = $('#fenceCount').closest('.badge');
+    if (MapState.showFences) {
+        fenceBadge.show();
+    } else {
+        fenceBadge.hide();
+    }
 }
 
 /**
