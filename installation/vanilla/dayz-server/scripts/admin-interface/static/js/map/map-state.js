@@ -34,6 +34,9 @@ const MapState = {
     // Dados completos dos trails (para comparação entre pontos)
     playerTrailsData: {},
     
+    // Proteção contra requisições duplicadas de trails
+    loadingTrails: {},
+    
     // Estados anteriores (para detecção de mudanças)
     previousPlayersData: {},
     previousVehiclesData: {},

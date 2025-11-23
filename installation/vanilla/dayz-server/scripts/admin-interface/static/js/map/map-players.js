@@ -389,6 +389,11 @@ function updatePositions(data) {
 function loadPlayerTrail(playerId) {
     if (!MapState.showTrails) return;
     
+    // Proteção contra requisições duplicadas
+    if (MapState.loadingTrails[playerId]) {
+        return; // Já há uma requisição em andamento para este jogador
+    }
+    
     // Verificar filtro "Apenas online"
     const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
     if (onlineOnlyFilterActive) {
@@ -409,6 +414,9 @@ function loadPlayerTrail(playerId) {
         }
     }
     
+    // Marcar como "em andamento"
+    MapState.loadingTrails[playerId] = true;
+    
     $.get(`/api/players/${playerId}/trail`, { limit: 100 })
         .done(function(data) {
             // Verificar novamente se filtro ainda está ativo e jogador ainda está online
@@ -417,6 +425,7 @@ function loadPlayerTrail(playerId) {
                 const playerData = MapState.playersData[playerId];
                 if (!playerData || !playerData.isOnline) {
                     // Jogador ficou offline durante o carregamento, não desenhar trail
+                    delete MapState.loadingTrails[playerId];
                     return;
                 }
             }
@@ -427,6 +436,10 @@ function loadPlayerTrail(playerId) {
         })
         .fail(function() {
             console.error('Erro ao carregar trail');
+        })
+        .always(function() {
+            // Sempre limpar flag de "em andamento" ao finalizar (sucesso ou erro)
+            delete MapState.loadingTrails[playerId];
         });
 }
 
@@ -1005,26 +1018,9 @@ function filterPlayers() {
     }
     
     // Recarregar posições
+    // Nota: loadPositions() já carrega trails automaticamente quando showTrails está ativo,
+    // então não é necessário recarregar trails aqui novamente
     loadPositions();
-    
-    // Se trails estavam ativos, recarregar para jogadores visíveis após um delay
-    if (MapState.showTrails) {
-        setTimeout(function() {
-            // Carregar trails apenas de jogadores visíveis (respeitando filtro "Apenas online")
-            const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
-            Object.keys(MapState.playerMarkers).forEach(function(playerId) {
-                // Se filtro "Apenas online" está ativo, verificar se jogador está online
-                if (onlineOnlyFilterActive) {
-                    const playerData = MapState.playersData[playerId];
-                    if (!playerData || !playerData.isOnline) {
-                        // Jogador está offline, não carregar trail
-                        return;
-                    }
-                }
-                loadPlayerTrail(playerId);
-            });
-        }, 500);
-    }
 }
 
 /**

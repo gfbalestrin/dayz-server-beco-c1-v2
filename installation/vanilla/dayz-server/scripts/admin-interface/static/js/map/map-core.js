@@ -449,10 +449,8 @@ function toggleAutoRefresh() {
             if (MapState.showFences && typeof loadFences === 'function') loadFences();
             if (MapState.showKills && typeof loadKills === 'function') loadKills();
             if (MapState.showDamages && typeof loadDamages === 'function') loadDamages();
-            // Recarregar trails se estiverem ativos, respeitando filtro atual
-            if (MapState.showTrails && typeof reapplyCurrentTrailFilter === 'function') {
-                reapplyCurrentTrailFilter(); // Respeita atalho rápido ou filtro personalizado selecionado
-            }
+            // Nota: Não chamar reapplyCurrentTrailFilter() aqui porque loadPositions() já carrega trails
+            // quando showTrails está ativo. Chamar reapplyCurrentTrailFilter() causaria requisições duplicadas.
         }, intervalMs);
         console.log(`Auto-refresh ligado (${intervalSeconds} segundos)`);
     } else {
