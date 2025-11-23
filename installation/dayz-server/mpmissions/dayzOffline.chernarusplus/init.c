@@ -213,8 +213,8 @@ class CustomMission: MissionServer
 			SendPlayersPositions(players);
 
 			// Tracking de veículos a cada 10 segundos (otimizado para performance)
-			CleanTrackedVehicles(); // Limpa veículos destruídos do array
-			SendVehiclesPositions(); // Envia posições de todos os veículos rastreados
+			//CleanTrackedVehicles(); // Limpa veículos destruídos do array
+			//SendVehiclesPositions(); // Envia posições de todos os veículos rastreados
 
 			CheckCommands();
 			array<string> msgs = CheckMessages();
@@ -307,14 +307,14 @@ class CustomMission: MissionServer
 				CleanUpDeadEntitiesNearPlayers();
 			} 
 			
-			CleanTrackedFences(); // Limpa cercas destruídas do array
-			SendFencesStatus(); // Envia status de todas as cercas rastreadas
-			CleanTrackedWatchtowers(); // Limpa watchtowers removidas do array
-			SendWatchtowersStatus(); // Envia status das watchtowers rastreadas
-			CleanTrackedFlags(); // Limpa flags inválidas do array
-			SendFlagsStatus(); // Envia status das flags rastreadas
-			CleanTrackedContainers(); // Limpa containers destruídos do array
-			CheckContainersForLoot(); // Verifica e envia containers que receberam loot
+			//CleanTrackedFences(); // Limpa cercas destruídas do array
+			//SendFencesStatus(); // Envia status de todas as cercas rastreadas
+			//CleanTrackedWatchtowers(); // Limpa watchtowers removidas do array
+			//SendWatchtowersStatus(); // Envia status das watchtowers rastreadas
+			//CleanTrackedFlags(); // Limpa flags inválidas do array
+			//SendFlagsStatus(); // Envia status das flags rastreadas
+			//CleanTrackedContainers(); // Limpa containers destruídos do array
+			//CheckContainersForLoot(); // Verifica e envia containers que receberam loot
 			
 			ListActivePlayers();
 			//SendPlayersPositions();		
