@@ -30,7 +30,7 @@ ScriptName=$(basename "$0")
 SEND_DISCORD_WEBHOOK "⚠️ Servidor reiniciando e atualizando... Todos os jogadores foram desconectados!" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
 INSERT_CUSTOM_LOG "⚠️ Servidor reiniciando e atualizando... Todos os jogadores foram desconectados!" "INFO" "$ScriptName"
 
-__APP_FOLDER__/__APP_SCRIPT_UPDATE_PLAYERS_ONLINE_FILE__ "RESET"
+"__APP_FOLDER__/$AppScriptUpdatePlayersOnlineFile" "RESET"
 
 # Faz backup do banco de players ANTES de qualquer operação de wipe
 CURRENT_DATE=$(date "+%Y-%m-%d_%H-%M-%S")
@@ -135,7 +135,7 @@ fi
 
 if [[ "$DayzWipeOnRestart" == "1" ]]; then
 	INSERT_CUSTOM_LOG "Realizando wipe do servidor DayZ" "INFO" "$ScriptName"
-	PROFILE_DIR="__DAYZ_SERVER_FOLDER__/mpmissions/__DAYZ_MPMISSION__/storage_1"
+	PROFILE_DIR="__DAYZ_FOLDER__/mpmissions/__DAYZ_MPMISSION__/storage_1"
 	INSERT_CUSTOM_LOG "PROFILE_DIR: $PROFILE_DIR" "INFO" "$ScriptName"
 	rm -rf "$PROFILE_DIR/players.db"
 	rm -rf "$PROFILE_DIR/spawnpoints.bin"

@@ -157,6 +157,19 @@ export CONFIG_FILE
 # Executa config.sh
 source "$CONFIG_SCRIPT"
 
+# Função auxiliar para escapar caracteres especiais no sed (para delimitador |)
+escape_sed_chars() {
+    local str="$1"
+    # Escapa caracteres especiais na ordem correta:
+    # 1. Barras invertidas primeiro (para não duplicar escape)
+    # 2. Pipes (delimitador usado)
+    # 3. Ampersands (caractere especial do sed)
+    str="${str//\\/\\\\}"
+    str="${str//|/\\|}"
+    str="${str//&/\\&}"
+    echo "$str"
+}
+
 # Função para substituir variáveis em scripts template
 substituir_variaveis_script() {
     local template_file="$1"
@@ -167,22 +180,52 @@ substituir_variaveis_script() {
         return 1
     fi
     
-    # Copia o template e substitui as variáveis
-    sed -e "s|__LINUX_USER_NAME__|${LinuxUserName}|g" \
-        -e "s|__DAYZ_FOLDER__|${DayzFolder}|g" \
-        -e "s|__DAYZ_MPMISSION__|${DayzMpmission}|g" \
-        -e "s|__STEAM_ACCOUNT__|${SteamAccount}|g" \
-        -e "s|__DAYZ_RESTART_MINUTES__|${DayzRestartMinutes}|g" \
-        -e "s|__DAY_ACCEL__|10|g" \
-        -e "s|__NIGHT_ACCEL__|3|g" \
-        -e "s|__DAYZ_SERVER_FOLDER__|${DayzServerFolder}|g" \
-        -e "s|__APP_FOLDER__|${AppFolder}|g" \
-        -e "s|__APP_SCRIPT_UPDATE_PLAYERS_ONLINE_FILE__|${AppScriptUpdatePlayersOnlineFile}|g" \
-        -e "s|__APP_SERVER_BECO_C1_LOGS_DB_FILE__|${AppServerBecoC1LogsDbFile}|g" \
-        -e "s|__APP_PLAYER_BECO_C1_DB_FILE__|${AppPlayerBecoC1DbFile}|g" \
-        "$template_file" > "$destino_file"
+    # Valida que todas as variáveis necessárias estão definidas e não vazias
+    local variaveis_necessarias=(
+        "LinuxUserName"
+        "DayzFolder"
+        "DayzMpmission"
+        "SteamAccount"
+        "DayzRestartMinutes"
+    )
+    
+    for var_name in "${variaveis_necessarias[@]}"; do
+        local var_value="${!var_name:-}"
+        if [ -z "$var_value" ]; then
+            echo "Erro: Variável '$var_name' não está definida ou está vazia" >&2
+            echo "Verifique se o arquivo de configuração foi carregado corretamente" >&2
+            return 1
+        fi
+    done
+    
+    # Escapa os valores das variáveis para uso seguro no sed
+    local linux_user_escaped=$(escape_sed_chars "$LinuxUserName")
+    local dayz_folder_escaped=$(escape_sed_chars "$DayzFolder")
+    local dayz_mpmission_escaped=$(escape_sed_chars "$DayzMpmission")
+    local steam_account_escaped=$(escape_sed_chars "$SteamAccount")
+    local dayz_restart_minutes_escaped=$(escape_sed_chars "$DayzRestartMinutes")
+    local app_folder_escaped=$(escape_sed_chars "${DayzFolder}/scripts")
+    local logs_db_escaped=$(escape_sed_chars "${DayzFolder}/databases/server_beco_c1_logs.db")
+    local players_db_escaped=$(escape_sed_chars "${DayzFolder}/databases/players_beco_c1.db")
+    
+    # Copia o template e substitui as variáveis com valores escapados
+    if ! sed -e "s|__LINUX_USER_NAME__|${linux_user_escaped}|g" \
+            -e "s|__DAYZ_FOLDER__|${dayz_folder_escaped}|g" \
+            -e "s|__DAYZ_MPMISSION__|${dayz_mpmission_escaped}|g" \
+            -e "s|__STEAM_ACCOUNT__|${steam_account_escaped}|g" \
+            -e "s|__DAYZ_RESTART_MINUTES__|${dayz_restart_minutes_escaped}|g" \
+            -e "s|__DAY_ACCEL__|10|g" \
+            -e "s|__NIGHT_ACCEL__|3|g" \
+            -e "s|__APP_FOLDER__|${app_folder_escaped}|g" \
+            -e "s|__APP_SERVER_BECO_C1_LOGS_DB_FILE__|${logs_db_escaped}|g" \
+            -e "s|__APP_PLAYER_BECO_C1_DB_FILE__|${players_db_escaped}|g" \
+            "$template_file" > "$destino_file"; then
+        echo "Erro: Falha ao processar template '$template_file' com sed" >&2
+        return 1
+    fi
     
     chmod +x "$destino_file"
+    return 0
 }
 
 # Função para copiar scripts e pastas do repositório
