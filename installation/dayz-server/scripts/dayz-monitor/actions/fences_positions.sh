@@ -2,11 +2,17 @@
 
 handle_fences_positions() {
     local line="$1"
+    local captured_timestamp="$2"  # Timestamp capturado no momento da leitura
 
     echo ">> Recebendo posições das portões: $line"
 
     local current_timestamp CurrentDate
-    current_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    # Se timestamp não foi fornecido, usar timestamp atual como fallback
+    if [[ -n "$captured_timestamp" ]]; then
+        current_timestamp="$captured_timestamp"
+    else
+        current_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    fi
     CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
 
     if ! echo "$line" | jq -e '.fence_data' >/dev/null 2>&1; then

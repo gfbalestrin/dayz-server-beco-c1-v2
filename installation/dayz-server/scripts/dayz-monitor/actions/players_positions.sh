@@ -53,6 +53,7 @@ EOF
 
 handle_players_positions() {
     local line="$1"
+    local base_captured_timestamp="$2"  # Timestamp capturado no momento da leitura
 
     echo ">> Recebendo posições dos jogadores"
 
@@ -71,12 +72,10 @@ handle_players_positions() {
     declare -a current_players=()
     declare -a player_data_map=()
     
-    # Capturar timestamp no momento exato do processamento
-    # Isso garante que cada batch tenha um timestamp único e atualizado,
-    # mesmo que o processamento tenha demorado devido a enfileiramento de outros comandos
-    # Usar timestamp atual ao invés do mtime do arquivo para evitar datas replicadas
-    local base_captured_timestamp
-    base_captured_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+    # Se timestamp não foi fornecido, usar timestamp atual como fallback
+    if [[ -z "$base_captured_timestamp" ]]; then
+        base_captured_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+    fi
     
     # Extrair todos os dados de uma vez usando jq
     while IFS= read -r player_json; do

@@ -2,11 +2,17 @@
 
 handle_vehicles_positions() {
     local line="$1"
+    local captured_timestamp="$2"  # Timestamp capturado no momento da leitura
 
     echo ">> Recebendo posições dos veículos"
 
     local current_timestamp
-    current_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    # Se timestamp não foi fornecido, usar timestamp atual como fallback
+    if [[ -n "$captured_timestamp" ]]; then
+        current_timestamp="$captured_timestamp"
+    else
+        current_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    fi
 
     declare -A prev_vehicles=()
 
