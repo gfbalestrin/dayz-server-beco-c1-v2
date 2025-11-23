@@ -205,6 +205,8 @@ class CustomMission: MissionServer
 		{
 			m_AdminCheckTimer10 = 0.0;
 
+			SendPlayersPositions();
+
 			CheckCommands();
 			array<string> msgs = CheckMessages();
 			array<string> privMsgs = CheckPrivateMessages();
@@ -310,7 +312,7 @@ class CustomMission: MissionServer
 			CheckContainersForLoot(); // Verifica e envia containers que receberam loot
 			
 			ListActivePlayers();
-			SendPlayersPositions();		
+			//SendPlayersPositions();		
 		}
 	}
 	
