@@ -55,6 +55,29 @@ handle_players_positions() {
                 continue
             fi
 
+            # Verificar último backup do jogador (intervalo mínimo de 5 minutos)
+            local sanitized_player_id
+            sanitized_player_id=$(echo "$player_id" | sed "s/'/''/g")
+            
+            # Calcular diferença em segundos usando SQLite (mais confiável)
+            # Retorna NULL se não houver backup anterior
+            local time_diff
+            time_diff=$(sqlite3 "$PLAYERS_BECO_C1_DB" "SELECT CAST((julianday('now', 'localtime') - julianday(MAX(pcb.TimeStamp))) * 86400 AS INTEGER) FROM players_coord_backup pcb INNER JOIN players_coord pc ON pcb.PlayerCoordId = pc.PlayerCoordId WHERE pc.PlayerID = '$sanitized_player_id';" 2>/dev/null || echo "")
+            
+            local should_backup=true
+            # Se time_diff não estiver vazio, verificar intervalo
+            if [[ -n "$time_diff" ]]; then
+                # Tentar comparação numérica (falha silenciosamente se não for número)
+                if [[ "$time_diff" -ge 0 ]] 2>/dev/null && [[ "$time_diff" -lt 300 ]]; then
+                    should_backup=false
+                fi
+            fi
+            # Se time_diff estiver vazio/NULL, significa que não há backup anterior, então should_backup=true
+
+            if [[ "$should_backup" != true ]]; then
+                continue
+            fi
+
             echo ">> Tentando realizar backup do personagem..."
 
             local backup

@@ -449,7 +449,7 @@ void CheckContainersForLoot()
 	if (containersTotal > 0)
 	{
 		string jsonAction = "{\"action\":\"containers_positions\",\"container_data\":[" + containersJson + "]}";
-		AppendExternalAction(jsonAction);
+		AppendExternalAction(jsonAction, false);
 		WriteToLog("CheckContainersForLoot(): JSON com " + containersTotal.ToString() + " containers (com itens: " + containersWithItems.ToString() + ", vazios: " + (containersTotal - containersWithItems).ToString() + ") e " + totalItems.ToString() + " itens enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
 	}
 }

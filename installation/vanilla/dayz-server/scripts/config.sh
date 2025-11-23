@@ -523,6 +523,9 @@ INSERT_PLAYER_POSITION() {
         return 1
     fi
 
+    # Configurar PRAGMAs para melhorar concorrência e evitar locks
+    sqlite3 "$AppFolder/$AppPlayerBecoC1DbFile" "PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;" >/dev/null 2>&1
+
     local EscapedPlayerID
     local EscapedItemsInHands
     local EscapedMainItems

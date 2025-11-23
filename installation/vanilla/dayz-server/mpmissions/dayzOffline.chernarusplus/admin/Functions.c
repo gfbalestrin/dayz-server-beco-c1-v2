@@ -1887,21 +1887,50 @@ void SendPlayersPositions()
     if (players.Count() == 0)
         return;
 
+    WriteToLog("SendPlayersPositions(): Iniciando processamento de " + players.Count().ToString() + " jogadores", LogFile.INIT, false, LogType.DEBUG);
+
     string playersJson = "";
+    int processedCount = 0;
 
     foreach (Man man : players)
     {
         PlayerBase player = PlayerBase.Cast(man);
         if (!player)
+        {
+            WriteToLog("SendPlayersPositions(): Jogador pulado - player NULL (cast falhou)", LogFile.INIT, false, LogType.DEBUG);
             continue;
+        }
 
         PlayerIdentity identity = player.GetIdentity();
         if (!identity)
+        {
+            WriteToLog("SendPlayersPositions(): Jogador pulado - identity NULL", LogFile.INIT, false, LogType.DEBUG);
             continue;
+        }
 
         string playerId = identity.GetId();
         string playerName = identity.GetName();
+
+        if (playerId == "")
+        {
+            WriteToLog("SendPlayersPositions(): Jogador pulado - PlayerID vazio (Nome: " + playerName + ")", LogFile.INIT, false, LogType.DEBUG);
+            continue;
+        }
+
+        if (playerName == "")
+        {
+            WriteToLog("SendPlayersPositions(): Jogador pulado - PlayerName vazio (PlayerID: " + playerId + ")", LogFile.INIT, false, LogType.DEBUG);
+            continue;
+        }
+
+        WriteToLog("SendPlayersPositions(): Processando jogador " + playerId + " - " + playerName, LogFile.INIT, false, LogType.DEBUG);
+
         vector position = player.GetPosition();
+        if (position[0] == 0 && position[1] == 0 && position[2] == 0)
+        {
+            WriteToLog("SendPlayersPositions(): Jogador " + playerId + " pulado - posição inválida (0,0,0)", LogFile.INIT, false, LogType.DEBUG);
+            continue;
+        }
 
         // Sanitiza o nome do jogador para uso seguro em JSON
         string safeName = SanitizeForJson(playerName);
@@ -1915,15 +1944,17 @@ void SendPlayersPositions()
         float energy = 0.0;
         float water = 0.0;
         
-        if (player.GetStatEnergy())
-            energy = player.GetStatEnergy().Get();
-        if (player.GetStatWater())
-            water = player.GetStatWater().Get();
+        PlayerStats statsEnergy = player.GetStatEnergy();
+        if (statsEnergy)
+            energy = statsEnergy.Get();
+        
+        PlayerStats statsWater = player.GetStatWater();
+        if (statsWater)
+            water = statsWater.Get();
 
         // Extrai status do jogador
         bool isAlive = player.IsAlive();
         bool isAdmin = CheckIfIsAdmin(playerId);
-        //bool hasGodmode = false; // Não descobri como verificar se o jogador tem god mode
 
         // Extrai informações de stamina
         float stamina = 0.0;
@@ -1937,7 +1968,13 @@ void SendPlayersPositions()
 
         // Extrai informações do inventário
         string itemsInHands = GetItemsInHands(player);
+        if (!itemsInHands)
+            itemsInHands = "";
+
         string mainItems = GetMainItems(player, 10);
+        if (!mainItems)
+            mainItems = "";
+
         int itemsCount = CountInventoryItems(player);
 
         // Converte booleanos para string
@@ -1972,10 +2009,14 @@ void SendPlayersPositions()
         playersJson += ",\"items_count\":" + itemsCount.ToString();
         playersJson += ",\"main_items\":[" + mainItems + "]";
         playersJson += "}";
+
+        processedCount++;
+        WriteToLog("SendPlayersPositions(): Jogador " + playerId + " adicionado ao JSON", LogFile.INIT, false, LogType.DEBUG);
     }
 
     string jsonAction = "{\"action\":\"players_positions\",\"players\":[" + playersJson + "]}";
     AppendExternalAction(jsonAction);
     
-    WriteToLog("SendPlayersPositions(): Posições de " + players.Count().ToString() + " jogadores enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
+    WriteToLog("SendPlayersPositions(): Processamento concluído - " + processedCount.ToString() + " processados de " + players.Count().ToString() + " encontrados", LogFile.INIT, false, LogType.DEBUG);
+    WriteToLog("SendPlayersPositions(): Posições de " + processedCount.ToString() + " jogadores enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
 }

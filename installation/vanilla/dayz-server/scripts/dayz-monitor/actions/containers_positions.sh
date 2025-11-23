@@ -23,7 +23,7 @@ is_shelter_container_type() {
 handle_containers_positions() {
     local line="$1"
 
-    echo ">> Recebendo containers para loot: $line"
+    #echo ">> Recebendo containers para loot: $line"
 
     local current_timestamp CurrentDate
     current_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
