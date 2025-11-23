@@ -564,8 +564,9 @@ function drawTrail(playerId, trail) {
                 tooltipText += `⏱️ Tempo: <span class="value">${timeDiff.toFixed(1)}s</span><br>`;
                 tooltipText += `🚀 Velocidade: <span class="value">${speed.toFixed(1)} km/h</span>`;
                 
-                // Velocidade suspeita (>30 km/h)
-                if (speed > 30) {
+                // Velocidade suspeita (>50 km/h) - apenas se tempo >= 5 segundos para evitar falsos positivos
+                // Considera também distância mínima para evitar erros de medição
+                if (timeDiff >= 5 && distance >= 10 && speed > 50) {
                     pointColor = '#ff0000'; // vermelho mais vibrante
                     tooltipText += `<br><br><span style="color: #ff5252; font-weight: bold; font-size: 14px; background: rgba(255,0,0,0.2); padding: 4px 8px; border-radius: 4px; display: inline-block;">⚠️ VELOCIDADE SUSPEITA!</span>`;
                 }
@@ -752,7 +753,7 @@ function toggleTrails() {
         // Aplicar filtro padrão de 2 minutos automaticamente (se não houver filtro ativo)
         if (!MapState.activeTrailShortcut && !MapState.hasCustomFilter) {
             if (typeof applyTrailFilterShortcut === 'function') {
-                applyTrailFilterShortcut('2minutes');
+                applyTrailFilterShortcut('30seconds');
             }
         } else if (MapState.activeTrailShortcut) {
             // Restaurar destaque do atalho ativo
@@ -1093,6 +1094,18 @@ function applyTrailFilterShortcut(shortcut) {
     let startDate, endDate;
     
     switch(shortcut) {
+        case '10seconds':
+            startDate = new Date(now.getTime() - (10 * 1000));
+            endDate = null; // Vazio para indicar "a partir de"
+            break;
+        case '30seconds':
+            startDate = new Date(now.getTime() - (30 * 1000));
+            endDate = null; // Vazio para indicar "a partir de"
+            break;
+        case '1minute':
+            startDate = new Date(now.getTime() - (1 * 60 * 1000));
+            endDate = null; // Vazio para indicar "a partir de"
+            break;
         case '2minutes':
             startDate = new Date(now.getTime() - (2 * 60 * 1000));
             endDate = null; // Vazio para indicar "a partir de"

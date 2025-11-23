@@ -5418,6 +5418,11 @@ def detect_teleportation(player_id: str, hours_back: int = 2) -> List[Dict]:
             if time_diff <= 0:
                 continue
             
+            # Ignorar detecções com tempo muito curto (< 5 segundos) para evitar falsos positivos
+            # com intervalos de 10 segundos entre atualizações
+            if time_diff < 5.0:
+                continue
+            
             # Calcular velocidade (m/s)
             speed = distance / time_diff if time_diff > 0 else 0
             
