@@ -59,6 +59,9 @@ CREATE TABLE IF NOT EXISTS vehicles_tracking (
 CREATE INDEX IF NOT EXISTS idx_vehicles_tracking_vehicle_id ON vehicles_tracking(VehicleId);
 CREATE INDEX IF NOT EXISTS idx_vehicles_tracking_timestamp ON vehicles_tracking(TimeStamp);
 CREATE INDEX IF NOT EXISTS idx_vehicles_tracking_destroyed ON vehicles_tracking(IsDestroyed);
+-- Índice composto otimizado para busca de últimos registros por veículo (não destruídos)
+-- Nota: SQLite não suporta DESC na definição do índice, mas ORDER BY DESC na query ainda usa o índice eficientemente
+CREATE INDEX IF NOT EXISTS idx_vehicles_tracking_lookup ON vehicles_tracking(VehicleId, TimeStamp, IsDestroyed);
 
 CREATE TABLE IF NOT EXISTS vehicles_items (
     IdVehicleItem INTEGER PRIMARY KEY AUTOINCREMENT,

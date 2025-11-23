@@ -16,30 +16,34 @@ handle_vehicles_positions() {
 
     declare -A prev_vehicles=()
 
+    # Garantir que índice composto otimizado existe (criação automática se não existir)
+    # Nota: SQLite não suporta DESC na definição do índice, mas ORDER BY DESC na query ainda usa o índice eficientemente
+    sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "CREATE INDEX IF NOT EXISTS idx_vehicles_tracking_lookup ON vehicles_tracking(VehicleId, TimeStamp, IsDestroyed);" 2>/dev/null
+
     # Verificar se coluna IsDestroyed existe
     local has_is_destroyed
     has_is_destroyed=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='IsDestroyed';")
     
-    # Buscar último registro de cada veículo (excluindo destruídos)
+    # Buscar último registro de cada veículo usando window function (muito mais eficiente que subquery MAX)
+    # Usa índice composto idx_vehicles_tracking_lookup para performance otimizada
     local sql_query
     if [[ "$has_is_destroyed" -eq 1 ]]; then
         sql_query="SELECT VehicleId, VehicleName, PositionX, PositionZ, PositionY 
-        FROM vehicles_tracking v1
-        WHERE v1.TimeStamp = (
-            SELECT MAX(v2.TimeStamp) 
-            FROM vehicles_tracking v2 
-            WHERE v2.VehicleId = v1.VehicleId
-            AND (v2.IsDestroyed = 0 OR v2.IsDestroyed IS NULL)
-        )
-        AND (v1.IsDestroyed = 0 OR v1.IsDestroyed IS NULL)"
+        FROM (
+            SELECT VehicleId, VehicleName, PositionX, PositionZ, PositionY,
+                   ROW_NUMBER() OVER (PARTITION BY VehicleId ORDER BY TimeStamp DESC) as rn
+            FROM vehicles_tracking
+            WHERE (IsDestroyed = 0 OR IsDestroyed IS NULL)
+        ) ranked
+        WHERE rn = 1"
     else
         sql_query="SELECT VehicleId, VehicleName, PositionX, PositionZ, PositionY 
-        FROM vehicles_tracking v1
-        WHERE v1.TimeStamp = (
-            SELECT MAX(v2.TimeStamp) 
-            FROM vehicles_tracking v2 
-            WHERE v2.VehicleId = v1.VehicleId
-        )"
+        FROM (
+            SELECT VehicleId, VehicleName, PositionX, PositionZ, PositionY,
+                   ROW_NUMBER() OVER (PARTITION BY VehicleId ORDER BY TimeStamp DESC) as rn
+            FROM vehicles_tracking
+        ) ranked
+        WHERE rn = 1"
     fi
     
     while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y; do
