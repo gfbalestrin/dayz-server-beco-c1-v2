@@ -449,8 +449,8 @@ function toggleAutoRefresh() {
             if (MapState.showFences && typeof loadFences === 'function') loadFences();
             if (MapState.showKills && typeof loadKills === 'function') loadKills();
             if (MapState.showDamages && typeof loadDamages === 'function') loadDamages();
-            // Nota: Não chamar reapplyCurrentTrailFilter() aqui porque loadPositions() já carrega trails
-            // quando showTrails está ativo. Chamar reapplyCurrentTrailFilter() causaria requisições duplicadas.
+            // Nota: reapplyCurrentTrailFilter() é chamada dentro de loadPositions() após updatePositions() terminar
+            // Isso garante que os campos de data/hora sejam atualizados automaticamente durante o auto-refresh
         }, intervalMs);
         console.log(`Auto-refresh ligado (${intervalSeconds} segundos)`);
     } else {

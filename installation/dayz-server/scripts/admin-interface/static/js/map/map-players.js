@@ -17,6 +17,8 @@ function loadPositions() {
         .done(function(data) {
             updatePositions(data);
             $('#lastUpdate').text(new Date().toLocaleTimeString());
+            // Nota: reapplyCurrentTrailFilter() é chamada dentro de updatePositions()
+            // após os trails serem carregados (dentro do setTimeout de 500ms)
         })
         .fail(function() {
             console.error('Erro ao carregar posições');
@@ -367,6 +369,13 @@ function updatePositions(data) {
                 }
                 loadPlayerTrail(playerId);
             });
+            // Atualizar filtro de trails após carregar todos os trails
+            // Isso garante que os campos de data/hora sejam atualizados automaticamente durante o auto-refresh
+            // Apenas se houver um atalho rápido ou filtro personalizado ativo
+            if (typeof reapplyCurrentTrailFilter === 'function' && 
+                (MapState.activeTrailShortcut || MapState.hasCustomFilter)) {
+                reapplyCurrentTrailFilter();
+            }
         }, 500);
     }
     
@@ -1030,8 +1039,6 @@ function filterPlayers() {
  * Aplicar filtro de trail por atalho
  */
 function applyTrailFilterShortcut(shortcut) {
-    console.log('[DEBUG] applyTrailFilterShortcut chamada com shortcut:', shortcut);
-    
     // Restaurar classes outline de todos os botões de atalho
     // IMPORTANTE: Preservar classes base (btn, btn-sm) e apenas trocar entre outline e sólido
     $('#trailQuickShortcuts button[data-filter]').each(function() {
@@ -1059,7 +1066,6 @@ function applyTrailFilterShortcut(shortcut) {
     // Se não for "clear", destacar o botão selecionado trocando outline por sólido
     if (shortcut !== 'clear') {
         const targetButton = $(`#trailQuickShortcuts button[data-filter="${shortcut}"]`);
-        console.log('[DEBUG] Botão encontrado:', targetButton.length, 'para shortcut:', shortcut);
         if (targetButton.length > 0) {
             // Remover apenas classes de estado mas preservar btn e btn-sm
             targetButton.removeClass('btn-outline-secondary btn-outline-warning btn-outline-danger btn-secondary btn-warning btn-danger active');
@@ -1080,9 +1086,6 @@ function applyTrailFilterShortcut(shortcut) {
             }
             MapState.activeTrailShortcut = shortcut;
             MapState.hasCustomFilter = false;
-            console.log('[DEBUG] Botão destacado. Classes finais:', targetButton.attr('class'));
-        } else {
-            console.warn('[DEBUG] Botão não encontrado para shortcut:', shortcut);
         }
     } else {
         MapState.activeTrailShortcut = null;
@@ -1205,54 +1208,53 @@ function applyTrailFilterShortcut(shortcut) {
     const $endDate = $('#trailEndDate');
     const $endTime = $('#trailEndTime');
     
+    // Função auxiliar para atualizar campo de forma robusta
+    const updateField = function($field, value) {
+        if ($field.length > 0 && $field[0]) {
+            // Atualização direta do DOM (mais confiável)
+            $field[0].value = value;
+            // Atualização via jQuery (para garantir sincronização)
+            $field.val(value);
+            $field.attr('value', value);
+            $field.prop('value', value);
+            // Forçar eventos para garantir atualização visual
+            $field.trigger('input');
+            $field.trigger('change');
+            // Forçar atualização visual adicional usando requestAnimationFrame
+            requestAnimationFrame(function() {
+                if ($field[0]) {
+                    $field[0].value = value;
+                }
+            });
+        }
+    };
+    
     if ($startDate.length > 0) {
         const startDateValue = formatDate(startDate);
-        $startDate.val(startDateValue);
-        $startDate.attr('value', startDateValue);
-        $startDate.trigger('change');
-        console.log('[DEBUG] Data início atualizada:', startDateValue);
-    } else {
-        console.warn('[DEBUG] Campo trailStartDate não encontrado');
+        updateField($startDate, startDateValue);
     }
     
     if ($startTime.length > 0) {
         const startTimeValue = formatTime(startDate);
-        $startTime.val(startTimeValue);
-        $startTime.attr('value', startTimeValue);
-        $startTime.trigger('change');
-        console.log('[DEBUG] Hora início atualizada:', startTimeValue);
-    } else {
-        console.warn('[DEBUG] Campo trailStartTime não encontrado');
+        updateField($startTime, startTimeValue);
     }
     
     // Para atalhos de período, deixar data fim vazia (null)
     if (endDate) {
         if ($endDate.length > 0) {
             const endDateValue = formatDate(endDate);
-            $endDate.val(endDateValue);
-            $endDate.attr('value', endDateValue);
-            $endDate.trigger('change');
-            console.log('[DEBUG] Data fim atualizada:', endDateValue);
+            updateField($endDate, endDateValue);
         }
         if ($endTime.length > 0) {
             const endTimeValue = formatTime(endDate);
-            $endTime.val(endTimeValue);
-            $endTime.attr('value', endTimeValue);
-            $endTime.trigger('change');
-            console.log('[DEBUG] Hora fim atualizada:', endTimeValue);
+            updateField($endTime, endTimeValue);
         }
     } else {
         if ($endDate.length > 0) {
-            $endDate.val('');
-            $endDate.attr('value', '');
-            $endDate.trigger('change');
-            console.log('[DEBUG] Data fim limpa');
+            updateField($endDate, '');
         }
         if ($endTime.length > 0) {
-            $endTime.val('');
-            $endTime.attr('value', '');
-            $endTime.trigger('change');
-            console.log('[DEBUG] Hora fim limpa');
+            updateField($endTime, '');
         }
     }
     
@@ -1398,13 +1400,7 @@ function applyTrailDateFilter(preserveShortcut = false) {
  * Respeita o filtro selecionado pelo usuário (atalho rápido ou filtro personalizado)
  */
 function reapplyCurrentTrailFilter() {
-    console.log('[DEBUG] reapplyCurrentTrailFilter chamada');
-    console.log('[DEBUG] MapState.showTrails:', MapState.showTrails);
-    console.log('[DEBUG] MapState.activeTrailShortcut:', MapState.activeTrailShortcut);
-    console.log('[DEBUG] MapState.hasCustomFilter:', MapState.hasCustomFilter);
-    
     if (!MapState.showTrails) {
-        console.log('[DEBUG] Trails não estão ativos, retornando');
         return;
     }
     
@@ -1426,16 +1422,17 @@ function reapplyCurrentTrailFilter() {
     
     // Se houver atalho rápido ativo, reaplicar o atalho
     if (MapState.activeTrailShortcut) {
-        console.log('[DEBUG] Reaplicando atalho rápido:', MapState.activeTrailShortcut);
-        applyTrailFilterShortcut(MapState.activeTrailShortcut);
-        // Garantir recarregamento explícito dos trails (apenas jogadores online se filtro ativo)
-        loadTrailsForVisiblePlayers();
+        // Usar setTimeout para garantir que o DOM esteja pronto antes de atualizar os campos
+        setTimeout(function() {
+            applyTrailFilterShortcut(MapState.activeTrailShortcut);
+            // Garantir recarregamento explícito dos trails (apenas jogadores online se filtro ativo)
+            loadTrailsForVisiblePlayers();
+        }, 50); // Pequeno delay para garantir que o DOM esteja pronto
         return;
     }
     
     // Se houver filtro personalizado ativo, reaplicar o filtro personalizado
     if (MapState.hasCustomFilter) {
-        console.log('[DEBUG] Reaplicando filtro personalizado');
         applyTrailDateFilter();
         // Garantir recarregamento explícito dos trails (apenas jogadores online se filtro ativo)
         loadTrailsForVisiblePlayers();
@@ -1443,7 +1440,6 @@ function reapplyCurrentTrailFilter() {
     }
     
     // Se não houver filtro, usar padrão de 24h
-    console.log('[DEBUG] Nenhum filtro ativo, usando padrão de 24h');
     updateTrailDateFilterAuto(24);
     // Garantir recarregamento explícito dos trails (apenas jogadores online se filtro ativo)
     loadTrailsForVisiblePlayers();
