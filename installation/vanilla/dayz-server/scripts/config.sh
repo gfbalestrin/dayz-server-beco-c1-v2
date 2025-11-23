@@ -621,6 +621,358 @@ EOF
     return 1
 }
 
+INSERT_PLAYERS_POSITIONS_BATCH() {
+    local players_array=("$@")  # Array de players no formato "player_id|coord_x|coord_z|coord_y|health|blood|shock|energy|water|is_alive|is_admin|stamina|stamina_max|items_in_hands|items_count|main_items"
+    
+    if [[ ${#players_array[@]} -eq 0 ]]; then
+        return 0  # Nada para inserir, retorna sucesso
+    fi
+
+    # Configurar PRAGMAs uma vez (silenciosamente)
+    sqlite3 "$AppFolder/$AppPlayerBecoC1DbFile" "PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;" >/dev/null 2>&1
+
+    local max_retries=5
+    local base_retry_delay=0.5
+    local attempt=1
+
+    while (( attempt <= max_retries )); do
+        # Construir query SQL com múltiplos VALUES
+        local sql_values=""
+        local first_value=1
+        local player_coord_ids=()
+        local row_index=0
+        
+        for player_data in "${players_array[@]}"; do
+            if [[ -z "$player_data" ]]; then
+                continue
+            fi
+            
+            # Separar campos (formato: "player_id|coord_x|coord_z|coord_y|health|blood|shock|energy|water|is_alive|is_admin|stamina|stamina_max|items_in_hands|items_count|main_items")
+            IFS='|' read -r PlayerID CoordX CoordZ CoordY Health Blood Shock Energy Water IsAlive IsAdmin Stamina StaminaMax ItemsInHands ItemsCount MainItems <<< "$player_data"
+            
+            # Validar campos obrigatórios
+            if [[ -z "$PlayerID" ]]; then
+                continue
+            fi
+            
+            # Validar coordenadas (devem ser números válidos)
+            if [[ -z "$CoordX" ]] || ! [[ "$CoordX" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                CoordX="0"
+            fi
+            if [[ -z "$CoordZ" ]] || ! [[ "$CoordZ" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                CoordZ="0"
+            fi
+            if [[ -z "$CoordY" ]] || ! [[ "$CoordY" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                CoordY="0"
+            fi
+            
+            # Escapar aspas simples
+            local EscapedPlayerID
+            EscapedPlayerID=$(echo "$PlayerID" | sed "s/'/''/g")
+            
+            # Escapar JSON arrays
+            local ItemsInHandsValue
+            if [[ -n "$ItemsInHands" && "$ItemsInHands" != "NULL" && "$ItemsInHands" != "null" && "$ItemsInHands" != "" ]]; then
+                local EscapedItemsInHands
+                EscapedItemsInHands=$(echo "$ItemsInHands" | sed "s/'/''/g")
+                ItemsInHandsValue="'$EscapedItemsInHands'"
+            else
+                ItemsInHandsValue="NULL"
+            fi
+            
+            local MainItemsValue
+            if [[ -n "$MainItems" && "$MainItems" != "NULL" && "$MainItems" != "null" && "$MainItems" != "" ]]; then
+                local EscapedMainItems
+                EscapedMainItems=$(echo "$MainItems" | sed "s/'/''/g")
+                MainItemsValue="'$EscapedMainItems'"
+            else
+                MainItemsValue="NULL"
+            fi
+            
+            # Converter booleanos para INTEGER (0/1)
+            local IsAliveValue
+            if [[ "$IsAlive" == "true" ]] || [[ "$IsAlive" == "1" ]]; then
+                IsAliveValue="1"
+            else
+                IsAliveValue="0"
+            fi
+            
+            local IsAdminValue
+            if [[ "$IsAdmin" == "true" ]] || [[ "$IsAdmin" == "1" ]]; then
+                IsAdminValue="1"
+            else
+                IsAdminValue="0"
+            fi
+            
+            # Preparar valores para SQL (NULL se vazio ou inválido, senão usar o valor)
+            # Validar valores numéricos antes de usar
+            local HealthValue
+            if [[ -n "$Health" ]] && [[ "$Health" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                HealthValue="$Health"
+            else
+                HealthValue="NULL"
+            fi
+            
+            local BloodValue
+            if [[ -n "$Blood" ]] && [[ "$Blood" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                BloodValue="$Blood"
+            else
+                BloodValue="NULL"
+            fi
+            
+            local ShockValue
+            if [[ -n "$Shock" ]] && [[ "$Shock" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                ShockValue="$Shock"
+            else
+                ShockValue="NULL"
+            fi
+            
+            local EnergyValue
+            if [[ -n "$Energy" ]] && [[ "$Energy" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                EnergyValue="$Energy"
+            else
+                EnergyValue="NULL"
+            fi
+            
+            local WaterValue
+            if [[ -n "$Water" ]] && [[ "$Water" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                WaterValue="$Water"
+            else
+                WaterValue="NULL"
+            fi
+            
+            local StaminaValue
+            if [[ -n "$Stamina" ]] && [[ "$Stamina" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                StaminaValue="$Stamina"
+            else
+                StaminaValue="NULL"
+            fi
+            
+            local StaminaMaxValue
+            if [[ -n "$StaminaMax" ]] && [[ "$StaminaMax" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                StaminaMaxValue="$StaminaMax"
+            else
+                StaminaMaxValue="NULL"
+            fi
+            
+            local ItemsCountValue
+            if [[ -n "$ItemsCount" ]] && [[ "$ItemsCount" =~ ^[0-9]+$ ]]; then
+                ItemsCountValue="$ItemsCount"
+            else
+                ItemsCountValue="NULL"
+            fi
+            
+            # Adicionar vírgula se não for o primeiro valor
+            if [[ $first_value -eq 0 ]]; then
+                sql_values+=", "
+            fi
+            first_value=0
+            
+            # Gerar timestamp único para este registro usando strftime com frações de segundo
+            # Usar julianday para adicionar milissegundos incrementais (0.001s por registro)
+            # Formato: strftime('%Y-%m-%d %H:%M:%f', julianday('now', 'localtime') + (row_index * 0.001 / 86400.0))
+            # Onde 86400.0 é o número de segundos em um dia (julianday usa dias como unidade)
+            local timestamp_value
+            if [[ $row_index -eq 0 ]]; then
+                # Primeiro registro: usar strftime com frações de segundo (0 milissegundos)
+                timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('now', 'localtime'))"
+            else
+                # Registros subsequentes: adicionar milissegundos incrementais
+                # Converter milissegundos para fração de dia: row_index * 0.001 / 86400.0
+                local days_fraction
+                days_fraction=$(awk "BEGIN {printf \"%.10f\", $row_index * 0.001 / 86400.0}")
+                timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('now', 'localtime') + $days_fraction)"
+            fi
+            
+            # Construir valor SQL
+            sql_values+="('$EscapedPlayerID', '$CoordX', '$CoordZ', '$CoordY', $timestamp_value, $HealthValue, $BloodValue, $ShockValue, $EnergyValue, $WaterValue, $IsAliveValue, $IsAdminValue, $StaminaValue, $StaminaMaxValue, $ItemsInHandsValue, $ItemsCountValue, $MainItemsValue)"
+            
+            # Incrementar índice para próximo registro
+            ((row_index++))
+        done
+        
+        # Se não há valores válidos, retornar sucesso
+        if [[ -z "$sql_values" ]]; then
+            return 0
+        fi
+        
+        # Construir lista de PlayerIDs para query posterior (manter ordem)
+        local player_ids_list=""
+        local first_pid=1
+        for player_data in "${players_array[@]}"; do
+            if [[ -z "$player_data" ]]; then
+                continue
+            fi
+            IFS='|' read -r PlayerID <<< "$player_data"
+            if [[ -z "$PlayerID" ]]; then
+                continue
+            fi
+            local EscapedPID
+            EscapedPID=$(echo "$PlayerID" | sed "s/'/''/g")
+            if [[ $first_pid -eq 0 ]]; then
+                player_ids_list+=", "
+            fi
+            first_pid=0
+            player_ids_list+="'$EscapedPID'"
+        done
+        
+        # Executar INSERT em lote
+        local sql_error_file
+        sql_error_file=$(mktemp)
+        local sql_result
+        sql_result=$(sqlite3 "$AppFolder/$AppPlayerBecoC1DbFile" <<EOF 2>"$sql_error_file"
+BEGIN IMMEDIATE TRANSACTION;
+INSERT INTO players_coord (
+    PlayerID, CoordX, CoordZ, CoordY, Data,
+    Health, Blood, Shock, Energy, Water,
+    IsAlive, IsAdmin, Stamina, StaminaMax,
+    ItemsInHands, ItemsCount, MainItems
+)
+VALUES $sql_values;
+SELECT changes();
+SELECT last_insert_rowid();
+COMMIT;
+EOF
+)
+        
+        local sql_exit_code=$?
+        local sql_error
+        sql_error=$(cat "$sql_error_file" 2>/dev/null)
+        rm -f "$sql_error_file"
+        
+        # Extrair inserted_count e last_rowid do resultado
+        local inserted_count=$(echo "$sql_result" | head -n 1)
+        local last_rowid=$(echo "$sql_result" | tail -n 1)
+        
+        # Validar que inserted_count é um número
+        if [[ -z "$inserted_count" ]] || ! [[ "$inserted_count" =~ ^[0-9]+$ ]]; then
+            inserted_count="0"
+        fi
+        
+        # Validar que last_rowid é um número
+        if [[ -z "$last_rowid" ]] || ! [[ "$last_rowid" =~ ^[0-9]+$ ]]; then
+            last_rowid="0"
+        fi
+        
+        # Log de debug em caso de erro
+        if [[ $sql_exit_code -ne 0 ]] || [[ -n "$sql_error" ]]; then
+            echo "INSERT_PLAYERS_POSITIONS_BATCH: Erro SQL (tentativa $attempt/$max_retries): $sql_error" >&2
+            if [[ $attempt -lt $max_retries ]]; then
+                echo "INSERT_PLAYERS_POSITIONS_BATCH: Tentando novamente..." >&2
+            fi
+        fi
+        
+        # Verificar se o INSERT foi bem-sucedido
+        if [[ $sql_exit_code -eq 0 ]] && [[ "$inserted_count" =~ ^[0-9]+$ ]] && [[ $inserted_count -gt 0 ]]; then
+            # Buscar PlayerID e PlayerCoordId dos registros recém-inseridos
+            # Retornar no formato "PlayerID|PlayerCoordId" para facilitar mapeamento
+            local inserted_ids=""
+            
+            # Método 1: Usar last_insert_rowid() para calcular range de IDs
+            local method_used=0
+            if [[ "$last_rowid" =~ ^[0-9]+$ ]] && [[ "$last_rowid" -gt 0 ]] && [[ "$inserted_count" =~ ^[0-9]+$ ]] && [[ "$inserted_count" -gt 0 ]]; then
+                local first_rowid=$((last_rowid - inserted_count + 1))
+                if [[ $first_rowid -gt 0 ]]; then
+                    # Buscar IDs usando range de PlayerCoordId
+                    inserted_ids=$(sqlite3 -separator '|' "$AppFolder/$AppPlayerBecoC1DbFile" "SELECT PlayerID, PlayerCoordId FROM players_coord WHERE PlayerCoordId >= $first_rowid AND PlayerCoordId <= $last_rowid ORDER BY PlayerCoordId ASC;" 2>/dev/null)
+                    
+                    if [[ -n "$inserted_ids" ]]; then
+                        method_used=1
+                    else
+                        echo "INSERT_PLAYERS_POSITIONS_BATCH: Método 1 não retornou IDs, usando fallback" >&2
+                    fi
+                else
+                    echo "INSERT_PLAYERS_POSITIONS_BATCH: first_rowid inválido ($first_rowid), usando fallback" >&2
+                fi
+            else
+                echo "INSERT_PLAYERS_POSITIONS_BATCH: last_rowid ou inserted_count inválido (last_rowid=$last_rowid, inserted_count=$inserted_count), usando fallback" >&2
+            fi
+            
+            # Método 2: Fallback - buscar por PlayerIDs com janela de tempo maior (5 segundos)
+            if [[ -z "$inserted_ids" ]] && [[ -n "$player_ids_list" ]]; then
+                echo "INSERT_PLAYERS_POSITIONS_BATCH: Fallback 1 - Buscando por PlayerIDs" >&2
+                inserted_ids=$(sqlite3 -separator '|' "$AppFolder/$AppPlayerBecoC1DbFile" "SELECT PlayerID, PlayerCoordId FROM players_coord WHERE PlayerID IN ($player_ids_list) AND Data >= datetime('now', '-5 seconds') ORDER BY PlayerCoordId DESC LIMIT $inserted_count;" 2>/dev/null)
+                
+                if [[ -n "$inserted_ids" ]]; then
+                    method_used=2
+                fi
+            fi
+            
+            # Método 3: Fallback final - buscar últimos N registros sem filtro de tempo
+            if [[ -z "$inserted_ids" ]] && [[ -n "$player_ids_list" ]]; then
+                echo "INSERT_PLAYERS_POSITIONS_BATCH: Fallback 2 - Buscando últimos registros" >&2
+                inserted_ids=$(sqlite3 -separator '|' "$AppFolder/$AppPlayerBecoC1DbFile" "SELECT PlayerID, PlayerCoordId FROM players_coord WHERE PlayerID IN ($player_ids_list) ORDER BY PlayerCoordId DESC LIMIT $inserted_count;" 2>/dev/null)
+                
+                if [[ -n "$inserted_ids" ]]; then
+                    method_used=3
+                fi
+            fi
+            
+            # Validar que os IDs retornados correspondem aos PlayerIDs esperados
+            # Método 1 não precisa validação (já garantido pelo range)
+            if [[ -n "$inserted_ids" ]]; then
+                if [[ $method_used -eq 1 ]]; then
+                    # Método 1: Não precisa validar, retornar diretamente
+                    echo "$inserted_ids"
+                else
+                    # Métodos 2 e 3: Validar contra lista de PlayerIDs esperados
+                    local valid_ids=""
+                    local valid_count=0
+                    
+                    while IFS='|' read -r returned_player_id returned_coord_id; do
+                        if [[ -n "$returned_player_id" && -n "$returned_coord_id" ]]; then
+                            # Verificar se o PlayerID está na lista esperada
+                            local found=false
+                            for expected_player_id in "${players_array[@]}"; do
+                                IFS='|' read -r expected_id <<< "$expected_player_id"
+                                if [[ "$expected_id" == "$returned_player_id" ]]; then
+                                    found=true
+                                    break
+                                fi
+                            done
+                            
+                            if [[ "$found" == true ]]; then
+                                if [[ -n "$valid_ids" ]]; then
+                                    valid_ids+=$'\n'
+                                fi
+                                valid_ids+="$returned_player_id|$returned_coord_id"
+                                ((valid_count++))
+                            fi
+                        fi
+                    done <<< "$inserted_ids"
+                    
+                    if [[ $valid_count -gt 0 ]]; then
+                        echo "$valid_ids"
+                    else
+                        echo "INSERT_PLAYERS_POSITIONS_BATCH: Aviso - Nenhum ID válido encontrado após validação" >&2
+                    fi
+                fi
+            else
+                echo "INSERT_PLAYERS_POSITIONS_BATCH: Aviso - Não foi possível obter IDs inseridos (INSERT funcionou)" >&2
+            fi
+            
+            # Retornar sucesso mesmo sem IDs (INSERT funcionou)
+            return 0
+        else
+            # INSERT falhou, tentar novamente
+            if [[ $attempt -lt $max_retries ]]; then
+                # Backoff exponencial: 0.5s, 1s, 2s, 4s
+                local retry_multiplier=1
+                local i
+                for ((i=1; i<attempt; i++)); do
+                    retry_multiplier=$((retry_multiplier * 2))
+                done
+                local retry_delay=$((base_retry_delay * retry_multiplier))
+                sleep "$retry_delay"
+            fi
+            attempt=$((attempt + 1))
+        fi
+    done
+
+    echo "Failed to insert players positions batch after $max_retries attempts."
+    return 1
+}
+
 INSERT_VEHICLE_POSITION() {
     local VehicleId="$1"
     local VehicleName="$2"

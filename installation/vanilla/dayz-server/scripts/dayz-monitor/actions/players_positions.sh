@@ -1,5 +1,56 @@
 #!/bin/bash
 
+# Função auxiliar para processar backup de jogador em background
+process_player_backup() {
+    local player_id="$1"
+    local PlayerCoordId="$2"
+    
+    if [[ -z "$player_id" || -z "$PlayerCoordId" ]]; then
+        return 1
+    fi
+    
+    echo ">> Tentando realizar backup do personagem $player_id..."
+    
+    local backup
+    backup=$(sqlite3 "$DB_FILENAME" "SELECT hex(Data) FROM Players where UID = '$player_id';" 2>/dev/null)
+    
+    if [[ -z "$backup" ]]; then
+        echo "Player Data está em branco. Backup ignorado para $player_id"
+        return 0
+    fi
+    
+    local MAX_ATTEMPTS=5
+    local ATTEMPT=1
+    local backup_success=false
+    
+    while [[ $ATTEMPT -le $MAX_ATTEMPTS ]]; do
+        sqlite3 "$PLAYERS_BECO_C1_DB" <<EOF 2>/dev/null
+PRAGMA foreign_keys = ON;
+INSERT INTO players_coord_backup (PlayerCoordId, Backup, TimeStamp)
+VALUES (
+    $PlayerCoordId,
+    X'$(echo -n "$backup" | xxd -p | tr -d '\n')',
+    datetime('now', 'localtime')
+);
+EOF
+        
+        if [[ $? -eq 0 ]]; then
+            backup_success=true
+            break
+        fi
+        
+        sleep $((ATTEMPT * 2))
+        ATTEMPT=$((ATTEMPT + 1))
+    done
+    
+    if [[ "$backup_success" != true ]]; then
+        INSERT_CUSTOM_LOG "Erro: não foi possível inserir backup após $MAX_ATTEMPTS tentativas para $player_id" "ERROR" "$ScriptName"
+        return 1
+    fi
+    
+    return 0
+}
+
 handle_players_positions() {
     local line="$1"
 
@@ -15,118 +66,160 @@ handle_players_positions() {
         fi
     done < <(sqlite3 "$PLAYERS_BECO_C1_DB" "SELECT PlayerID FROM players_online;" 2>/dev/null || true)
 
-    local player_data player_id coord_x coord_z coord_y health blood shock energy water is_alive is_admin stamina stamina_max items_in_hands items_count main_items
-    local current_players=()
-    while IFS= read -r player_data; do
-        if [[ -z "$player_data" ]]; then
+    # Processar JSON uma vez e coletar dados em arrays
+    declare -a batch_data=()
+    declare -a current_players=()
+    declare -a player_data_map=()
+    
+    # Extrair todos os dados de uma vez usando jq
+    while IFS= read -r player_json; do
+        if [[ -z "$player_json" ]]; then
             continue
         fi
-        player_id=$(echo "$player_data" | jq -r '.player_id')
-        if [[ -n "$player_id" ]]; then
-            current_players+=("$player_id")
+        
+        # Extrair todos os campos de uma vez
+        local player_id coord_x coord_z coord_y health blood shock energy water is_alive is_admin stamina stamina_max items_in_hands items_count main_items
+        
+        player_id=$(echo "$player_json" | jq -r '.player_id // empty')
+        if [[ -z "$player_id" ]]; then
+            continue
         fi
-        coord_x=$(echo "$player_data" | jq -r '.x')
-        coord_z=$(echo "$player_data" | jq -r '.z')
-        coord_y=$(echo "$player_data" | jq -r '.y')
-
-        health=$(echo "$player_data" | jq -r '.health // empty')
-        blood=$(echo "$player_data" | jq -r '.blood // empty')
-        shock=$(echo "$player_data" | jq -r '.shock // empty')
-        energy=$(echo "$player_data" | jq -r '.energy // empty')
-        water=$(echo "$player_data" | jq -r '.water // empty')
-        is_alive=$(echo "$player_data" | jq -r '.is_alive // false')
-        is_admin=$(echo "$player_data" | jq -r '.is_admin // false')
-        stamina=$(echo "$player_data" | jq -r '.stamina // empty')
-        stamina_max=$(echo "$player_data" | jq -r '.stamina_max // empty')
-        items_in_hands=$(echo "$player_data" | jq -c '.items_in_hands // []')
-        items_count=$(echo "$player_data" | jq -r '.items_count // empty')
-        main_items=$(echo "$player_data" | jq -c '.main_items // []')
-
-        local PlayerCoordId
-        PlayerCoordId=$(INSERT_PLAYER_POSITION "$player_id" "$coord_x" "$coord_z" "$coord_y" \
-            "$health" "$blood" "$shock" "$energy" "$water" \
-            "$is_alive" "$is_admin" "$stamina" "$stamina_max" \
-            "$items_in_hands" "$items_count" "$main_items")
-
-        if [[ $? -eq 0 && -n "$PlayerCoordId" ]]; then
-            echo ">> Posições armazenadas com sucesso (ID: $PlayerCoordId)"
-
-            if [[ "$DayzDeathmatch" -eq "1" ]]; then
-                continue
-            fi
-
-            # Verificar último backup do jogador (intervalo mínimo de 5 minutos)
-            local sanitized_player_id
-            sanitized_player_id=$(echo "$player_id" | sed "s/'/''/g")
-            
-            # Calcular diferença em segundos usando SQLite (mais confiável)
-            # Retorna NULL se não houver backup anterior
-            local time_diff
-            time_diff=$(sqlite3 "$PLAYERS_BECO_C1_DB" "SELECT CAST((julianday('now', 'localtime') - julianday(MAX(pcb.TimeStamp))) * 86400 AS INTEGER) FROM players_coord_backup pcb INNER JOIN players_coord pc ON pcb.PlayerCoordId = pc.PlayerCoordId WHERE pc.PlayerID = '$sanitized_player_id';" 2>/dev/null || echo "")
-            
-            local should_backup=true
-            # Se time_diff não estiver vazio, verificar intervalo
-            if [[ -n "$time_diff" ]]; then
-                # Tentar comparação numérica (falha silenciosamente se não for número)
-                if [[ "$time_diff" -ge 0 ]] 2>/dev/null && [[ "$time_diff" -lt 300 ]]; then
-                    should_backup=false
-                fi
-            fi
-            # Se time_diff estiver vazio/NULL, significa que não há backup anterior, então should_backup=true
-
-            if [[ "$should_backup" != true ]]; then
-                continue
-            fi
-
-            echo ">> Tentando realizar backup do personagem..."
-
-            local backup
-            backup=$(sqlite3 "$DB_FILENAME" "SELECT hex(Data) FROM Players where UID = '$player_id';")
-
-            if [[ -n "$backup" ]]; then
-                local MAX_ATTEMPTS ATTEMPT backup_success
-                MAX_ATTEMPTS=5
-                ATTEMPT=1
-                backup_success=false
-
-                while [[ $ATTEMPT -le $MAX_ATTEMPTS ]]; do
-                    echo "Tentativa $ATTEMPT de $MAX_ATTEMPTS para backup..."
-
-                    sqlite3 "$PLAYERS_BECO_C1_DB" <<EOF
-PRAGMA foreign_keys = ON;
-INSERT INTO players_coord_backup (PlayerCoordId, Backup, TimeStamp)
-VALUES (
-    $PlayerCoordId,
-    X'$(echo -n "$backup" | xxd -p | tr -d '\n')',
-    datetime('now', 'localtime')
-);
-EOF
-
-                    if [[ $? -eq 0 ]]; then
-                        backup_success=true
-                        break
-                    fi
-
-                    echo "Falha na tentativa $ATTEMPT. Aguardando para tentar novamente..."
-                    sleep $((ATTEMPT * 2))
-                    ATTEMPT=$((ATTEMPT + 1))
-                done
-
-                if [[ "$backup_success" != true ]]; then
-                    INSERT_CUSTOM_LOG "Erro: não foi possível inserir backup após $MAX_ATTEMPTS tentativas (coordenadas já salvas)." "ERROR" "$ScriptName"
-                fi
-            else
-                echo "Player Data está em branco. Backup ignorado."
-                INSERT_CUSTOM_LOG "Backup ignorado - dados do player não disponíveis" "INFO" "$ScriptName"
-            fi
-        else
-            INSERT_CUSTOM_LOG "Erro: não foi possível salvar coordenadas do jogador $player_id" "ERROR" "$ScriptName"
+        
+        current_players+=("$player_id")
+        
+        coord_x=$(echo "$player_json" | jq -r '.x // empty')
+        coord_z=$(echo "$player_json" | jq -r '.z // empty')
+        coord_y=$(echo "$player_json" | jq -r '.y // empty')
+        health=$(echo "$player_json" | jq -r '.health // empty')
+        blood=$(echo "$player_json" | jq -r '.blood // empty')
+        shock=$(echo "$player_json" | jq -r '.shock // empty')
+        energy=$(echo "$player_json" | jq -r '.energy // empty')
+        water=$(echo "$player_json" | jq -r '.water // empty')
+        is_alive=$(echo "$player_json" | jq -r '.is_alive // false')
+        is_admin=$(echo "$player_json" | jq -r '.is_admin // false')
+        stamina=$(echo "$player_json" | jq -r '.stamina // empty')
+        stamina_max=$(echo "$player_json" | jq -r '.stamina_max // empty')
+        items_in_hands=$(echo "$player_json" | jq -c '.items_in_hands // []')
+        items_count=$(echo "$player_json" | jq -r '.items_count // empty')
+        main_items=$(echo "$player_json" | jq -c '.main_items // []')
+        
+        # Validar campos obrigatórios antes de adicionar ao batch
+        # Coordenadas devem ser números válidos (ou pelo menos não vazias)
+        if [[ -z "$coord_x" ]] || [[ -z "$coord_z" ]] || [[ -z "$coord_y" ]]; then
+            echo ">> Aviso: Jogador $player_id pulado - coordenadas inválidas (x=$coord_x, z=$coord_z, y=$coord_y)" >&2
+            continue
         fi
-
+        
+        # Armazenar dados completos para uso posterior (backups)
+        player_data_map+=("$player_id|$coord_x|$coord_z|$coord_y|$health|$blood|$shock|$energy|$water|$is_alive|$is_admin|$stamina|$stamina_max|$items_in_hands|$items_count|$main_items")
+        
+        # Preparar dados para batch INSERT (formato: player_id|coord_x|coord_z|coord_y|...)
+        batch_data+=("$player_id|$coord_x|$coord_z|$coord_y|$health|$blood|$shock|$energy|$water|$is_alive|$is_admin|$stamina|$stamina_max|$items_in_hands|$items_count|$main_items")
     done <<< "$players"
+    
+    # Batch INSERT de todas as posições
+    local inserted_ids
+    local batch_insert_result
+    if [[ ${#batch_data[@]} -gt 0 ]]; then
+        inserted_ids=$(INSERT_PLAYERS_POSITIONS_BATCH "${batch_data[@]}")
+        batch_insert_result=$?
+        
+        if [[ $batch_insert_result -ne 0 ]]; then
+            INSERT_CUSTOM_LOG "Erro: não foi possível inserir posições em batch (código: $batch_insert_result)" "ERROR" "$ScriptName"
+        else
+            # INSERT foi bem-sucedido, mesmo que não tenha conseguido pegar os IDs
+            if [[ -n "$inserted_ids" ]]; then
+                echo ">> Posições armazenadas em batch (${#batch_data[@]} jogadores) - IDs obtidos"
+            else
+                echo ">> Posições armazenadas em batch (${#batch_data[@]} jogadores) - IDs não disponíveis"
+            fi
+        fi
+    fi
+    
+    # Se não for deathmatch, processar backups
+    if [[ "$DayzDeathmatch" -ne "1" && ${#current_players[@]} -gt 0 ]]; then
+        # Batch query para verificar últimos backups de todos os jogadores
+        declare -A last_backups=()
+        
+        # Construir lista de PlayerIDs sanitizados para query
+        local sanitized_ids=()
+        local sanitized_ids_sql=""
+        local first_id=1
+        
+        for player_id in "${current_players[@]}"; do
+            local sanitized_id
+            sanitized_id=$(echo "$player_id" | sed "s/'/''/g")
+            sanitized_ids+=("$sanitized_id")
+            
+            if [[ $first_id -eq 0 ]]; then
+                sanitized_ids_sql+=", "
+            fi
+            first_id=0
+            sanitized_ids_sql+="'$sanitized_id'"
+        done
+        
+        # Query batch para obter últimos backups
+        if [[ -n "$sanitized_ids_sql" ]]; then
+            while IFS='|' read -r backup_player_id backup_timestamp; do
+                if [[ -n "$backup_player_id" && -n "$backup_timestamp" ]]; then
+                    last_backups["$backup_player_id"]="$backup_timestamp"
+                fi
+            done < <(sqlite3 -separator '|' "$PLAYERS_BECO_C1_DB" "SELECT pc.PlayerID, MAX(pcb.TimeStamp) FROM players_coord_backup pcb INNER JOIN players_coord pc ON pcb.PlayerCoordId = pc.PlayerCoordId WHERE pc.PlayerID IN ($sanitized_ids_sql) GROUP BY pc.PlayerID;" 2>/dev/null)
+        fi
+        
+        # Processar backups em background para jogadores que precisam
+        # Criar mapa de PlayerID -> PlayerCoordId usando resultado do batch INSERT
+        declare -A player_coord_map=()
+        
+        if [[ -n "$inserted_ids" ]]; then
+            # inserted_ids já vem no formato "PlayerID|PlayerCoordId" da função batch
+            while IFS='|' read -r pid coord_id; do
+                if [[ -n "$pid" && -n "$coord_id" ]]; then
+                    player_coord_map["$pid"]="$coord_id"
+                fi
+            done <<< "$inserted_ids"
+        fi
+        
+        # Processar backups para cada jogador
+        for player_data_entry in "${player_data_map[@]}"; do
+            IFS='|' read -r player_id coord_x coord_z coord_y health blood shock energy water is_alive is_admin stamina stamina_max items_in_hands items_count main_items <<< "$player_data_entry"
+            
+            if [[ -z "$player_id" ]]; then
+                continue
+            fi
+            
+            # Obter PlayerCoordId do mapa
+            local PlayerCoordId="${player_coord_map[$player_id]}"
+            
+            if [[ -z "$PlayerCoordId" ]]; then
+                continue
+            fi
+            
+            # Verificar se precisa fazer backup (intervalo mínimo de 5 minutos)
+            local should_backup=true
+            local last_backup_time="${last_backups[$player_id]}"
+            
+            if [[ -n "$last_backup_time" ]]; then
+                local time_diff
+                time_diff=$(sqlite3 "$PLAYERS_BECO_C1_DB" "SELECT CAST((julianday('now', 'localtime') - julianday('$last_backup_time')) * 86400 AS INTEGER);" 2>/dev/null || echo "")
+                
+                if [[ -n "$time_diff" ]]; then
+                    if [[ "$time_diff" -ge 0 ]] 2>/dev/null && [[ "$time_diff" -lt 300 ]]; then
+                        should_backup=false
+                    fi
+                fi
+            fi
+            
+            if [[ "$should_backup" == true ]]; then
+                # Processar backup em background
+                (
+                    process_player_backup "$player_id" "$PlayerCoordId"
+                ) &
+            fi
+        done
+    fi
 
-    local player_count
-    player_count=$(echo "$players" | wc -l)
+    local player_count=${#current_players[@]}
     INSERT_CUSTOM_LOG "Total de $player_count jogadores rastreados" "INFO" "$ScriptName"
 
     local connect_players=()
