@@ -1898,9 +1898,6 @@ void SendPlayersPositions(array<Man> players = null)
 
     WriteToLog("SendPlayersPositions(): Iniciando processamento de " + playersToProcess.Count().ToString() + " jogadores", LogFile.INIT, false, LogType.DEBUG);
 
-    // Capturar timestamp uma vez por batch (momento da captura)
-    string capturedTimestamp = GetCurrentTimestampWithSeconds();
-
     string playersJson = "";
     int processedCount = 0;
 
@@ -2017,7 +2014,6 @@ void SendPlayersPositions(array<Man> players = null)
         playersJson += ",\"items_in_hands\":[" + itemsInHands + "]";
         playersJson += ",\"items_count\":" + itemsCount.ToString();
         playersJson += ",\"main_items\":[" + mainItems + "]";
-        playersJson += ",\"captured_at\":\"" + capturedTimestamp + "\"";
         playersJson += "}";
 
         processedCount++;

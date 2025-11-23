@@ -71,9 +71,25 @@ handle_players_positions() {
     declare -a current_players=()
     declare -a player_data_map=()
     
-    # Extrair timestamp base do primeiro jogador (todos do mesmo batch têm o mesmo timestamp)
+    # Capturar timestamp de modificação do arquivo (mtime) - momento em que o arquivo foi escrito pelo Enforce Script
+    # Isso reflete o momento real da captura, não o tempo do jogo
     local base_captured_timestamp
-    base_captured_timestamp=$(echo "$line" | jq -r '.players[0].captured_at // empty' 2>/dev/null)
+    local external_actions_file="$DayzServerFolder/$DayzActionsToExecuteFile"
+    if [[ -f "$external_actions_file" ]]; then
+        # Obter timestamp de modificação no formato "YYYY-MM-DD HH:MM:SS"
+        base_captured_timestamp=$(stat -c "%y" "$external_actions_file" 2>/dev/null | cut -d'.' -f1)
+        if [[ -z "$base_captured_timestamp" ]]; then
+            # Fallback para sistemas que não suportam stat -c (usar stat -f no macOS)
+            base_captured_timestamp=$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$external_actions_file" 2>/dev/null)
+        fi
+        if [[ -z "$base_captured_timestamp" ]]; then
+            # Fallback final: usar timestamp atual
+            base_captured_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+        fi
+    else
+        # Se arquivo não existe, usar timestamp atual
+        base_captured_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+    fi
     
     # Extrair todos os dados de uma vez usando jq
     while IFS= read -r player_json; do
