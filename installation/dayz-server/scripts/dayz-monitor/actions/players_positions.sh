@@ -60,6 +60,9 @@ handle_players_positions() {
     local players
     players=$(echo "$line" | jq -c '.players[]')
 
+    # Configurar PRAGMAs antes de acessar o banco
+    configure_sqlite_pragmas "$PLAYERS_BECO_C1_DB"
+    
     local previous_players=()
     while IFS= read -r player_id; do
         if [[ -n "$player_id" ]]; then
@@ -309,13 +312,43 @@ ON CONFLICT(PlayerID) DO UPDATE SET DataConnect='$sync_timestamp';
 COMMIT;
 "
 
+    # Sincronizar players_online com retry logic para evitar locks
     local sync_output
-    sync_output=$(sqlite3 "$PLAYERS_BECO_C1_DB" "$sync_sql" 2>&1)
+    local sync_success=false
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+    
+    while [[ $attempt -le $max_retries ]]; do
+        # Configurar PRAGMAs antes de cada tentativa
+        configure_sqlite_pragmas "$PLAYERS_BECO_C1_DB"
+        
+        sync_output=$(sqlite3 "$PLAYERS_BECO_C1_DB" "$sync_sql" 2>&1)
+        
+        if [[ $? -eq 0 ]]; then
+            sync_success=true
+            break
+        fi
+        
+        # Verificar se é erro de lock (código 5)
+        if echo "$sync_output" | grep -q "database is locked"; then
+            if [[ $attempt -lt $max_retries ]]; then
+                sleep "$retry_delay"
+                # Backoff exponencial: 0.2, 0.4, 0.8, 1.6, 3.2
+                retry_delay=$(awk "BEGIN {printf \"%.1f\", $retry_delay * 2}")
+                attempt=$((attempt + 1))
+                continue
+            fi
+        else
+            # Erro diferente de lock, não tentar novamente
+            break
+        fi
+    done
 
-    if [[ $? -ne 0 ]]; then
-        INSERT_CUSTOM_LOG "Erro ao sincronizar players_online: $sync_output" "ERROR" "$ScriptName"
-    else
+    if [[ "$sync_success" == true ]]; then
         INSERT_CUSTOM_LOG "Tabela players_online sincronizada com sucesso ($player_count jogadores)." "INFO" "$ScriptName"
+    else
+        INSERT_CUSTOM_LOG "Erro ao sincronizar players_online após $max_retries tentativas: $sync_output" "ERROR" "$ScriptName"
     fi
 }
 

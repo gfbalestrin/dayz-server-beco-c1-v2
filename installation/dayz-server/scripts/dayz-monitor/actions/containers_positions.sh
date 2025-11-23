@@ -43,6 +43,9 @@ handle_containers_positions() {
 
     declare -A prev_containers=()
 
+    # Configurar PRAGMAs antes de acessar o banco
+    configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
+
     # Verificar se coluna IsDestroyed existe
     local has_is_destroyed
     has_is_destroyed=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('containers_tracking') WHERE name='IsDestroyed';")

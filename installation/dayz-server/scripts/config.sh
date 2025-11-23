@@ -71,6 +71,19 @@ export DiscordChannelPlayersStatsMessageId=$(jq -r '.Discord.ChannelPlayersStats
 export DiscordChannelPlayersStatsBotToken=$(jq -r '.Discord.ChannelPlayersStats.BotToken' "$CONFIG_FILE")
 
 
+# Função helper para configurar PRAGMAs do SQLite
+# Garante WAL mode e busy_timeout adequado para melhor concorrência
+configure_sqlite_pragmas() {
+    local db_file="$1"
+    if [[ -z "$db_file" ]]; then
+        echo "Erro: configure_sqlite_pragmas() requer caminho do banco de dados" >&2
+        return 1
+    fi
+    # Configurar PRAGMAs para melhorar concorrência e evitar locks
+    # busy_timeout aumentado para 10000ms (10 segundos) para suportar queries longas
+    sqlite3 "$db_file" "PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 10000;" >/dev/null 2>&1
+}
+
 INSERT_ADM_LOG() {
     local message="$1"
     local level="${2:-INFO}"
@@ -524,7 +537,7 @@ INSERT_PLAYER_POSITION() {
     fi
 
     # Configurar PRAGMAs para melhorar concorrência e evitar locks
-    sqlite3 "$AppFolder/$AppPlayerBecoC1DbFile" "PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;" >/dev/null 2>&1
+    configure_sqlite_pragmas "$AppFolder/$AppPlayerBecoC1DbFile"
 
     local EscapedPlayerID
     local EscapedItemsInHands
@@ -643,7 +656,7 @@ INSERT_PLAYERS_POSITIONS_BATCH() {
     fi
 
     # Configurar PRAGMAs uma vez (silenciosamente)
-    sqlite3 "$AppFolder/$AppPlayerBecoC1DbFile" "PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;" >/dev/null 2>&1
+    configure_sqlite_pragmas "$AppFolder/$AppPlayerBecoC1DbFile"
 
     local max_retries=5
     local base_retry_delay=0.5
@@ -1000,6 +1013,335 @@ EOF
     return 1
 }
 
+INSERT_VEHICLES_POSITIONS_BATCH() {
+    # Primeiro parâmetro pode ser timestamp base (opcional)
+    # Se o primeiro parâmetro parece um timestamp (contém ":" e "-"), usar como base
+    # Caso contrário, tratar todos os parâmetros como vehicles_array
+    local base_timestamp_param=""
+    local vehicles_array=()
+    
+    if [[ $# -gt 0 ]] && [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]][0-9]{2}:[0-9]{2}:[0-9]{2}$ ]]; then
+        # Primeiro parâmetro é um timestamp no formato "YYYY-MM-DD HH:MM:SS"
+        base_timestamp_param="$1"
+        shift
+        vehicles_array=("$@")
+    else
+        # Todos os parâmetros são vehicles
+        vehicles_array=("$@")
+    fi
+    
+    if [[ ${#vehicles_array[@]} -eq 0 ]]; then
+        return 0  # Nada para inserir, retorna sucesso
+    fi
+
+    # Configurar PRAGMAs uma vez (silenciosamente)
+    configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
+
+    # Verificar se colunas de saúde existem no banco (fazer uma vez)
+    local has_engine_health has_body_health has_fuel_tank_health
+    has_engine_health=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='EngineHealth';" 2>/dev/null)
+    has_body_health=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='BodyHealth';" 2>/dev/null)
+    has_fuel_tank_health=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='FuelTankHealth';" 2>/dev/null)
+
+    local max_retries=5
+    local base_retry_delay=0.5
+    local attempt=1
+
+    while (( attempt <= max_retries )); do
+        # Obter timestamp base (do parâmetro ou atual)
+        local base_timestamp
+        if [[ -n "$base_timestamp_param" ]]; then
+            # Usar timestamp fornecido (momento da captura)
+            base_timestamp="$base_timestamp_param"
+        else
+            # Fallback: usar timestamp atual (comportamento antigo)
+            base_timestamp=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT strftime('%Y-%m-%d %H:%M:%S', 'now', 'localtime');" 2>/dev/null)
+            if [[ -z "$base_timestamp" ]]; then
+                base_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+            fi
+        fi
+        
+        # Construir query SQL com múltiplos VALUES
+        local sql_values=""
+        local first_value=1
+        local row_index=0
+        
+        # Construir colunas de saúde dinamicamente
+        local HealthColumns=""
+        if [[ "$has_engine_health" -eq 1 ]]; then
+            HealthColumns=", EngineHealth"
+        fi
+        if [[ "$has_body_health" -eq 1 ]]; then
+            HealthColumns="$HealthColumns, BodyHealth"
+        fi
+        if [[ "$has_fuel_tank_health" -eq 1 ]]; then
+            HealthColumns="$HealthColumns, FuelTankHealth"
+        fi
+        
+        for vehicle_data in "${vehicles_array[@]}"; do
+            if [[ -z "$vehicle_data" ]]; then
+                continue
+            fi
+            
+            # Separar campos (formato: "vehicle_id|vehicle_name|coord_x|coord_z|coord_y|engine_health|body_health|fuel_tank_health")
+            IFS='|' read -r VehicleId VehicleName CoordX CoordZ CoordY EngineHealth BodyHealth FuelTankHealth <<< "$vehicle_data"
+            
+            # Validar campos obrigatórios
+            if [[ -z "$VehicleId" ]]; then
+                continue
+            fi
+            
+            # Validar coordenadas (devem ser números válidos)
+            if [[ -z "$CoordX" ]] || ! [[ "$CoordX" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                CoordX="0"
+            fi
+            if [[ -z "$CoordZ" ]] || ! [[ "$CoordZ" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                CoordZ="0"
+            fi
+            if [[ -z "$CoordY" ]] || ! [[ "$CoordY" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                CoordY="0"
+            fi
+            
+            # Escapar aspas simples
+            local EscapedVehicleId
+            EscapedVehicleId=$(echo "$VehicleId" | sed "s/'/''/g")
+            local EscapedVehicleName
+            EscapedVehicleName=$(echo "$VehicleName" | sed "s/'/''/g")
+            
+            # Preparar valores de saúde
+            local EngineHealthValue BodyHealthValue FuelTankHealthValue
+            if [[ "$has_engine_health" -eq 1 ]]; then
+                if [[ -n "$EngineHealth" ]] && [[ "$EngineHealth" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                    EngineHealthValue="$EngineHealth"
+                else
+                    EngineHealthValue="NULL"
+                fi
+            fi
+            if [[ "$has_body_health" -eq 1 ]]; then
+                if [[ -n "$BodyHealth" ]] && [[ "$BodyHealth" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                    BodyHealthValue="$BodyHealth"
+                else
+                    BodyHealthValue="NULL"
+                fi
+            fi
+            if [[ "$has_fuel_tank_health" -eq 1 ]]; then
+                if [[ -n "$FuelTankHealth" ]] && [[ "$FuelTankHealth" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                    FuelTankHealthValue="$FuelTankHealth"
+                else
+                    FuelTankHealthValue="NULL"
+                fi
+            fi
+            
+            # Adicionar vírgula se não for o primeiro valor
+            if [[ $first_value -eq 0 ]]; then
+                sql_values+=", "
+            fi
+            first_value=0
+            
+            # Gerar timestamp único para este registro usando strftime com frações de segundo
+            local timestamp_value
+            local days_fraction
+            days_fraction=$(awk "BEGIN {printf \"%.10f\", $row_index * 0.001 / 86400.0}")
+            if [[ -n "$base_timestamp_param" ]]; then
+                timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('$base_timestamp') + $days_fraction)"
+            else
+                timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('now', 'localtime') + $days_fraction)"
+            fi
+            
+            # Construir valor SQL
+            local health_values=""
+            if [[ "$has_engine_health" -eq 1 ]]; then
+                health_values=", $EngineHealthValue"
+            fi
+            if [[ "$has_body_health" -eq 1 ]]; then
+                health_values="$health_values, $BodyHealthValue"
+            fi
+            if [[ "$has_fuel_tank_health" -eq 1 ]]; then
+                health_values="$health_values, $FuelTankHealthValue"
+            fi
+            
+            sql_values+="('$EscapedVehicleId', '$EscapedVehicleName', '$CoordX', '$CoordZ', '$CoordY', $timestamp_value$health_values)"
+            
+            # Incrementar índice para próximo registro
+            ((row_index++))
+        done
+        
+        # Se não há valores válidos, retornar sucesso
+        if [[ -z "$sql_values" ]]; then
+            return 0
+        fi
+        
+        # Construir lista de VehicleIds para query posterior (manter ordem)
+        local vehicle_ids_list=""
+        local first_vid=1
+        for vehicle_data in "${vehicles_array[@]}"; do
+            if [[ -z "$vehicle_data" ]]; then
+                continue
+            fi
+            IFS='|' read -r VehicleId <<< "$vehicle_data"
+            if [[ -z "$VehicleId" ]]; then
+                continue
+            fi
+            local EscapedVID
+            EscapedVID=$(echo "$VehicleId" | sed "s/'/''/g")
+            if [[ $first_vid -eq 0 ]]; then
+                vehicle_ids_list+=", "
+            fi
+            first_vid=0
+            vehicle_ids_list+="'$EscapedVID'"
+        done
+        
+        # Executar INSERT em lote
+        local sql_error_file
+        sql_error_file=$(mktemp)
+        local sql_result
+        sql_result=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF 2>"$sql_error_file"
+BEGIN DEFERRED TRANSACTION;
+INSERT INTO vehicles_tracking (VehicleId, VehicleName, PositionX, PositionZ, PositionY, TimeStamp$HealthColumns)
+VALUES $sql_values;
+SELECT changes();
+SELECT last_insert_rowid();
+COMMIT;
+EOF
+)
+        
+        local sql_exit_code=$?
+        local sql_error
+        sql_error=$(cat "$sql_error_file" 2>/dev/null)
+        rm -f "$sql_error_file"
+        
+        # Extrair inserted_count e last_rowid do resultado
+        local inserted_count=$(echo "$sql_result" | head -n 1)
+        local last_rowid=$(echo "$sql_result" | tail -n 1)
+        
+        # Validar que inserted_count é um número
+        if [[ -z "$inserted_count" ]] || ! [[ "$inserted_count" =~ ^[0-9]+$ ]]; then
+            inserted_count="0"
+        fi
+        
+        # Validar que last_rowid é um número
+        if [[ -z "$last_rowid" ]] || ! [[ "$last_rowid" =~ ^[0-9]+$ ]]; then
+            last_rowid="0"
+        fi
+        
+        # Log de debug em caso de erro
+        if [[ $sql_exit_code -ne 0 ]] || [[ -n "$sql_error" ]]; then
+            echo "INSERT_VEHICLES_POSITIONS_BATCH: Erro SQL (tentativa $attempt/$max_retries): $sql_error" >&2
+            if [[ $attempt -lt $max_retries ]]; then
+                echo "INSERT_VEHICLES_POSITIONS_BATCH: Tentando novamente..." >&2
+            fi
+        fi
+        
+        # Verificar se o INSERT foi bem-sucedido
+        if [[ $sql_exit_code -eq 0 ]] && [[ "$inserted_count" =~ ^[0-9]+$ ]] && [[ $inserted_count -gt 0 ]]; then
+            # Buscar VehicleId e VehicleTrackingId dos registros recém-inseridos
+            # Retornar no formato "VehicleId|VehicleTrackingId" para facilitar mapeamento
+            local inserted_ids=""
+            
+            # Método 1: Usar last_insert_rowid() para calcular range de IDs
+            local method_used=0
+            if [[ "$last_rowid" =~ ^[0-9]+$ ]] && [[ "$last_rowid" -gt 0 ]] && [[ "$inserted_count" =~ ^[0-9]+$ ]] && [[ "$inserted_count" -gt 0 ]]; then
+                local first_rowid=$((last_rowid - inserted_count + 1))
+                if [[ $first_rowid -gt 0 ]]; then
+                    # Buscar IDs usando range de VehicleTrackingId
+                    inserted_ids=$(sqlite3 -separator '|' "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT VehicleId, IdVehicleTracking FROM vehicles_tracking WHERE IdVehicleTracking >= $first_rowid AND IdVehicleTracking <= $last_rowid ORDER BY IdVehicleTracking ASC;" 2>/dev/null)
+                    
+                    if [[ -n "$inserted_ids" ]]; then
+                        method_used=1
+                    else
+                        echo "INSERT_VEHICLES_POSITIONS_BATCH: Método 1 não retornou IDs, usando fallback" >&2
+                    fi
+                else
+                    echo "INSERT_VEHICLES_POSITIONS_BATCH: first_rowid inválido ($first_rowid), usando fallback" >&2
+                fi
+            else
+                echo "INSERT_VEHICLES_POSITIONS_BATCH: last_rowid ou inserted_count inválido (last_rowid=$last_rowid, inserted_count=$inserted_count), usando fallback" >&2
+            fi
+            
+            # Método 2: Fallback - buscar por VehicleIds com janela de tempo maior (5 segundos)
+            if [[ -z "$inserted_ids" ]] && [[ -n "$vehicle_ids_list" ]]; then
+                echo "INSERT_VEHICLES_POSITIONS_BATCH: Fallback 1 - Buscando por VehicleIds" >&2
+                inserted_ids=$(sqlite3 -separator '|' "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT VehicleId, IdVehicleTracking FROM vehicles_tracking WHERE VehicleId IN ($vehicle_ids_list) AND TimeStamp >= datetime('now', '-5 seconds') ORDER BY IdVehicleTracking DESC LIMIT $inserted_count;" 2>/dev/null)
+                
+                if [[ -n "$inserted_ids" ]]; then
+                    method_used=2
+                fi
+            fi
+            
+            # Método 3: Fallback final - buscar últimos N registros sem filtro de tempo
+            if [[ -z "$inserted_ids" ]] && [[ -n "$vehicle_ids_list" ]]; then
+                echo "INSERT_VEHICLES_POSITIONS_BATCH: Fallback 2 - Buscando últimos registros" >&2
+                inserted_ids=$(sqlite3 -separator '|' "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT VehicleId, IdVehicleTracking FROM vehicles_tracking WHERE VehicleId IN ($vehicle_ids_list) ORDER BY IdVehicleTracking DESC LIMIT $inserted_count;" 2>/dev/null)
+                
+                if [[ -n "$inserted_ids" ]]; then
+                    method_used=3
+                fi
+            fi
+            
+            # Validar que os IDs retornados correspondem aos VehicleIds esperados
+            if [[ -n "$inserted_ids" ]]; then
+                if [[ $method_used -eq 1 ]]; then
+                    # Método 1: Não precisa validar, retornar diretamente
+                    echo "$inserted_ids"
+                else
+                    # Métodos 2 e 3: Validar contra lista de VehicleIds esperados
+                    local valid_ids=""
+                    local valid_count=0
+                    
+                    while IFS='|' read -r returned_vehicle_id returned_tracking_id; do
+                        if [[ -n "$returned_vehicle_id" && -n "$returned_tracking_id" ]]; then
+                            # Verificar se o VehicleId está na lista esperada
+                            local found=false
+                            for expected_vehicle_data in "${vehicles_array[@]}"; do
+                                IFS='|' read -r expected_id <<< "$expected_vehicle_data"
+                                if [[ "$expected_id" == "$returned_vehicle_id" ]]; then
+                                    found=true
+                                    break
+                                fi
+                            done
+                            
+                            if [[ "$found" == true ]]; then
+                                if [[ -n "$valid_ids" ]]; then
+                                    valid_ids+=$'\n'
+                                fi
+                                valid_ids+="$returned_vehicle_id|$returned_tracking_id"
+                                ((valid_count++))
+                            fi
+                        fi
+                    done <<< "$inserted_ids"
+                    
+                    if [[ $valid_count -gt 0 ]]; then
+                        echo "$valid_ids"
+                    else
+                        echo "INSERT_VEHICLES_POSITIONS_BATCH: Aviso - Nenhum ID válido encontrado após validação" >&2
+                    fi
+                fi
+            else
+                echo "INSERT_VEHICLES_POSITIONS_BATCH: Aviso - Não foi possível obter IDs inseridos (INSERT funcionou)" >&2
+            fi
+            
+            # Retornar sucesso mesmo sem IDs (INSERT funcionou)
+            return 0
+        else
+            # INSERT falhou, tentar novamente
+            if [[ $attempt -lt $max_retries ]]; then
+                # Backoff exponencial: 0.5s, 1s, 2s, 4s
+                local retry_multiplier=1
+                local i
+                for ((i=1; i<attempt; i++)); do
+                    retry_multiplier=$((retry_multiplier * 2))
+                done
+                local retry_delay=$((base_retry_delay * retry_multiplier))
+                sleep "$retry_delay"
+            fi
+            attempt=$((attempt + 1))
+        fi
+    done
+
+    echo "Failed to insert vehicles positions batch after $max_retries attempts."
+    return 1
+}
+
 INSERT_VEHICLE_POSITION() {
     local VehicleId="$1"
     local VehicleName="$2"
@@ -1060,7 +1402,7 @@ INSERT_VEHICLE_POSITION() {
 
     while (( attempt <= max_retries )); do
         # Configurar PRAGMAs uma vez (silenciosamente)
-        sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;" >/dev/null 2>&1
+        configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
         
         # Executar INSERT e capturar apenas o resultado do SELECT last_insert_rowid()
         local sql_result
@@ -1275,7 +1617,7 @@ INSERT_VEHICLE_ATTACHMENTS_BATCH() {
         fi
         
         # Configurar PRAGMAs uma vez (silenciosamente)
-        sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;" >/dev/null 2>&1
+        configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
         
         # Executar INSERT em lote e capturar apenas o resultado do SELECT changes()
         local sql_result
@@ -1384,7 +1726,7 @@ INSERT_VEHICLE_ITEMS_BATCH() {
         fi
         
         # Configurar PRAGMAs uma vez (silenciosamente)
-        sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;" >/dev/null 2>&1
+        configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
         
         # Executar INSERT em lote e capturar apenas o resultado do SELECT changes()
         local sql_result
@@ -1458,7 +1800,7 @@ INSERT_CONTAINER_POSITION() {
 
     while (( attempt <= max_retries )); do
         # Configurar PRAGMAs uma vez (silenciosamente)
-        sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;" >/dev/null 2>&1
+        configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
         
         # Executar INSERT e capturar apenas o resultado do SELECT last_insert_rowid()
         local sql_result
@@ -1617,7 +1959,7 @@ INSERT_CONTAINER_ITEMS_BATCH() {
         fi
         
         # Configurar PRAGMAs uma vez (silenciosamente)
-        sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;" >/dev/null 2>&1
+        configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
         
         # Executar INSERT em lote e capturar apenas o resultado do SELECT changes()
         local sql_result

@@ -104,6 +104,12 @@ process_action_async() {
         # Adquirir lock para este tipo de ação
         acquire_lock "$action_type"
         
+        # Capturar timestamp de início (após adquirir lock, antes de processar)
+        local start_time
+        start_time=$(date +%s.%N 2>/dev/null || date +%s)
+        local start_time_readable
+        start_time_readable=$(date "+%Y-%m-%d %H:%M:%S")
+        
         # Processar ação baseado no tipo
         case "$action_type" in
             reset_password)
@@ -158,6 +164,37 @@ process_action_async() {
                 echo ">> Ação desconhecida: $action_type"
                 ;;
         esac
+        
+        # Capturar timestamp de fim
+        local end_time
+        end_time=$(date +%s.%N 2>/dev/null || date +%s)
+        local end_time_readable
+        end_time_readable=$(date "+%Y-%m-%d %H:%M:%S")
+        
+        # Calcular tempo de execução em milissegundos
+        local elapsed_ms
+        if command -v awk >/dev/null 2>&1; then
+            elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($end_time - $start_time) * 1000}")
+        else
+            # Fallback se awk não estiver disponível (usar segundos)
+            local elapsed_seconds
+            elapsed_seconds=$(echo "$end_time - $start_time" | bc -l 2>/dev/null || echo "0")
+            elapsed_ms=$(echo "$elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+        fi
+        
+        # Garantir que elapsed_ms é um número inteiro
+        elapsed_ms=$(echo "$elapsed_ms" | awk '{printf "%.0f", $1}' 2>/dev/null || echo "0")
+        
+        # Determinar nível de log baseado no tempo de execução (> 5000ms = 5 segundos)
+        local log_level="INFO"
+        if [[ -n "$elapsed_ms" ]] && [[ "$elapsed_ms" =~ ^[0-9]+$ ]] && [[ $elapsed_ms -gt 5000 ]]; then
+            log_level="WARNING"
+        fi
+        
+        # Registrar log de performance
+        local log_message
+        log_message="Ação [$action_type] executada em ${elapsed_ms}ms (início: $start_time_readable, fim: $end_time_readable)"
+        INSERT_CUSTOM_LOG "$log_message" "$log_level" "$ScriptName"
         
         # Liberar lock após processamento
         release_lock "$action_type"

@@ -16,6 +16,9 @@ handle_vehicles_positions() {
 
     declare -A prev_vehicles=()
 
+    # Configurar PRAGMAs antes de acessar o banco
+    configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
+
     # Garantir que índice composto otimizado existe (criação automática se não existir)
     # Nota: SQLite não suporta DESC na definição do índice, mas ORDER BY DESC na query ainda usa o índice eficientemente
     sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "CREATE INDEX IF NOT EXISTS idx_vehicles_tracking_lookup ON vehicles_tracking(VehicleId, TimeStamp, IsDestroyed);" 2>/dev/null
@@ -46,21 +49,65 @@ handle_vehicles_positions() {
         WHERE rn = 1"
     fi
     
+    # Executar query com retry logic para evitar locks
+    local query_output
+    local query_success=false
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+    
+    while [[ $attempt -le $max_retries ]]; do
+        # Configurar PRAGMAs antes de cada tentativa
+        configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
+        
+        query_output=$(sqlite3 -separator '|' "$AppFolder/$AppServerBecoC1LogsDbFile" "$sql_query" 2>&1)
+        
+        if [[ $? -eq 0 ]]; then
+            query_success=true
+            break
+        fi
+        
+        # Verificar se é erro de lock (código 5)
+        if echo "$query_output" | grep -q "database is locked"; then
+            if [[ $attempt -lt $max_retries ]]; then
+                sleep "$retry_delay"
+                # Backoff exponencial: 0.2, 0.4, 0.8, 1.6, 3.2
+                retry_delay=$(awk "BEGIN {printf \"%.1f\", $retry_delay * 2}")
+                attempt=$((attempt + 1))
+                continue
+            fi
+        else
+            # Erro diferente de lock, não tentar novamente
+            break
+        fi
+    done
+    
+    if [[ "$query_success" != true ]]; then
+        INSERT_CUSTOM_LOG "Erro ao buscar veículos anteriores após $max_retries tentativas: $query_output" "ERROR" "$ScriptName"
+        query_output=""  # Limpar output para não processar dados inválidos
+    fi
+    
     while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y; do
         local prev_x_fmt prev_z_fmt prev_y_fmt
         prev_x_fmt=$(format_coord "$prev_x")
         prev_z_fmt=$(format_coord "$prev_z")
         prev_y_fmt=$(format_coord "$prev_y")
         prev_vehicles["$prev_id"]="$prev_name|$prev_x_fmt|$prev_z_fmt|$prev_y_fmt"
-    done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "$sql_query")
+    done <<< "$query_output"
 
     local vehicles
     vehicles=$(echo "$line" | jq -c '.vehicles[]?')
 
-    local vehicle_count processed_count
+    local vehicle_count
     vehicle_count=$(echo "$line" | jq '.vehicles | length // 0')
-    processed_count=0
 
+    # Arrays para coletar dados antes de processar
+    declare -a batch_vehicles_data=()  # Para batch INSERT
+    declare -A vehicles_items_map=()    # VehicleId -> array de items
+    declare -A vehicles_attachments_map=()  # VehicleId -> array de attachments
+    declare -a vehicles_to_process=()   # Lista de veículos para processar logs
+
+    # Primeira passagem: coletar todos os dados
     local vehicle_data
     while IFS= read -r vehicle_data; do
         if [[ -z "$vehicle_data" ]]; then
@@ -70,6 +117,10 @@ handle_vehicles_positions() {
         local vehicle_id vehicle_name coord_x coord_z coord_y
         vehicle_id=$(echo "$vehicle_data" | jq -r '.vehicle_id')
         vehicle_name=$(echo "$vehicle_data" | jq -r '.vehicle_name')
+        
+        if [[ -z "$vehicle_id" ]]; then
+            continue
+        fi
         
         # Suportar tanto formato antigo (x, z, y) quanto novo (position.x, position.z, position.y)
         if echo "$vehicle_data" | jq -e '.position' >/dev/null 2>&1; then
@@ -82,33 +133,24 @@ handle_vehicles_positions() {
             coord_y=$(echo "$vehicle_data" | jq -r '.y')
         fi
         
-        # Extrair health_parts, items e attachments
+        # Extrair health_parts
         local engine_health body_health fuel_tank_health
         engine_health=$(echo "$vehicle_data" | jq -r '.health_parts.engine // empty')
         body_health=$(echo "$vehicle_data" | jq -r '.health_parts.body // empty')
         fuel_tank_health=$(echo "$vehicle_data" | jq -r '.health_parts.fuel_tank // empty')
         
-        local current_items current_attachments
-        # Processar items - filtrar apenas objetos válidos com tipo não vazio
-        current_items=$(echo "$vehicle_data" | jq -c '.items[]? | select(.type != null and .type != "" and .type != "empty")' 2>/dev/null)
-        # Processar attachments - filtrar apenas objetos válidos com tipo não vazio e ordenar por tipo para consistência
-        if echo "$vehicle_data" | jq -e '.attachments | type == "array"' >/dev/null 2>&1; then
-            current_attachments=$(echo "$vehicle_data" | jq -c '.attachments[]? | select(.type != null and .type != "" and .type != "empty") | {type: .type, health: (.health // null)}' 2>/dev/null | sort)
-        else
-            current_attachments=""
-        fi
-
+        # Formatar coordenadas
         local coord_x_fmt coord_z_fmt coord_y_fmt
         coord_x_fmt=$(format_coord "$coord_x")
         coord_z_fmt=$(format_coord "$coord_z")
         coord_y_fmt=$(format_coord "$coord_y")
 
+        # Processar logs de novos veículos e movimentação
         local prev_data
         prev_data="${prev_vehicles[$vehicle_id]}"
         if [[ -z "$prev_data" ]]; then
             Content="Veículo novo detectado (ID=$vehicle_id) - Nome=\"$vehicle_name\" - Coords=($coord_x_fmt,$coord_z_fmt,$coord_y_fmt)"
             INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
-            #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
         else
             local prev_name prev_x prev_z prev_y movement_message
             IFS='|' read -r prev_name prev_x prev_z prev_y <<< "$prev_data"
@@ -121,97 +163,142 @@ handle_vehicles_positions() {
             if [[ -n "$movement_message" ]]; then
                 Content="Veículo movido (ID=$vehicle_id) - Nome=\"$vehicle_name\" - $movement_message"
                 INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
-                #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             fi
 
             unset "prev_vehicles[$vehicle_id]"
         fi
 
-        local VehicleTrackingId
-        VehicleTrackingId=$(INSERT_VEHICLE_POSITION "$vehicle_id" "$vehicle_name" "$coord_x_fmt" "$coord_z_fmt" "$coord_y_fmt" "$current_timestamp" "$engine_health" "$body_health" "$fuel_tank_health")
-        if [[ $? -eq 0 && -n "$VehicleTrackingId" ]]; then
-            processed_count=$((processed_count + 1))
-            
-            # Inserir itens do veículo em lote
-            if [[ -n "$current_items" ]]; then
-                local items_batch=()
-                local item_data item_type item_health
-                
-                # Coletar todos os items válidos em um array
-                while IFS= read -r item_data; do
-                    if [[ -z "$item_data" || "$item_data" == "null" || "$item_data" == "empty" ]]; then
-                        continue
-                    fi
-
-                    # Extrair tipo e health do item
-                    item_type=$(echo "$item_data" | jq -r '.type // empty' 2>/dev/null)
-                    item_health=$(echo "$item_data" | jq -r 'if .health != null and .health != "" then .health else empty end' 2>/dev/null)
-
-                    # Validar que o tipo não está vazio e não é "empty"
-                    if [[ -n "$item_type" && "$item_type" != "empty" && "$item_type" != "null" ]]; then
-                        # Adicionar ao array no formato "type|health"
-                        if [[ -n "$item_health" ]]; then
-                            items_batch+=("${item_type}|${item_health}")
-                        else
-                            items_batch+=("${item_type}")
-                        fi
-                    fi
-                done <<< "$current_items"
-
-                # Inserir todos os items em uma única transação
-                if [[ ${#items_batch[@]} -gt 0 ]]; then
-                    local inserted_item_count
-                    inserted_item_count=$(INSERT_VEHICLE_ITEMS_BATCH "$VehicleTrackingId" "$current_timestamp" "${items_batch[@]}" 2>/dev/null)
-                    if [[ $? -eq 0 && -n "$inserted_item_count" ]]; then
-                        Content="$inserted_item_count item(s) inseridos no veículo $vehicle_id"
-                        #INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
-                    fi
+        # Coletar items do veículo
+        local current_items
+        current_items=$(echo "$vehicle_data" | jq -c '.items[]? | select(.type != null and .type != "" and .type != "empty")' 2>/dev/null)
+        if [[ -n "$current_items" ]]; then
+            local items_batch=()
+            while IFS= read -r item_data; do
+                if [[ -z "$item_data" || "$item_data" == "null" || "$item_data" == "empty" ]]; then
+                    continue
                 fi
-            fi
-            
-            # Inserir attachments do veículo em lote
-            if [[ -n "$current_attachments" ]]; then
-                local attachments_batch=()
-                local attachment_data attachment_type attachment_health
-                
-                # Coletar todos os attachments válidos em um array
-                while IFS= read -r attachment_data; do
-                    if [[ -z "$attachment_data" || "$attachment_data" == "null" || "$attachment_data" == "empty" ]]; then
-                        continue
-                    fi
-
-                    # Extrair tipo e health do attachment
-                    attachment_type=$(echo "$attachment_data" | jq -r '.type // empty' 2>/dev/null)
-                    attachment_health=$(echo "$attachment_data" | jq -r 'if .health != null and .health != "" then .health else empty end' 2>/dev/null)
-
-                    # Validar que o tipo não está vazio e não é "empty"
-                    if [[ -n "$attachment_type" && "$attachment_type" != "empty" && "$attachment_type" != "null" ]]; then
-                        # Adicionar ao array no formato "type|health"
-                        if [[ -n "$attachment_health" ]]; then
-                            attachments_batch+=("${attachment_type}|${attachment_health}")
-                        else
-                            attachments_batch+=("${attachment_type}")
-                        fi
-                    fi
-                done <<< "$current_attachments"
-
-                # Inserir todos os attachments em uma única transação
-                if [[ ${#attachments_batch[@]} -gt 0 ]]; then
-                    local inserted_attachment_count
-                    inserted_attachment_count=$(INSERT_VEHICLE_ATTACHMENTS_BATCH "$VehicleTrackingId" "$current_timestamp" "${attachments_batch[@]}" 2>/dev/null)
-                    if [[ $? -eq 0 && -n "$inserted_attachment_count" ]]; then
-                        Content="$inserted_attachment_count attachment(s) inseridos no veículo $vehicle_id"
-                        #INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
+                local item_type item_health
+                item_type=$(echo "$item_data" | jq -r '.type // empty' 2>/dev/null)
+                item_health=$(echo "$item_data" | jq -r 'if .health != null and .health != "" then .health else empty end' 2>/dev/null)
+                if [[ -n "$item_type" && "$item_type" != "empty" && "$item_type" != "null" ]]; then
+                    if [[ -n "$item_health" ]]; then
+                        items_batch+=("${item_type}|${item_health}")
                     else
-                        Content="Erro ao inserir attachments no veículo $vehicle_id (batch size: ${#attachments_batch[@]})"
-                        INSERT_CUSTOM_LOG "$Content" "ERROR" "$ScriptName"
+                        items_batch+=("${item_type}")
                     fi
                 fi
+            done <<< "$current_items"
+            if [[ ${#items_batch[@]} -gt 0 ]]; then
+                # Armazenar items como string separada por newlines para depois processar
+                vehicles_items_map["$vehicle_id"]=$(IFS=$'\n'; echo "${items_batch[*]}")
             fi
-        else
-            INSERT_CUSTOM_LOG "Erro ao salvar posição do veículo (ID=$vehicle_id)" "ERROR" "$ScriptName"
         fi
+        
+        # Coletar attachments do veículo
+        local current_attachments
+        if echo "$vehicle_data" | jq -e '.attachments | type == "array"' >/dev/null 2>&1; then
+            current_attachments=$(echo "$vehicle_data" | jq -c '.attachments[]? | select(.type != null and .type != "" and .type != "empty") | {type: .type, health: (.health // null)}' 2>/dev/null | sort)
+        else
+            current_attachments=""
+        fi
+        if [[ -n "$current_attachments" ]]; then
+            local attachments_batch=()
+            while IFS= read -r attachment_data; do
+                if [[ -z "$attachment_data" || "$attachment_data" == "null" || "$attachment_data" == "empty" ]]; then
+                    continue
+                fi
+                local attachment_type attachment_health
+                attachment_type=$(echo "$attachment_data" | jq -r '.type // empty' 2>/dev/null)
+                attachment_health=$(echo "$attachment_data" | jq -r 'if .health != null and .health != "" then .health else empty end' 2>/dev/null)
+                if [[ -n "$attachment_type" && "$attachment_type" != "empty" && "$attachment_type" != "null" ]]; then
+                    if [[ -n "$attachment_health" ]]; then
+                        attachments_batch+=("${attachment_type}|${attachment_health}")
+                    else
+                        attachments_batch+=("${attachment_type}")
+                    fi
+                fi
+            done <<< "$current_attachments"
+            if [[ ${#attachments_batch[@]} -gt 0 ]]; then
+                # Armazenar attachments como string separada por newlines para depois processar
+                vehicles_attachments_map["$vehicle_id"]=$(IFS=$'\n'; echo "${attachments_batch[*]}")
+            fi
+        fi
+
+        # Adicionar ao batch de veículos (formato: vehicle_id|vehicle_name|coord_x|coord_z|coord_y|engine_health|body_health|fuel_tank_health)
+        batch_vehicles_data+=("$vehicle_id|$vehicle_name|$coord_x_fmt|$coord_z_fmt|$coord_y_fmt|${engine_health:-}|${body_health:-}|${fuel_tank_health:-}")
+        vehicles_to_process+=("$vehicle_id")
     done <<< "$vehicles"
+
+    # Batch INSERT de todos os veículos
+    local inserted_ids
+    local batch_insert_result
+    local processed_count=0
+    if [[ ${#batch_vehicles_data[@]} -gt 0 ]]; then
+        inserted_ids=$(INSERT_VEHICLES_POSITIONS_BATCH "$current_timestamp" "${batch_vehicles_data[@]}")
+        batch_insert_result=$?
+        
+        if [[ $batch_insert_result -ne 0 ]]; then
+            INSERT_CUSTOM_LOG "Erro: não foi possível inserir veículos em batch (código: $batch_insert_result)" "ERROR" "$ScriptName"
+        else
+            processed_count=${#batch_vehicles_data[@]}
+            
+            # Criar mapeamento VehicleId -> VehicleTrackingId
+            declare -A vehicle_tracking_map=()
+            if [[ -n "$inserted_ids" ]]; then
+                while IFS='|' read -r vid tracking_id; do
+                    if [[ -n "$vid" && -n "$tracking_id" ]]; then
+                        vehicle_tracking_map["$vid"]="$tracking_id"
+                    fi
+                done <<< "$inserted_ids"
+            fi
+            
+            # Processar items e attachments usando o mapeamento
+            for vehicle_id in "${vehicles_to_process[@]}"; do
+                local VehicleTrackingId="${vehicle_tracking_map[$vehicle_id]}"
+                if [[ -z "$VehicleTrackingId" ]]; then
+                    continue
+                fi
+                
+                # Processar items do veículo
+                if [[ -n "${vehicles_items_map[$vehicle_id]}" ]]; then
+                    local items_string="${vehicles_items_map[$vehicle_id]}"
+                    local items_batch=()
+                    while IFS= read -r item_entry; do
+                        if [[ -n "$item_entry" ]]; then
+                            items_batch+=("$item_entry")
+                        fi
+                    done <<< "$items_string"
+                    
+                    if [[ ${#items_batch[@]} -gt 0 ]]; then
+                        local inserted_item_count
+                        inserted_item_count=$(INSERT_VEHICLE_ITEMS_BATCH "$VehicleTrackingId" "$current_timestamp" "${items_batch[@]}" 2>/dev/null)
+                        if [[ $? -ne 0 ]]; then
+                            INSERT_CUSTOM_LOG "Erro ao inserir items no veículo $vehicle_id" "ERROR" "$ScriptName"
+                        fi
+                    fi
+                fi
+                
+                # Processar attachments do veículo
+                if [[ -n "${vehicles_attachments_map[$vehicle_id]}" ]]; then
+                    local attachments_string="${vehicles_attachments_map[$vehicle_id]}"
+                    local attachments_batch=()
+                    while IFS= read -r attachment_entry; do
+                        if [[ -n "$attachment_entry" ]]; then
+                            attachments_batch+=("$attachment_entry")
+                        fi
+                    done <<< "$attachments_string"
+                    
+                    if [[ ${#attachments_batch[@]} -gt 0 ]]; then
+                        local inserted_attachment_count
+                        inserted_attachment_count=$(INSERT_VEHICLE_ATTACHMENTS_BATCH "$VehicleTrackingId" "$current_timestamp" "${attachments_batch[@]}" 2>/dev/null)
+                        if [[ $? -ne 0 ]]; then
+                            INSERT_CUSTOM_LOG "Erro ao inserir attachments no veículo $vehicle_id" "ERROR" "$ScriptName"
+                        fi
+                    fi
+                fi
+            done
+        fi
+    fi
 
     if [[ ${#prev_vehicles[@]} -gt 0 ]]; then
         local removed_id removed_data rem_name rem_x rem_z rem_y
