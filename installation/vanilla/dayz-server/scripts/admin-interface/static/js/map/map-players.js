@@ -417,7 +417,22 @@ function loadPlayerTrail(playerId) {
     // Marcar como "em andamento"
     MapState.loadingTrails[playerId] = true;
     
-    $.get(`/api/players/${playerId}/trail`, { limit: 100 })
+    // Preparar parâmetros da requisição
+    const params = {
+        limit: 100
+    };
+    
+    // Adicionar filtros de data se estiverem ativos
+    if (MapState.trailDateFilter.enabled) {
+        if (MapState.trailDateFilter.startDate) {
+            params.date_from = MapState.trailDateFilter.startDate.toISOString();
+        }
+        if (MapState.trailDateFilter.endDate) {
+            params.date_to = MapState.trailDateFilter.endDate.toISOString();
+        }
+    }
+    
+    $.get(`/api/players/${playerId}/trail`, params)
         .done(function(data) {
             // Verificar novamente se filtro ainda está ativo e jogador ainda está online
             const onlineOnlyFilterStillActive = $('#onlineOnlyCheck').is(':checked');
@@ -460,24 +475,12 @@ function drawTrail(playerId, trail) {
     
     if (trail.length === 0) return;
     
-    // Aplicar filtro de data se ativo
-    let filteredTrail = trail;
-    if (MapState.trailDateFilter.enabled) {
-        filteredTrail = trail.filter(point => {
-            const pointDate = new Date(point.timestamp);
-            return pointDate >= MapState.trailDateFilter.startDate && 
-                   pointDate <= MapState.trailDateFilter.endDate;
-        });
-        
-        if (filteredTrail.length === 0) {
-            console.log('Nenhum ponto encontrado no período especificado');
-            return;
-        }
-    }
+    // O backend já filtra os dados corretamente baseado em date_from e date_to
+    // Não precisamos filtrar novamente no frontend
     
     // Converter pontos para coordenadas do mapa
     const processedTrail = [];
-    filteredTrail.forEach(function(point) {
+    trail.forEach(function(point) {
         const coords = convertToMapCoords(point.pixel_coords);
         if (coords) {
             processedTrail.push({
@@ -1086,7 +1089,8 @@ function applyTrailFilterShortcut(shortcut) {
         MapState.hasCustomFilter = false;
     }
     
-    const now = new Date();
+    // Usar data atual em São Paulo para cálculos de atalhos
+    const now = getNowInSaoPaulo();
     let startDate, endDate;
     
     switch(shortcut) {
@@ -1135,12 +1139,19 @@ function applyTrailFilterShortcut(shortcut) {
             endDate = null; // Vazio para indicar "a partir de"
             break;
         case 'today':
-            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+            // Obter início do dia atual em São Paulo
+            const todaySP = now.toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' });
+            const todayDate = todaySP.split(',')[0]; // 'YYYY-MM-DD'
+            startDate = convertSaoPauloToUTC(todayDate, '00:00:00');
             endDate = now;
             break;
         case 'yesterday':
-            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0);
-            endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59);
+            // Obter data de ontem em São Paulo
+            const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+            const yesterdaySP = yesterday.toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' });
+            const yesterdayDate = yesterdaySP.split(',')[0]; // 'YYYY-MM-DD'
+            startDate = convertSaoPauloToUTC(yesterdayDate, '00:00:00');
+            endDate = convertSaoPauloToUTC(yesterdayDate, '23:59:59');
             break;
         case '7days':
             startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
@@ -1245,6 +1256,11 @@ function applyTrailFilterShortcut(shortcut) {
         }
     }
     
+    // Definir endDate no MapState diretamente quando for null (atalhos de período)
+    if (!endDate) {
+        MapState.trailDateFilter.endDate = null;
+    }
+    
     // Aplicar filtro automaticamente (preservar shortcut para não resetar estado)
     applyTrailDateFilter(true);
 }
@@ -1299,19 +1315,35 @@ function applyTrailDateFilter(preserveShortcut = false) {
         MapState.trailDateFilter.enabled = true;
         
         if (startDate) {
-            MapState.trailDateFilter.startDate = new Date(`${startDate}T${startTime}`);
+            // Os campos de data/hora já estão em UTC (formato do navegador)
+            // Criar data diretamente sem conversão
+            const [year, month, day] = startDate.split('-').map(Number);
+            const [hours, minutes, seconds = 0] = (startTime || '00:00:00').split(':').map(Number);
+            MapState.trailDateFilter.startDate = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
         } else {
             // Se apenas Data Fim está preenchida, considerar tudo desde o início (null = sem limite)
             MapState.trailDateFilter.startDate = null;
         }
         
         if (endDate) {
-            MapState.trailDateFilter.endDate = new Date(`${endDate}T${endTime}`);
+            // Os campos de data/hora já estão em UTC (formato do navegador)
+            // Criar data diretamente sem conversão
+            const [year, month, day] = endDate.split('-').map(Number);
+            const [hours, minutes, seconds = 0] = (endTime || '23:59:59').split(':').map(Number);
+            MapState.trailDateFilter.endDate = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
         } else {
-            // Se apenas Data Início está preenchida, considerar tudo até o futuro (data atual + 1 ano)
-            const futureDate = new Date();
-            futureDate.setFullYear(futureDate.getFullYear() + 1);
-            MapState.trailDateFilter.endDate = futureDate;
+            // Se apenas Data Início está preenchida, verificar se endDate já foi definido como null
+            // (caso de atalhos de período que não têm data fim)
+            if (MapState.trailDateFilter.endDate === null) {
+                // Manter null (sem limite de data fim)
+                MapState.trailDateFilter.endDate = null;
+            } else {
+                // Se não foi definido como null, considerar tudo até o futuro (data atual + 1 ano)
+                // Usar data atual em UTC
+                const futureDate = new Date();
+                futureDate.setFullYear(futureDate.getFullYear() + 1);
+                MapState.trailDateFilter.endDate = futureDate;
+            }
         }
         
         // Se preserveShortcut for false, marcar que filtro personalizado está ativo e limpar atalho rápido

@@ -8,6 +8,10 @@ import logging
 import os
 import fcntl
 import config
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
 from database import (
     get_players_last_position, get_online_players, get_player_trail,
     get_online_players_positions, get_vehicles_map_positions,
@@ -73,7 +77,42 @@ def api_positions():
 def api_player_trail(player_id):
     """API com trail de um jogador específico"""
     limit = request.args.get('limit', 100, type=int)
-    trail = get_player_trail(player_id, limit)
+    date_from = request.args.get('date_from', None)
+    date_to = request.args.get('date_to', None)
+    
+    # Converter parâmetros de data de UTC para formato do banco (assumindo UTC no banco)
+    # O frontend envia em ISO (UTC), precisamos converter para UTC antes de buscar no banco
+    if date_from:
+        try:
+            # Parse ISO string (assumindo UTC)
+            dt_from = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
+            if dt_from.tzinfo is None:
+                dt_from = dt_from.replace(tzinfo=ZoneInfo('UTC'))
+            # Converter para string no formato do banco (UTC)
+            # Incluir milissegundos se disponíveis para comparação precisa
+            if dt_from.microsecond > 0:
+                date_from = dt_from.strftime('%Y-%m-%d %H:%M:%S.%f')
+            else:
+                date_from = dt_from.strftime('%Y-%m-%d %H:%M:%S')
+        except (ValueError, AttributeError):
+            pass  # Manter original se não conseguir parsear
+    
+    if date_to:
+        try:
+            # Parse ISO string (assumindo UTC)
+            dt_to = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
+            if dt_to.tzinfo is None:
+                dt_to = dt_to.replace(tzinfo=ZoneInfo('UTC'))
+            # Converter para string no formato do banco (UTC)
+            # Incluir milissegundos se disponíveis para comparação precisa
+            if dt_to.microsecond > 0:
+                date_to = dt_to.strftime('%Y-%m-%d %H:%M:%S.%f')
+            else:
+                date_to = dt_to.strftime('%Y-%m-%d %H:%M:%S')
+        except (ValueError, AttributeError):
+            pass  # Manter original se não conseguir parsear
+    
+    trail = get_player_trail(player_id, limit, date_from, date_to)
     
     result = {
         'player_id': player_id,
@@ -82,13 +121,34 @@ def api_player_trail(player_id):
     
     for point in trail:
         pixel_coords = dayz_to_pixel(point['CoordX'], point['CoordY'])
+        # Converter timestamp do banco (UTC) para America/Sao_Paulo
+        # Retornar em formato ISO com timezone para o frontend interpretar corretamente
+        timestamp_br = None
+        if point.get('Data'):
+            # Converter de UTC para America/Sao_Paulo
+            try:
+                # Parse timestamp do banco (assumindo UTC)
+                # Tentar primeiro com milissegundos, depois sem
+                try:
+                    dt_utc = datetime.strptime(point['Data'], '%Y-%m-%d %H:%M:%S.%f')
+                except ValueError:
+                    dt_utc = datetime.strptime(point['Data'], '%Y-%m-%d %H:%M:%S')
+                dt_utc = dt_utc.replace(tzinfo=ZoneInfo('UTC'))
+                # Converter para America/Sao_Paulo
+                dt_sp = dt_utc.astimezone(ZoneInfo('America/Sao_Paulo'))
+                # Retornar em formato ISO com timezone
+                timestamp_br = dt_sp.isoformat()
+            except (ValueError, AttributeError):
+                # Fallback: usar função helper
+                timestamp_br = convert_timestamp_to_br(point['Data'])
+        
         trail_point = {
             'player_coord_id': point['PlayerCoordId'],
             'coord_x': point['CoordX'],
             'coord_y': point['CoordY'],
             'coord_z': point['CoordZ'],
             'pixel_coords': pixel_coords,
-            'timestamp': point['Data'] or '',
+            'timestamp': timestamp_br or '',
             'has_backup': bool(point.get('HasBackup', 0))
         }
         

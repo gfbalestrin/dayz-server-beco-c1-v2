@@ -2005,11 +2005,43 @@ def get_players_last_position() -> List[Dict]:
         """)
         return [dict(row) for row in cursor.fetchall()]
 
-def get_player_trail(player_id: str, limit: int = 100) -> List[Dict]:
-    """Retorna o histórico de movimento de um jogador com flag de backup e informações do jogador"""
+def get_player_trail(player_id: str, limit: int = 100, date_from: str = None, date_to: str = None) -> List[Dict]:
+    """Retorna o histórico de movimento de um jogador com flag de backup e informações do jogador
+    
+    Args:
+        player_id: ID do jogador
+        limit: Limite de registros (padrão 100). Se filtros de data estiverem ativos, usar limite maior ou None
+        date_from: Data inicial para filtrar (formato: 'YYYY-MM-DD HH:MM:SS' ou ISO)
+        date_to: Data final para filtrar (formato: 'YYYY-MM-DD HH:MM:SS' ou ISO)
+    """
     with DatabaseConnection(config.DB_PLAYERS) as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+        
+        # Construir condições WHERE dinamicamente
+        where_conditions = ["pc.PlayerID = ?"]
+        params = [player_id]
+        
+        if date_from:
+            # Usar datetime() do SQLite para garantir comparação correta de datas
+            # Isso funciona mesmo se pc.Data tiver milissegundos
+            where_conditions.append("datetime(pc.Data) >= datetime(?)")
+            params.append(date_from)
+        
+        if date_to:
+            # Usar datetime() do SQLite para garantir comparação correta de datas
+            where_conditions.append("datetime(pc.Data) <= datetime(?)")
+            params.append(date_to)
+        
+        where_clause = " AND ".join(where_conditions)
+        
+        # Se filtros de data estiverem ativos, usar limite maior ou remover limite
+        # Para evitar sobrecarga, usar limite de 10000 quando filtros estão ativos
+        if date_from or date_to:
+            effective_limit = limit if limit > 10000 else 10000
+        else:
+            effective_limit = limit
+        
+        query = f"""
             SELECT pc.PlayerCoordId, pc.CoordX, pc.CoordY, pc.CoordZ, pc.Data,
                    pc.Health, pc.Blood, pc.Shock, pc.Energy, pc.Water,
                    pc.IsAlive, pc.IsAdmin, pc.Stamina, pc.StaminaMax,
@@ -2019,10 +2051,13 @@ def get_player_trail(player_id: str, limit: int = 100) -> List[Dict]:
             LEFT JOIN (
                 SELECT DISTINCT PlayerCoordId FROM players_coord_backup
             ) pcb ON pc.PlayerCoordId = pcb.PlayerCoordId
-            WHERE pc.PlayerID = ?
-            ORDER BY pc.Data DESC
+            WHERE {where_clause}
+            ORDER BY datetime(pc.Data) DESC
             LIMIT ?
-        """, (player_id, limit))
+        """
+        
+        params.append(effective_limit)
+        cursor.execute(query, params)
         results = [dict(row) for row in cursor.fetchall()]
         return results
 
