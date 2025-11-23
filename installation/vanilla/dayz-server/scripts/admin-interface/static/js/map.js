@@ -25,6 +25,19 @@ $(document).ready(function() {
     setupMapSelector();
     loadPositions();
     
+    // Garantir que inputs de hora sempre usem formato 24h
+    // O valor sempre é retornado em formato 24h pelo JavaScript, mas podemos adicionar
+    // uma validação para garantir consistência
+    $('#trailStartTime, #trailEndTime').on('change', function() {
+        const value = $(this).val();
+        if (value) {
+            // Garantir formato HH:MM:SS (adicionar segundos se não existirem)
+            if (value.length === 5) {
+                $(this).val(value + ':00');
+            }
+        }
+    });
+    
     // Atualizar visibilidade inicial do botão de trails
     updateTrailButtonVisibility();
     
@@ -35,6 +48,12 @@ $(document).ready(function() {
     // Event listeners
     $('#refreshBtn').on('click', loadPositions);
     $('#autoRefreshCheck').on('change', toggleAutoRefresh);
+    $('#autoRefreshInterval').on('change', function() {
+        // Se auto-refresh estiver ativo, reiniciar com novo intervalo
+        if ($('#autoRefreshCheck').is(':checked')) {
+            toggleAutoRefresh();
+        }
+    });
     $('#notificationsCheck').on('change', toggleNotifications);
     $('#onlineOnlyCheck').on('change', filterPlayers);
     $('#showDestroyedCheck').on('change', function() {

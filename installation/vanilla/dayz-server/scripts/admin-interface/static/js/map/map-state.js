@@ -59,6 +59,8 @@ const MapState = {
         startDate: null,
         endDate: null
     },
+    activeTrailShortcut: null,
+    hasCustomFilter: false,
     
     // Contextos
     currentPointContext: null,

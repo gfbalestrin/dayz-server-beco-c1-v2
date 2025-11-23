@@ -376,17 +376,17 @@ function initMap() {
 }
 
 /**
- * Mostrar loading
+ * Mostrar loading (agora na sidebar ao invés de overlay no mapa)
  */
 function showLoading() {
-    $('#map').append('<div class="loading-overlay"><i class="fas fa-spinner fa-spin loading-spinner"></i></div>');
+    $('#mapLoadingIndicator').show();
 }
 
 /**
  * Esconder loading
  */
 function hideLoading() {
-    $('.loading-overlay').remove();
+    $('#mapLoadingIndicator').hide();
 }
 
 /**
@@ -394,6 +394,13 @@ function hideLoading() {
  */
 function toggleAutoRefresh() {
     if ($('#autoRefreshCheck').is(':checked')) {
+        // Obter intervalo do campo de input (em segundos) e converter para milissegundos
+        const intervalSeconds = parseInt($('#autoRefreshInterval').val()) || 10;
+        const intervalMs = intervalSeconds * 1000;
+        
+        // Armazenar valor em segundos no MapState para referência
+        MapState.autoRefreshIntervalSeconds = intervalSeconds;
+        
         MapState.autoRefreshInterval = setInterval(function() {
             if (typeof loadPositions === 'function') loadPositions();
             if (MapState.showVehicles && typeof loadVehicles === 'function') loadVehicles();
@@ -401,12 +408,12 @@ function toggleAutoRefresh() {
             if (MapState.showFences && typeof loadFences === 'function') loadFences();
             if (MapState.showKills && typeof loadKills === 'function') loadKills();
             if (MapState.showDamages && typeof loadDamages === 'function') loadDamages();
-            // Recarregar trails se estiverem ativos, atualizando filtro de data automaticamente
-            if (MapState.showTrails && typeof updateTrailDateFilterAuto === 'function') {
-                updateTrailDateFilterAuto(1); // Últimas 1 hora (já recarrega os trails internamente)
+            // Recarregar trails se estiverem ativos, respeitando filtro atual
+            if (MapState.showTrails && typeof reapplyCurrentTrailFilter === 'function') {
+                reapplyCurrentTrailFilter(); // Respeita atalho rápido ou filtro personalizado selecionado
             }
-        }, 60000); // 60 segundos (1 minuto - alinhado com frequência de salvamento das coordenadas)
-        console.log('Auto-refresh ligado');
+        }, intervalMs);
+        console.log(`Auto-refresh ligado (${intervalSeconds} segundos)`);
     } else {
         if (MapState.autoRefreshInterval) {
             clearInterval(MapState.autoRefreshInterval);

@@ -62,26 +62,43 @@ function detectPlayerChanges(newData, oldData) {
 }
 
 /**
+ * Animar movimento de marcador de forma suave
+ */
+function animateMarkerMove(marker, targetLatLng, duration) {
+    const startLatLng = marker.getLatLng();
+    const startLat = startLatLng.lat;
+    const startLng = startLatLng.lng;
+    const targetLat = targetLatLng[0];
+    const targetLng = targetLatLng[1];
+    
+    const startTime = performance.now();
+    
+    function animate(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Usar easing function para movimento suave (ease-out)
+        const easeProgress = 1 - Math.pow(1 - progress, 3);
+        
+        const currentLat = startLat + (targetLat - startLat) * easeProgress;
+        const currentLng = startLng + (targetLng - startLng) * easeProgress;
+        
+        marker.setLatLng([currentLat, currentLng]);
+        
+        if (progress < 1) {
+            requestAnimationFrame(animate);
+        }
+    }
+    
+    requestAnimationFrame(animate);
+}
+
+/**
  * Atualizar posições no mapa
  */
 function updatePositions(data) {
-    // Detectar mudanças antes de atualizar
-    if (Object.keys(MapState.previousPlayersData).length > 0 && MapState.notificationsEnabled) {
-        const playerChanges = detectPlayerChanges(data, MapState.previousPlayersData);
-        playerChanges.forEach(function(change) {
-            const message = `${change.playerName} moveu-se para X=${change.newX.toFixed(1)}, Y=${change.newY.toFixed(1)} (distância: ${change.distance.toFixed(1)}m)`;
-            showToast('Jogador Moveu-se', message, 'info');
-            addNotificationToLog('info', `Jogador: ${message}`);
-        });
-    }
-    
-    // Remover marcadores antigos se não houver filtro
-    if (MapState.selectedPlayerFilters.length === 0) {
-        Object.keys(MapState.playerMarkers).forEach(function(key) {
-            MapState.map.removeLayer(MapState.playerMarkers[key]);
-        });
-        MapState.playerMarkers = {};
-    }
+    // Criar conjunto de IDs de jogadores atuais para identificar quais remover
+    const currentPlayerIds = new Set();
     
     // Contadores de jogadores exibidos
     let onlineCount = 0;
@@ -90,6 +107,7 @@ function updatePositions(data) {
     // Processar cada jogador
     data.players.forEach(function(player) {
         const playerId = player.player_id;
+        currentPlayerIds.add(playerId);
         
         // Armazenar dados do jogador
         MapState.playersData[playerId] = {
@@ -130,56 +148,95 @@ function updatePositions(data) {
         const lat = mapCoords[0];
         const lng = mapCoords[1];
         
-        // Remover marcador antigo se existir
-        if (MapState.playerMarkers[playerId]) {
-            MapState.map.removeLayer(MapState.playerMarkers[playerId]);
-        }
+        // Verificar se marcador já existe
+        const existingMarker = MapState.playerMarkers[playerId];
         
-        // Criar novo marcador
-        const marker = L.marker([lat, lng], {
-            icon: createMarkerIcon(color),
-            opacity: player.is_online ? 1.0 : 0.9
-        }).addTo(MapState.map);
-        
-        // Função auxiliar para formatar arrays JSON
-        const formatItemsArray = (itemsStr) => {
-            if (!itemsStr) return 'Nenhum';
-            try {
-                const items = JSON.parse(itemsStr);
-                if (Array.isArray(items) && items.length > 0) {
-                    return items.join(', ');
+        if (existingMarker) {
+            // Marcador existe - atualizar ao invés de recriar
+            const currentLatLng = existingMarker.getLatLng();
+            const positionChanged = Math.abs(currentLatLng.lat - lat) > 0.0001 || Math.abs(currentLatLng.lng - lng) > 0.0001;
+            
+            // Verificar se posição mudou
+            if (positionChanged) {
+                // Obter posição anterior para animação
+                const previousData = MapState.previousPlayersData[playerId];
+                const hadPreviousPosition = previousData && previousData.coord_x !== undefined;
+                
+                // Animar movimento apenas para jogadores online que mudaram de posição
+                if (player.is_online && hadPreviousPosition) {
+                    // Usar animação manual para movimento suave
+                    animateMarkerMove(existingMarker, [lat, lng], 500);
+                } else {
+                    // Atualizar sem animação para offline ou primeira vez
+                    existingMarker.setLatLng([lat, lng]);
                 }
-            } catch (e) {
-                return itemsStr;
             }
-            return 'Nenhum';
-        };
-        
-        // Formatar conteúdo do tooltip com informações essenciais apenas
-        let tooltipContent = `
-            <strong>👤 ${player.player_name}${player.steam_name ? ` (${player.steam_name})` : ''}</strong><br>
-            ${player.is_online ? '🟢 <span class="value">Online</span>' : '🔴 <span class="value">Offline</span>'}<br>
-            📍 Coords: <span class="value">X=${player.coord_x.toFixed(1)}, Y=${player.coord_y.toFixed(1)}</span><br>
-            ${player.coord_z ? `📏 Altura: <span class="value">${player.coord_z.toFixed(1)}m</span><br>` : ''}
-            ⏰ Atualizado: <span class="value">${player.last_update || 'Desconhecido'}</span>
-        `;
-        
-        // Direção dinâmica baseada na posição no mapa
-        const tooltipDirection = getTooltipDirectionForPoint(lat, lng);
-        
-        // Adicionar tooltip (aparece ao passar o mouse)
-        marker.bindTooltip(tooltipContent, {
-            permanent: false,
-            direction: tooltipDirection,
-            className: 'trail-tooltip'
-        });
-        
-        // Clique abre modal de teleporte entre jogadores
-        marker.on('click', function() {
-            showPlayerMarkerActions(player, playerId);
-        });
-        
-        MapState.playerMarkers[playerId] = marker;
+            
+            // Atualizar opacidade se status mudou
+            const currentOpacity = existingMarker.options.opacity || 1.0;
+            const newOpacity = player.is_online ? 1.0 : 0.9;
+            if (currentOpacity !== newOpacity) {
+                existingMarker.setOpacity(newOpacity);
+            }
+            
+            // Atualizar tooltip apenas se dados relevantes mudaram
+            const tooltipContent = `
+                <strong>👤 ${player.player_name}${player.steam_name ? ` (${player.steam_name})` : ''}</strong><br>
+                ${player.is_online ? '🟢 <span class="value">Online</span>' : '🔴 <span class="value">Offline</span>'}<br>
+                📍 Coords: <span class="value">X=${player.coord_x.toFixed(1)}, Y=${player.coord_y.toFixed(1)}</span><br>
+                ${player.coord_z ? `📏 Altura: <span class="value">${player.coord_z.toFixed(1)}m</span><br>` : ''}
+                ⏰ Atualizado: <span class="value">${player.last_update || 'Desconhecido'}</span>
+            `;
+            existingMarker.setTooltipContent(tooltipContent);
+            
+            // Se marcador se moveu e trails estão ativos, atualizar trail
+            if (positionChanged && MapState.showTrails && player.is_online) {
+                updatePlayerTrailOnMove(playerId, lat, lng);
+            }
+        } else {
+            // Criar novo marcador apenas se não existir
+            const marker = L.marker([lat, lng], {
+                icon: createMarkerIcon(color),
+                opacity: player.is_online ? 1.0 : 0.9
+            }).addTo(MapState.map);
+            
+            // Formatar conteúdo do tooltip com informações essenciais apenas
+            let tooltipContent = `
+                <strong>👤 ${player.player_name}${player.steam_name ? ` (${player.steam_name})` : ''}</strong><br>
+                ${player.is_online ? '🟢 <span class="value">Online</span>' : '🔴 <span class="value">Offline</span>'}<br>
+                📍 Coords: <span class="value">X=${player.coord_x.toFixed(1)}, Y=${player.coord_y.toFixed(1)}</span><br>
+                ${player.coord_z ? `📏 Altura: <span class="value">${player.coord_z.toFixed(1)}m</span><br>` : ''}
+                ⏰ Atualizado: <span class="value">${player.last_update || 'Desconhecido'}</span>
+            `;
+            
+            // Direção dinâmica baseada na posição no mapa
+            const tooltipDirection = getTooltipDirectionForPoint(lat, lng);
+            
+            // Adicionar tooltip (aparece ao passar o mouse)
+            marker.bindTooltip(tooltipContent, {
+                permanent: false,
+                direction: tooltipDirection,
+                className: 'trail-tooltip'
+            });
+            
+            // Clique abre modal de teleporte entre jogadores
+            marker.on('click', function() {
+                showPlayerMarkerActions(player, playerId);
+            });
+            
+            MapState.playerMarkers[playerId] = marker;
+        }
+    });
+    
+    // Remover marcadores de jogadores que não existem mais nos dados
+    Object.keys(MapState.playerMarkers).forEach(function(playerId) {
+        if (!currentPlayerIds.has(playerId)) {
+            // Verificar se não está filtrado (se houver filtro, manter)
+            if (MapState.selectedPlayerFilters.length === 0 || !MapState.selectedPlayerFilters.includes(playerId)) {
+                MapState.map.removeLayer(MapState.playerMarkers[playerId]);
+                delete MapState.playerMarkers[playerId];
+            }
+        }
     });
     
     // Atualizar badges após carregar dados (para atualizar status online/offline)
@@ -277,13 +334,41 @@ function drawTrail(playerId, trail) {
     }
     
     // Criar linha do trail
-    const latlngs = processedTrail.map(item => item.mapCoords);
+    // Inverter ordem dos pontos para mostrar do mais antigo para o mais recente
+    // (os pontos vêm do servidor ordenados do mais recente para o mais antigo)
+    let latlngs = processedTrail.map(item => item.mapCoords).reverse();
     const color = getPlayerColor(playerId);
     
+    // Adicionar posição atual do jogador ao trail se estiver online e a posição for diferente do primeiro ponto
+    // (após inverter, o primeiro ponto é o mais antigo e o último é o mais recente)
+    const currentMarker = MapState.playerMarkers[playerId];
+    if (currentMarker && latlngs.length > 0) {
+        const currentLatLng = currentMarker.getLatLng();
+        
+        // Verificar se marcador tem opacidade 1.0 (jogador online)
+        const isOnline = currentMarker.options.opacity === 1.0;
+        
+        if (isOnline && currentLatLng) {
+            // Comparar com o último ponto (mais recente após inverter)
+            const lastTrailPoint = latlngs[latlngs.length - 1];
+            const distance = Math.sqrt(
+                Math.pow(currentLatLng.lat - lastTrailPoint[0], 2) + 
+                Math.pow(currentLatLng.lng - lastTrailPoint[1], 2)
+            );
+            
+            // Se posição atual está significativamente diferente do último ponto do trail, adicionar
+            if (distance > 0.0001) {
+                latlngs.push([currentLatLng.lat, currentLatLng.lng]);
+            }
+        }
+    }
+    
+    // Garantir que a polyline não seja fechada (não conecte último com primeiro)
     const polyline = L.polyline(latlngs, {
         color: color,
         weight: 4,
-        opacity: 0.85
+        opacity: 0.85,
+        smoothFactor: 1.0
     }).addTo(MapState.map);
     
     MapState.playerTrails[playerId].push(polyline);
@@ -414,6 +499,54 @@ function drawTrail(playerId, trail) {
 }
 
 /**
+ * Atualizar trail quando jogador se move
+ */
+function updatePlayerTrailOnMove(playerId, newLat, newLng) {
+    if (!MapState.showTrails || !MapState.playerTrails[playerId]) {
+        return;
+    }
+    
+    // Verificar se há trail existente
+    const existingTrail = MapState.playerTrails[playerId];
+    if (!existingTrail || existingTrail.length === 0) {
+        // Se não há trail, carregar trail completo
+        loadPlayerTrail(playerId);
+        return;
+    }
+    
+    // Obter última polyline do trail
+    const lastPolyline = existingTrail.find(item => item instanceof L.Polyline);
+    if (!lastPolyline) {
+        return;
+    }
+    
+    // Obter coordenadas atuais da polyline
+    const currentLatLngs = lastPolyline.getLatLngs();
+    if (!currentLatLngs || currentLatLngs.length === 0) {
+        return;
+    }
+    
+    // Obter último ponto
+    const lastPoint = currentLatLngs[currentLatLngs.length - 1];
+    const lastLat = lastPoint.lat || lastPoint[0];
+    const lastLng = lastPoint.lng || lastPoint[1];
+    
+    // Verificar se posição mudou significativamente (mais de 0.0001 graus)
+    const distance = Math.sqrt(Math.pow(newLat - lastLat, 2) + Math.pow(newLng - lastLng, 2));
+    if (distance < 0.0001) {
+        return; // Posição não mudou significativamente
+    }
+    
+    // Adicionar novo ponto à polyline existente
+    const newPoint = [newLat, newLng];
+    currentLatLngs.push(newPoint);
+    lastPolyline.setLatLngs(currentLatLngs);
+    
+    // Atualizar visualmente com animação suave
+    lastPolyline.redraw();
+}
+
+/**
  * Atualizar visibilidade do botão de trails baseado no estado de showPlayers
  */
 function updateTrailButtonVisibility() {
@@ -421,7 +554,8 @@ function updateTrailButtonVisibility() {
         $('#toggleTrailsBtn').show();
     } else {
         $('#toggleTrailsBtn').hide();
-        $('#trailDateFilter').hide();
+        $('#trailQuickShortcuts').hide();
+        $('#trailCustomFilter').hide();
     }
 }
 
@@ -432,7 +566,8 @@ function disableTrails() {
     if (MapState.showTrails) {
         MapState.showTrails = false;
         $('#toggleTrailsBtn').html('<i class="fas fa-route me-1"></i>Mostrar Trails');
-        $('#trailDateFilter').hide();
+        $('#trailQuickShortcuts').hide();
+        $('#trailCustomFilter').hide();
         // Limpar filtros
         MapState.trailDateFilter.enabled = false;
         MapState.trailDateFilter.startDate = null;
@@ -466,21 +601,57 @@ function toggleTrails() {
     MapState.showTrails = !MapState.showTrails;
     
     if (MapState.showTrails) {
-        $('#toggleTrailsBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar Trails');
-        $('#trailDateFilter').show();
+        $('#toggleTrailsBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar trails dos jogadores');
+        $('#trailQuickShortcuts').show();
+        $('#trailCustomFilter').show();
+        // Aplicar filtro padrão de 24h automaticamente (se não houver filtro ativo)
+        if (!MapState.activeTrailShortcut && !MapState.hasCustomFilter) {
+            if (typeof applyTrailFilterShortcut === 'function') {
+                applyTrailFilterShortcut('24hours');
+            }
+        } else if (MapState.activeTrailShortcut) {
+            // Restaurar destaque do atalho ativo
+            const activeButton = $(`#trailQuickShortcuts button[data-filter="${MapState.activeTrailShortcut}"]`);
+            if (activeButton.length > 0) {
+                // Trocar btn-outline-* por btn-* para destacar
+                if (activeButton.hasClass('btn-outline-secondary')) {
+                    activeButton.removeClass('btn-outline-secondary').addClass('btn-secondary');
+                } else if (activeButton.hasClass('btn-outline-warning')) {
+                    activeButton.removeClass('btn-outline-warning').addClass('btn-warning');
+                }
+                activeButton.addClass('active');
+            }
+        }
         // Carregar trails de todos os jogadores visíveis
         Object.keys(MapState.playerMarkers).forEach(loadPlayerTrail);
     } else {
-        $('#toggleTrailsBtn').html('<i class="fas fa-route me-1"></i>Mostrar Trails');
-        $('#trailDateFilter').hide();
+        $('#toggleTrailsBtn').html('<i class="fas fa-route me-1"></i>Mostrar trails dos jogadores');
+        $('#trailQuickShortcuts').hide();
+        $('#trailCustomFilter').hide();
+        $('#trailCustomFilter').hide();
         // Limpar filtros
         MapState.trailDateFilter.enabled = false;
         MapState.trailDateFilter.startDate = null;
         MapState.trailDateFilter.endDate = null;
+        MapState.activeTrailShortcut = null;
+        MapState.hasCustomFilter = false;
         $('#trailStartDate').val('');
         $('#trailStartTime').val('');
         $('#trailEndDate').val('');
         $('#trailEndTime').val('');
+        // Restaurar classes outline de todos os botões
+        $('#trailQuickShortcuts button[data-filter]').each(function() {
+            const $btn = $(this);
+            $btn.removeClass('active');
+            const filter = $btn.data('filter');
+            if (filter === '24hours') {
+                $btn.removeClass('btn-warning').addClass('btn-outline-warning');
+            } else if (filter === 'clear') {
+                $btn.removeClass('btn-danger').addClass('btn-outline-danger');
+            } else {
+                $btn.removeClass('btn-secondary').addClass('btn-outline-secondary');
+            }
+        });
         // Remover todos os trails
         Object.keys(MapState.playerTrails).forEach(function(key) {
             const trail = MapState.playerTrails[key];
@@ -688,25 +859,81 @@ function filterPlayers() {
  * Aplicar filtro de trail por atalho
  */
 function applyTrailFilterShortcut(shortcut) {
+    // Restaurar classes outline de todos os botões de atalho
+    $('#trailQuickShortcuts button[data-filter]').each(function() {
+        const $btn = $(this);
+        // Remover classe active
+        $btn.removeClass('active');
+        // Determinar classe original baseada no data-filter e restaurar
+        const filter = $btn.data('filter');
+        if (filter === '24hours') {
+            $btn.removeClass('btn-warning').addClass('btn-outline-warning');
+        } else if (filter === 'clear') {
+            $btn.removeClass('btn-danger').addClass('btn-outline-danger');
+        } else {
+            $btn.removeClass('btn-secondary').addClass('btn-outline-secondary');
+        }
+    });
+    
+    // Se não for "clear", destacar o botão selecionado trocando outline por sólido
+    if (shortcut !== 'clear') {
+        const targetButton = $(`#trailQuickShortcuts button[data-filter="${shortcut}"]`);
+        if (targetButton.length > 0) {
+            // Trocar btn-outline-* por btn-* (garantir que remove outline primeiro)
+            targetButton.removeClass('btn-outline-secondary btn-outline-warning btn-outline-danger');
+            // Adicionar classe sólida baseada no tipo original
+            const filter = targetButton.data('filter');
+            if (filter === '24hours') {
+                targetButton.addClass('btn-warning');
+            } else {
+                targetButton.addClass('btn-secondary');
+            }
+            targetButton.addClass('active');
+            MapState.activeTrailShortcut = shortcut;
+            MapState.hasCustomFilter = false;
+        } else {
+            console.warn('Botão não encontrado para shortcut:', shortcut);
+        }
+    } else {
+        MapState.activeTrailShortcut = null;
+        MapState.hasCustomFilter = false;
+    }
+    
     const now = new Date();
     let startDate, endDate;
     
     switch(shortcut) {
+        case '2minutes':
+            startDate = new Date(now.getTime() - (2 * 60 * 1000));
+            endDate = null; // Vazio para indicar "a partir de"
+            break;
+        case '5minutes':
+            startDate = new Date(now.getTime() - (5 * 60 * 1000));
+            endDate = null; // Vazio para indicar "a partir de"
+            break;
+        case '10minutes':
+            startDate = new Date(now.getTime() - (10 * 60 * 1000));
+            endDate = null; // Vazio para indicar "a partir de"
+            break;
+        case '30minutes':
+            startDate = new Date(now.getTime() - (30 * 60 * 1000));
+            endDate = null; // Vazio para indicar "a partir de"
+            break;
         case '1hour':
             startDate = new Date(now.getTime() - (1 * 60 * 60 * 1000));
-            endDate = now;
+            endDate = null; // Vazio para indicar "a partir de"
             break;
         case '3hours':
             startDate = new Date(now.getTime() - (3 * 60 * 60 * 1000));
-            endDate = now;
+            endDate = null; // Vazio para indicar "a partir de"
             break;
         case '6hours':
             startDate = new Date(now.getTime() - (6 * 60 * 60 * 1000));
-            endDate = now;
+            endDate = null; // Vazio para indicar "a partir de"
             break;
         case '24hours':
             startDate = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-            endDate = now;
+            endDate = null; // Vazio para indicar "a partir de"
             break;
         case 'today':
             startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
@@ -729,6 +956,9 @@ function applyTrailFilterShortcut(shortcut) {
             MapState.trailDateFilter.enabled = false;
             MapState.trailDateFilter.startDate = null;
             MapState.trailDateFilter.endDate = null;
+            MapState.activeTrailShortcut = null;
+            MapState.hasCustomFilter = false;
+            // Restaurar classes outline de todos os botões (já feito no início da função, mas garantindo aqui também)
             Object.keys(MapState.playerMarkers).forEach(loadPlayerTrail);
             return;
     }
@@ -750,8 +980,14 @@ function applyTrailFilterShortcut(shortcut) {
     
     $('#trailStartDate').val(formatDate(startDate));
     $('#trailStartTime').val(formatTime(startDate));
-    $('#trailEndDate').val(formatDate(endDate));
-    $('#trailEndTime').val(formatTime(endDate));
+    // Para atalhos de período, deixar data fim vazia (null)
+    if (endDate) {
+        $('#trailEndDate').val(formatDate(endDate));
+        $('#trailEndTime').val(formatTime(endDate));
+    } else {
+        $('#trailEndDate').val('');
+        $('#trailEndTime').val('');
+    }
     
     // Aplicar filtro automaticamente
     applyTrailDateFilter();
@@ -801,17 +1037,79 @@ function applyTrailDateFilter() {
     const endDate = $('#trailEndDate').val();
     const endTime = $('#trailEndTime').val() || '23:59:59';
     
-    if (startDate && endDate) {
+    // Permitir apenas Data Início, apenas Data Fim, ou ambas
+    if (startDate || endDate) {
         MapState.trailDateFilter.enabled = true;
-        MapState.trailDateFilter.startDate = new Date(`${startDate}T${startTime}`);
-        MapState.trailDateFilter.endDate = new Date(`${endDate}T${endTime}`);
+        
+        if (startDate) {
+            MapState.trailDateFilter.startDate = new Date(`${startDate}T${startTime}`);
+        } else {
+            // Se apenas Data Fim está preenchida, considerar tudo desde o início (null = sem limite)
+            MapState.trailDateFilter.startDate = null;
+        }
+        
+        if (endDate) {
+            MapState.trailDateFilter.endDate = new Date(`${endDate}T${endTime}`);
+        } else {
+            // Se apenas Data Início está preenchida, considerar tudo até o futuro (data atual + 1 ano)
+            const futureDate = new Date();
+            futureDate.setFullYear(futureDate.getFullYear() + 1);
+            MapState.trailDateFilter.endDate = futureDate;
+        }
+        
+        // Marcar que filtro personalizado está ativo e limpar atalho rápido
+        MapState.hasCustomFilter = true;
+        MapState.activeTrailShortcut = null;
+        // Restaurar classes outline de todos os botões
+        $('#trailQuickShortcuts button[data-filter]').each(function() {
+            const $btn = $(this);
+            $btn.removeClass('active');
+            const filter = $btn.data('filter');
+            if (filter === '24hours') {
+                $btn.removeClass('btn-warning').addClass('btn-outline-warning');
+            } else if (filter === 'clear') {
+                $btn.removeClass('btn-danger').addClass('btn-outline-danger');
+            } else {
+                $btn.removeClass('btn-secondary').addClass('btn-outline-secondary');
+            }
+        });
     } else {
         MapState.trailDateFilter.enabled = false;
         MapState.trailDateFilter.startDate = null;
         MapState.trailDateFilter.endDate = null;
+        MapState.hasCustomFilter = false;
     }
     
     // Recarregar trails com filtro
+    Object.keys(MapState.playerMarkers).forEach(loadPlayerTrail);
+}
+
+/**
+ * Reaplicar filtro atual (usado pelo Auto-Refresh)
+ * Respeita o filtro selecionado pelo usuário (atalho rápido ou filtro personalizado)
+ */
+function reapplyCurrentTrailFilter() {
+    if (!MapState.showTrails) return;
+    
+    // Se houver atalho rápido ativo, reaplicar o atalho
+    if (MapState.activeTrailShortcut) {
+        applyTrailFilterShortcut(MapState.activeTrailShortcut);
+        // Garantir recarregamento explícito dos trails
+        Object.keys(MapState.playerMarkers).forEach(loadPlayerTrail);
+        return;
+    }
+    
+    // Se houver filtro personalizado ativo, reaplicar o filtro personalizado
+    if (MapState.hasCustomFilter) {
+        applyTrailDateFilter();
+        // Garantir recarregamento explícito dos trails (applyTrailDateFilter já faz isso, mas garantimos)
+        Object.keys(MapState.playerMarkers).forEach(loadPlayerTrail);
+        return;
+    }
+    
+    // Se não houver filtro, usar padrão de 24h
+    updateTrailDateFilterAuto(24);
+    // Garantir recarregamento explícito dos trails
     Object.keys(MapState.playerMarkers).forEach(loadPlayerTrail);
 }
 

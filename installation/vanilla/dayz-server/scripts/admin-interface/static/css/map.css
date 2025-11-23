@@ -201,24 +201,20 @@
     stroke-width: 2;
 }
 
-/* Loading indicator */
+/* Loading indicator - Removido overlay do mapa para evitar piscar */
+/* O loading agora aparece como badge discreto na sidebar */
 .loading-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
-    border-radius: 10px;
+    /* Desabilitado - não usar mais overlay sobre o mapa */
+    display: none !important;
 }
 
 .loading-spinner {
-    color: white;
-    font-size: 3rem;
+    /* Desabilitado - não usar mais spinner no overlay */
+}
+
+/* Estilo para indicador de loading na sidebar */
+#mapLoadingIndicator {
+    transition: opacity 0.3s ease;
 }
 
 /* Responsivo - Mobile (max-width 575px) */
@@ -501,6 +497,17 @@
     background-color: #0d6efd;
     color: white;
     border-color: #0d6efd;
+}
+
+/* Estilo para botões de atalhos rápidos de trails ativos */
+#trailQuickShortcuts button[data-filter].active,
+#trailQuickShortcuts .btn.active,
+#trailQuickShortcuts button.btn.active {
+    background-color: #0d6efd !important;
+    color: white !important;
+    border-color: #0d6efd !important;
+    font-weight: bold !important;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25) !important;
 }
 
 /* Filtro de jogadores */
