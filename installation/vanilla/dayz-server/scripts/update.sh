@@ -140,20 +140,20 @@ if [[ "$DayzWipeOnRestart" == "1" ]]; then
 	rm -rf "$PROFILE_DIR/players.db"
 	rm -rf "$PROFILE_DIR/spawnpoints.bin"
 	rm -rf "$PROFILE_DIR/data"
-	sqlite3 "__APP_FOLDER__/__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM vehicles_tracking"
-    sqlite3 "__APP_FOLDER__/__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM vehicles_attachments"
-    sqlite3 "__APP_FOLDER__/__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM vehicles_items"
-	sqlite3 "__APP_FOLDER__/__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM container_items_tracking"
-	sqlite3 "__APP_FOLDER__/__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM containers_tracking"
-	sqlite3 "__APP_FOLDER__/__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM fences_tracking"
-	sqlite3 "__APP_FOLDER__/__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM watchtowers_tracking"
-	sqlite3 "__APP_FOLDER__/__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM flags_tracking"
-    sqlite3 "__APP_FOLDER__/__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM logs_custom"
-    sqlite3 "__APP_FOLDER__/__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM logs_adm"
-	sqlite3 "__APP_FOLDER__/__APP_PLAYER_BECO_C1_DB_FILE__" "DELETE FROM players_damage"
-	sqlite3 "__APP_FOLDER__/__APP_PLAYER_BECO_C1_DB_FILE__" "DELETE FROM players_killfeed"
-	sqlite3 "__APP_FOLDER__/__APP_PLAYER_BECO_C1_DB_FILE__" "DELETE FROM players_coord_backup"
-	sqlite3 "__APP_FOLDER__/__APP_PLAYER_BECO_C1_DB_FILE__" "DELETE FROM players_coord"
+	sqlite3 "__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM vehicles_tracking"
+    sqlite3 "__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM vehicles_attachments"
+    sqlite3 "__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM vehicles_items"
+	sqlite3 "__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM container_items_tracking"
+	sqlite3 "__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM containers_tracking"
+	sqlite3 "__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM fences_tracking"
+	sqlite3 "__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM watchtowers_tracking"
+	sqlite3 "__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM flags_tracking"
+    sqlite3 "__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM logs_custom"
+    sqlite3 "__APP_SERVER_BECO_C1_LOGS_DB_FILE__" "DELETE FROM logs_adm"
+	sqlite3 "__APP_PLAYER_BECO_C1_DB_FILE__" "DELETE FROM players_damage"
+	sqlite3 "__APP_PLAYER_BECO_C1_DB_FILE__" "DELETE FROM players_killfeed"
+	sqlite3 "__APP_PLAYER_BECO_C1_DB_FILE__" "DELETE FROM players_coord_backup"
+	sqlite3 "__APP_PLAYER_BECO_C1_DB_FILE__" "DELETE FROM players_coord"
 	INSERT_CUSTOM_LOG "Wipe realizado!" "INFO" "$ScriptName"
 	SEND_DISCORD_WEBHOOK "Wipe realizado!" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
 fi
@@ -199,8 +199,16 @@ fi
 echo "[INFO] Copiando arquivos para Vanilla..."
 cp "$REPO_DIR/installation/vanilla/dayz-server/mpmissions/__DAYZ_MPMISSION__/init.c" .
 cp -r "$REPO_DIR/installation/vanilla/dayz-server/mpmissions/__DAYZ_MPMISSION__/admin" .
-cp -a /tmp/files/.    ./admin/files/
-cp -a /tmp/loadouts/. ./admin/loadouts/
+if [ -d "/tmp/files" ]; then
+    cp -a /tmp/files/. ./admin/files/
+else
+    echo "[INFO] Diretório /tmp/files não encontrado, pulando restauração de arquivos..."
+fi
+if [ -d "/tmp/loadouts" ]; then
+    cp -a /tmp/loadouts/. ./admin/loadouts/
+else
+    echo "[INFO] Diretório /tmp/loadouts não encontrado, pulando restauração de loadouts..."
+fi
 
 GLOBALS_FILE="__DAYZ_FOLDER__/mpmissions/__DAYZ_MPMISSION__/admin/Globals.c"
 if [[ "$DayzDeathmatch" == "1" ]]; then
