@@ -1879,10 +1879,13 @@ int CountInventoryItems(PlayerBase player)
 }
 
 // Envia posições de todos os jogadores ativos via ExternalAction
-void SendPlayersPositions()
+void SendPlayersPositions(array<Man> players = null)
 {
-    array<Man> players = new array<Man>;
-    GetGame().GetPlayers(players);
+    if (!players)
+    {
+        players = new array<Man>;
+        GetGame().GetPlayers(players);
+    }
 
     if (players.Count() == 0)
         return;

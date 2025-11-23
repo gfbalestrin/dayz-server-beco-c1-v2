@@ -205,7 +205,12 @@ class CustomMission: MissionServer
 		{
 			m_AdminCheckTimer10 = 0.0;
 
-			SendPlayersPositions();
+			// Obter players UMA vez
+			array<Man> players = new array<Man>;
+			GetGame().GetPlayers(players);
+
+			// Passar para SendPlayersPositions
+			SendPlayersPositions(players);
 
 			CheckCommands();
 			array<string> msgs = CheckMessages();
@@ -214,9 +219,7 @@ class CustomMission: MissionServer
 			// Detecta e desconecta jogadores ghost automaticamente (aparentemente resolvido e não é necessário mais)
 			//DetectAndDisconnectGhosts();			
 
-			array<Man> players = new array<Man>;
-			GetGame().GetPlayers(players);
-
+			// Reutilizar o mesmo array
 			foreach (Man man : players)
 			{
 				PlayerBase player = PlayerBase.Cast(man);
