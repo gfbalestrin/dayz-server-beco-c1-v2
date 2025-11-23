@@ -109,11 +109,30 @@ function updatePositions(data) {
         const playerId = player.player_id;
         currentPlayerIds.add(playerId);
         
-        // Armazenar dados do jogador
+        // Armazenar dados completos do jogador (para uso no modal e outras funcionalidades)
         MapState.playersData[playerId] = {
             name: player.player_name,
             steamName: player.steam_name,
-            isOnline: player.is_online
+            isOnline: player.is_online,
+            // Dados completos para uso no modal
+            player_name: player.player_name,
+            steam_name: player.steam_name,
+            coord_x: player.coord_x,
+            coord_y: player.coord_y,
+            coord_z: player.coord_z,
+            is_online: player.is_online,
+            is_admin: player.is_admin || false,
+            health: player.health,
+            blood: player.blood,
+            shock: player.shock,
+            is_alive: player.is_alive,
+            energy: player.energy,
+            water: player.water,
+            stamina: player.stamina,
+            stamina_max: player.stamina_max,
+            items_in_hands: player.items_in_hands,
+            items_count: player.items_count,
+            last_update: player.last_update
         };
         
         // Aplicar filtro se existir (múltiplos jogadores)
@@ -251,8 +270,9 @@ function updatePositions(data) {
             });
             
             // Clique abre modal de teleporte entre jogadores
+            // Passar apenas playerId para buscar dados atualizados de MapState.playersData
             marker.on('click', function() {
-                showPlayerMarkerActions(player, playerId);
+                showPlayerMarkerActions(null, playerId);
             });
             
             MapState.playerMarkers[playerId] = marker;
@@ -263,8 +283,13 @@ function updatePositions(data) {
     const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
     Object.keys(MapState.playerMarkers).forEach(function(playerId) {
         if (!currentPlayerIds.has(playerId)) {
-            // Verificar se não está filtrado (se houver filtro, manter)
-            if (MapState.selectedPlayerFilters.length === 0 || !MapState.selectedPlayerFilters.includes(playerId)) {
+            // Jogador não está mais na resposta da API
+            // Se filtro "Apenas online" está ativo, remover sempre (API só retorna online)
+            // Se filtro não está ativo, verificar se não está filtrado (se houver filtro, manter)
+            const shouldRemove = onlineOnlyFilterActive || 
+                                 (MapState.selectedPlayerFilters.length === 0 || !MapState.selectedPlayerFilters.includes(playerId));
+            
+            if (shouldRemove) {
                 MapState.map.removeLayer(MapState.playerMarkers[playerId]);
                 delete MapState.playerMarkers[playerId];
                 // Remover trail também
@@ -277,11 +302,16 @@ function updatePositions(data) {
                     }
                     delete MapState.playerTrails[playerId];
                 }
+                // Limpar dados do jogador de MapState.playersData se não está mais na resposta
+                // (especialmente importante quando filtro "Apenas online" está ativo)
+                if (onlineOnlyFilterActive) {
+                    delete MapState.playersData[playerId];
+                }
             }
         } else if (onlineOnlyFilterActive) {
             // Se filtro "Apenas online" está ativo, verificar se jogador está offline e remover
             const playerData = MapState.playersData[playerId];
-            if (playerData && !playerData.isOnline) {
+            if (playerData && !playerData.isOnline && !playerData.is_online) {
                 // Jogador está offline, remover marcador e trail
                 if (MapState.playerMarkers[playerId]) {
                     MapState.map.removeLayer(MapState.playerMarkers[playerId]);
@@ -299,6 +329,18 @@ function updatePositions(data) {
             }
         }
     });
+    
+    // Limpar MapState.playersData para jogadores que não aparecem mais na resposta
+    // (importante para evitar dados desatualizados no modal)
+    if (onlineOnlyFilterActive) {
+        // Quando filtro "Apenas online" está ativo, limpar dados de jogadores que não estão mais na resposta
+        Object.keys(MapState.playersData).forEach(function(playerId) {
+            if (!currentPlayerIds.has(playerId)) {
+                // Jogador não está mais na resposta, limpar dados
+                delete MapState.playersData[playerId];
+            }
+        });
+    }
     
     // Atualizar badges após carregar dados (para atualizar status online/offline)
     if (MapState.selectedPlayerFilters.length > 0) {
@@ -1673,8 +1715,70 @@ function showPlayerMarkerActions(targetPlayer, targetPlayerId) {
     let health, blood, shock, isAlive, energy, water, stamina, staminaMax;
     let itemsInHands, itemsCount, lastUpdate;
     
-    if (targetPlayer.player_name !== undefined) {
-        // Dados do marcador principal (player object completo)
+    // Buscar dados atualizados de MapState.playersData quando targetPlayer for null (marcador principal)
+    if (targetPlayer === null || targetPlayer === undefined) {
+        // Buscar dados atualizados de MapState.playersData
+        const playerData = MapState.playersData[targetPlayerId];
+        const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
+        
+        // Verificar se o jogador está realmente online quando o filtro "Apenas online" está ativo
+        if (onlineOnlyFilterActive && playerData) {
+            const isReallyOnline = playerData.is_online !== undefined ? playerData.is_online : (playerData.isOnline || false);
+            if (!isReallyOnline) {
+                // Jogador não está online, mas o marcador ainda existe (dados desatualizados)
+                // Remover marcador e mostrar mensagem
+                if (MapState.playerMarkers[targetPlayerId]) {
+                    MapState.map.removeLayer(MapState.playerMarkers[targetPlayerId]);
+                    delete MapState.playerMarkers[targetPlayerId];
+                }
+                showToast('Aviso', 'Este jogador não está mais online.', 'warning');
+                return; // Não abrir modal
+            }
+        }
+        
+        if (playerData) {
+            playerName = playerData.player_name || playerData.name || 'Desconhecido';
+            steamName = playerData.steam_name || playerData.steamName || null;
+            coordX = playerData.coord_x;
+            coordY = playerData.coord_y;
+            coordZ = playerData.coord_z;
+            isOnline = playerData.is_online !== undefined ? playerData.is_online : (playerData.isOnline || false);
+            isAdmin = playerData.is_admin || false;
+            health = playerData.health;
+            blood = playerData.blood;
+            shock = playerData.shock;
+            isAlive = playerData.is_alive;
+            energy = playerData.energy;
+            water = playerData.water;
+            stamina = playerData.stamina;
+            staminaMax = playerData.stamina_max;
+            itemsInHands = playerData.items_in_hands;
+            itemsCount = playerData.items_count;
+            lastUpdate = playerData.last_update;
+        } else {
+            // Fallback: se dados não estiverem disponíveis, usar valores padrão
+            console.warn('Dados do jogador não encontrados em MapState.playersData para playerId:', targetPlayerId);
+            playerName = 'Desconhecido';
+            steamName = null;
+            coordX = 0;
+            coordY = 0;
+            coordZ = 0;
+            isOnline = false;
+            isAdmin = false;
+            health = null;
+            blood = null;
+            shock = null;
+            isAlive = null;
+            energy = null;
+            water = null;
+            stamina = null;
+            staminaMax = null;
+            itemsInHands = null;
+            itemsCount = null;
+            lastUpdate = null;
+        }
+    } else if (targetPlayer.player_name !== undefined) {
+        // Dados do marcador principal (player object completo) - mantido para compatibilidade
         playerName = targetPlayer.player_name;
         steamName = targetPlayer.steam_name;
         coordX = targetPlayer.coord_x;
