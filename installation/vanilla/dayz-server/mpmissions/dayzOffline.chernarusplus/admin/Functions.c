@@ -1881,21 +1881,27 @@ int CountInventoryItems(PlayerBase player)
 // Envia posições de todos os jogadores ativos via ExternalAction
 void SendPlayersPositions(array<Man> players = null)
 {
+    array<Man> playersToProcess;
+    
     if (!players)
     {
-        players = new array<Man>;
-        GetGame().GetPlayers(players);
+        playersToProcess = new array<Man>;
+        GetGame().GetPlayers(playersToProcess);
+    }
+    else
+    {
+        playersToProcess = players;
     }
 
-    if (players.Count() == 0)
+    if (playersToProcess.Count() == 0)
         return;
 
-    WriteToLog("SendPlayersPositions(): Iniciando processamento de " + players.Count().ToString() + " jogadores", LogFile.INIT, false, LogType.DEBUG);
+    WriteToLog("SendPlayersPositions(): Iniciando processamento de " + playersToProcess.Count().ToString() + " jogadores", LogFile.INIT, false, LogType.DEBUG);
 
     string playersJson = "";
     int processedCount = 0;
 
-    foreach (Man man : players)
+    foreach (Man man : playersToProcess)
     {
         PlayerBase player = PlayerBase.Cast(man);
         if (!player)
@@ -2017,6 +2023,6 @@ void SendPlayersPositions(array<Man> players = null)
     string jsonAction = "{\"action\":\"players_positions\",\"players\":[" + playersJson + "]}";
     AppendExternalAction(jsonAction);
     
-    WriteToLog("SendPlayersPositions(): Processamento concluído - " + processedCount.ToString() + " processados de " + players.Count().ToString() + " encontrados", LogFile.INIT, false, LogType.DEBUG);
+    WriteToLog("SendPlayersPositions(): Processamento concluído - " + processedCount.ToString() + " processados de " + playersToProcess.Count().ToString() + " encontrados", LogFile.INIT, false, LogType.DEBUG);
     WriteToLog("SendPlayersPositions(): Posições de " + processedCount.ToString() + " jogadores enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
 }
