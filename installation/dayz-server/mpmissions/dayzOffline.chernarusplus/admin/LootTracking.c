@@ -138,7 +138,7 @@ void BuildContainersData(array<Object> worldObjects, out string containersJson, 
 					totalItems++;
 					containerHasItems = true;
 
-					WriteToLog("Item found: " + cargoType + " with health " + cargoHealth.ToString(), LogFile.INIT, false, LogType.INFO);
+					//WriteToLog("Item found: " + cargoType + " with health " + cargoHealth.ToString(), LogFile.INIT, false, LogType.INFO);
 
 					if (itemsJson != "")
 						itemsJson += ",";
@@ -157,7 +157,7 @@ void BuildContainersData(array<Object> worldObjects, out string containersJson, 
 				totalItems++;
 				containerHasItems = true;
 
-				WriteToLog("Attachment found: " + attachmentType + " with health " + attachmentHealth.ToString(), LogFile.INIT, false, LogType.INFO);
+				//WriteToLog("Attachment found: " + attachmentType + " with health " + attachmentHealth.ToString(), LogFile.INIT, false, LogType.INFO);
 
 				if (itemsJson != "")
 					itemsJson += ",";
