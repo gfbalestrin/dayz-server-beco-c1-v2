@@ -604,10 +604,10 @@ function toggleTrails() {
         $('#toggleTrailsBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar trails dos jogadores');
         $('#trailQuickShortcuts').show();
         $('#trailCustomFilter').show();
-        // Aplicar filtro padrão de 24h automaticamente (se não houver filtro ativo)
+        // Aplicar filtro padrão de 2 minutos automaticamente (se não houver filtro ativo)
         if (!MapState.activeTrailShortcut && !MapState.hasCustomFilter) {
             if (typeof applyTrailFilterShortcut === 'function') {
-                applyTrailFilterShortcut('24hours');
+                applyTrailFilterShortcut('2minutes');
             }
         } else if (MapState.activeTrailShortcut) {
             // Restaurar destaque do atalho ativo
