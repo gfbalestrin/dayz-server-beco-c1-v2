@@ -197,8 +197,8 @@ fi
 
 # Copia arquivos específicos do vanilla
 echo "[INFO] Copiando arquivos para Vanilla..."
-cp "$REPO_DIR/installation/vanilla/dayz-server/mpmissions/__DAYZ_MPMISSION__/init.c" .
-cp -r "$REPO_DIR/installation/vanilla/dayz-server/mpmissions/__DAYZ_MPMISSION__/admin" .
+cp "$REPO_DIR/installation/dayz-server/mpmissions/__DAYZ_MPMISSION__/init.c" .
+cp -r "$REPO_DIR/installation/dayz-server/mpmissions/__DAYZ_MPMISSION__/admin" .
 if [ -d "/tmp/files" ]; then
     cp -a /tmp/files/. ./admin/files/
 else

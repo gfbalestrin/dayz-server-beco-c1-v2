@@ -23,7 +23,7 @@ Interface web para gerenciamento e visualização dos dados do servidor DayZ.
 ### Método 1: Script Automático (Recomendado)
 
 ```bash
-cd installation/vanilla/dayz-server/scripts/admin-interface
+cd installation/dayz-server/scripts/admin-interface
 chmod +x start.sh
 ./start.sh
 ```
@@ -31,7 +31,7 @@ chmod +x start.sh
 ### Método 2: Instalação Manual
 
 ```bash
-cd installation/vanilla/dayz-server/scripts/admin-interface
+cd installation/dayz-server/scripts/admin-interface
 
 # Criar ambiente virtual
 python3 -m venv venv

@@ -146,6 +146,9 @@ if [[ -z "$DayzWipeOnRestart" ]]; then
 fi
 export DayzWipeOnRestart
 
+DayzCloseTestPassword=$(jq -r '.DayZ.CloseTestPassword // empty' "$CONFIG_FILE")
+export DayzCloseTestPassword
+
 # --- VALIDAÇÕES GERAIS ---
 
 # Função de erro
@@ -259,3 +262,19 @@ if [[ -z "$DiscordChannelPlayersStatsBotToken" ]]; then
     return 1
 fi
 export DiscordChannelPlayersStatsBotToken
+
+DiscordDesactive=$(jq -r '.Discord.Desactive // "0"' "$CONFIG_FILE")
+export DiscordDesactive
+
+DiscordChannelPlayersOnlineMessageId=$(jq -r '.Discord.ChannelPlayersOnline.MessageId // empty' "$CONFIG_FILE")
+export DiscordChannelPlayersOnlineMessageId
+
+DiscordChannelPlayersStatsMessageId=$(jq -r '.Discord.ChannelPlayersStats.MessageId // empty' "$CONFIG_FILE")
+export DiscordChannelPlayersStatsMessageId
+
+# Leitura de propriedades App (opcionais durante instalação, mas necessárias para gerar config.json do servidor)
+AppFolder=$(jq -r '.App.Folder // empty' "$CONFIG_FILE")
+export AppFolder
+
+AppUrlAppLoadout=$(jq -r '.App.UrlAppLoadout // empty' "$CONFIG_FILE")
+export AppUrlAppLoadout

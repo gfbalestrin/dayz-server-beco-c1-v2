@@ -51,7 +51,7 @@ O servidor Vanilla é uma versão **simplificada** comparado ao Deathmatch:
 ### Estrutura de Arquivos
 
 ```
-vanilla/dayz-server/mpmissions/dayzOffline.chernarusplus/
+dayz-server/mpmissions/dayzOffline.chernarusplus/
 ├── init.c                      # Arquivo principal de inicialização
 ├── admin/
 │   ├── Commands.c              # Sistema de comandos do jogo
@@ -1048,8 +1048,8 @@ Se desejar migrar para o servidor Deathmatch:
 
 1. **Copiar arquivos de admin**:
    ```bash
-   cp vanilla/admin/files/admin_ids.txt deathmatch/admin/files/
-   cp vanilla/admin/loadouts/admin.json deathmatch/admin/loadouts/
+   cp dayz-server/admin/files/admin_ids.txt deathmatch/admin/files/
+   cp dayz-server/admin/loadouts/admin.json deathmatch/admin/loadouts/
    ```
 
 2. **Configurar mapas** (deathmatch):

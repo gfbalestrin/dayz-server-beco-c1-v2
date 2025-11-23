@@ -228,6 +228,56 @@ substituir_variaveis_script() {
     return 0
 }
 
+# Função para gerar config.json no servidor substituindo placeholders
+gerar_config_json_servidor() {
+    local template_file="$1"
+    local destino_file="$2"
+    
+    if [ ! -f "$template_file" ]; then
+        echo "Erro: Template config.json não encontrado: $template_file" >&2
+        return 1
+    fi
+    
+    # Valida que todas as variáveis necessárias estão definidas
+    local variaveis_necessarias=(
+        "LinuxUserName"
+        "DayzFolder"
+        "DayzMpmission"
+    )
+    
+    for var_name in "${variaveis_necessarias[@]}"; do
+        local var_value="${!var_name:-}"
+        if [ -z "$var_value" ]; then
+            echo "Erro: Variável '$var_name' não está definida ou está vazia" >&2
+            echo "Verifique se o arquivo de configuração foi carregado corretamente" >&2
+            return 1
+        fi
+    done
+    
+    # Escapa os valores das variáveis para uso seguro no sed
+    local dayz_folder_escaped=$(escape_sed_chars "$DayzFolder")
+    local dayz_mpmission_escaped=$(escape_sed_chars "$DayzMpmission")
+    
+    # Substitui os placeholders no JSON usando sed
+    # Nota: JSON permite usar | como delimitador já que não aparece nos valores
+    # Também converte "DayZ" para "Dayz" para compatibilidade com config.sh do servidor
+    if ! sed -e "s|__DAYZ_FOLDER__|${dayz_folder_escaped}|g" \
+            -e "s|__DAYZ_MPMISSION__|${dayz_mpmission_escaped}|g" \
+            -e 's|"DayZ":|"Dayz":|g' \
+            "$template_file" > "$destino_file"; then
+        echo "Erro: Falha ao processar template config.json '$template_file' com sed" >&2
+        return 1
+    fi
+    
+    # Valida se o JSON gerado é válido usando jq
+    if ! jq empty "$destino_file" 2>/dev/null; then
+        echo "Erro: JSON gerado é inválido: $destino_file" >&2
+        return 1
+    fi
+    
+    return 0
+}
+
 # Função para copiar scripts e pastas do repositório
 copiar_scripts_e_pastas() {
     local source_dir="$1"
@@ -263,9 +313,7 @@ copiar_scripts_e_pastas() {
         cp "$source_dir/config.sh" "$dest_dir/"
     fi
     
-    if [ -f "$source_dir/config.json" ]; then
-        cp "$source_dir/config.json" "$dest_dir/"
-    fi
+    # config.json não é copiado aqui - será gerado dinamicamente pela função gerar_config_json_servidor
     
     # Copia todos os scripts .sh da raiz (exceto os que já foram copiados como templates)
     for script in "$source_dir"/*.sh; do
@@ -594,8 +642,8 @@ confirm_step "Criação dos scripts de atualização e pós-inicialização"
 echo "Configurando script de update $DayzFolder/scripts/update.sh ..."
 
 # Define o caminho do template
-TEMPLATE_UPDATE="$SCRIPT_DIR/vanilla/dayz-server/scripts/update.sh"
-TEMPLATE_EXECUTE_POS="$SCRIPT_DIR/vanilla/dayz-server/scripts/execute_script_pos.sh"
+TEMPLATE_UPDATE="$SCRIPT_DIR/dayz-server/scripts/update.sh"
+TEMPLATE_EXECUTE_POS="$SCRIPT_DIR/dayz-server/scripts/execute_script_pos.sh"
 
 # Verifica se os templates existem
 if [ ! -f "$TEMPLATE_UPDATE" ]; then
@@ -630,12 +678,25 @@ if [[ "$SKIP_MONITOR" -eq 0 ]]; then
     fi
     
     # Define diretórios
-    SCRIPTS_SOURCE_DIR="$SCRIPT_DIR/vanilla/dayz-server/scripts"
+    SCRIPTS_SOURCE_DIR="$SCRIPT_DIR/dayz-server/scripts"
     SCRIPTS_DEST_DIR="$DayzFolder/scripts"
     
     # Copia todos os scripts e pastas
     echo "Copiando scripts e pastas do repositório..."
     copiar_scripts_e_pastas "$SCRIPTS_SOURCE_DIR" "$SCRIPTS_DEST_DIR"
+    
+    # Gera o config.json no servidor substituindo placeholders
+    echo "Gerando config.json no servidor..."
+    TEMPLATE_CONFIG_JSON="$CONFIG_FILE"
+    CONFIG_JSON_DEST="$SCRIPTS_DEST_DIR/config.json"
+    
+    if ! gerar_config_json_servidor "$TEMPLATE_CONFIG_JSON" "$CONFIG_JSON_DEST"; then
+        echo "Erro: Falha ao gerar config.json no servidor" >&2
+        exit 1
+    fi
+    
+    # Aplica permissões no config.json gerado
+    chown "$LinuxUserName:$LinuxUserName" "$CONFIG_JSON_DEST"
     
     # Gera o script supervisor a partir do template
     TEMPLATE_SUPERVISOR="$SCRIPTS_SOURCE_DIR/dayz-monitor/dayz_supervisor.sh"

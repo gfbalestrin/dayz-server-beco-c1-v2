@@ -22,19 +22,48 @@
         "MpMission": "dayzOffline.chernarusplus",
         "LimitFPS": "200",
         "Deathmatch": "0",
-        "WipeOnRestart": "0"
+        "WipeOnRestart": "0",
+        "CloseTestPassword": "",
+        "ServerFolder": "__DAYZ_FOLDER__",
+        "LogAdmFile": "profiles/DayZServer.ADM",
+        "LogRPTFile": "profiles/DayZServer_current.RPT",
+        "MapFolder": "mpmissions/__DAYZ_MPMISSION__",
+        "PlayerDbFile": "mpmissions/__DAYZ_MPMISSION__/storage_1/players.db",
+        "AdminIdsFile": "mpmissions/__DAYZ_MPMISSION__/admin/files/admin_ids.txt",
+        "AdminCmdsFile": "mpmissions/__DAYZ_MPMISSION__/admin/files/commands_to_execute.txt",
+        "MessagesToSendoFile": "mpmissions/__DAYZ_MPMISSION__/admin/files/messages_to_send.txt",
+        "MessagesPrivateToSendoFile": "mpmissions/__DAYZ_MPMISSION__/admin/files/messages_private_to_send.txt",
+        "ActionsToExecuteFile": "mpmissions/__DAYZ_MPMISSION__/admin/files/external_actions.txt",
+        "DeathmatchCoords": "mpmissions/__DAYZ_MPMISSION__/admin/files/deathmatch_config.json",
+        "MessagesXmlFile": "mpmissions/__DAYZ_MPMISSION__/db/messages.xml"
     },
     "App": {
+        "Folder": "__DAYZ_FOLDER__/scripts",
+        "PlayerBecoC1DbFile": "databases/players_beco_c1.db",
+        "ServerBecoC1LogsDbFile": "databases/server_beco_c1_logs.db",
+        "DayzItemsDbFile": "databases/dayz_items.db",
+        "ScriptUpdatePlayersOnlineFile": "atualiza_players_online.sh",
+        "ScriptExtractPlayersStatsFile": "extrai_players_stats.sh",
+        "ScriptUpdateGeneralKillfeed": "monta_killfeed_geral.sh",
+        "ScriptGetPlayerDamageFile": "captura_dano_player.sh",        
+        "ScriptPlayerLoadoutManagerFile": "player_loadout_manager.sh",     
+        "UrlAppLoadout": "http://beco.servegame.com:54321",
+        "SteamIdSpoof": [
+            { "From": "11111111111111111", "To": "22222222222222222" }
+        ]        
     },
     "Discord": {
+        "Desactive": "0",
         "WebhookLogs": "https://discord.com/api/webhooks/1111111111111111111/abcdefghijklmnopqrstuvwxyz1234567890",
         "WebhookLogsAdmin": "https://discord.com/api/webhooks/1111111111111111111/abcdefghijklmnopqrstuvwxyz1234567890",
         "ChannelPlayersOnline": {
             "ChannelId": "1111111111111111111",
+            "MessageId": "1111111111111111111",
             "BotToken": "abcdefghijklmnopqrstuvwxyz1234567890"
         },
         "ChannelPlayersStats": {
             "ChannelId": "1111111111111111111",
+            "MessageId": "1111111111111111111",
             "BotToken": "abcdefghijklmnopqrstuvwxyz1234567890"
         }
     },   
