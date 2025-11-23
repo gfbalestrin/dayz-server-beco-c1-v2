@@ -8,7 +8,7 @@ PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PARENT_DIR"
 source ./config.sh
 
-DB_FILE="$AppFolder/$AppServerBecoC1LogsDbFile"
+DB_FILE="$AppFolder/$AppVehicleBecoC1DbFile"
 
 if [[ ! -f "$DB_FILE" ]]; then
     echo "Erro: Banco de dados não encontrado: $DB_FILE"

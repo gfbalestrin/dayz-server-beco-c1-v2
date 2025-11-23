@@ -88,7 +88,7 @@ def get_logs_custom(limit: int = 1000) -> List[Dict]:
 
 def get_vehicles_tracking(limit: int = 1000) -> List[Dict]:
     """Retorna tracking de veículos"""
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT IdVehicleTracking, VehicleId, VehicleName, 
@@ -101,7 +101,7 @@ def get_vehicles_tracking(limit: int = 1000) -> List[Dict]:
 
 def get_vehicles_last_position() -> List[Dict]:
     """Retorna apenas veículos do último timestamp de rastreamento (veículos atualmente ativos)"""
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT VehicleId, VehicleName,
@@ -116,7 +116,7 @@ def get_vehicles_last_position() -> List[Dict]:
 
 def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
     """Retorna apenas veículos do último timestamp de rastreamento para exibição no mapa"""
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
         
         # Verificar se coluna IsDestroyed existe (migração)
@@ -267,7 +267,7 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
 
 def get_vehicle_trail(vehicle_id: str, limit: int = 100) -> List[Dict]:
     """Retorna histórico de posições de um veículo, filtrando pontos duplicados"""
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
         # Buscar todos os registros ordenados
         cursor.execute("""
@@ -306,7 +306,7 @@ def get_vehicle_trail(vehicle_id: str, limit: int = 100) -> List[Dict]:
 
 def get_vehicles_overview(include_destroyed: bool = False, date_from: str = None, date_to: str = None) -> List[Dict]:
     """Retorna último registro de cada veículo com filtros opcionais"""
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
         
         # Verificar colunas disponíveis
@@ -362,7 +362,7 @@ def get_vehicles_overview(include_destroyed: bool = False, date_from: str = None
 def get_vehicle_history(vehicle_id: str, limit: int = 100, offset: int = 0, 
                        date_from: str = None, date_to: str = None) -> List[Dict]:
     """Retorna histórico de um veículo com informações de saúde, com suporte a filtros de data e paginação"""
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
         
         # Verificar colunas de saúde
@@ -407,7 +407,7 @@ def get_vehicle_history(vehicle_id: str, limit: int = 100, offset: int = 0,
 
 def count_vehicle_history(vehicle_id: str, date_from: str = None, date_to: str = None) -> int:
     """Conta o total de registros de histórico de um veículo com filtros de data aplicados"""
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
         
         # Construir WHERE clause com filtros de data
@@ -435,7 +435,7 @@ def count_vehicle_history(vehicle_id: str, date_from: str = None, date_to: str =
 
 def get_vehicle_tracking_items(tracking_id: int) -> List[Dict]:
     """Retorna items de um registro específico de tracking"""
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT IdVehicleItem, ItemType, ItemHealth, TimeStamp
@@ -447,7 +447,7 @@ def get_vehicle_tracking_items(tracking_id: int) -> List[Dict]:
 
 def get_vehicle_tracking_attachments(tracking_id: int) -> List[Dict]:
     """Retorna attachments de um registro específico de tracking"""
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT IdVehicleAttachment, AttachmentType, AttachmentHealth, TimeStamp
@@ -459,7 +459,7 @@ def get_vehicle_tracking_attachments(tracking_id: int) -> List[Dict]:
 
 def count_vehicle_changes(vehicle_id: str) -> int:
     """Conta o número de alterações significativas no histórico de um veículo"""
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
         
         # Buscar histórico ordenado por timestamp (limitar a últimos 500 registros para performance)
@@ -621,7 +621,7 @@ def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str
                           order_by: Tuple[str, str] = None, only_with_changes: bool = False,
                           order_by_change_count: bool = False, order_by_change_count_dir: str = None) -> Tuple[List[Dict], int]:
     """Retorna dados paginados de veículos com busca e filtros"""
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
         
         # Verificar colunas disponíveis
@@ -819,7 +819,7 @@ def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str
 
 def get_active_vehicle_name_counts() -> Dict[str, int]:
     """Agrupa veículos ativos (não destruídos) por nome exibido"""
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
 
         cursor.execute("PRAGMA table_info(vehicles_tracking)")
@@ -847,7 +847,7 @@ def get_active_vehicle_name_counts() -> Dict[str, int]:
 
 def get_containers_last_position(include_destroyed: bool = False) -> List[Dict]:
     """Retorna containers do último timestamp de rastreamento com seus items"""
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_CONTAINERS) as conn:
         cursor = conn.cursor()
         
         # Verificar se coluna IsDestroyed existe (migração)
@@ -925,7 +925,7 @@ def get_container_trail(container_id: str, limit: int = 100, offset: int = 0, da
         filter_by_items_only: Se True, filtra apenas por mudanças nos itens (ignora mudanças de posição).
                               Se False, filtra por mudanças em posição E itens (comportamento original para trail).
     """
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_CONTAINERS) as conn:
         cursor = conn.cursor()
         
         # Query base com filtros de data
@@ -1017,7 +1017,7 @@ def get_container_trail(container_id: str, limit: int = 100, offset: int = 0, da
 
 def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
     """Retorna fences do último timestamp de rastreamento com detecção de ataques"""
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_STRUCTURES) as conn:
         cursor = conn.cursor()
         
         # Verificar se coluna IsDestroyed existe (migração)
@@ -1225,7 +1225,7 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
 
 def get_watchtowers_last_position(include_destroyed: bool = False) -> List[Dict]:
     """Retorna watchtowers do último timestamp de rastreamento"""
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_STRUCTURES) as conn:
         cursor = conn.cursor()
 
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='watchtowers_tracking';")
@@ -1492,7 +1492,7 @@ def get_watchtowers_last_position(include_destroyed: bool = False) -> List[Dict]
 
 def get_flags_last_position(include_destroyed: bool = False) -> List[Dict]:
     """Retorna flags do último timestamp de rastreamento"""
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_STRUCTURES) as conn:
         cursor = conn.cursor()
 
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='flags_tracking';")
@@ -1614,7 +1614,7 @@ def get_watchtower_trail(watchtower_id: str, limit: int = 100, offset: int = 0, 
     Retorna histórico de mudanças de uma watchtower com filtros
     Retorna: (trail, total_count)
     """
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_STRUCTURES) as conn:
         cursor = conn.cursor()
 
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='watchtowers_tracking';")
@@ -1750,7 +1750,7 @@ def get_flag_trail(flag_id: str, limit: int = 100, offset: int = 0, date_from: s
     Retorna histórico de mudanças de uma flag com filtros
     Retorna: (trail, total_count)
     """
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_STRUCTURES) as conn:
         cursor = conn.cursor()
 
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='flags_tracking';")
@@ -1847,7 +1847,7 @@ def get_fence_trail(fence_id: str, limit: int = 100, offset: int = 0, date_from:
     Retorna histórico de mudanças de uma fence com filtros
     Retorna: (trail, total_count)
     """
-    with DatabaseConnection(config.DB_LOGS) as conn:
+    with DatabaseConnection(config.DB_STRUCTURES) as conn:
         cursor = conn.cursor()
         
         # Query base com filtros de data

@@ -35,7 +35,7 @@ handle_watchtowers_positions() {
 
     # Verificar se coluna IsDestroyed existe
     local has_is_destroyed
-    has_is_destroyed=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('watchtowers_tracking') WHERE name='IsDestroyed';")
+    has_is_destroyed=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('watchtowers_tracking') WHERE name='IsDestroyed';")
     
     # Buscar último registro de cada watchtower (excluindo destruídas)
     local sql_query
@@ -87,8 +87,12 @@ handle_watchtowers_positions() {
         prev_l1_w1_lower prev_l1_w1_upper prev_l1_w2_lower prev_l1_w2_upper prev_l1_w3_lower prev_l1_w3_upper \
         prev_l2_w1_lower prev_l2_w1_upper prev_l2_w2_lower prev_l2_w2_upper prev_l2_w3_lower prev_l2_w3_upper \
         prev_l3_w1_lower prev_l3_w1_upper prev_l3_w2_lower prev_l3_w2_upper prev_l3_w3_lower prev_l3_w3_upper; do
+        # Pular linhas vazias ou quando prev_id está vazio
+        if [[ -z "$prev_id" ]]; then
+            continue
+        fi
         prev_watchtowers["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_has_base|$prev_level1_base|$prev_level2_base|$prev_level3_base|$prev_level1_stairs|$prev_level2_stairs|$prev_has_roof|$prev_l1_w1_lower|$prev_l1_w1_upper|$prev_l1_w2_lower|$prev_l1_w2_upper|$prev_l1_w3_lower|$prev_l1_w3_upper|$prev_l2_w1_lower|$prev_l2_w1_upper|$prev_l2_w2_lower|$prev_l2_w2_upper|$prev_l2_w3_lower|$prev_l2_w3_upper|$prev_l3_w1_lower|$prev_l3_w1_upper|$prev_l3_w2_lower|$prev_l3_w2_upper|$prev_l3_w3_lower|$prev_l3_w3_upper"
-    done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "$sql_query")
+    done < <(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" -separator '|' "$sql_query")
 
     local watchtowers
     watchtowers=$(echo "$line" | jq -c '.watchtower_data[]?')
@@ -374,7 +378,7 @@ handle_watchtowers_positions() {
             # Marcar TODOS os registros da watchtower como destruída (garantir que não apareça no mapa)
             # Não usar condição IsDestroyed para garantir que todos sejam marcados
             local affected_rows
-            affected_rows=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+            affected_rows=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" <<EOF
 UPDATE watchtowers_tracking
 SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
 WHERE WatchtowerId = '$EscapedRemovedId';

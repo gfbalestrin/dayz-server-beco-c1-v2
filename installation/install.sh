@@ -207,6 +207,9 @@ substituir_variaveis_script() {
     local app_folder_escaped=$(escape_sed_chars "${DayzFolder}/scripts")
     local logs_db_escaped=$(escape_sed_chars "${app_folder_escaped}/databases/server_beco_c1_logs.db")
     local players_db_escaped=$(escape_sed_chars "${app_folder_escaped}/databases/players_beco_c1.db")
+    local vehicles_db_escaped=$(escape_sed_chars "${app_folder_escaped}/databases/vehicles_beco_c1.db")
+    local containers_db_escaped=$(escape_sed_chars "${app_folder_escaped}/databases/containers_beco_c1.db")
+    local structures_db_escaped=$(escape_sed_chars "${app_folder_escaped}/databases/structures_beco_c1.db")
     
     # Copia o template e substitui as variáveis com valores escapados
     if ! sed -e "s|__LINUX_USER_NAME__|${linux_user_escaped}|g" \
@@ -219,6 +222,9 @@ substituir_variaveis_script() {
             -e "s|__APP_FOLDER__|${app_folder_escaped}|g" \
             -e "s|__APP_SERVER_BECO_C1_LOGS_DB_FILE__|${logs_db_escaped}|g" \
             -e "s|__APP_PLAYER_BECO_C1_DB_FILE__|${players_db_escaped}|g" \
+            -e "s|__APP_VEHICLE_BECO_C1_DB_FILE__|${vehicles_db_escaped}|g" \
+            -e "s|__APP_CONTAINER_BECO_C1_DB_FILE__|${containers_db_escaped}|g" \
+            -e "s|__APP_STRUCTURE_BECO_C1_DB_FILE__|${structures_db_escaped}|g" \
             "$template_file" > "$destino_file"; then
         echo "Erro: Falha ao processar template '$template_file' com sed" >&2
         return 1
@@ -684,6 +690,34 @@ if [[ "$SKIP_MONITOR" -eq 0 ]]; then
     # Copia todos os scripts e pastas
     echo "Copiando scripts e pastas do repositório..."
     copiar_scripts_e_pastas "$SCRIPTS_SOURCE_DIR" "$SCRIPTS_DEST_DIR"
+    
+    # Função para inicializar databases a partir de arquivos SQL
+    init_database_from_sql() {
+        local db_file="$1"
+        local sql_file="$2"
+        local description="$3"
+        
+        if [[ ! -f "$db_file" ]]; then
+            echo "Criando database $description..."
+            if [[ -f "$sql_file" ]]; then
+                sqlite3 "$db_file" < "$sql_file"
+                chown "$LinuxUserName:$LinuxUserName" "$db_file"
+                echo "Database $description criada com sucesso."
+            else
+                echo "Aviso: Arquivo SQL não encontrado: $sql_file"
+            fi
+        else
+            echo "Database $description já existe, pulando criação."
+        fi
+    }
+    
+    # Inicializar databases
+    echo "Inicializando databases..."
+    DATABASES_DIR="$SCRIPTS_DEST_DIR/databases"
+    init_database_from_sql "$DATABASES_DIR/vehicles_beco_c1.db" "$DATABASES_DIR/vehicles_beco_c1.sql" "vehicles_beco_c1.db"
+    init_database_from_sql "$DATABASES_DIR/containers_beco_c1.db" "$DATABASES_DIR/containers_beco_c1.sql" "containers_beco_c1.db"
+    init_database_from_sql "$DATABASES_DIR/structures_beco_c1.db" "$DATABASES_DIR/structures_beco_c1.sql" "structures_beco_c1.db"
+    init_database_from_sql "$DATABASES_DIR/server_beco_c1_logs.db" "$DATABASES_DIR/server_beco_c1_logs.sql" "server_beco_c1_logs.db"
     
     # Gera o config.json no servidor substituindo placeholders
     echo "Gerando config.json no servidor..."

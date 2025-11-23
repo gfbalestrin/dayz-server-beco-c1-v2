@@ -31,6 +31,9 @@ export DayzCloseTestPassword=$(jq -r '.Dayz.CloseTestPassword' "$CONFIG_FILE")
 export AppFolder=$(jq -r '.App.Folder' "$CONFIG_FILE")
 export AppPlayerBecoC1DbFile=$(jq -r '.App.PlayerBecoC1DbFile' "$CONFIG_FILE")
 export AppServerBecoC1LogsDbFile=$(jq -r '.App.ServerBecoC1LogsDbFile' "$CONFIG_FILE")
+export AppVehicleBecoC1DbFile=$(jq -r '.App.VehicleBecoC1DbFile' "$CONFIG_FILE")
+export AppContainerBecoC1DbFile=$(jq -r '.App.ContainerBecoC1DbFile' "$CONFIG_FILE")
+export AppStructureBecoC1DbFile=$(jq -r '.App.StructureBecoC1DbFile' "$CONFIG_FILE")
 export AppDayzItemsDbFile=$(jq -r '.App.DayzItemsDbFile' "$CONFIG_FILE")
 export AppScriptUpdatePlayersOnlineFile=$(jq -r '.App.ScriptUpdatePlayersOnlineFile' "$CONFIG_FILE")
 export AppScriptExtractPlayersStatsFile=$(jq -r '.App.ScriptExtractPlayersStatsFile' "$CONFIG_FILE")
@@ -1035,13 +1038,13 @@ INSERT_VEHICLES_POSITIONS_BATCH() {
     fi
 
     # Configurar PRAGMAs uma vez (silenciosamente)
-    configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
+    configure_sqlite_pragmas "$AppFolder/$AppVehicleBecoC1DbFile"
 
     # Verificar se colunas de saúde existem no banco (fazer uma vez)
     local has_engine_health has_body_health has_fuel_tank_health
-    has_engine_health=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='EngineHealth';" 2>/dev/null)
-    has_body_health=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='BodyHealth';" 2>/dev/null)
-    has_fuel_tank_health=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='FuelTankHealth';" 2>/dev/null)
+    has_engine_health=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='EngineHealth';" 2>/dev/null)
+    has_body_health=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='BodyHealth';" 2>/dev/null)
+    has_fuel_tank_health=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='FuelTankHealth';" 2>/dev/null)
 
     local max_retries=5
     local base_retry_delay=0.5
@@ -1055,7 +1058,7 @@ INSERT_VEHICLES_POSITIONS_BATCH() {
             base_timestamp="$base_timestamp_param"
         else
             # Fallback: usar timestamp atual (comportamento antigo)
-            base_timestamp=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT strftime('%Y-%m-%d %H:%M:%S', 'now', 'localtime');" 2>/dev/null)
+            base_timestamp=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" "SELECT strftime('%Y-%m-%d %H:%M:%S', 'now', 'localtime');" 2>/dev/null)
             if [[ -z "$base_timestamp" ]]; then
                 base_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
             fi
@@ -1195,7 +1198,7 @@ INSERT_VEHICLES_POSITIONS_BATCH() {
         local sql_error_file
         sql_error_file=$(mktemp)
         local sql_result
-        sql_result=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF 2>"$sql_error_file"
+        sql_result=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" <<EOF 2>"$sql_error_file"
 BEGIN DEFERRED TRANSACTION;
 INSERT INTO vehicles_tracking (VehicleId, VehicleName, PositionX, PositionZ, PositionY, TimeStamp$HealthColumns)
 VALUES $sql_values;
@@ -1244,7 +1247,7 @@ EOF
                 local first_rowid=$((last_rowid - inserted_count + 1))
                 if [[ $first_rowid -gt 0 ]]; then
                     # Buscar IDs usando range de VehicleTrackingId
-                    inserted_ids=$(sqlite3 -separator '|' "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT VehicleId, IdVehicleTracking FROM vehicles_tracking WHERE IdVehicleTracking >= $first_rowid AND IdVehicleTracking <= $last_rowid ORDER BY IdVehicleTracking ASC;" 2>/dev/null)
+                    inserted_ids=$(sqlite3 -separator '|' "$AppFolder/$AppVehicleBecoC1DbFile" "SELECT VehicleId, IdVehicleTracking FROM vehicles_tracking WHERE IdVehicleTracking >= $first_rowid AND IdVehicleTracking <= $last_rowid ORDER BY IdVehicleTracking ASC;" 2>/dev/null)
                     
                     if [[ -n "$inserted_ids" ]]; then
                         method_used=1
@@ -1261,7 +1264,7 @@ EOF
             # Método 2: Fallback - buscar por VehicleIds com janela de tempo maior (5 segundos)
             if [[ -z "$inserted_ids" ]] && [[ -n "$vehicle_ids_list" ]]; then
                 echo "INSERT_VEHICLES_POSITIONS_BATCH: Fallback 1 - Buscando por VehicleIds" >&2
-                inserted_ids=$(sqlite3 -separator '|' "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT VehicleId, IdVehicleTracking FROM vehicles_tracking WHERE VehicleId IN ($vehicle_ids_list) AND TimeStamp >= datetime('now', '-5 seconds') ORDER BY IdVehicleTracking DESC LIMIT $inserted_count;" 2>/dev/null)
+                inserted_ids=$(sqlite3 -separator '|' "$AppFolder/$AppVehicleBecoC1DbFile" "SELECT VehicleId, IdVehicleTracking FROM vehicles_tracking WHERE VehicleId IN ($vehicle_ids_list) AND TimeStamp >= datetime('now', '-5 seconds') ORDER BY IdVehicleTracking DESC LIMIT $inserted_count;" 2>/dev/null)
                 
                 if [[ -n "$inserted_ids" ]]; then
                     method_used=2
@@ -1271,7 +1274,7 @@ EOF
             # Método 3: Fallback final - buscar últimos N registros sem filtro de tempo
             if [[ -z "$inserted_ids" ]] && [[ -n "$vehicle_ids_list" ]]; then
                 echo "INSERT_VEHICLES_POSITIONS_BATCH: Fallback 2 - Buscando últimos registros" >&2
-                inserted_ids=$(sqlite3 -separator '|' "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT VehicleId, IdVehicleTracking FROM vehicles_tracking WHERE VehicleId IN ($vehicle_ids_list) ORDER BY IdVehicleTracking DESC LIMIT $inserted_count;" 2>/dev/null)
+                inserted_ids=$(sqlite3 -separator '|' "$AppFolder/$AppVehicleBecoC1DbFile" "SELECT VehicleId, IdVehicleTracking FROM vehicles_tracking WHERE VehicleId IN ($vehicle_ids_list) ORDER BY IdVehicleTracking DESC LIMIT $inserted_count;" 2>/dev/null)
                 
                 if [[ -n "$inserted_ids" ]]; then
                     method_used=3
@@ -1382,9 +1385,9 @@ INSERT_VEHICLE_POSITION() {
 
     # Verificar se colunas de saúde existem no banco
     local has_engine_health has_body_health has_fuel_tank_health
-    has_engine_health=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='EngineHealth';")
-    has_body_health=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='BodyHealth';")
-    has_fuel_tank_health=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='FuelTankHealth';")
+    has_engine_health=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='EngineHealth';")
+    has_body_health=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='BodyHealth';")
+    has_fuel_tank_health=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='FuelTankHealth';")
 
     # Adicionar colunas de saúde se existirem no banco e forem fornecidas
     if [[ "$has_engine_health" -eq 1 ]] && [[ -n "$EngineHealth" ]]; then
@@ -1402,11 +1405,11 @@ INSERT_VEHICLE_POSITION() {
 
     while (( attempt <= max_retries )); do
         # Configurar PRAGMAs uma vez (silenciosamente)
-        configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
+        configure_sqlite_pragmas "$AppFolder/$AppVehicleBecoC1DbFile"
         
         # Executar INSERT e capturar apenas o resultado do SELECT last_insert_rowid()
         local sql_result
-        sql_result=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF 2>/dev/null
+        sql_result=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" <<EOF 2>/dev/null
 INSERT INTO vehicles_tracking (VehicleId, VehicleName, PositionX, PositionZ, PositionY, TimeStamp$HealthColumns)
 VALUES (
     '$EscapedVehicleId',
@@ -1465,7 +1468,7 @@ INSERT_VEHICLE_ITEM() {
     fi
 
     while (( attempt <= max_retries )); do
-        local VehicleItemId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+        local VehicleItemId=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" <<EOF
 INSERT INTO vehicles_items (VehicleTrackingId, ItemType, ItemHealth, TimeStamp)
 VALUES (
     $VehicleTrackingId,
@@ -1521,7 +1524,7 @@ INSERT_VEHICLE_ATTACHMENT() {
     fi
 
     while (( attempt <= max_retries )); do
-        local VehicleAttachmentId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+        local VehicleAttachmentId=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" <<EOF
 INSERT INTO vehicles_attachments (VehicleTrackingId, AttachmentType, AttachmentHealth, TimeStamp)
 VALUES (
     $VehicleTrackingId,
@@ -1617,11 +1620,11 @@ INSERT_VEHICLE_ATTACHMENTS_BATCH() {
         fi
         
         # Configurar PRAGMAs uma vez (silenciosamente)
-        configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
+        configure_sqlite_pragmas "$AppFolder/$AppVehicleBecoC1DbFile"
         
         # Executar INSERT em lote e capturar apenas o resultado do SELECT changes()
         local sql_result
-        sql_result=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF 2>/dev/null
+        sql_result=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" <<EOF 2>/dev/null
 BEGIN IMMEDIATE TRANSACTION;
 INSERT INTO vehicles_attachments (VehicleTrackingId, AttachmentType, AttachmentHealth, TimeStamp) VALUES $sql_values;
 COMMIT;
@@ -1726,11 +1729,11 @@ INSERT_VEHICLE_ITEMS_BATCH() {
         fi
         
         # Configurar PRAGMAs uma vez (silenciosamente)
-        configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
+        configure_sqlite_pragmas "$AppFolder/$AppVehicleBecoC1DbFile"
         
         # Executar INSERT em lote e capturar apenas o resultado do SELECT changes()
         local sql_result
-        sql_result=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF 2>/dev/null
+        sql_result=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" <<EOF 2>/dev/null
 BEGIN IMMEDIATE TRANSACTION;
 INSERT INTO vehicles_items (VehicleTrackingId, ItemType, ItemHealth, TimeStamp) VALUES $sql_values;
 COMMIT;
@@ -1800,11 +1803,11 @@ INSERT_CONTAINER_POSITION() {
 
     while (( attempt <= max_retries )); do
         # Configurar PRAGMAs uma vez (silenciosamente)
-        configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
+        configure_sqlite_pragmas "$AppFolder/$AppContainerBecoC1DbFile"
         
         # Executar INSERT e capturar apenas o resultado do SELECT last_insert_rowid()
         local sql_result
-        sql_result=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF 2>/dev/null
+        sql_result=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" <<EOF 2>/dev/null
 INSERT INTO containers_tracking (ContainerId, ContainerName, PositionX, PositionZ, PositionY, TimeStamp)
 VALUES (
     '$EscapedContainerId',
@@ -1863,7 +1866,7 @@ INSERT_CONTAINER_ITEM() {
     fi
 
     while (( attempt <= max_retries )); do
-        local ContainerItemTrackingId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+        local ContainerItemTrackingId=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" <<EOF
 INSERT INTO container_items_tracking (ContainerTrackingId, ItemType, ItemHealth, TimeStamp)
 VALUES (
     $ContainerTrackingId,
@@ -1959,11 +1962,11 @@ INSERT_CONTAINER_ITEMS_BATCH() {
         fi
         
         # Configurar PRAGMAs uma vez (silenciosamente)
-        configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
+        configure_sqlite_pragmas "$AppFolder/$AppContainerBecoC1DbFile"
         
         # Executar INSERT em lote e capturar apenas o resultado do SELECT changes()
         local sql_result
-        sql_result=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF 2>/dev/null
+        sql_result=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" <<EOF 2>/dev/null
 BEGIN IMMEDIATE TRANSACTION;
 INSERT INTO container_items_tracking (ContainerTrackingId, ItemType, ItemHealth, TimeStamp) VALUES $sql_values;
 COMMIT;
@@ -2056,7 +2059,7 @@ INSERT_FENCE_POSITION() {
     fi
 
     while (( attempt <= max_retries )); do
-        local FenceTrackingId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+        local FenceTrackingId=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" <<EOF
 INSERT INTO fences_tracking (FenceId, FenceName, PositionX, PositionZ, PositionY, TimeStamp, HasBase, LowerPanelBuilt, UpperPanelBuilt)
 VALUES (
     '$EscapedFenceId',
@@ -2133,7 +2136,7 @@ INSERT_WATCHTOWER_POSITION() {
         return 1
     fi
 
-    sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<'EOF'
+    sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" <<'EOF'
 CREATE TABLE IF NOT EXISTS watchtowers_tracking (
     WatchtowerTrackingId INTEGER PRIMARY KEY AUTOINCREMENT,
     WatchtowerId TEXT NOT NULL,
@@ -2225,7 +2228,7 @@ EOF
     if [[ -n "$Level3Wall3Upper" ]]; then Level3Wall3UpperValue="$Level3Wall3Upper"; else Level3Wall3UpperValue="NULL"; fi
 
     while (( attempt <= max_retries )); do
-        local WatchtowerTrackingId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+        local WatchtowerTrackingId=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" <<EOF
 INSERT INTO watchtowers_tracking (
     WatchtowerId,
     WatchtowerName,
@@ -2341,7 +2344,7 @@ INSERT_FLAG_POSITION() {
         return 1
     fi
 
-    sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<'EOF'
+    sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" <<'EOF'
 CREATE TABLE IF NOT EXISTS flags_tracking (
     FlagTrackingId INTEGER PRIMARY KEY AUTOINCREMENT,
     FlagId TEXT NOT NULL,
@@ -2388,7 +2391,7 @@ EOF
     if [[ -n "$FlagHeight" ]]; then FlagHeightValue="$FlagHeight"; else FlagHeightValue="NULL"; fi
 
     while (( attempt <= max_retries )); do
-        local FlagTrackingId=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+        local FlagTrackingId=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" <<EOF
 INSERT INTO flags_tracking (
     FlagId,
     FlagName,

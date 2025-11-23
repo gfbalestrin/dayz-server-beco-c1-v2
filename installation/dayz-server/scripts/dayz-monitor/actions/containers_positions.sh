@@ -44,11 +44,11 @@ handle_containers_positions() {
     declare -A prev_containers=()
 
     # Configurar PRAGMAs antes de acessar o banco
-    configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
+    configure_sqlite_pragmas "$AppFolder/$AppContainerBecoC1DbFile"
 
     # Verificar se coluna IsDestroyed existe
     local has_is_destroyed
-    has_is_destroyed=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('containers_tracking') WHERE name='IsDestroyed';")
+    has_is_destroyed=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('containers_tracking') WHERE name='IsDestroyed';")
     
     # Buscar último registro de cada container com items (excluindo destruídos)
     local sql_query
@@ -89,8 +89,12 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
     fi
     
     while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_items; do
+        # Pular linhas vazias ou quando prev_id está vazio
+        if [[ -z "$prev_id" ]]; then
+            continue
+        fi
         prev_containers["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_items"
-    done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "$sql_query")
+    done < <(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" -separator '|' "$sql_query")
 
     local containers container_count processed_count
     containers=$(echo "$line" | jq -c '.container_data[]')
@@ -456,7 +460,7 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
             fi
             
             # Marcar todos os registros do container como destruído (garantir que não apareça no mapa)
-            sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+            sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" <<EOF
 UPDATE containers_tracking
 SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
 WHERE ContainerId = '$removed_id'

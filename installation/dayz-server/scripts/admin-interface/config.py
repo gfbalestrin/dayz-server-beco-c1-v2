@@ -26,12 +26,21 @@ DEBUG = False
 # Paths dos bancos de dados
 DB_PLAYERS = os.path.join(BASE_DIR, "..", "databases", "players_beco_c1.db")
 DB_LOGS = os.path.join(BASE_DIR, "..", "databases", "server_beco_c1_logs.db")
+DB_VEHICLES = os.path.join(BASE_DIR, "..", "databases", "vehicles_beco_c1.db")
+DB_CONTAINERS = os.path.join(BASE_DIR, "..", "databases", "containers_beco_c1.db")
+DB_STRUCTURES = os.path.join(BASE_DIR, "..", "databases", "structures_beco_c1.db")
 
 # Validação de paths
 if not os.path.exists(DB_PLAYERS):
     raise FileNotFoundError(f"Database não encontrado: {DB_PLAYERS}")
 if not os.path.exists(DB_LOGS):
     raise FileNotFoundError(f"Database não encontrado: {DB_LOGS}")
+if not os.path.exists(DB_VEHICLES):
+    raise FileNotFoundError(f"Database não encontrado: {DB_VEHICLES}")
+if not os.path.exists(DB_CONTAINERS):
+    raise FileNotFoundError(f"Database não encontrado: {DB_CONTAINERS}")
+if not os.path.exists(DB_STRUCTURES):
+    raise FileNotFoundError(f"Database não encontrado: {DB_STRUCTURES}")
 
 # Configurações de paginação
 RESULTS_PER_PAGE = 100

@@ -35,7 +35,7 @@ handle_flags_positions() {
 
     # Verificar se coluna IsDestroyed existe
     local has_is_destroyed
-    has_is_destroyed=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('flags_tracking') WHERE name='IsDestroyed';")
+    has_is_destroyed=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('flags_tracking') WHERE name='IsDestroyed';")
     
     # Buscar último registro de cada flag (excluindo destruídas)
     local sql_query
@@ -64,8 +64,12 @@ handle_flags_positions() {
     fi
     
     while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_has_base prev_has_flag_base prev_flag_raised prev_flag_height; do
+        # Pular linhas vazias ou quando prev_id está vazio
+        if [[ -z "$prev_id" ]]; then
+            continue
+        fi
         prev_flags["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_has_base|$prev_has_flag_base|$prev_flag_raised|$prev_flag_height"
-    done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "$sql_query")
+    done < <(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" -separator '|' "$sql_query")
 
     local flags
     flags=$(echo "$line" | jq -c '.flag_data[]?')
@@ -137,7 +141,7 @@ handle_flags_positions() {
             # Marcar TODOS os registros da flag como destruída (garantir que não apareça no mapa)
             # Não usar condição IsDestroyed para garantir que todos sejam marcados
             local affected_rows
-            affected_rows=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+            affected_rows=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" <<EOF
 UPDATE flags_tracking
 SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
 WHERE FlagId = '$EscapedRemovedId';

@@ -17,15 +17,15 @@ handle_vehicles_positions() {
     declare -A prev_vehicles=()
 
     # Configurar PRAGMAs antes de acessar o banco
-    configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
+    configure_sqlite_pragmas "$AppFolder/$AppVehicleBecoC1DbFile"
 
     # Garantir que índice composto otimizado existe (criação automática se não existir)
     # Nota: SQLite não suporta DESC na definição do índice, mas ORDER BY DESC na query ainda usa o índice eficientemente
-    sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "CREATE INDEX IF NOT EXISTS idx_vehicles_tracking_lookup ON vehicles_tracking(VehicleId, TimeStamp, IsDestroyed);" 2>/dev/null
+    sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" "CREATE INDEX IF NOT EXISTS idx_vehicles_tracking_lookup ON vehicles_tracking(VehicleId, TimeStamp, IsDestroyed);" 2>/dev/null
 
     # Verificar se coluna IsDestroyed existe
     local has_is_destroyed
-    has_is_destroyed=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='IsDestroyed';")
+    has_is_destroyed=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='IsDestroyed';")
     
     # Buscar último registro de cada veículo usando window function (muito mais eficiente que subquery MAX)
     # Usa índice composto idx_vehicles_tracking_lookup para performance otimizada
@@ -58,9 +58,9 @@ handle_vehicles_positions() {
     
     while [[ $attempt -le $max_retries ]]; do
         # Configurar PRAGMAs antes de cada tentativa
-        configure_sqlite_pragmas "$AppFolder/$AppServerBecoC1LogsDbFile"
+        configure_sqlite_pragmas "$AppFolder/$AppVehicleBecoC1DbFile"
         
-        query_output=$(sqlite3 -separator '|' "$AppFolder/$AppServerBecoC1LogsDbFile" "$sql_query" 2>&1)
+        query_output=$(sqlite3 -separator '|' "$AppFolder/$AppVehicleBecoC1DbFile" "$sql_query" 2>&1)
         
         if [[ $? -eq 0 ]]; then
             query_success=true
@@ -88,6 +88,10 @@ handle_vehicles_positions() {
     fi
     
     while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y; do
+        # Pular linhas vazias ou quando prev_id está vazio
+        if [[ -z "$prev_id" ]]; then
+            continue
+        fi
         local prev_x_fmt prev_z_fmt prev_y_fmt
         prev_x_fmt=$(format_coord "$prev_x")
         prev_z_fmt=$(format_coord "$prev_z")
@@ -309,7 +313,7 @@ handle_vehicles_positions() {
             INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
             
             # Marcar todos os registros do veículo como destruído (garantir que não apareça no mapa)
-            sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+            sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" <<EOF
 UPDATE vehicles_tracking
 SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
 WHERE VehicleId = '$removed_id'

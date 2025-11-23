@@ -25,7 +25,7 @@ handle_fences_positions() {
 
     # Verificar se coluna IsDestroyed existe
     local has_is_destroyed
-    has_is_destroyed=$(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" "SELECT COUNT(*) FROM pragma_table_info('fences_tracking') WHERE name='IsDestroyed';")
+    has_is_destroyed=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('fences_tracking') WHERE name='IsDestroyed';")
     
     # Buscar último registro de cada fence (excluindo destruídas)
     local sql_query
@@ -52,8 +52,12 @@ handle_fences_positions() {
     fi
     
     while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_has_base prev_lower_panel prev_upper_panel; do
+        # Pular linhas vazias ou quando prev_id está vazio
+        if [[ -z "$prev_id" ]]; then
+            continue
+        fi
         prev_fences["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_has_base|$prev_lower_panel|$prev_upper_panel"
-    done < <(sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" -separator '|' "$sql_query")
+    done < <(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" -separator '|' "$sql_query")
 
     local fences fence_count processed_count
     fences=$(echo "$line" | jq -c '.fence_data[]')
@@ -163,7 +167,7 @@ handle_fences_positions() {
             SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             
             # Marcar todos os registros da fence como destruída (garantir que não apareça no mapa)
-            sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
+            sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" <<EOF
 UPDATE fences_tracking
 SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
 WHERE FenceId = '$removed_id'
