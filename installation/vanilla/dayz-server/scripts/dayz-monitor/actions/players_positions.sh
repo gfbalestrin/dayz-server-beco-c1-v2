@@ -71,6 +71,10 @@ handle_players_positions() {
     declare -a current_players=()
     declare -a player_data_map=()
     
+    # Extrair timestamp base do primeiro jogador (todos do mesmo batch têm o mesmo timestamp)
+    local base_captured_timestamp
+    base_captured_timestamp=$(echo "$line" | jq -r '.players[0].captured_at // empty' 2>/dev/null)
+    
     # Extrair todos os dados de uma vez usando jq
     while IFS= read -r player_json; do
         if [[ -z "$player_json" ]]; then
@@ -121,7 +125,12 @@ handle_players_positions() {
     local inserted_ids
     local batch_insert_result
     if [[ ${#batch_data[@]} -gt 0 ]]; then
-        inserted_ids=$(INSERT_PLAYERS_POSITIONS_BATCH "${batch_data[@]}")
+        # Passar timestamp base se disponível (fallback para comportamento atual se não houver)
+        if [[ -n "$base_captured_timestamp" ]]; then
+            inserted_ids=$(INSERT_PLAYERS_POSITIONS_BATCH "$base_captured_timestamp" "${batch_data[@]}")
+        else
+            inserted_ids=$(INSERT_PLAYERS_POSITIONS_BATCH "${batch_data[@]}")
+        fi
         batch_insert_result=$?
         
         if [[ $batch_insert_result -ne 0 ]]; then

@@ -125,3 +125,42 @@ string GetCurrentTimestamp()
 	return yearStr + "-" + monthStr + "-" + dayStr + " " + hourStr + ":" + minuteStr + ":00";
 }
 
+string GetCurrentTimestampWithSeconds()
+{
+	int year, month, day, hour, minute;
+	GetGame().GetWorld().GetDate(year, month, day, hour, minute);
+	
+	// Nota: Enforce Script não tem acesso direto aos segundos do minuto atual
+	// Usamos "00" como base, e o shell script adicionará milissegundos incrementais
+	// Isso garante que o timestamp seja do minuto correto da captura
+	
+	string yearStr = year.ToString();
+	
+	string monthStr;
+	if (month < 10)
+		monthStr = "0" + month.ToString();
+	else
+		monthStr = month.ToString();
+	
+	string dayStr;
+	if (day < 10)
+		dayStr = "0" + day.ToString();
+	else
+		dayStr = day.ToString();
+	
+	string hourStr;
+	if (hour < 10)
+		hourStr = "0" + hour.ToString();
+	else
+		hourStr = hour.ToString();
+	
+	string minuteStr;
+	if (minute < 10)
+		minuteStr = "0" + minute.ToString();
+	else
+		minuteStr = minute.ToString();
+	
+	// Usar "00" como segundos base - o shell script adicionará milissegundos incrementais
+	return yearStr + "-" + monthStr + "-" + dayStr + " " + hourStr + ":" + minuteStr + ":00";
+}
+

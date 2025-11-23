@@ -622,7 +622,21 @@ EOF
 }
 
 INSERT_PLAYERS_POSITIONS_BATCH() {
-    local players_array=("$@")  # Array de players no formato "player_id|coord_x|coord_z|coord_y|health|blood|shock|energy|water|is_alive|is_admin|stamina|stamina_max|items_in_hands|items_count|main_items"
+    # Primeiro parâmetro pode ser timestamp base (opcional)
+    # Se o primeiro parâmetro parece um timestamp (contém ":" e "-"), usar como base
+    # Caso contrário, tratar todos os parâmetros como players_array
+    local base_timestamp_param=""
+    local players_array=()
+    
+    if [[ $# -gt 0 ]] && [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]][0-9]{2}:[0-9]{2}:[0-9]{2}$ ]]; then
+        # Primeiro parâmetro é um timestamp no formato "YYYY-MM-DD HH:MM:SS"
+        base_timestamp_param="$1"
+        shift
+        players_array=("$@")
+    else
+        # Todos os parâmetros são players
+        players_array=("$@")
+    fi
     
     if [[ ${#players_array[@]} -eq 0 ]]; then
         return 0  # Nada para inserir, retorna sucesso
@@ -636,6 +650,19 @@ INSERT_PLAYERS_POSITIONS_BATCH() {
     local attempt=1
 
     while (( attempt <= max_retries )); do
+        # Obter timestamp base (do parâmetro ou atual)
+        local base_timestamp
+        if [[ -n "$base_timestamp_param" ]]; then
+            # Usar timestamp fornecido (momento da captura)
+            base_timestamp="$base_timestamp_param"
+        else
+            # Fallback: usar timestamp atual (comportamento antigo)
+            base_timestamp=$(sqlite3 "$AppFolder/$AppPlayerBecoC1DbFile" "SELECT strftime('%Y-%m-%d %H:%M:%S', 'now', 'localtime');" 2>/dev/null)
+            if [[ -z "$base_timestamp" ]]; then
+                base_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+            fi
+        fi
+        
         # Construir query SQL com múltiplos VALUES
         local sql_values=""
         local first_value=1
@@ -770,18 +797,29 @@ INSERT_PLAYERS_POSITIONS_BATCH() {
             
             # Gerar timestamp único para este registro usando strftime com frações de segundo
             # Usar julianday para adicionar milissegundos incrementais (0.001s por registro)
-            # Formato: strftime('%Y-%m-%d %H:%M:%f', julianday('now', 'localtime') + (row_index * 0.001 / 86400.0))
-            # Onde 86400.0 é o número de segundos em um dia (julianday usa dias como unidade)
+            # Se base_timestamp foi fornecido, usar ele; senão usar 'now'
             local timestamp_value
             if [[ $row_index -eq 0 ]]; then
-                # Primeiro registro: usar strftime com frações de segundo (0 milissegundos)
-                timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('now', 'localtime'))"
+                # Primeiro registro: usar timestamp base (0 milissegundos)
+                if [[ -n "$base_timestamp_param" ]]; then
+                    # Usar timestamp fornecido (momento da captura)
+                    timestamp_value="'$base_timestamp'"
+                else
+                    # Fallback: usar timestamp atual
+                    timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('now', 'localtime'))"
+                fi
             else
-                # Registros subsequentes: adicionar milissegundos incrementais
+                # Registros subsequentes: adicionar milissegundos incrementais ao timestamp base
                 # Converter milissegundos para fração de dia: row_index * 0.001 / 86400.0
                 local days_fraction
                 days_fraction=$(awk "BEGIN {printf \"%.10f\", $row_index * 0.001 / 86400.0}")
-                timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('now', 'localtime') + $days_fraction)"
+                if [[ -n "$base_timestamp_param" ]]; then
+                    # Usar timestamp fornecido + incremento de milissegundos
+                    timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('$base_timestamp') + $days_fraction)"
+                else
+                    # Fallback: usar timestamp atual + incremento
+                    timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('now', 'localtime') + $days_fraction)"
+                fi
             fi
             
             # Construir valor SQL
