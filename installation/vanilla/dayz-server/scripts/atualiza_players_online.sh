@@ -67,8 +67,12 @@ function EnviaLogsDiscord() {
 if [[ "$PLAYER_ID" == "RESET" ]]; then
     if [[ "$DayzDeathmatch" -eq "1" ]]; then
         DeathMatchCoords="$DayzServerFolder/$DayzDeathmatchCoords"
-        CURRENT_INDEX=$(jq 'map(.Active) | index(1)' "$DeathMatchCoords")
-        CURRENT_REGION=$(jq -r ".[$CURRENT_INDEX].Region" "$DeathMatchCoords")  
+        if [[ -f "$DeathMatchCoords" ]]; then
+            CURRENT_INDEX=$(jq 'map(.Active) | index(1)' "$DeathMatchCoords")
+            CURRENT_REGION=$(jq -r ".[$CURRENT_INDEX].Region" "$DeathMatchCoords")
+        else
+            CURRENT_REGION="Desconhecido"
+        fi
         CONTENT="**(0/60) Usuários online (atualizado em $CURRENT_DATE)**\n"  
         CONTENT="${CONTENT}**Mapa atual: ${CURRENT_REGION}** \n"
     else
@@ -193,8 +197,12 @@ NUM_REGISTROS=$(sqlite3 "$PLAYERS_BECO_C1_DB" "SELECT COUNT(*) FROM players_onli
 
 if [[ "$DayzDeathmatch" -eq "1" ]]; then
     DeathMatchCoords="$DayzServerFolder/$DayzDeathmatchCoords"
-    CURRENT_INDEX=$(jq 'map(.Active) | index(1)' "$DeathMatchCoords")
-    CURRENT_REGION=$(jq -r ".[$CURRENT_INDEX].Region" "$DeathMatchCoords")  
+    if [[ -f "$DeathMatchCoords" ]]; then
+        CURRENT_INDEX=$(jq 'map(.Active) | index(1)' "$DeathMatchCoords")
+        CURRENT_REGION=$(jq -r ".[$CURRENT_INDEX].Region" "$DeathMatchCoords")
+    else
+        CURRENT_REGION="Desconhecido"
+    fi
     CONTENT="**($NUM_REGISTROS/60) Usuários online (atualizado em $CURRENT_DATE)**\n"  
     CONTENT="${CONTENT}**Mapa atual: ${CURRENT_REGION}** \n\n"
 else
