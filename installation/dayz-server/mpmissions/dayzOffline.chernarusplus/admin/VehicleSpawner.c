@@ -26,7 +26,7 @@ bool SpawnVehicleWithParts(vector pos, string vehicleType)
     }
 
     // Adiciona veículo ao rastreamento
-    EntityAI vehicleEntity = EntityAI.Cast(vehicle);
+    EntityAI vehicleEntity = vehicle;
     if (vehicleEntity)
     {
         RegisterVehicle(vehicleEntity);
