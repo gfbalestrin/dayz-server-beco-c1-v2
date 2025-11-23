@@ -123,7 +123,38 @@ function updatePositions(data) {
                 MapState.map.removeLayer(MapState.playerMarkers[playerId]);
                 delete MapState.playerMarkers[playerId];
             }
+            // Remover trail se existir
+            if (MapState.playerTrails[playerId]) {
+                const trail = MapState.playerTrails[playerId];
+                if (Array.isArray(trail)) {
+                    trail.forEach(item => MapState.map.removeLayer(item));
+                } else {
+                    MapState.map.removeLayer(trail);
+                }
+                delete MapState.playerTrails[playerId];
+            }
             return;
+        }
+        
+        // Verificar filtro "Apenas online"
+        const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
+        if (onlineOnlyFilterActive && !player.is_online) {
+            // Se filtro "Apenas online" está ativo e jogador está offline, remover marcador e trail
+            if (MapState.playerMarkers[playerId]) {
+                MapState.map.removeLayer(MapState.playerMarkers[playerId]);
+                delete MapState.playerMarkers[playerId];
+            }
+            // Remover trail se existir
+            if (MapState.playerTrails[playerId]) {
+                const trail = MapState.playerTrails[playerId];
+                if (Array.isArray(trail)) {
+                    trail.forEach(item => MapState.map.removeLayer(item));
+                } else {
+                    MapState.map.removeLayer(trail);
+                }
+                delete MapState.playerTrails[playerId];
+            }
+            return; // Não processar jogador offline quando filtro está ativo
         }
         
         // Contar jogador (somente se passou pelo filtro)
@@ -229,12 +260,42 @@ function updatePositions(data) {
     });
     
     // Remover marcadores de jogadores que não existem mais nos dados
+    const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
     Object.keys(MapState.playerMarkers).forEach(function(playerId) {
         if (!currentPlayerIds.has(playerId)) {
             // Verificar se não está filtrado (se houver filtro, manter)
             if (MapState.selectedPlayerFilters.length === 0 || !MapState.selectedPlayerFilters.includes(playerId)) {
                 MapState.map.removeLayer(MapState.playerMarkers[playerId]);
                 delete MapState.playerMarkers[playerId];
+                // Remover trail também
+                if (MapState.playerTrails[playerId]) {
+                    const trail = MapState.playerTrails[playerId];
+                    if (Array.isArray(trail)) {
+                        trail.forEach(item => MapState.map.removeLayer(item));
+                    } else {
+                        MapState.map.removeLayer(trail);
+                    }
+                    delete MapState.playerTrails[playerId];
+                }
+            }
+        } else if (onlineOnlyFilterActive) {
+            // Se filtro "Apenas online" está ativo, verificar se jogador está offline e remover
+            const playerData = MapState.playersData[playerId];
+            if (playerData && !playerData.isOnline) {
+                // Jogador está offline, remover marcador e trail
+                if (MapState.playerMarkers[playerId]) {
+                    MapState.map.removeLayer(MapState.playerMarkers[playerId]);
+                    delete MapState.playerMarkers[playerId];
+                }
+                if (MapState.playerTrails[playerId]) {
+                    const trail = MapState.playerTrails[playerId];
+                    if (Array.isArray(trail)) {
+                        trail.forEach(item => MapState.map.removeLayer(item));
+                    } else {
+                        MapState.map.removeLayer(trail);
+                    }
+                    delete MapState.playerTrails[playerId];
+                }
             }
         }
     });
@@ -251,7 +312,19 @@ function updatePositions(data) {
     
     if (MapState.showTrails) {
         setTimeout(function() {
-            Object.keys(MapState.playerMarkers).forEach(loadPlayerTrail);
+            // Carregar trails apenas de jogadores visíveis (respeitando filtro "Apenas online")
+            const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
+            Object.keys(MapState.playerMarkers).forEach(function(playerId) {
+                // Se filtro "Apenas online" está ativo, verificar se jogador está online
+                if (onlineOnlyFilterActive) {
+                    const playerData = MapState.playersData[playerId];
+                    if (!playerData || !playerData.isOnline) {
+                        // Jogador está offline, não carregar trail
+                        return;
+                    }
+                }
+                loadPlayerTrail(playerId);
+            });
         }, 500);
     }
     
@@ -274,8 +347,38 @@ function updatePositions(data) {
 function loadPlayerTrail(playerId) {
     if (!MapState.showTrails) return;
     
+    // Verificar filtro "Apenas online"
+    const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
+    if (onlineOnlyFilterActive) {
+        // Verificar se jogador está online
+        const playerData = MapState.playersData[playerId];
+        if (!playerData || !playerData.isOnline) {
+            // Jogador está offline e filtro está ativo, remover trail se existir
+            if (MapState.playerTrails[playerId]) {
+                const trail = MapState.playerTrails[playerId];
+                if (Array.isArray(trail)) {
+                    trail.forEach(item => MapState.map.removeLayer(item));
+                } else {
+                    MapState.map.removeLayer(trail);
+                }
+                delete MapState.playerTrails[playerId];
+            }
+            return; // Não carregar trail de jogador offline quando filtro está ativo
+        }
+    }
+    
     $.get(`/api/players/${playerId}/trail`, { limit: 100 })
         .done(function(data) {
+            // Verificar novamente se filtro ainda está ativo e jogador ainda está online
+            const onlineOnlyFilterStillActive = $('#onlineOnlyCheck').is(':checked');
+            if (onlineOnlyFilterStillActive) {
+                const playerData = MapState.playersData[playerId];
+                if (!playerData || !playerData.isOnline) {
+                    // Jogador ficou offline durante o carregamento, não desenhar trail
+                    return;
+                }
+            }
+            
             // Armazenar trail completo para comparação entre pontos
             MapState.playerTrailsData[playerId] = data.trail;
             drawTrail(playerId, data.trail);
@@ -622,8 +725,17 @@ function toggleTrails() {
                 activeButton.addClass('active');
             }
         }
-        // Carregar trails de todos os jogadores visíveis
-        Object.keys(MapState.playerMarkers).forEach(loadPlayerTrail);
+        // Carregar trails de todos os jogadores visíveis (respeitando filtro "Apenas online")
+        const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
+        Object.keys(MapState.playerMarkers).forEach(function(playerId) {
+            if (onlineOnlyFilterActive) {
+                const playerData = MapState.playersData[playerId];
+                if (!playerData || !playerData.isOnline) {
+                    return;
+                }
+            }
+            loadPlayerTrail(playerId);
+        });
     } else {
         $('#toggleTrailsBtn').html('<i class="fas fa-route me-1"></i>Mostrar trails dos jogadores');
         $('#trailQuickShortcuts').hide();
@@ -850,7 +962,19 @@ function filterPlayers() {
     // Se trails estavam ativos, recarregar para jogadores visíveis após um delay
     if (MapState.showTrails) {
         setTimeout(function() {
-            Object.keys(MapState.playerMarkers).forEach(loadPlayerTrail);
+            // Carregar trails apenas de jogadores visíveis (respeitando filtro "Apenas online")
+            const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
+            Object.keys(MapState.playerMarkers).forEach(function(playerId) {
+                // Se filtro "Apenas online" está ativo, verificar se jogador está online
+                if (onlineOnlyFilterActive) {
+                    const playerData = MapState.playersData[playerId];
+                    if (!playerData || !playerData.isOnline) {
+                        // Jogador está offline, não carregar trail
+                        return;
+                    }
+                }
+                loadPlayerTrail(playerId);
+            });
         }, 500);
     }
 }
@@ -978,7 +1102,17 @@ function applyTrailFilterShortcut(shortcut) {
             MapState.activeTrailShortcut = null;
             MapState.hasCustomFilter = false;
             // Restaurar classes outline de todos os botões (já feito no início da função, mas garantindo aqui também)
-            Object.keys(MapState.playerMarkers).forEach(loadPlayerTrail);
+            // Recarregar trails apenas de jogadores visíveis (respeitando filtro "Apenas online")
+            const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
+            Object.keys(MapState.playerMarkers).forEach(function(playerId) {
+                if (onlineOnlyFilterActive) {
+                    const playerData = MapState.playersData[playerId];
+                    if (!playerData || !playerData.isOnline) {
+                        return;
+                    }
+                }
+                loadPlayerTrail(playerId);
+            });
             return;
     }
     
@@ -1158,8 +1292,17 @@ function applyTrailDateFilter(preserveShortcut = false) {
         }
     }
     
-    // Recarregar trails com filtro
-    Object.keys(MapState.playerMarkers).forEach(loadPlayerTrail);
+    // Recarregar trails com filtro (respeitando filtro "Apenas online")
+    const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
+    Object.keys(MapState.playerMarkers).forEach(function(playerId) {
+        if (onlineOnlyFilterActive) {
+            const playerData = MapState.playersData[playerId];
+            if (!playerData || !playerData.isOnline) {
+                return;
+            }
+        }
+        loadPlayerTrail(playerId);
+    });
 }
 
 /**
@@ -1177,12 +1320,28 @@ function reapplyCurrentTrailFilter() {
         return;
     }
     
+    // Função auxiliar para carregar trails apenas de jogadores online quando filtro está ativo
+    const loadTrailsForVisiblePlayers = function() {
+        const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
+        Object.keys(MapState.playerMarkers).forEach(function(playerId) {
+            // Se filtro "Apenas online" está ativo, verificar se jogador está online
+            if (onlineOnlyFilterActive) {
+                const playerData = MapState.playersData[playerId];
+                if (!playerData || !playerData.isOnline) {
+                    // Jogador está offline, não carregar trail
+                    return;
+                }
+            }
+            loadPlayerTrail(playerId);
+        });
+    };
+    
     // Se houver atalho rápido ativo, reaplicar o atalho
     if (MapState.activeTrailShortcut) {
         console.log('[DEBUG] Reaplicando atalho rápido:', MapState.activeTrailShortcut);
         applyTrailFilterShortcut(MapState.activeTrailShortcut);
-        // Garantir recarregamento explícito dos trails
-        Object.keys(MapState.playerMarkers).forEach(loadPlayerTrail);
+        // Garantir recarregamento explícito dos trails (apenas jogadores online se filtro ativo)
+        loadTrailsForVisiblePlayers();
         return;
     }
     
@@ -1190,16 +1349,16 @@ function reapplyCurrentTrailFilter() {
     if (MapState.hasCustomFilter) {
         console.log('[DEBUG] Reaplicando filtro personalizado');
         applyTrailDateFilter();
-        // Garantir recarregamento explícito dos trails (applyTrailDateFilter já faz isso, mas garantimos)
-        Object.keys(MapState.playerMarkers).forEach(loadPlayerTrail);
+        // Garantir recarregamento explícito dos trails (apenas jogadores online se filtro ativo)
+        loadTrailsForVisiblePlayers();
         return;
     }
     
     // Se não houver filtro, usar padrão de 24h
     console.log('[DEBUG] Nenhum filtro ativo, usando padrão de 24h');
     updateTrailDateFilterAuto(24);
-    // Garantir recarregamento explícito dos trails
-    Object.keys(MapState.playerMarkers).forEach(loadPlayerTrail);
+    // Garantir recarregamento explícito dos trails (apenas jogadores online se filtro ativo)
+    loadTrailsForVisiblePlayers();
 }
 
 /**
