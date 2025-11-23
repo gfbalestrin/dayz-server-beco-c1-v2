@@ -1769,6 +1769,226 @@ EOF
     return 1
 }
 
+INSERT_ALL_VEHICLES_ITEMS_BATCH() {
+    local CustomTimestamp="$1"  # Timestamp para todos os items
+    shift
+    local items_array=("$@")  # Array de items no formato "VehicleTrackingId|type|health"
+    
+    if [[ ${#items_array[@]} -eq 0 ]]; then
+        return 0  # Nada para inserir, retorna sucesso
+    fi
+
+    local TimestampValue
+    if [[ -n "$CustomTimestamp" ]]; then
+        TimestampValue="'$CustomTimestamp'"
+    else
+        TimestampValue="datetime('now', 'localtime')"
+    fi
+
+    local max_retries=5
+    local base_retry_delay=0.5
+    local attempt=1
+
+    while (( attempt <= max_retries )); do
+        # Construir query SQL com múltiplos VALUES
+        local sql_values=""
+        local first_value=1
+        
+        for item_data in "${items_array[@]}"; do
+            if [[ -z "$item_data" ]]; then
+                continue
+            fi
+            
+            # Separar VehicleTrackingId, type e health (formato: "VehicleTrackingId|type|health" ou "VehicleTrackingId|type")
+            local vehicle_tracking_id="${item_data%%|*}"
+            local remaining="${item_data#*|}"
+            local item_type="${remaining%%|*}"
+            local item_health="${remaining#*|}"
+            
+            # Se não há segundo separador, health está vazio
+            if [[ "$item_health" == "$remaining" ]]; then
+                item_health=""
+            fi
+            
+            # Validar que VehicleTrackingId e tipo não estão vazios
+            if [[ -z "$vehicle_tracking_id" || -z "$item_type" || "$item_type" == "empty" || "$item_type" == "null" ]]; then
+                continue
+            fi
+            
+            # Escapar aspas simples no tipo
+            local EscapedItemType
+            EscapedItemType=$(echo "$item_type" | sed "s/'/''/g")
+            
+            # Adicionar vírgula se não for o primeiro valor
+            if [[ $first_value -eq 0 ]]; then
+                sql_values+=", "
+            fi
+            first_value=0
+            
+            # Construir valor SQL
+            if [[ -n "$item_health" && "$item_health" != "NULL" && "$item_health" != "null" && "$item_health" != "" ]]; then
+                sql_values+="($vehicle_tracking_id, '$EscapedItemType', $item_health, $TimestampValue)"
+            else
+                sql_values+="($vehicle_tracking_id, '$EscapedItemType', NULL, $TimestampValue)"
+            fi
+        done
+        
+        # Se não há valores válidos, retornar sucesso
+        if [[ -z "$sql_values" ]]; then
+            return 0
+        fi
+        
+        # Configurar PRAGMAs uma vez (silenciosamente)
+        configure_sqlite_pragmas "$AppFolder/$AppVehicleBecoC1DbFile"
+        
+        # Executar INSERT em lote e capturar apenas o resultado do SELECT changes()
+        local sql_result
+        sql_result=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" <<EOF 2>/dev/null
+BEGIN IMMEDIATE TRANSACTION;
+INSERT INTO vehicles_items (VehicleTrackingId, ItemType, ItemHealth, TimeStamp) VALUES $sql_values;
+COMMIT;
+SELECT changes();
+EOF
+)
+        local inserted_count=$(echo "$sql_result" | tail -n 1)
+
+        # Validar que inserted_count é um número
+        if [[ -z "$inserted_count" ]] || ! [[ "$inserted_count" =~ ^[0-9]+$ ]]; then
+            inserted_count="0"
+        fi
+
+        if [[ "$inserted_count" =~ ^[0-9]+$ ]]; then
+            echo "$inserted_count"
+            return 0
+        else
+            if [[ $attempt -lt $max_retries ]]; then
+                # Backoff exponencial: 0.5s, 1s, 2s, 4s
+                local retry_multiplier=1
+                local i
+                for ((i=1; i<attempt; i++)); do
+                    retry_multiplier=$((retry_multiplier * 2))
+                done
+                local retry_delay=$((base_retry_delay * retry_multiplier))
+                sleep "$retry_delay"
+            fi
+            attempt=$((attempt + 1))
+        fi
+    done
+
+    echo "Failed to insert all vehicles items batch after $max_retries attempts."
+    return 1
+}
+
+INSERT_ALL_VEHICLES_ATTACHMENTS_BATCH() {
+    local CustomTimestamp="$1"  # Timestamp para todos os attachments
+    shift
+    local attachments_array=("$@")  # Array de attachments no formato "VehicleTrackingId|type|health"
+    
+    if [[ ${#attachments_array[@]} -eq 0 ]]; then
+        return 0  # Nada para inserir, retorna sucesso
+    fi
+
+    local TimestampValue
+    if [[ -n "$CustomTimestamp" ]]; then
+        TimestampValue="'$CustomTimestamp'"
+    else
+        TimestampValue="datetime('now', 'localtime')"
+    fi
+
+    local max_retries=5
+    local base_retry_delay=0.5
+    local attempt=1
+
+    while (( attempt <= max_retries )); do
+        # Construir query SQL com múltiplos VALUES
+        local sql_values=""
+        local first_value=1
+        
+        for attachment_data in "${attachments_array[@]}"; do
+            if [[ -z "$attachment_data" ]]; then
+                continue
+            fi
+            
+            # Separar VehicleTrackingId, type e health (formato: "VehicleTrackingId|type|health" ou "VehicleTrackingId|type")
+            local vehicle_tracking_id="${attachment_data%%|*}"
+            local remaining="${attachment_data#*|}"
+            local attachment_type="${remaining%%|*}"
+            local attachment_health="${remaining#*|}"
+            
+            # Se não há segundo separador, health está vazio
+            if [[ "$attachment_health" == "$remaining" ]]; then
+                attachment_health=""
+            fi
+            
+            # Validar que VehicleTrackingId e tipo não estão vazios
+            if [[ -z "$vehicle_tracking_id" || -z "$attachment_type" || "$attachment_type" == "empty" || "$attachment_type" == "null" ]]; then
+                continue
+            fi
+            
+            # Escapar aspas simples no tipo
+            local EscapedAttachmentType
+            EscapedAttachmentType=$(echo "$attachment_type" | sed "s/'/''/g")
+            
+            # Adicionar vírgula se não for o primeiro valor
+            if [[ $first_value -eq 0 ]]; then
+                sql_values+=", "
+            fi
+            first_value=0
+            
+            # Construir valor SQL
+            if [[ -n "$attachment_health" && "$attachment_health" != "NULL" && "$attachment_health" != "null" && "$attachment_health" != "" ]]; then
+                sql_values+="($vehicle_tracking_id, '$EscapedAttachmentType', $attachment_health, $TimestampValue)"
+            else
+                sql_values+="($vehicle_tracking_id, '$EscapedAttachmentType', NULL, $TimestampValue)"
+            fi
+        done
+        
+        # Se não há valores válidos, retornar sucesso
+        if [[ -z "$sql_values" ]]; then
+            return 0
+        fi
+        
+        # Configurar PRAGMAs uma vez (silenciosamente)
+        configure_sqlite_pragmas "$AppFolder/$AppVehicleBecoC1DbFile"
+        
+        # Executar INSERT em lote e capturar apenas o resultado do SELECT changes()
+        local sql_result
+        sql_result=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" <<EOF 2>/dev/null
+BEGIN IMMEDIATE TRANSACTION;
+INSERT INTO vehicles_attachments (VehicleTrackingId, AttachmentType, AttachmentHealth, TimeStamp) VALUES $sql_values;
+COMMIT;
+SELECT changes();
+EOF
+)
+        local inserted_count=$(echo "$sql_result" | tail -n 1)
+
+        # Validar que inserted_count é um número
+        if [[ -z "$inserted_count" ]] || ! [[ "$inserted_count" =~ ^[0-9]+$ ]]; then
+            inserted_count="0"
+        fi
+
+        if [[ "$inserted_count" =~ ^[0-9]+$ ]]; then
+            echo "$inserted_count"
+            return 0
+        else
+            if [[ $attempt -lt $max_retries ]]; then
+                # Backoff exponencial: 0.5s, 1s, 2s, 4s
+                local retry_multiplier=1
+                local i
+                for ((i=1; i<attempt; i++)); do
+                    retry_multiplier=$((retry_multiplier * 2))
+                done
+                local retry_delay=$((base_retry_delay * retry_multiplier))
+                sleep "$retry_delay"
+            fi
+            attempt=$((attempt + 1))
+        fi
+    done
+
+    echo "Failed to insert all vehicles attachments batch after $max_retries attempts."
+    return 1
+}
+
 INSERT_CONTAINER_POSITION() {
     local ContainerId="$1"
     local ContainerName="$2"

@@ -16,6 +16,10 @@ handle_vehicles_positions() {
 
     declare -A prev_vehicles=()
 
+    # Medir tempo da query inicial
+    local query_start_time
+    query_start_time=$(date +%s.%N 2>/dev/null || date +%s)
+
     # Configurar PRAGMAs antes de acessar o banco
     configure_sqlite_pragmas "$AppFolder/$AppVehicleBecoC1DbFile"
 
@@ -82,6 +86,18 @@ handle_vehicles_positions() {
         fi
     done
     
+    local query_end_time
+    query_end_time=$(date +%s.%N 2>/dev/null || date +%s)
+    local query_elapsed_ms
+    if command -v awk >/dev/null 2>&1; then
+        query_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($query_end_time - $query_start_time) * 1000}")
+    else
+        local query_elapsed_seconds
+        query_elapsed_seconds=$(echo "$query_end_time - $query_start_time" | bc -l 2>/dev/null || echo "0")
+        query_elapsed_ms=$(echo "$query_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+    fi
+    INSERT_CUSTOM_LOG "Etapa [query_veiculos_anteriores] executada em ${query_elapsed_ms}ms (tentativas: $attempt)" "INFO" "$ScriptName"
+    
     if [[ "$query_success" != true ]]; then
         INSERT_CUSTOM_LOG "Erro ao buscar veículos anteriores após $max_retries tentativas: $query_output" "ERROR" "$ScriptName"
         query_output=""  # Limpar output para não processar dados inválidos
@@ -98,6 +114,10 @@ handle_vehicles_positions() {
         prev_y_fmt=$(format_coord "$prev_y")
         prev_vehicles["$prev_id"]="$prev_name|$prev_x_fmt|$prev_z_fmt|$prev_y_fmt"
     done <<< "$query_output"
+
+    # Medir tempo do parsing do JSON
+    local parsing_start_time
+    parsing_start_time=$(date +%s.%N 2>/dev/null || date +%s)
 
     local vehicles
     vehicles=$(echo "$line" | jq -c '.vehicles[]?')
@@ -233,13 +253,40 @@ handle_vehicles_positions() {
         vehicles_to_process+=("$vehicle_id")
     done <<< "$vehicles"
 
+    local parsing_end_time
+    parsing_end_time=$(date +%s.%N 2>/dev/null || date +%s)
+    local parsing_elapsed_ms
+    if command -v awk >/dev/null 2>&1; then
+        parsing_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($parsing_end_time - $parsing_start_time) * 1000}")
+    else
+        local parsing_elapsed_seconds
+        parsing_elapsed_seconds=$(echo "$parsing_end_time - $parsing_start_time" | bc -l 2>/dev/null || echo "0")
+        parsing_elapsed_ms=$(echo "$parsing_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+    fi
+    INSERT_CUSTOM_LOG "Etapa [parsing_json_coleta_dados] executada em ${parsing_elapsed_ms}ms (veículos: $vehicle_count)" "INFO" "$ScriptName"
+
     # Batch INSERT de todos os veículos
     local inserted_ids
     local batch_insert_result
     local processed_count=0
     if [[ ${#batch_vehicles_data[@]} -gt 0 ]]; then
+        local vehicles_insert_start_time
+        vehicles_insert_start_time=$(date +%s.%N 2>/dev/null || date +%s)
+        
         inserted_ids=$(INSERT_VEHICLES_POSITIONS_BATCH "$current_timestamp" "${batch_vehicles_data[@]}")
         batch_insert_result=$?
+        
+        local vehicles_insert_end_time
+        vehicles_insert_end_time=$(date +%s.%N 2>/dev/null || date +%s)
+        local vehicles_insert_elapsed_ms
+        if command -v awk >/dev/null 2>&1; then
+            vehicles_insert_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($vehicles_insert_end_time - $vehicles_insert_start_time) * 1000}")
+        else
+            local vehicles_insert_elapsed_seconds
+            vehicles_insert_elapsed_seconds=$(echo "$vehicles_insert_end_time - $vehicles_insert_start_time" | bc -l 2>/dev/null || echo "0")
+            vehicles_insert_elapsed_ms=$(echo "$vehicles_insert_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+        fi
+        INSERT_CUSTOM_LOG "Etapa [batch_insert_veiculos] executada em ${vehicles_insert_elapsed_ms}ms (veículos: ${#batch_vehicles_data[@]})" "INFO" "$ScriptName"
         
         if [[ $batch_insert_result -ne 0 ]]; then
             INSERT_CUSTOM_LOG "Erro: não foi possível inserir veículos em batch (código: $batch_insert_result)" "ERROR" "$ScriptName"
@@ -256,55 +303,112 @@ handle_vehicles_positions() {
                 done <<< "$inserted_ids"
             fi
             
-            # Processar items e attachments usando o mapeamento
+            # Coletar todos os items e attachments de todos os veículos em arrays globais
+            local collection_start_time
+            collection_start_time=$(date +%s.%N 2>/dev/null || date +%s)
+            
+            declare -a all_items_batch=()
+            declare -a all_attachments_batch=()
+            
             for vehicle_id in "${vehicles_to_process[@]}"; do
                 local VehicleTrackingId="${vehicle_tracking_map[$vehicle_id]}"
                 if [[ -z "$VehicleTrackingId" ]]; then
                     continue
                 fi
                 
-                # Processar items do veículo
+                # Coletar items do veículo no formato VehicleTrackingId|type|health
                 if [[ -n "${vehicles_items_map[$vehicle_id]}" ]]; then
                     local items_string="${vehicles_items_map[$vehicle_id]}"
-                    local items_batch=()
                     while IFS= read -r item_entry; do
                         if [[ -n "$item_entry" ]]; then
-                            items_batch+=("$item_entry")
+                            # Formato: VehicleTrackingId|type|health (ou VehicleTrackingId|type se não houver health)
+                            all_items_batch+=("$VehicleTrackingId|$item_entry")
                         fi
                     done <<< "$items_string"
-                    
-                    if [[ ${#items_batch[@]} -gt 0 ]]; then
-                        local inserted_item_count
-                        inserted_item_count=$(INSERT_VEHICLE_ITEMS_BATCH "$VehicleTrackingId" "$current_timestamp" "${items_batch[@]}" 2>/dev/null)
-                        if [[ $? -ne 0 ]]; then
-                            INSERT_CUSTOM_LOG "Erro ao inserir items no veículo $vehicle_id" "ERROR" "$ScriptName"
-                        fi
-                    fi
                 fi
                 
-                # Processar attachments do veículo
+                # Coletar attachments do veículo no formato VehicleTrackingId|type|health
                 if [[ -n "${vehicles_attachments_map[$vehicle_id]}" ]]; then
                     local attachments_string="${vehicles_attachments_map[$vehicle_id]}"
-                    local attachments_batch=()
                     while IFS= read -r attachment_entry; do
                         if [[ -n "$attachment_entry" ]]; then
-                            attachments_batch+=("$attachment_entry")
+                            # Formato: VehicleTrackingId|type|health (ou VehicleTrackingId|type se não houver health)
+                            all_attachments_batch+=("$VehicleTrackingId|$attachment_entry")
                         fi
                     done <<< "$attachments_string"
-                    
-                    if [[ ${#attachments_batch[@]} -gt 0 ]]; then
-                        local inserted_attachment_count
-                        inserted_attachment_count=$(INSERT_VEHICLE_ATTACHMENTS_BATCH "$VehicleTrackingId" "$current_timestamp" "${attachments_batch[@]}" 2>/dev/null)
-                        if [[ $? -ne 0 ]]; then
-                            INSERT_CUSTOM_LOG "Erro ao inserir attachments no veículo $vehicle_id" "ERROR" "$ScriptName"
-                        fi
-                    fi
                 fi
             done
+            
+            local collection_end_time
+            collection_end_time=$(date +%s.%N 2>/dev/null || date +%s)
+            local collection_elapsed_ms
+            if command -v awk >/dev/null 2>&1; then
+                collection_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($collection_end_time - $collection_start_time) * 1000}")
+            else
+                local collection_elapsed_seconds
+                collection_elapsed_seconds=$(echo "$collection_end_time - $collection_start_time" | bc -l 2>/dev/null || echo "0")
+                collection_elapsed_ms=$(echo "$collection_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+            fi
+            INSERT_CUSTOM_LOG "Etapa [coleta_items_attachments_globais] executada em ${collection_elapsed_ms}ms (items: ${#all_items_batch[@]}, attachments: ${#all_attachments_batch[@]})" "INFO" "$ScriptName"
+            
+            # Processar todos os items em um único batch INSERT
+            if [[ ${#all_items_batch[@]} -gt 0 ]]; then
+                local items_insert_start_time
+                items_insert_start_time=$(date +%s.%N 2>/dev/null || date +%s)
+                
+                local inserted_items_count
+                inserted_items_count=$(INSERT_ALL_VEHICLES_ITEMS_BATCH "$current_timestamp" "${all_items_batch[@]}" 2>/dev/null)
+                local items_insert_result=$?
+                
+                local items_insert_end_time
+                items_insert_end_time=$(date +%s.%N 2>/dev/null || date +%s)
+                local items_insert_elapsed_ms
+                if command -v awk >/dev/null 2>&1; then
+                    items_insert_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($items_insert_end_time - $items_insert_start_time) * 1000}")
+                else
+                    local items_insert_elapsed_seconds
+                    items_insert_elapsed_seconds=$(echo "$items_insert_end_time - $items_insert_start_time" | bc -l 2>/dev/null || echo "0")
+                    items_insert_elapsed_ms=$(echo "$items_insert_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+                fi
+                INSERT_CUSTOM_LOG "Etapa [batch_insert_items] executada em ${items_insert_elapsed_ms}ms (items: ${#all_items_batch[@]})" "INFO" "$ScriptName"
+                
+                if [[ $items_insert_result -ne 0 ]]; then
+                    INSERT_CUSTOM_LOG "Erro ao inserir items de veículos em batch" "ERROR" "$ScriptName"
+                fi
+            fi
+            
+            # Processar todos os attachments em um único batch INSERT
+            if [[ ${#all_attachments_batch[@]} -gt 0 ]]; then
+                local attachments_insert_start_time
+                attachments_insert_start_time=$(date +%s.%N 2>/dev/null || date +%s)
+                
+                local inserted_attachments_count
+                inserted_attachments_count=$(INSERT_ALL_VEHICLES_ATTACHMENTS_BATCH "$current_timestamp" "${all_attachments_batch[@]}" 2>/dev/null)
+                local attachments_insert_result=$?
+                
+                local attachments_insert_end_time
+                attachments_insert_end_time=$(date +%s.%N 2>/dev/null || date +%s)
+                local attachments_insert_elapsed_ms
+                if command -v awk >/dev/null 2>&1; then
+                    attachments_insert_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($attachments_insert_end_time - $attachments_insert_start_time) * 1000}")
+                else
+                    local attachments_insert_elapsed_seconds
+                    attachments_insert_elapsed_seconds=$(echo "$attachments_insert_end_time - $attachments_insert_start_time" | bc -l 2>/dev/null || echo "0")
+                    attachments_insert_elapsed_ms=$(echo "$attachments_insert_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+                fi
+                INSERT_CUSTOM_LOG "Etapa [batch_insert_attachments] executada em ${attachments_insert_elapsed_ms}ms (attachments: ${#all_attachments_batch[@]})" "INFO" "$ScriptName"
+                
+                if [[ $attachments_insert_result -ne 0 ]]; then
+                    INSERT_CUSTOM_LOG "Erro ao inserir attachments de veículos em batch" "ERROR" "$ScriptName"
+                fi
+            fi
         fi
     fi
 
     if [[ ${#prev_vehicles[@]} -gt 0 ]]; then
+        local removed_start_time
+        removed_start_time=$(date +%s.%N 2>/dev/null || date +%s)
+        
         local removed_id removed_data rem_name rem_x rem_z rem_y
         for removed_id in "${!prev_vehicles[@]}"; do
             removed_data="${prev_vehicles[$removed_id]}"
@@ -322,6 +426,18 @@ EOF
             
             #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
         done
+        
+        local removed_end_time
+        removed_end_time=$(date +%s.%N 2>/dev/null || date +%s)
+        local removed_elapsed_ms
+        if command -v awk >/dev/null 2>&1; then
+            removed_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($removed_end_time - $removed_start_time) * 1000}")
+        else
+            local removed_elapsed_seconds
+            removed_elapsed_seconds=$(echo "$removed_end_time - $removed_start_time" | bc -l 2>/dev/null || echo "0")
+            removed_elapsed_ms=$(echo "$removed_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+        fi
+        INSERT_CUSTOM_LOG "Etapa [processamento_veiculos_removidos] executada em ${removed_elapsed_ms}ms (veículos: ${#prev_vehicles[@]})" "INFO" "$ScriptName"
     fi
 
     echo ">> $processed_count veículos processados de $vehicle_count totais"
