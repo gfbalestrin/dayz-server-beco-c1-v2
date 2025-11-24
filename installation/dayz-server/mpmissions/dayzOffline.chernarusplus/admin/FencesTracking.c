@@ -299,8 +299,8 @@ void SendFencesStatus()
 			{
 				logMsg += " | Detalhes: has_base=" + hasBase.ToString() + ", lower_panel_built=" + lowerPanelBuilt.ToString() + ", upper_panel_built=" + upperPanelBuilt.ToString();
 			}
-			Print(logMsg);
-			WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
+			//Print(logMsg);
+			//WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
 
 			if (fencesJson != "")
 				fencesJson += ",";
