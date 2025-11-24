@@ -485,12 +485,6 @@ def api_containers_positions():
             }
             items.append(item_data)
         
-        # Debug: log para containers WoodenCrate
-        if 'WoodenCrate' in container.get('ContainerName', ''):
-            print(f"DEBUG WoodenCrate {container.get('ContainerId')}: {len(items)} items")
-            for item_data in items:
-                print(f"  - {item_data['type']}: img={item_data['img']}")
-        
         result['containers'].append({
             'container_id': container['ContainerId'],
             'container_name': container['ContainerName'],

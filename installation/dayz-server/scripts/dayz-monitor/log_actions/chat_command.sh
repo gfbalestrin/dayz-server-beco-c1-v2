@@ -14,12 +14,21 @@ handle_chat_command() {
         return
     fi
 
-    local Command CommandName
-    Command="${content##*: }"
+    local ChatMessage Command CommandName
+    ChatMessage="${content##*: }"
+    Command="$ChatMessage"
     if [[ "$Command" == "!"* ]]; then
         Command="${Command:1}"
     fi
     CommandName=$(echo "$Command" | awk '{print tolower($1)}')
+
+    if [[ -n "$PlayerId" ]] && [[ ${#PlayerId} -eq 44 ]] && [[ -n "$ChatMessage" ]]; then
+        local EscapedMessage EscapedCommandName DetailsJson
+        EscapedMessage=$(printf '%s' "$ChatMessage" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        EscapedCommandName=$(printf '%s' "$CommandName" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        DetailsJson="{\"message\": \"$EscapedMessage\", \"command_name\": \"$EscapedCommandName\"}"
+        INSERT_PLAYER_EVENT "$PlayerId" "chat_command" "" "" "" "$DetailsJson" ""
+    fi
 
     if grep -q "$PlayerId" "$DayzServerFolder/$DayzAdminIdsFile"; then
         echo "$PlayerId $Command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
@@ -44,22 +53,9 @@ handle_chat_command() {
 
         echo "$PlayerId $Command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
         
-        # Registrar evento de comando de chat (apenas comandos permitidos)
-        if [[ -n "$PlayerId" ]] && [[ ${#PlayerId} -eq 44 ]] && [[ -n "$Command" ]]; then
-            local DetailsJson
-            DetailsJson="{\"command\": \"$Command\", \"command_name\": \"$CommandName\"}"
-            INSERT_PLAYER_EVENT "$PlayerId" "chat_command" "" "" "" "$DetailsJson" ""
-        fi
-        
         HANDLER_SHOULD_CONTINUE=1
         return
     fi
     
-    # Registrar evento de comando de chat para admins
-    if [[ -n "$PlayerId" ]] && [[ ${#PlayerId} -eq 44 ]] && [[ -n "$Command" ]]; then
-        local DetailsJson
-        DetailsJson="{\"command\": \"$Command\", \"command_name\": \"$CommandName\"}"
-        INSERT_PLAYER_EVENT "$PlayerId" "chat_command" "" "" "" "$DetailsJson" ""
-    fi
 }
 
