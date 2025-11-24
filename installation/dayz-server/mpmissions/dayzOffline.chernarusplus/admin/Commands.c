@@ -231,6 +231,165 @@ bool ExecuteCommand(TStringArray tokens)
                 WriteToLog("ExecuteCommand(): checkvehicle - Dados enviados para veículo " + sanitizedVehicleName + " (request_id: " + vehicleRequestId + ")", LogFile.INIT, false, LogType.INFO);
                 
                 return true;
+            case "checkcontainer":
+                if (tokens.Count() < 4)
+                {
+                    WriteToLog("ExecuteCommand(): checkcontainer requer container_id e request_id", LogFile.INIT, false, LogType.ERROR);
+                    return false;
+                }
+                
+                string containerIdentifierParam = tokens[2];
+                string containerRequestId = tokens[3];
+                
+                string sanitizedContainerRequestId = SanitizeForJson(containerRequestId);
+                
+                if (!m_TrackedContainers || m_TrackedContainers.Count() == 0)
+                {
+                    string trackingErrorMessage = "Sistema de rastreamento de containers não inicializado";
+                    WriteToLog("ExecuteCommand(): checkcontainer - " + trackingErrorMessage, LogFile.INIT, false, LogType.ERROR);
+                    
+                    string trackingErrorJson = "{\"request_id\":\"" + sanitizedContainerRequestId + "\",\"command\":\"checkcontainer\",\"status\":\"error\",\"message\":\"" + SanitizeForJson(trackingErrorMessage) + "\"}";
+                    AppendCommandResult(trackingErrorJson, false);
+                    return false;
+                }
+                
+                EntityAI trackedContainer = null;
+                foreach (EntityAI candidateContainer : m_TrackedContainers)
+                {
+                    if (!candidateContainer)
+                        continue;
+                    
+                    int pidLow1 = 0;
+                    int pidLow2 = 0;
+                    int pidHigh1 = 0;
+                    int pidHigh2 = 0;
+                    candidateContainer.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+                    
+                    bool hasPersistent = (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0);
+                    string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+                    string candidateIdentifier = persistentKey;
+                    if (!hasPersistent)
+                    {
+                        candidateIdentifier = "pending-" + candidateContainer.GetID().ToString();
+                    }
+                    
+                    if (candidateIdentifier == containerIdentifierParam)
+                    {
+                        trackedContainer = candidateContainer;
+                        break;
+                    }
+                }
+                
+                if (!trackedContainer)
+                {
+                    string notFoundMessage = "Container não encontrado: " + containerIdentifierParam;
+                    WriteToLog("ExecuteCommand(): checkcontainer - " + notFoundMessage + " (request_id: " + containerRequestId + ")", LogFile.INIT, false, LogType.ERROR);
+                    
+                    string notFoundJson = "{\"request_id\":\"" + sanitizedContainerRequestId + "\",\"command\":\"checkcontainer\",\"status\":\"error\",\"message\":\"" + SanitizeForJson(notFoundMessage) + "\"}";
+                    AppendCommandResult(notFoundJson, false);
+                    return false;
+                }
+                
+                if (trackedContainer.GetHealth("", "") <= 0)
+                {
+                    string destroyedMessage = "Container está destruído: " + trackedContainer.GetType();
+                    WriteToLog("ExecuteCommand(): checkcontainer - " + destroyedMessage + " (request_id: " + containerRequestId + ")", LogFile.INIT, false, LogType.WARNING);
+                    
+                    string destroyedJson = "{\"request_id\":\"" + sanitizedContainerRequestId + "\",\"command\":\"checkcontainer\",\"status\":\"error\",\"message\":\"" + SanitizeForJson(destroyedMessage) + "\"}";
+                    AppendCommandResult(destroyedJson, false);
+                    return false;
+                }
+                
+                vector trackedPosition = trackedContainer.GetPosition();
+                vector trackedOrientation = trackedContainer.GetOrientation();
+                string containerType = trackedContainer.GetType();
+                
+                TStringArray unsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
+                foreach (string unsafeChar : unsafeChars)
+                {
+                    containerType.Replace(unsafeChar, "-");
+                }
+                
+                string itemsJson = "";
+                
+                if (trackedContainer && trackedContainer.GetInventory())
+                {
+                    CargoBase containerCargo = trackedContainer.GetInventory().GetCargo();
+                    if (containerCargo)
+                    {
+                        for (int cargoIndex = 0; cargoIndex < containerCargo.GetItemCount(); cargoIndex++)
+                        {
+                            EntityAI cargoItem = containerCargo.GetItem(cargoIndex);
+                            if (!cargoItem)
+                                continue;
+                            
+                            string cargoType = cargoItem.GetType();
+                            foreach (string unsafeCharItem : unsafeChars)
+                            {
+                                cargoType.Replace(unsafeCharItem, "-");
+                            }
+                            
+                            if (itemsJson != "")
+                                itemsJson = itemsJson + ",";
+                            
+                            itemsJson = itemsJson + "{\"type\":\"" + SanitizeForJson(cargoType) + "\",\"health\":" + cargoItem.GetHealth("", "").ToString() + "}";
+                        }
+                    }
+                    
+                    int attachmentCount = trackedContainer.GetInventory().AttachmentCount();
+                    for (int attachmentIndex = 0; attachmentIndex < attachmentCount; attachmentIndex++)
+                    {
+                        EntityAI attachmentItem = trackedContainer.GetInventory().GetAttachmentFromIndex(attachmentIndex);
+                        if (!attachmentItem)
+                            continue;
+                        
+                        string attachmentType = attachmentItem.GetType();
+                        foreach (string unsafeCharAttachment : unsafeChars)
+                        {
+                            attachmentType.Replace(unsafeCharAttachment, "-");
+                        }
+                        
+                        if (itemsJson != "")
+                            itemsJson = itemsJson + ",";
+                        
+                        itemsJson = itemsJson + "{\"type\":\"" + SanitizeForJson(attachmentType) + "\",\"health\":" + attachmentItem.GetHealth("", "").ToString() + "}";
+                    }
+                }
+                
+                int pidLow1Result = 0;
+                int pidLow2Result = 0;
+                int pidHigh1Result = 0;
+                int pidHigh2Result = 0;
+                trackedContainer.GetPersistentID(pidLow1Result, pidLow2Result, pidHigh1Result, pidHigh2Result);
+                bool hasPersistentResult = (pidLow1Result != 0 || pidLow2Result != 0 || pidHigh1Result != 0 || pidHigh2Result != 0);
+                string persistentKeyResult = pidLow1Result.ToString() + "-" + pidLow2Result.ToString() + "-" + pidHigh1Result.ToString() + "-" + pidHigh2Result.ToString();
+                string finalContainerIdentifier = persistentKeyResult;
+                if (!hasPersistentResult)
+                {
+                    finalContainerIdentifier = "pending-" + trackedContainer.GetID().ToString();
+                }
+                
+                string sanitizedContainerIdentifier = SanitizeForJson(finalContainerIdentifier);
+                string sanitizedContainerType = SanitizeForJson(containerType);
+                
+                string posXStr = trackedPosition[0].ToString();
+                string posZStr = trackedPosition[1].ToString();
+                string posYStr = trackedPosition[2].ToString();
+                
+                string oriXStr = trackedOrientation[0].ToString();
+                string oriYStr = trackedOrientation[1].ToString();
+                string oriZStr = trackedOrientation[2].ToString();
+                
+                string containerResultJson = "{\"request_id\":\"" + sanitizedContainerRequestId + "\",\"command\":\"checkcontainer\",\"status\":\"success\"";
+                containerResultJson = containerResultJson + ",\"container_id\":\"" + sanitizedContainerIdentifier + "\",\"container_type\":\"" + sanitizedContainerType + "\"";
+                containerResultJson = containerResultJson + ",\"position\":{\"x\":" + posXStr + ",\"z\":" + posZStr + ",\"y\":" + posYStr + "}";
+                containerResultJson = containerResultJson + ",\"orientation\":{\"x\":" + oriXStr + ",\"y\":" + oriYStr + ",\"z\":" + oriZStr + "}";
+                containerResultJson = containerResultJson + ",\"items\":[" + itemsJson + "]}";
+                
+                AppendCommandResult(containerResultJson, false);
+                WriteToLog("ExecuteCommand(): checkcontainer - Dados enviados para container " + sanitizedContainerType + " (request_id: " + containerRequestId + ")", LogFile.INIT, false, LogType.INFO);
+                
+                return true;
             case "scanregion":
                 if (tokens.Count() < 7)
                 {
