@@ -315,6 +315,34 @@ Envia ação externa:
 }
 ```
 
+### 7. Atualização manual de veículos (`checkvehicle`)
+
+Para atualizar um veículo sem aguardar o próximo ciclo do monitor:
+
+1. Abra o mapa da interface administrativa, clique no ícone do veículo e pressione o botão **Atualizar** do tooltip.
+2. A interface gera um `request_id` e acrescenta no `commands_to_execute.txt` a linha `SYSTEM checkvehicle <vehicle_id> <request_id>`.
+3. `Commands.c` valida o veículo em `m_TrackedVehicles`, coleta posição, lifetime, itens do inventário, attachments e saúde das zonas principais e grava o resultado JSON em `admin/files/commands_results.txt`.
+4. O frontend consulta `/api/commands/results/<request_id>`, enriquece nomes/imagens via `dayz_items.db` e substitui os dados do tooltip sem recarregar o mapa.
+
+Exemplo de resultado:
+```json
+{
+  "request_id": "req_1719239333_abc",
+  "command": "checkvehicle",
+  "status": "success",
+  "vehicle_id": "123-456-789-000",
+  "vehicle_name": "Ada 4x4",
+  "position": {"x":7520.4,"y":7.1,"z":6580.9},
+  "items": [{"type":"BarrelHoles","health":85.0}],
+  "attachments": [{"type":"CarBattery","health":92.5}],
+  "health_parts": {"engine":0.83,"body":0.75,"fuel_tank":0.95}
+}
+```
+
+> Dicas:
+> - O comando retorna `status: "error"` quando o veículo não é encontrado ou está destruído; a mensagem aparece diretamente no mapa.
+> - Todos os passos são logados em `profiles/init.log` (`ExecuteCommand(): checkvehicle ...`), facilitando auditoria.
+
 ---
 
 ## Comandos Disponíveis

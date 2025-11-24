@@ -1932,7 +1932,7 @@ void SendPlayersPositions(array<Man> players = null)
             continue;
         }
 
-        WriteToLog("SendPlayersPositions(): Processando jogador " + playerId + " - " + playerName, LogFile.INIT, false, LogType.DEBUG);
+        //WriteToLog("SendPlayersPositions(): Processando jogador " + playerId + " - " + playerName, LogFile.INIT, false, LogType.DEBUG);
 
         vector position = player.GetPosition();
         if (position[0] == 0 && position[1] == 0 && position[2] == 0)
@@ -2017,7 +2017,7 @@ void SendPlayersPositions(array<Man> players = null)
         playersJson += "}";
 
         processedCount++;
-        WriteToLog("SendPlayersPositions(): Jogador " + playerId + " adicionado ao JSON", LogFile.INIT, false, LogType.DEBUG);
+        //WriteToLog("SendPlayersPositions(): Jogador " + playerId + " adicionado ao JSON", LogFile.INIT, false, LogType.DEBUG);
     }
 
     string jsonAction = "{\"action\":\"players_positions\",\"players\":[" + playersJson + "]}";

@@ -71,6 +71,161 @@ bool ExecuteCommand(TStringArray tokens)
             case "scanobjects":
                 InitWorldTracking();
                 return true;
+            case "checkvehicle":
+                if (tokens.Count() < 4)
+                {
+                    WriteToLog("ExecuteCommand(): checkvehicle requer vehicle_id e request_id", LogFile.INIT, false, LogType.ERROR);
+                    return false;
+                }
+                
+                string vehicleIdentifierParam = tokens[2];
+                string vehicleRequestId = tokens[3];
+                
+                string sanitizedVehicleRequestId = SanitizeForJson(vehicleRequestId);
+                
+                if (!m_TrackedVehicles || m_TrackedVehicles.Count() == 0)
+                {
+                    string trackingErrorMessage = "Sistema de rastreamento de veículos não inicializado";
+                    WriteToLog("ExecuteCommand(): checkvehicle - " + trackingErrorMessage, LogFile.INIT, false, LogType.ERROR);
+                    
+                    string trackingErrorJson = "{\"request_id\":\"" + sanitizedVehicleRequestId + "\",\"command\":\"checkvehicle\",\"status\":\"error\",\"message\":\"" + SanitizeForJson(trackingErrorMessage) + "\"}";
+                    AppendCommandResult(trackingErrorJson, false);
+                    return false;
+                }
+                
+                CarScript trackedVehicle = null;
+                foreach (CarScript candidateVehicle : m_TrackedVehicles)
+                {
+                    if (!candidateVehicle)
+                        continue;
+                    
+                    int pidLow1 = 0;
+                    int pidLow2 = 0;
+                    int pidHigh1 = 0;
+                    int pidHigh2 = 0;
+                    candidateVehicle.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+                    
+                    bool hasPersistent = (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0);
+                    string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+                    string candidateIdentifier = persistentKey;
+                    if (!hasPersistent)
+                    {
+                        candidateIdentifier = "pending-" + candidateVehicle.GetID().ToString();
+                    }
+                    
+                    if (candidateIdentifier == vehicleIdentifierParam)
+                    {
+                        trackedVehicle = candidateVehicle;
+                        break;
+                    }
+                }
+                
+                if (!trackedVehicle)
+                {
+                    string notFoundMessage = "Veículo não encontrado: " + vehicleIdentifierParam;
+                    WriteToLog("ExecuteCommand(): checkvehicle - " + notFoundMessage + " (request_id: " + vehicleRequestId + ")", LogFile.INIT, false, LogType.ERROR);
+                    
+                    string notFoundJson = "{\"request_id\":\"" + sanitizedVehicleRequestId + "\",\"command\":\"checkvehicle\",\"status\":\"error\",\"message\":\"" + SanitizeForJson(notFoundMessage) + "\"}";
+                    AppendCommandResult(notFoundJson, false);
+                    return false;
+                }
+                
+                if (trackedVehicle.GetHealth("", "") <= 0)
+                {
+                    string destroyedMessage = "Veículo está destruído: " + trackedVehicle.GetDisplayName();
+                    WriteToLog("ExecuteCommand(): checkvehicle - " + destroyedMessage + " (request_id: " + vehicleRequestId + ")", LogFile.INIT, false, LogType.WARNING);
+                    
+                    string destroyedJson = "{\"request_id\":\"" + sanitizedVehicleRequestId + "\",\"command\":\"checkvehicle\",\"status\":\"error\",\"message\":\"" + SanitizeForJson(destroyedMessage) + "\"}";
+                    AppendCommandResult(destroyedJson, false);
+                    return false;
+                }
+                
+                vector trackedPosition = trackedVehicle.GetPosition();
+                string vehicleName = trackedVehicle.GetDisplayName();
+                float vehicleLifetime = trackedVehicle.GetLifetime();
+                float vehicleLifetimeMax = trackedVehicle.GetLifetimeMax();
+                
+                TStringArray unsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
+                foreach (string unsafeChar : unsafeChars)
+                {
+                    vehicleName.Replace(unsafeChar, "-");
+                }
+                
+                string itemsJson = "";
+                string attachmentsJson = "";
+                
+                if (trackedVehicle && trackedVehicle.GetInventory())
+                {
+                    CargoBase vehicleCargo = trackedVehicle.GetInventory().GetCargo();
+                    if (vehicleCargo)
+                    {
+                        for (int cargoIndex = 0; cargoIndex < vehicleCargo.GetItemCount(); cargoIndex++)
+                        {
+                            EntityAI cargoItem = vehicleCargo.GetItem(cargoIndex);
+                            if (!cargoItem)
+                                continue;
+                            
+                            string cargoType = cargoItem.GetType();
+                            foreach (string unsafeCharItem : unsafeChars)
+                            {
+                                cargoType.Replace(unsafeCharItem, "-");
+                            }
+                            
+                            if (itemsJson != "")
+                                itemsJson = itemsJson + ",";
+                            
+                            itemsJson = itemsJson + "{\"type\":\"" + SanitizeForJson(cargoType) + "\",\"health\":" + cargoItem.GetHealth("", "").ToString() + "}";
+                        }
+                    }
+                    
+                    int attachmentCount = trackedVehicle.GetInventory().AttachmentCount();
+                    for (int attachmentIndex = 0; attachmentIndex < attachmentCount; attachmentIndex++)
+                    {
+                        EntityAI attachmentItem = trackedVehicle.GetInventory().GetAttachmentFromIndex(attachmentIndex);
+                        if (!attachmentItem)
+                            continue;
+                        
+                        string attachmentType = attachmentItem.GetType();
+                        foreach (string unsafeCharAttachment : unsafeChars)
+                        {
+                            attachmentType.Replace(unsafeCharAttachment, "-");
+                        }
+                        
+                        if (attachmentsJson != "")
+                            attachmentsJson = attachmentsJson + ",";
+                        
+                        attachmentsJson = attachmentsJson + "{\"type\":\"" + SanitizeForJson(attachmentType) + "\",\"health\":" + attachmentItem.GetHealth("", "").ToString() + "}";
+                    }
+                }
+                
+                string healthPartsJson = BuildVehicleHealthPartsJson(trackedVehicle);
+                
+                int pidLow1Result = 0;
+                int pidLow2Result = 0;
+                int pidHigh1Result = 0;
+                int pidHigh2Result = 0;
+                trackedVehicle.GetPersistentID(pidLow1Result, pidLow2Result, pidHigh1Result, pidHigh2Result);
+                bool hasPersistentResult = (pidLow1Result != 0 || pidLow2Result != 0 || pidHigh1Result != 0 || pidHigh2Result != 0);
+                string persistentKeyResult = pidLow1Result.ToString() + "-" + pidLow2Result.ToString() + "-" + pidHigh1Result.ToString() + "-" + pidHigh2Result.ToString();
+                string finalVehicleIdentifier = persistentKeyResult;
+                if (!hasPersistentResult)
+                {
+                    finalVehicleIdentifier = "pending-" + trackedVehicle.GetID().ToString();
+                }
+                
+                string sanitizedVehicleIdentifier = SanitizeForJson(finalVehicleIdentifier);
+                string sanitizedVehicleName = SanitizeForJson(vehicleName);
+                
+                string posXStr = trackedPosition[0].ToString();
+                string posZStr = trackedPosition[1].ToString();
+                string posYStr = trackedPosition[2].ToString();
+                
+                string vehicleResultJson = "{\"request_id\":\"" + sanitizedVehicleRequestId + "\",\"command\":\"checkvehicle\",\"status\":\"success\",\"vehicle_id\":\"" + sanitizedVehicleIdentifier + "\",\"vehicle_name\":\"" + sanitizedVehicleName + "\",\"position\":{\"x\":" + posXStr + ",\"y\":" + posZStr + ",\"z\":" + posYStr + "},\"items\":[" + itemsJson + "],\"attachments\":[" + attachmentsJson + "],\"health_parts\":{" + healthPartsJson + "},\"lifetime\":" + vehicleLifetime.ToString() + ",\"lifetime_max\":" + vehicleLifetimeMax.ToString() + "}";
+                
+                AppendCommandResult(vehicleResultJson, false);
+                WriteToLog("ExecuteCommand(): checkvehicle - Dados enviados para veículo " + sanitizedVehicleName + " (request_id: " + vehicleRequestId + ")", LogFile.INIT, false, LogType.INFO);
+                
+                return true;
             case "scanregion":
                 if (tokens.Count() < 7)
                 {

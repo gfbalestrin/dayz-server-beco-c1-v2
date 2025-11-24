@@ -116,6 +116,20 @@ function convertToMapCoords(pixelCoords) {
 }
 
 /**
+ * Converter coordenadas DayZ (15360 × 15360) para pixels base (4096 × 4096)
+ * Retorna array [lat, lng] compatível com convertToMapCoords
+ */
+function dayzToPixelCoords(coordX, coordY) {
+    if (coordX === undefined || coordY === undefined || coordX === null || coordY === null) {
+        return null;
+    }
+    
+    const pixelLat = (coordY / 15360.0) * BASE_MAP_SIZE;
+    const pixelLng = (coordX / 15360.0) * BASE_MAP_SIZE;
+    return [pixelLat, pixelLng];
+}
+
+/**
  * Determinar direção do tooltip baseado na posição atual
  * @param {number} lat - Latitude (coordenada Y do Leaflet)
  * @param {number} lng - Longitude (coordenada X do Leaflet)

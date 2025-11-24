@@ -219,6 +219,13 @@ Comandos para o servidor executar:
 76561198XXXXXXXXX giveitem M4A1 1
 ```
 
+### Atualização manual de veículos (`checkvehicle`)
+- No mapa da interface administrativa (menu **Mapa > Veículos**), cada marcador exibe agora o botão **Atualizar**.
+- O clique gera um `request_id`, envia `SYSTEM checkvehicle <vehicle_id> <request_id>` para `commands_to_execute.txt` e inicia um pooling automático no endpoint `/api/commands/results/<request_id>`.
+- O comando no servidor valida o veículo rastreado (`VehicleTracking.c`), monta um snapshot completo (posição exata, itens do porta-malas, attachments e saúde das partes) e grava o resultado em `admin/files/commands_results.txt`.
+- Quando o resultado chega, o tooltip do mapa é atualizado em tempo real com os novos dados, sem precisar recarregar todo o mapa ou aguardar o próximo ciclo do monitor.
+- Útil para auditar veículos bugados ou conferir loot antes de tomar ações (teleporte, limpeza, etc.).
+
 ### Arquivo de Mensagens (Escrita)
 
 **Mensagens globais**:

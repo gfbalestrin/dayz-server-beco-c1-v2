@@ -400,11 +400,235 @@ function toggleVehicleTrail(vehicleId) {
 }
 
 /**
+ * Solicitar refresh de informações do veículo via comando checkvehicle
+ */
+function refreshVehicleData(vehicleId) {
+    if (!vehicleId) {
+        return;
+    }
+    
+    if (MapState.vehicleRefreshStatus && MapState.vehicleRefreshStatus[vehicleId]) {
+        showToast('Info', 'Atualização já está em andamento para este veículo.', 'info');
+        return;
+    }
+    
+    const vehicle = MapState.vehiclesData[vehicleId];
+    if (!vehicle) {
+        showToast('Erro', 'Veículo não encontrado no mapa.', 'error');
+        return;
+    }
+    
+    const requestId = generateRequestId();
+    if (!MapState.vehicleRefreshRequests) {
+        MapState.vehicleRefreshRequests = {};
+    }
+    MapState.vehicleRefreshRequests[vehicleId] = requestId;
+    
+    setVehicleRefreshState(vehicleId, true);
+    
+    $.ajax({
+        url: `/api/vehicles/${vehicleId}/refresh`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            request_id: requestId
+        }),
+        success: function() {
+            showToast('Info', `Solicitação de atualização enviada para ${vehicle.vehicle_name || vehicleId}.`, 'info');
+            startVehicleRefreshPolling(requestId, vehicleId, 0);
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            const errorMsg = error.message || error.error || 'Erro ao solicitar atualização do veículo';
+            showToast('Erro', errorMsg, 'error');
+            setVehicleRefreshState(vehicleId, false);
+            delete MapState.vehicleRefreshRequests[vehicleId];
+        }
+    });
+}
+
+/**
+ * Polling para aguardar resultado do comando checkvehicle
+ */
+function startVehicleRefreshPolling(requestId, vehicleId, attempt) {
+    const MAX_ATTEMPTS = 30;
+    const POLL_INTERVAL = 2000;
+    
+    if (MapState.vehicleRefreshRequests[vehicleId] !== requestId) {
+        return;
+    }
+    
+    if (attempt >= MAX_ATTEMPTS) {
+        showToast('Aviso', 'Tempo limite ao atualizar dados do veículo.', 'warning');
+        setVehicleRefreshState(vehicleId, false);
+        delete MapState.vehicleRefreshRequests[vehicleId];
+        return;
+    }
+    
+    $.get(`/api/commands/results/${requestId}`)
+        .done(function(response) {
+            if (MapState.vehicleRefreshRequests[vehicleId] !== requestId) {
+                return;
+            }
+            
+            if (response.status === 'ready') {
+                const data = response.data || {};
+                if (data.status === 'success') {
+                    applyVehicleRefreshData(vehicleId, data);
+                    const vehicleName = (MapState.vehiclesData[vehicleId] && MapState.vehiclesData[vehicleId].vehicle_name) || vehicleId;
+                    showToast('Sucesso', `Dados do veículo ${vehicleName} atualizados.`, 'success');
+                } else {
+                    const errorMsg = data.message || 'Não foi possível atualizar os dados do veículo.';
+                    showToast('Aviso', errorMsg, 'warning');
+                }
+                
+                setVehicleRefreshState(vehicleId, false);
+                delete MapState.vehicleRefreshRequests[vehicleId];
+            } else if (response.status === 'not_found' || response.status === 'processing') {
+                setTimeout(function() {
+                    startVehicleRefreshPolling(requestId, vehicleId, attempt + 1);
+                }, POLL_INTERVAL);
+            } else {
+                const errorMsg = response.message || 'Erro ao consultar resultado do comando.';
+                showToast('Erro', errorMsg, 'error');
+                setVehicleRefreshState(vehicleId, false);
+                delete MapState.vehicleRefreshRequests[vehicleId];
+            }
+        })
+        .fail(function(xhr) {
+            if (MapState.vehicleRefreshRequests[vehicleId] !== requestId) {
+                return;
+            }
+            
+            if (attempt < 5) {
+                setTimeout(function() {
+                    startVehicleRefreshPolling(requestId, vehicleId, attempt + 1);
+                }, POLL_INTERVAL);
+            } else {
+                const error = xhr.responseJSON || {};
+                const errorMsg = error.message || error.error || 'Erro ao consultar resultado da atualização do veículo.';
+                showToast('Erro', errorMsg, 'error');
+                setVehicleRefreshState(vehicleId, false);
+                delete MapState.vehicleRefreshRequests[vehicleId];
+            }
+        });
+}
+
+/**
+ * Controlar estado visual do botão de refresh
+ */
+function setVehicleRefreshState(vehicleId, isRefreshing) {
+    if (!MapState.vehicleRefreshStatus) {
+        MapState.vehicleRefreshStatus = {};
+    }
+    
+    if (isRefreshing) {
+        MapState.vehicleRefreshStatus[vehicleId] = true;
+    } else {
+        delete MapState.vehicleRefreshStatus[vehicleId];
+    }
+    
+    const button = document.getElementById(`vehicleRefreshBtn_${vehicleId}`);
+    if (button) {
+        if (isRefreshing) {
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Atualizando...';
+        } else {
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Atualizar';
+        }
+    }
+}
+
+/**
+ * Aplicar dados retornados pelo comando ao estado local
+ */
+function applyVehicleRefreshData(vehicleId, commandData) {
+    if (!commandData) {
+        return;
+    }
+    
+    const vehicle = MapState.vehiclesData[vehicleId] || { vehicle_id: vehicleId };
+    
+    if (commandData.vehicle_name) {
+        vehicle.vehicle_name = commandData.vehicle_name;
+    }
+    
+    if (commandData.position) {
+        const coordX = parseFloat(commandData.position.x);
+        const coordY = parseFloat(commandData.position.z);
+        const coordZ = parseFloat(commandData.position.y);
+        
+        if (!isNaN(coordX)) {
+            vehicle.coord_x = coordX;
+        }
+        if (!isNaN(coordY)) {
+            vehicle.coord_y = coordY;
+        }
+        if (!isNaN(coordZ)) {
+            vehicle.coord_z = coordZ;
+        }
+        
+        const pixelCoords = dayzToPixelCoords(vehicle.coord_x, vehicle.coord_y);
+        if (pixelCoords) {
+            vehicle.pixel_coords = pixelCoords;
+            const mapCoords = convertToMapCoords(pixelCoords);
+            if (mapCoords && MapState.vehicleMarkers[vehicleId]) {
+                MapState.vehicleMarkers[vehicleId].setLatLng(mapCoords);
+            }
+        }
+    }
+    
+    vehicle.items = (commandData.items || []).map(function(item) {
+        return {
+            type: item.type || '',
+            name: item.name || item.type || 'Item',
+            img: item.img || '',
+            health: item.health
+        };
+    });
+    
+    vehicle.attachments = (commandData.attachments || []).map(function(attachment) {
+        return {
+            type: attachment.type || '',
+            name: attachment.name || attachment.type || 'Parte',
+            img: attachment.img || '',
+            health: attachment.health
+        };
+    });
+    
+    if (commandData.health_parts) {
+        vehicle.health_parts = commandData.health_parts;
+    }
+    
+    try {
+        vehicle.last_update = new Date().toLocaleString('pt-BR');
+    } catch (e) {
+        vehicle.last_update = new Date().toISOString();
+    }
+    
+    MapState.vehiclesData[vehicleId] = vehicle;
+    
+    MapState.previousVehiclesData[vehicleId] = {
+        coord_x: vehicle.coord_x,
+        coord_y: vehicle.coord_y,
+        is_destroyed: vehicle.is_destroyed || false,
+        items: vehicle.items,
+        attachments: vehicle.attachments,
+        engine_health: vehicle.health_parts ? vehicle.health_parts.engine : null,
+        body_health: vehicle.health_parts ? vehicle.health_parts.body : null
+    };
+    
+    updateVehiclePopup(vehicleId);
+}
+
+/**
  * Criar popup de veículo
  */
 function createVehiclePopup(vehicle) {
     let itemsHtml = '';
     const items = vehicle.items || [];
+    const isRefreshing = MapState.vehicleRefreshStatus && MapState.vehicleRefreshStatus[vehicle.vehicle_id];
     
     if (items.length > 0) {
         itemsHtml += '<div class="mt-2"><strong>📦 Itens:</strong><div class="mt-1" style="max-height: 150px; overflow-y: auto; padding-right: 4px;">';
@@ -483,6 +707,9 @@ function createVehiclePopup(vehicle) {
             </div>
             <div style="flex-shrink: 0; border-top: 1px solid #dee2e6; padding-top: 8px; margin-top: 8px; background-color: #fff;">
                 <div style="display: flex; gap: 4px; flex-wrap: nowrap;">
+                    <button type="button" class="btn btn-sm btn-secondary" style="flex: 1; min-width: 0; font-size: 0.75rem; padding: 0.25rem 0.4rem;" id="vehicleRefreshBtn_${vehicle.vehicle_id}" ${isRefreshing ? 'disabled' : ''} onclick="refreshVehicleData('${vehicle.vehicle_id}')">
+                        ${isRefreshing ? '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Atualizando...' : '<i class="fas fa-sync-alt me-1"></i>Atualizar'}
+                    </button>
                     <button type="button" class="btn btn-sm btn-primary" style="flex: 1; min-width: 0; font-size: 0.75rem; padding: 0.25rem 0.4rem;" onclick="toggleVehicleTrail('${vehicle.vehicle_id}')">
                         <i class="fas fa-route me-1"></i><span id="vehicleTrailBtn_${vehicle.vehicle_id}">${MapState.vehicleTrails[vehicle.vehicle_id] ? 'Ocultar' : 'Trail'}</span>
                     </button>

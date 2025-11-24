@@ -66,16 +66,31 @@ def api_command_results(request_id):
                     item_type = item.get('type', '')
                     if item_type:
                         item_details = get_item_details_from_items_db(item_type)
-                        enriched_item = {
-                            'type': item_type,
-                            'quantity': item.get('quantity', 1),
-                            'name': item_details['name'] if item_details else item_type,
-                            'img': item_details['img'] if item_details else ''
-                        }
+                        enriched_item = dict(item)
+                        enriched_item['type'] = item_type
+                        if 'quantity' not in enriched_item:
+                            enriched_item['quantity'] = item.get('quantity', 1)
+                        enriched_item['name'] = item_details['name'] if item_details else item.get('name') or item_type
+                        enriched_item['img'] = item_details['img'] if item_details else item.get('img', '')
                         enriched_items.append(enriched_item)
                     else:
                         enriched_items.append(item)
                 result_data['items'] = enriched_items
+            
+            if result_data.get('attachments'):
+                enriched_attachments = []
+                for attachment in result_data['attachments']:
+                    attachment_type = attachment.get('type', '')
+                    if attachment_type:
+                        attachment_details = get_item_details_from_items_db(attachment_type)
+                        enriched_attachment = dict(attachment)
+                        enriched_attachment['type'] = attachment_type
+                        enriched_attachment['name'] = attachment_details['name'] if attachment_details else attachment.get('name') or attachment_type
+                        enriched_attachment['img'] = attachment_details['img'] if attachment_details else attachment.get('img', '')
+                        enriched_attachments.append(enriched_attachment)
+                    else:
+                        enriched_attachments.append(attachment)
+                result_data['attachments'] = enriched_attachments
             
             return jsonify({
                 'status': 'ready',

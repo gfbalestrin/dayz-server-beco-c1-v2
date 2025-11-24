@@ -81,6 +81,64 @@ def api_teleport_vehicle(vehicle_id):
             'message': f'Erro inesperado: {str(e)}'
         }), 500
 
+@api_vehicles_bp.route('/api/vehicles/<vehicle_id>/refresh', methods=['POST'])
+@admin_required
+@audit_action('CHECK_VEHICLE')
+def api_refresh_vehicle(vehicle_id):
+    """API para solicitar atualização dos dados de um veículo rastreado"""
+    logger = logging.getLogger(__name__)
+    
+    try:
+        data = request.get_json(silent=True) or {}
+        request_id = data.get('request_id')
+        
+        if not request_id:
+            return jsonify({
+                'success': False,
+                'message': 'request_id não fornecido'
+            }), 400
+        
+        commands_file = config.COMMANDS_FILE
+        
+        if not os.path.exists(commands_file):
+            logger.error(f"Arquivo de comandos não encontrado: {commands_file}")
+            return jsonify({
+                'success': False,
+                'message': 'Arquivo de comandos não encontrado'
+            }), 500
+        
+        command_line = f"SYSTEM checkvehicle {vehicle_id} {request_id}\n"
+        logger.info(f"Adicionando comando de atualização de veículo: {command_line.strip()}")
+        
+        try:
+            with open(commands_file, 'a') as f:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.write(command_line)
+                    f.flush()
+                    os.fsync(f.fileno())
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            
+            logger.info("Comando de atualização de veículo adicionado com sucesso")
+            return jsonify({
+                'success': True,
+                'message': 'Comando enviado com sucesso',
+                'request_id': request_id
+            })
+        except IOError as e:
+            logger.error(f"Erro ao escrever comando de atualização de veículo: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'Erro ao escrever comando: {str(e)}'
+            }), 500
+    except Exception as e:
+        logger.exception("Erro inesperado ao atualizar veículo")
+        return jsonify({
+            'success': False,
+            'message': f'Erro inesperado: {str(e)}'
+        }), 500
+
 @api_vehicles_bp.route('/api/vehicles/data', methods=['GET'])
 @admin_required
 def api_vehicles_data():
