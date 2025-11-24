@@ -316,7 +316,7 @@ void SendVehiclesPositions()
         
         vehiclesJson += vehicleJson;
 
-        WriteToLog("[LIFETIME] VehicleId=" + vehicleIdentifier + " (" + safeName + ") attachments=" + AttachmentCount.ToString() + " lifetime=" + vehicleLifetime.ToString() + " lifetime_max=" + vehicleLifetimeMax.ToString(), LogFile.INIT, false, LogType.DEBUG);
+        //WriteToLog("[LIFETIME] VehicleId=" + vehicleIdentifier + " (" + safeName + ") attachments=" + AttachmentCount.ToString() + " lifetime=" + vehicleLifetime.ToString() + " lifetime_max=" + vehicleLifetimeMax.ToString(), LogFile.INIT, false, LogType.DEBUG);
     }
 
     string jsonAction = "{\"action\":\"vehicles_positions\",\"vehicles\":[" + vehiclesJson + "]}";
@@ -448,7 +448,7 @@ void CheckVehiclesForLoot()
 			vehiclesJson += ",";
 		vehiclesJson += vehicleJson;
 
-        WriteToLog("[LIFETIME] VehicleId=" + vehicleIdentifier + " (" + safeName + ") lifetime=" + vehicleLifetime.ToString() + " lifetime_max=" + vehicleLifetimeMax.ToString(), LogFile.INIT, false, LogType.DEBUG);
+        //WriteToLog("[LIFETIME] VehicleId=" + vehicleIdentifier + " (" + safeName + ") lifetime=" + vehicleLifetime.ToString() + " lifetime_max=" + vehicleLifetimeMax.ToString(), LogFile.INIT, false, LogType.DEBUG);
 	}
 
 	if (vehiclesTotal > 0)
@@ -648,6 +648,6 @@ void BuildVehiclesData(array<Object> worldObjects, out string vehiclesJson, out 
 			vehiclesJson += ",";
 		vehiclesJson += vehicleJson;
 
-        WriteToLog("[LIFETIME] VehicleId=" + vehicleIdentifier + " (" + safeName + ") lifetime=" + candidateLifetime.ToString() + " lifetime_max=" + candidateLifetimeMax.ToString(), LogFile.INIT, false, LogType.DEBUG);
+        //WriteToLog("[LIFETIME] VehicleId=" + vehicleIdentifier + " (" + safeName + ") lifetime=" + candidateLifetime.ToString() + " lifetime_max=" + candidateLifetimeMax.ToString(), LogFile.INIT, false, LogType.DEBUG);
 	}
 }

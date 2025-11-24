@@ -469,7 +469,13 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
         # 1. Tem items atualmente (comportamento normal)
         # 2. Foi esvaziado (tinha items antes, agora está vazio) - para atualizar timestamp e evitar logs repetidos
         # 3. É shelter type
-        if [[ -n "$current_items_str" || "$should_save_empty" == true || "$is_shelter_type" == true ]]; then
+        # 4. É container novo (sem prev_data) - sempre salvar containers novos
+        local is_new_container=false
+        if [[ -z "$prev_data" ]]; then
+            is_new_container=true
+        fi
+        
+        if [[ -n "$current_items_str" || "$should_save_empty" == true || "$is_shelter_type" == true || "$is_new_container" == true ]]; then
             # Adicionar ao batch de containers (formato: container_id|container_name|coord_x|coord_z|coord_y)
             batch_containers_data+=("$container_id|$container_name|$coord_x|$coord_z|$coord_y")
             containers_to_process+=("$container_id")
@@ -529,12 +535,26 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
     # Batch INSERT de todos os containers
     local inserted_ids
     local batch_insert_result
+    INSERT_CUSTOM_LOG "DEBUG: batch_containers_data tem ${#batch_containers_data[@]} containers para inserir" "INFO" "$ScriptName"
     if [[ ${#batch_containers_data[@]} -gt 0 ]]; then
         local containers_insert_start_time
         containers_insert_start_time=$(date +%s.%N 2>/dev/null || date +%s)
         
-        inserted_ids=$(INSERT_CONTAINERS_POSITIONS_BATCH "$current_timestamp" "${batch_containers_data[@]}")
+        local batch_stderr
+        batch_stderr=$(mktemp)
+        inserted_ids=$(INSERT_CONTAINERS_POSITIONS_BATCH "$current_timestamp" "${batch_containers_data[@]}" 2>"$batch_stderr")
         batch_insert_result=$?
+        local batch_error
+        batch_error=$(cat "$batch_stderr" 2>/dev/null)
+        rm -f "$batch_stderr"
+        
+        if [[ $batch_insert_result -ne 0 ]]; then
+            INSERT_CUSTOM_LOG "DEBUG: INSERT_CONTAINERS_POSITIONS_BATCH retornou erro: $batch_insert_result, stderr: ${batch_error:0:500}" "ERROR" "$ScriptName"
+        else
+            local inserted_ids_count
+            inserted_ids_count=$(echo "$inserted_ids" | grep -c . || echo "0")
+            INSERT_CUSTOM_LOG "DEBUG: INSERT_CONTAINERS_POSITIONS_BATCH sucesso, inserted_ids tem $inserted_ids_count linhas" "INFO" "$ScriptName"
+        fi
         
         local containers_insert_end_time
         containers_insert_end_time=$(date +%s.%N 2>/dev/null || date +%s)
