@@ -419,7 +419,7 @@ bool ExecuteCommand(TStringArray tokens)
                 {
                     fenceExpectedType = "fence";
                     string fenceCoordPart = fenceIdentifierParam;
-                    fenceCoordPart = fenceCoordPart.Substring(6); // Remove "Fence_"
+                    fenceCoordPart = fenceCoordPart.Substring(6, fenceCoordPart.Length() - 6); // Remove "Fence_"
                     TStringArray fenceCoordParts = new TStringArray;
                     fenceCoordPart.Split("_", fenceCoordParts);
                     if (fenceCoordParts.Count() >= 3)
@@ -439,7 +439,7 @@ bool ExecuteCommand(TStringArray tokens)
                 {
                     fenceExpectedType = "watchtower";
                     string fenceWtCoordPart = fenceIdentifierParam;
-                    fenceWtCoordPart = fenceWtCoordPart.Substring(11); // Remove "Watchtower_"
+                    fenceWtCoordPart = fenceWtCoordPart.Substring(11, fenceWtCoordPart.Length() - 11); // Remove "Watchtower_"
                     TStringArray fenceWtCoordParts = new TStringArray;
                     fenceWtCoordPart.Split("_", fenceWtCoordParts);
                     if (fenceWtCoordParts.Count() >= 3)
@@ -459,7 +459,7 @@ bool ExecuteCommand(TStringArray tokens)
                 {
                     fenceExpectedType = "flag";
                     string fenceFlagCoordPart = fenceIdentifierParam;
-                    fenceFlagCoordPart = fenceFlagCoordPart.Substring(5); // Remove "Flag_"
+                    fenceFlagCoordPart = fenceFlagCoordPart.Substring(5, fenceFlagCoordPart.Length() - 5); // Remove "Flag_"
                     TStringArray fenceFlagCoordParts = new TStringArray;
                     fenceFlagCoordPart.Split("_", fenceFlagCoordParts);
                     if (fenceFlagCoordParts.Count() >= 3)
@@ -547,28 +547,28 @@ bool ExecuteCommand(TStringArray tokens)
                 // Se não encontrou por coordenadas, tentar por PersistentID
                 if (!fenceTrackedFence && !fenceTrackedWatchtower && !fenceTrackedFlag && m_TrackedFences && m_TrackedFences.Count() > 0)
                 {
-                    foreach (Fence fenceCandidateFence : m_TrackedFences)
+                    foreach (Fence fencePidCandidateFence : m_TrackedFences)
                     {
-                        if (!fenceCandidateFence)
+                        if (!fencePidCandidateFence)
                             continue;
                         
                         int fencePidLow1 = 0;
                         int fencePidLow2 = 0;
                         int fencePidHigh1 = 0;
                         int fencePidHigh2 = 0;
-                        fenceCandidateFence.GetPersistentID(fencePidLow1, fencePidLow2, fencePidHigh1, fencePidHigh2);
+                        fencePidCandidateFence.GetPersistentID(fencePidLow1, fencePidLow2, fencePidHigh1, fencePidHigh2);
                         
                         bool fenceHasPersistent = (fencePidLow1 != 0 || fencePidLow2 != 0 || fencePidHigh1 != 0 || fencePidHigh2 != 0);
                         string fencePersistentKey = fencePidLow1.ToString() + "-" + fencePidLow2.ToString() + "-" + fencePidHigh1.ToString() + "-" + fencePidHigh2.ToString();
                         string fenceCandidateIdentifier = fencePersistentKey;
                         if (!fenceHasPersistent)
                         {
-                            fenceCandidateIdentifier = "pending-" + fenceCandidateFence.GetID().ToString();
+                            fenceCandidateIdentifier = "pending-" + fencePidCandidateFence.GetID().ToString();
                         }
                         
                         if (fenceCandidateIdentifier == fenceIdentifierParam)
                         {
-                            fenceTrackedFence = fenceCandidateFence;
+                            fenceTrackedFence = fencePidCandidateFence;
                             fenceStructureType = "fence";
                             break;
                         }
@@ -578,28 +578,28 @@ bool ExecuteCommand(TStringArray tokens)
                 // Se não encontrou em fences, tentar watchtowers
                 if (!fenceTrackedFence && m_TrackedWatchtowers && m_TrackedWatchtowers.Count() > 0)
                 {
-                    foreach (Watchtower fenceCandidateWatchtower : m_TrackedWatchtowers)
+                    foreach (Watchtower fencePidCandidateWatchtower : m_TrackedWatchtowers)
                     {
-                        if (!fenceCandidateWatchtower)
+                        if (!fencePidCandidateWatchtower)
                             continue;
                         
                         int fenceWtPidLow1 = 0;
                         int fenceWtPidLow2 = 0;
                         int fenceWtPidHigh1 = 0;
                         int fenceWtPidHigh2 = 0;
-                        fenceCandidateWatchtower.GetPersistentID(fenceWtPidLow1, fenceWtPidLow2, fenceWtPidHigh1, fenceWtPidHigh2);
+                        fencePidCandidateWatchtower.GetPersistentID(fenceWtPidLow1, fenceWtPidLow2, fenceWtPidHigh1, fenceWtPidHigh2);
                         
                         bool fenceWtHasPersistent = (fenceWtPidLow1 != 0 || fenceWtPidLow2 != 0 || fenceWtPidHigh1 != 0 || fenceWtPidHigh2 != 0);
                         string fenceWtPersistentKey = fenceWtPidLow1.ToString() + "-" + fenceWtPidLow2.ToString() + "-" + fenceWtPidHigh1.ToString() + "-" + fenceWtPidHigh2.ToString();
                         string fenceWtCandidateIdentifier = fenceWtPersistentKey;
                         if (!fenceWtHasPersistent)
                         {
-                            fenceWtCandidateIdentifier = "pending-" + fenceCandidateWatchtower.GetID().ToString();
+                            fenceWtCandidateIdentifier = "pending-" + fencePidCandidateWatchtower.GetID().ToString();
                         }
                         
                         if (fenceWtCandidateIdentifier == fenceIdentifierParam)
                         {
-                            fenceTrackedWatchtower = fenceCandidateWatchtower;
+                            fenceTrackedWatchtower = fencePidCandidateWatchtower;
                             fenceStructureType = "watchtower";
                             break;
                         }
@@ -609,12 +609,12 @@ bool ExecuteCommand(TStringArray tokens)
                 // Se não encontrou em watchtowers, tentar flags
                 if (!fenceTrackedFence && !fenceTrackedWatchtower && m_TrackedFlags && m_TrackedFlags.Count() > 0)
                 {
-                    foreach (Object fenceCandidateFlag : m_TrackedFlags)
+                    foreach (Object fencePidCandidateFlag : m_TrackedFlags)
                     {
-                        if (!fenceCandidateFlag)
+                        if (!fencePidCandidateFlag)
                             continue;
                         
-                        EntityAI fenceFlagEntity = EntityAI.Cast(fenceCandidateFlag);
+                        EntityAI fenceFlagEntity = EntityAI.Cast(fencePidCandidateFlag);
                         int fenceFlagPidLow1 = 0;
                         int fenceFlagPidLow2 = 0;
                         int fenceFlagPidHigh1 = 0;
@@ -635,12 +635,12 @@ bool ExecuteCommand(TStringArray tokens)
                         }
                         else
                         {
-                            fenceFlagCandidateIdentifier = "pending-" + fenceCandidateFlag.GetID().ToString();
+                            fenceFlagCandidateIdentifier = "pending-" + fencePidCandidateFlag.GetID().ToString();
                         }
                         
                         if (fenceFlagCandidateIdentifier == fenceIdentifierParam)
                         {
-                            fenceTrackedFlag = fenceCandidateFlag;
+                            fenceTrackedFlag = fencePidCandidateFlag;
                             fenceStructureType = "flag";
                             break;
                         }
