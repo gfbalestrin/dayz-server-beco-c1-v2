@@ -1084,9 +1084,15 @@ void LogFencesStatusSimple()
 		if (isLocked)
 			fencesLocked++;
 
-		string baseState = hasBase ? "YES" : "NO";
-		string gateState = hasGate ? "YES" : "NO";
-		string lockedState = isLocked ? "YES" : "NO";
+		string baseState = "NO";
+		if (hasBase)
+			baseState = "YES";
+		string gateState = "NO";
+		if (hasGate)
+			gateState = "YES";
+		string lockedState = "NO";
+		if (isLocked)
+			lockedState = "YES";
 
 		vector fencePos = trackedFence.GetPosition();
 		WriteToLog("[FENCE_SIMPLE] Pos=(" + fencePos[0].ToString() + "," + fencePos[1].ToString() + "," + fencePos[2].ToString() + ") Base=" + baseState + " Gate=" + gateState + " Locked=" + lockedState, LogFile.INIT, false, LogType.DEBUG);
@@ -1131,8 +1137,12 @@ void LogWatchtowersStatusSimple()
 		if (hasRoof)
 			withRoof++;
 
-		string baseState = hasBase ? "YES" : "NO";
-		string roofState = hasRoof ? "YES" : "NO";
+		string baseState = "NO";
+		if (hasBase)
+			baseState = "YES";
+		string roofState = "NO";
+		if (hasRoof)
+			roofState = "YES";
 
 		vector wtPos = trackedWatchtower.GetPosition();
 		WriteToLog("[WATCHTOWER_SIMPLE] Pos=(" + wtPos[0].ToString() + "," + wtPos[1].ToString() + "," + wtPos[2].ToString() + ") Base=" + baseState + " Roof=" + roofState, LogFile.INIT, false, LogType.DEBUG);

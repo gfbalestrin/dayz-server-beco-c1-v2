@@ -370,7 +370,9 @@ void LogVehiclesPositionsSimple()
             vehicleIdentifier = "pending-" + candidateVehicle.GetID().ToString();
         }
 
-        string statusLabel = isDestroyed ? "DESTROYED" : "ACTIVE";
+        string statusLabel = "ACTIVE";
+        if (isDestroyed)
+            statusLabel = "DESTROYED";
 
         WriteToLog("[VEHICLE_SIMPLE] ID=" + vehicleIdentifier + " Nome=\"" + vehicleName + "\" Status=" + statusLabel + " Health=" + vehicleHealth.ToString() + " Pos=(" + pos[0].ToString() + "," + pos[1].ToString() + "," + pos[2].ToString() + ")", LogFile.INIT, false, LogType.DEBUG);
     }
