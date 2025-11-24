@@ -337,6 +337,8 @@ void LogVehiclesPositionsSimple()
     }
 
     int loggedVehicles = 0;
+    int activeVehicles = 0;
+    int destroyedVehicles = 0;
 
     foreach (CarScript candidateVehicle : m_TrackedVehicles)
     {
@@ -347,6 +349,13 @@ void LogVehiclesPositionsSimple()
 
         vector pos = candidateVehicle.GetPosition();
         string vehicleName = candidateVehicle.GetDisplayName();
+        float vehicleHealth = candidateVehicle.GetHealth("", "");
+        bool isDestroyed = (vehicleHealth <= 0.0 || candidateVehicle.IsDamageDestroyed());
+
+        if (isDestroyed)
+            destroyedVehicles++;
+        else
+            activeVehicles++;
 
         int pidLow1 = 0;
         int pidLow2 = 0;
@@ -361,10 +370,12 @@ void LogVehiclesPositionsSimple()
             vehicleIdentifier = "pending-" + candidateVehicle.GetID().ToString();
         }
 
-        WriteToLog("[VEHICLE_SIMPLE] ID=" + vehicleIdentifier + " Nome=\"" + vehicleName + "\" Pos=(" + pos[0].ToString() + "," + pos[1].ToString() + "," + pos[2].ToString() + ")", LogFile.INIT, false, LogType.DEBUG);
+        string statusLabel = isDestroyed ? "DESTROYED" : "ACTIVE";
+
+        WriteToLog("[VEHICLE_SIMPLE] ID=" + vehicleIdentifier + " Nome=\"" + vehicleName + "\" Status=" + statusLabel + " Health=" + vehicleHealth.ToString() + " Pos=(" + pos[0].ToString() + "," + pos[1].ToString() + "," + pos[2].ToString() + ")", LogFile.INIT, false, LogType.DEBUG);
     }
 
-    WriteToLog("[VEHICLE_SIMPLE] Total de veículos logados: " + loggedVehicles.ToString(), LogFile.INIT, false, LogType.INFO);
+    WriteToLog("[VEHICLE_SIMPLE] Total=" + loggedVehicles.ToString() + " Ativos=" + activeVehicles.ToString() + " Destruidos=" + destroyedVehicles.ToString(), LogFile.INIT, false, LogType.INFO);
 }
 
 void CheckVehiclesForLoot()

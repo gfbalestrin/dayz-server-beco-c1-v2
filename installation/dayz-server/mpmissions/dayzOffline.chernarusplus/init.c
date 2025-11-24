@@ -305,6 +305,10 @@ class CustomMission: MissionServer
 			
 			//CleanTrackedVehicles(); // Limpa veículos destruídos do array
 			LogVehiclesPositionsSimple(); // Loga coordenadas dos veículos para análise de performance
+			LogFencesStatusSimple(); // Loga informações simples das fences rastreadas
+			LogWatchtowersStatusSimple(); // Loga informações simples das watchtowers rastreadas
+			LogFlagsStatusSimple(); // Loga informações simples das flags rastreadas
+			LogContainersStatusSimple(); // Loga informações básicas dos containers rastreados
 			//CleanTrackedFences(); // Limpa cercas destruídas do array
 			//SendFencesStatus(); // Envia status de todas as cercas rastreadas
 			//CleanTrackedWatchtowers(); // Limpa watchtowers removidas do array

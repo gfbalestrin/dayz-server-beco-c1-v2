@@ -1011,6 +1011,8 @@ void SendFlagsStatus()
                             }
                         }
                     }
+
+// simple log functions defined after SendFlagsStatus
                 }
             }
 
@@ -1046,6 +1048,130 @@ void SendFlagsStatus()
     string jsonAction = "{\"action\":\"flags_positions\",\"flag_data\":[" + flagsJson + "]}";
     AppendExternalAction(jsonAction, false);
     WriteToLog("SendFlagsStatus(): JSON com " + count.ToString() + " flags enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
+}
+
+void LogFencesStatusSimple()
+{
+	if (!GetGame() || !GetGame().IsServer())
+		return;
+
+	if (!m_TrackedFences || m_TrackedFences.Count() == 0)
+	{
+		WriteToLog("LogFencesStatusSimple: Nenhuma fence rastreada no momento.", LogFile.INIT, false, LogType.INFO);
+		return;
+	}
+
+	int totalFences = 0;
+	int fencesWithGate = 0;
+	int fencesLocked = 0;
+	int fencesWithoutBase = 0;
+
+	foreach (Fence trackedFence : m_TrackedFences)
+	{
+		if (!trackedFence)
+			continue;
+
+		totalFences++;
+		bool hasBase = trackedFence.HasBase();
+		if (!hasBase)
+			fencesWithoutBase++;
+
+		bool hasGate = trackedFence.HasFullyConstructedGate();
+		if (hasGate)
+			fencesWithGate++;
+
+		bool isLocked = trackedFence.IsLocked();
+		if (isLocked)
+			fencesLocked++;
+
+		string baseState = hasBase ? "YES" : "NO";
+		string gateState = hasGate ? "YES" : "NO";
+		string lockedState = isLocked ? "YES" : "NO";
+
+		vector fencePos = trackedFence.GetPosition();
+		WriteToLog("[FENCE_SIMPLE] Pos=(" + fencePos[0].ToString() + "," + fencePos[1].ToString() + "," + fencePos[2].ToString() + ") Base=" + baseState + " Gate=" + gateState + " Locked=" + lockedState, LogFile.INIT, false, LogType.DEBUG);
+	}
+
+	WriteToLog("[FENCE_SIMPLE] Total=" + totalFences.ToString() + " ComPortao=" + fencesWithGate.ToString() + " Trancadas=" + fencesLocked.ToString() + " SemBase=" + fencesWithoutBase.ToString(), LogFile.INIT, false, LogType.INFO);
+}
+
+void LogWatchtowersStatusSimple()
+{
+	if (!GetGame() || !GetGame().IsServer())
+		return;
+
+	if (!m_TrackedWatchtowers || m_TrackedWatchtowers.Count() == 0)
+	{
+		WriteToLog("LogWatchtowersStatusSimple: Nenhuma watchtower rastreada no momento.", LogFile.INIT, false, LogType.INFO);
+		return;
+	}
+
+	int totalWatchtowers = 0;
+	int withRoof = 0;
+	int withoutBase = 0;
+
+	foreach (Watchtower trackedWatchtower : m_TrackedWatchtowers)
+	{
+		if (!trackedWatchtower)
+			continue;
+
+		totalWatchtowers++;
+		bool hasBase = trackedWatchtower.HasBase();
+		if (!hasBase)
+			withoutBase++;
+
+		bool hasRoof = false;
+		Construction wtConstruction = trackedWatchtower.GetConstruction();
+		if (wtConstruction)
+		{
+			ConstructionPart roofPart = wtConstruction.GetConstructionPart("roof");
+			if (roofPart && roofPart.IsBuilt())
+				hasRoof = true;
+		}
+		if (hasRoof)
+			withRoof++;
+
+		string baseState = hasBase ? "YES" : "NO";
+		string roofState = hasRoof ? "YES" : "NO";
+
+		vector wtPos = trackedWatchtower.GetPosition();
+		WriteToLog("[WATCHTOWER_SIMPLE] Pos=(" + wtPos[0].ToString() + "," + wtPos[1].ToString() + "," + wtPos[2].ToString() + ") Base=" + baseState + " Roof=" + roofState, LogFile.INIT, false, LogType.DEBUG);
+	}
+
+	WriteToLog("[WATCHTOWER_SIMPLE] Total=" + totalWatchtowers.ToString() + " ComCobertura=" + withRoof.ToString() + " SemBase=" + withoutBase.ToString(), LogFile.INIT, false, LogType.INFO);
+}
+
+void LogFlagsStatusSimple()
+{
+	if (!GetGame() || !GetGame().IsServer())
+		return;
+
+	if (!m_TrackedFlags || m_TrackedFlags.Count() == 0)
+	{
+		WriteToLog("LogFlagsStatusSimple: Nenhuma flag rastreada no momento.", LogFile.INIT, false, LogType.INFO);
+		return;
+	}
+
+	int totalFlags = 0;
+
+	foreach (Object trackedFlag : m_TrackedFlags)
+	{
+		if (!trackedFlag)
+			continue;
+
+		totalFlags++;
+
+		EntityAI flagEntity = EntityAI.Cast(trackedFlag);
+		float flagHealth = 0.0;
+		if (flagEntity)
+			flagHealth = flagEntity.GetHealth("", "");
+
+		string flagType = trackedFlag.GetType();
+		vector flagPos = trackedFlag.GetPosition();
+		WriteToLog("[FLAG_SIMPLE] Tipo=" + flagType + " Pos=(" + flagPos[0].ToString() + "," + flagPos[1].ToString() + "," + flagPos[2].ToString() + ") Health=" + flagHealth.ToString(), LogFile.INIT, false, LogType.DEBUG);
+	}
+
+	WriteToLog("[FLAG_SIMPLE] Total=" + totalFlags.ToString(), LogFile.INIT, false, LogType.INFO);
 }
 
 void InitFlagTracking()
