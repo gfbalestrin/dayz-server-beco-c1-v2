@@ -743,7 +743,7 @@ void SendWatchtowersStatus()
             logMsg += " | L1 Paredes: W1(" + level1Wall1LowerBuilt.ToString() + "/" + level1Wall1UpperBuilt.ToString() + ") W2(" + level1Wall2LowerBuilt.ToString() + "/" + level1Wall2UpperBuilt.ToString() + ") W3(" + level1Wall3LowerBuilt.ToString() + "/" + level1Wall3UpperBuilt.ToString() + ")";
             logMsg += " | L2 Paredes: W1(" + level2Wall1LowerBuilt.ToString() + "/" + level2Wall1UpperBuilt.ToString() + ") W2(" + level2Wall2LowerBuilt.ToString() + "/" + level2Wall2UpperBuilt.ToString() + ") W3(" + level2Wall3LowerBuilt.ToString() + "/" + level2Wall3UpperBuilt.ToString() + ")";
             logMsg += " | L3 Paredes: W1(" + level3Wall1LowerBuilt.ToString() + "/" + level3Wall1UpperBuilt.ToString() + ") W2(" + level3Wall2LowerBuilt.ToString() + "/" + level3Wall2UpperBuilt.ToString() + ") W3(" + level3Wall3LowerBuilt.ToString() + "/" + level3Wall3UpperBuilt.ToString() + ")";
-            WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
+            //WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
 
             count++;
         }
@@ -1037,7 +1037,7 @@ void SendFlagsStatus()
             flagsJson += "}";
 
             string logMsg = "[FLAG] Posição=(" + posX + ", " + posZ + ", " + posY + ") | HasBase=" + hasBase.ToString() + " | HasFlagBase=" + hasFlagBase.ToString() + " | FlagRaised=" + flagRaised.ToString() + " | FlagHeight=" + flagHeightStr;
-            WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
+            //WriteToLog(logMsg, LogFile.INIT, false, LogType.INFO);
 
             count++;
         }
