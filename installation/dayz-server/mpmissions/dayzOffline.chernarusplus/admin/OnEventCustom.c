@@ -68,6 +68,7 @@ void OnEventCustom(EventType eventTypeId, Param params)
     Man player;
     PlayerBase playerBase;
     string playerName;
+    string playerId;
     string steamId;
     int logoutTime;
     bool authFailed;
@@ -75,6 +76,8 @@ void OnEventCustom(EventType eventTypeId, Param params)
     int channel;
     string text;
     string colorClass;
+    ActivePlayer existingPlayer;
+    Man playerMan;
 
     // ============================================================================
     // EVENTO: ClientConnectedEventTypeID
@@ -125,8 +128,8 @@ void OnEventCustom(EventType eventTypeId, Param params)
         
         if (identity)
         {
-            string playerId = identity.GetId();
-            string playerName = identity.GetName();
+            playerId = identity.GetId();
+            playerName = identity.GetName();
             WriteToLog("  -> Jogador iniciando desconexão: " + playerName + " | ID: " + playerId + " | LogoutTime: " + logoutTime + " | AuthFailed: " + authFailed, LogFile.INIT, false, LogType.INFO);
             
             // Se authFailed ou logoutTime == 0, desconecta imediatamente
@@ -171,12 +174,12 @@ void OnEventCustom(EventType eventTypeId, Param params)
         
         if (identity)
         {
-            string playerId = identity.GetId();
-            string playerName = identity.GetName();
+            playerId = identity.GetId();
+            playerName = identity.GetName();
             WriteToLog("  -> Novo jogador: " + playerName + " | PlayerID: " + playerId + " | Posição: " + position.ToString(), LogFile.INIT, false, LogType.INFO);
             
             // Verifica se jogador já está em ActivePlayers
-            ActivePlayer existingPlayer = GetActivePlayerById(playerId);
+            existingPlayer = GetActivePlayerById(playerId);
             
             if (existingPlayer)
             {
@@ -184,7 +187,7 @@ void OnEventCustom(EventType eventTypeId, Param params)
                 WriteToLog("  -> Jogador já está em ActivePlayers, atualizando referência", LogFile.INIT, false, LogType.DEBUG);
                 
                 // Tenta obter o objeto Man através do PlayerIdentity
-                Man playerMan = GetManFromIdentity(identity);
+                playerMan = GetManFromIdentity(identity);
                 if (playerMan)
                 {
                     existingPlayer.SetPlayer(playerMan);
@@ -197,7 +200,7 @@ void OnEventCustom(EventType eventTypeId, Param params)
                 WriteToLog("  -> Jogador não está em ActivePlayers, processando como nova conexão", LogFile.INIT, false, LogType.INFO);
                 
                 // Tenta obter o objeto Man através do PlayerIdentity
-                Man playerMan = GetManFromIdentity(identity);
+                playerMan = GetManFromIdentity(identity);
                 
                 // Usa a função reutilizável para processar o jogador
                 ProcessPlayerReady(identity, playerMan);
@@ -223,8 +226,8 @@ void OnEventCustom(EventType eventTypeId, Param params)
             
             if (identity)
             {
-                string playerId = identity.GetId();
-                ActivePlayer existingPlayer = GetActivePlayerById(playerId);
+                playerId = identity.GetId();
+                existingPlayer = GetActivePlayerById(playerId);
                 
                 if (existingPlayer)
                 {
@@ -284,11 +287,11 @@ void OnEventCustom(EventType eventTypeId, Param params)
             
             if (identity && player)
             {
-                PlayerBase playerBase = PlayerBase.Cast(player);
+                playerBase = PlayerBase.Cast(player);
                 if (playerBase)
                 {
-                    string playerId = identity.GetId();
-                    string playerName = identity.GetName();
+                    playerId = identity.GetId();
+                    playerName = identity.GetName();
                     vector respawnPos = playerBase.GetPosition();
                     
                     WriteToLog("  -> JOGADOR RESPAWNOU: " + playerName + " | PlayerID: " + playerId + " | Posição: " + respawnPos.ToString(), LogFile.INIT, false, LogType.INFO);
@@ -637,8 +640,8 @@ void OnEventCustom(EventType eventTypeId, Param params)
                         
                         // Busca jogador para obter identity
                         ActivePlayer loggingOutPlayer = GetActivePlayerById(finishedUID);
-                        PlayerIdentity identity = null;
-                        Man player = null;
+                        identity = null;
+                        player = null;
                         
                         if (loggingOutPlayer)
                         {
