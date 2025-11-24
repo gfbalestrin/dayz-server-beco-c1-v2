@@ -201,9 +201,32 @@ bool ExecuteCommand(TStringArray tokens)
                             natureFilterReason = "Static_stones_ prefix";
                         }
                         // Verificar objetos específicos de pedras e rochas
-                        else if (objType == "Static_stone5" || objType == "Static_stone4" || 
-                                 objType == "Static_stones_erosion" || objType == "Static_rock_spike1" ||
-                                 objType == "Static_rock_wallh1" || objType == "Static_rock_monolith1")
+                        else if (objType == "Static_stone5")
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "Specific static rock/stone";
+                        }
+                        else if (objType == "Static_stone4")
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "Specific static rock/stone";
+                        }
+                        else if (objType == "Static_stones_erosion")
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "Specific static rock/stone";
+                        }
+                        else if (objType == "Static_rock_spike1")
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "Specific static rock/stone";
+                        }
+                        else if (objType == "Static_rock_wallh1")
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "Specific static rock/stone";
+                        }
+                        else if (objType == "Static_rock_monolith1")
                         {
                             isNatureObject = true;
                             natureFilterReason = "Specific static rock/stone";
