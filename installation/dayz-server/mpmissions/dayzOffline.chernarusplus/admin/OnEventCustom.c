@@ -562,7 +562,7 @@ void OnEventCustom(EventType eventTypeId, Param params)
             {
                 WriteToLog("  -> Jogador morreu: " + identityPlayerDead.GetName() + " | PlayerID: " + identityPlayerDead.GetId() + " | SteamID: " + identityPlayerDead.GetPlainId(), LogFile.INIT, false, LogType.DEBUG);
                 
-                // Marca o jogador como morto recentemente para evitar enviar player_disconnected após morte
+                // Marca o jogador como morto recentemente (para outras funcionalidades, se necessário)
                 ActivePlayer deadPlayer = GetActivePlayerById(identityPlayerDead.GetId());
                 if (deadPlayer)
                 {
@@ -673,13 +673,21 @@ void OnEventCustom(EventType eventTypeId, Param params)
                         }
                         else
                         {
-                            WriteToLog("  -> AVISO: Não foi possível encontrar Identity para: " + finishedUID, LogFile.INIT, false, LogType.ERROR);
-                            // Remove mesmo assim para não ficar preso
+                            WriteToLog("  -> AVISO: Não foi possível encontrar Identity para: " + finishedUID + ", mas enviando evento de desconexão mesmo assim", LogFile.INIT, false, LogType.WARNING);
+                            
+                            // Remove de ActivePlayers
+                            RemoveActivePlayerById(finishedUID);
+                            
+                            // Remove de PendingDisconnects se existir
                             if (PendingDisconnects && PendingDisconnects.Contains(finishedUID))
                             {
                                 PendingDisconnects.Remove(finishedUID);
+                                WriteToLog("  -> Removido de PendingDisconnects", LogFile.INIT, false, LogType.DEBUG);
                             }
-                            RemoveActivePlayerById(finishedUID);
+                            
+                            // Envia evento externo mesmo sem Identity (jogador fechou o jogo abruptamente)
+                            AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + finishedUID + "\"}");
+                            WriteToLog("  -> Evento player_disconnected enviado (sem Identity)", LogFile.INIT, false, LogType.INFO);
                         }
                     }
                 }
@@ -858,9 +866,18 @@ void CheckPendingDisconnect(string playerId)
         }
         else
         {
-            WriteToLog("CheckPendingDisconnect(): Não foi possível encontrar Identity para: " + playerId, LogFile.INIT, false, LogType.ERROR);
-            // Remove mesmo assim para não ficar preso
+            WriteToLog("CheckPendingDisconnect(): Não foi possível encontrar Identity para: " + playerId + ", mas enviando evento de desconexão mesmo assim", LogFile.INIT, false, LogType.WARNING);
+            
+            // Remove de ActivePlayers
+            RemoveActivePlayerById(playerId);
+            
+            // Remove de PendingDisconnects
             PendingDisconnects.Remove(playerId);
+            WriteToLog("CheckPendingDisconnect(): Removido de PendingDisconnects", LogFile.INIT, false, LogType.DEBUG);
+            
+            // Envia evento externo mesmo sem Identity (jogador fechou o jogo abruptamente)
+            AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + playerId + "\"}");
+            WriteToLog("CheckPendingDisconnect(): Evento player_disconnected enviado (sem Identity)", LogFile.INIT, false, LogType.INFO);
         }
     }
     else
