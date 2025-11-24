@@ -14,12 +14,210 @@ void GatherWorldObjects(array<Object> destination)
 	GetGame().GetObjectsAtPosition(trackingCenter, trackingRadius, destination, null);
 }
 
+void ProcessAllWorldObjectsOptimized(array<Object> worldObjects, out string containersJson, out int totalContainers, out int totalContainersWithItems, out int totalContainersEmpty, out int totalItems)
+{
+	containersJson = "";
+	totalContainers = 0;
+	totalContainersWithItems = 0;
+	totalContainersEmpty = 0;
+	totalItems = 0;
+
+	if (!GetGame() || !GetGame().IsServer())
+		return;
+
+	if (!worldObjects || worldObjects.Count() == 0)
+		return;
+
+	// Inicializar arrays de tracking
+	if (!m_TrackedFences)
+		m_TrackedFences = new array<Fence>();
+	else
+		m_TrackedFences.Clear();
+
+	if (!m_TrackedWatchtowers)
+		m_TrackedWatchtowers = new array<Watchtower>();
+	else
+		m_TrackedWatchtowers.Clear();
+
+	if (!m_TrackedFlags)
+		m_TrackedFlags = new array<Object>();
+	else
+		m_TrackedFlags.Clear();
+
+	if (!m_TrackedVehicles)
+		m_TrackedVehicles = new array<CarScript>();
+	else
+		m_TrackedVehicles.Clear();
+
+	if (!m_TrackedContainers)
+		m_TrackedContainers = new array<EntityAI>();
+	else
+		m_TrackedContainers.Clear();
+
+	// Array temporário para containers JSON (otimização de concatenação)
+	array<string> containersJsonArray = new array<string>();
+
+	// Processar todos os objetos em uma única iteração
+	foreach (Object candidateObject : worldObjects)
+	{
+		if (!candidateObject)
+			continue;
+
+		string objectType = candidateObject.GetType();
+		if (!objectType || objectType == "")
+			continue;
+
+		// Processar Fences
+		if (objectType.Contains("Fence"))
+		{
+			Fence candidateFence = Fence.Cast(candidateObject);
+			if (candidateFence && candidateFence.HasBase())
+			{
+				m_TrackedFences.Insert(candidateFence);
+			}
+			continue;
+		}
+
+		// Processar Watchtowers
+		if (objectType.Contains("Watchtower"))
+		{
+			Watchtower candidateWatchtower = Watchtower.Cast(candidateObject);
+			if (candidateWatchtower && candidateWatchtower.HasBase())
+			{
+				m_TrackedWatchtowers.Insert(candidateWatchtower);
+			}
+			continue;
+		}
+
+		// Processar Flags
+		if (objectType == "TerritoryFlag")
+		{
+			m_TrackedFlags.Insert(candidateObject);
+			continue;
+		}
+
+		// Processar Vehicles (tentar Cast direto, mais eficiente)
+		CarScript candidateVehicle = CarScript.Cast(candidateObject);
+		if (candidateVehicle)
+		{
+			m_TrackedVehicles.Insert(candidateVehicle);
+			continue;
+		}
+
+		// Processar Containers (mais complexo, precisa processar items também)
+		if (IsContainerType(objectType))
+		{
+			totalContainers++;
+
+			EntityAI containerEntity = EntityAI.Cast(candidateObject);
+			if (!containerEntity)
+				continue;
+
+			m_TrackedContainers.Insert(containerEntity);
+
+			vector containerPosition = containerEntity.GetPosition();
+			vector containerOrientation = containerEntity.GetOrientation();
+
+			string itemsJson = "";
+			bool containerHasItems = false;
+			string containerIdentifier = "";
+
+			int pidLow1 = 0;
+			int pidLow2 = 0;
+			int pidHigh1 = 0;
+			int pidHigh2 = 0;
+			containerEntity.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+
+			bool hasPersistent = false;
+			if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+			{
+				hasPersistent = true;
+			}
+
+			string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+			containerIdentifier = persistentKey;
+			if (!hasPersistent)
+			{
+				containerIdentifier = "pending-" + containerEntity.GetID().ToString();
+			}
+
+			// Processar items do container
+			CargoBase containerCargo = containerEntity.GetInventory().GetCargo();
+			if (containerCargo)
+			{
+				for (int cargoIndex = 0; cargoIndex < containerCargo.GetItemCount(); cargoIndex++)
+				{
+					EntityAI cargoItem = containerCargo.GetItem(cargoIndex);
+					if (!cargoItem)
+						continue;
+
+					string cargoType = cargoItem.GetType();
+					float cargoHealth = cargoItem.GetHealth("", "");
+					totalItems++;
+					containerHasItems = true;
+
+					if (itemsJson != "")
+						itemsJson += ",";
+					itemsJson += "{\"type\":\"" + cargoType + "\",\"health\":" + cargoHealth.ToString() + "}";
+				}
+			}
+
+			// Processar attachments do container
+			for (int attachmentIndex = 0; attachmentIndex < containerEntity.GetInventory().AttachmentCount(); attachmentIndex++)
+			{
+				EntityAI attachmentItem = containerEntity.GetInventory().GetAttachmentFromIndex(attachmentIndex);
+				if (!attachmentItem)
+					continue;
+
+				string attachmentType = attachmentItem.GetType();
+				float attachmentHealth = attachmentItem.GetHealth("", "");
+				totalItems++;
+				containerHasItems = true;
+
+				if (itemsJson != "")
+					itemsJson += ",";
+				itemsJson += "{\"type\":\"" + attachmentType + "\",\"health\":" + attachmentHealth.ToString() + "}";
+			}
+
+			bool isShelterType = objectType.Contains("Shelter");
+			if (containerHasItems || isShelterType)
+			{
+				if (containerHasItems)
+				{
+					totalContainersWithItems++;
+				}
+				else
+				{
+					totalContainersEmpty++;
+				}
+
+				string positionJson = "{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "}";
+				string orientationJson = "{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "}";
+				string containerJsonItem = "{\"container_id\":\"" + containerIdentifier + "\",\"container_type\":\"" + objectType + "\",\"position\":" + positionJson + ",\"orientation\":" + orientationJson + ",\"items\":[" + itemsJson + "]}";
+				containersJsonArray.Insert(containerJsonItem);
+			}
+			else
+			{
+				totalContainersEmpty++;
+			}
+		}
+	}
+
+	// Construir JSON final de containers (otimização: join ao invés de concatenação)
+	if (containersJsonArray.Count() > 0)
+	{
+		containersJson = string.Join(",", containersJsonArray);
+	}
+
+	WriteToLog("ProcessAllWorldObjectsOptimized(): Fences: " + m_TrackedFences.Count().ToString() + ", Watchtowers: " + m_TrackedWatchtowers.Count().ToString() + ", Flags: " + m_TrackedFlags.Count().ToString() + ", Vehicles: " + m_TrackedVehicles.Count().ToString() + ", Containers: " + m_TrackedContainers.Count().ToString(), LogFile.INIT, false, LogType.INFO);
+}
+
 void InitWorldTracking()
 {
 	if (!GetGame() || !GetGame().IsServer())
 		return;
 
-	WriteToLog("InitWorldTracking(): Iniciando varredura única para fences, watchtowers, flags, veículos e containers...", LogFile.INIT, false, LogType.INFO);
+	WriteToLog("InitWorldTracking(): Iniciando varredura otimizada única para fences, watchtowers, flags, veículos e containers...", LogFile.INIT, false, LogType.INFO);
 
 	array<Object> worldObjects = new array<Object>();
 	GatherWorldObjects(worldObjects);
@@ -30,18 +228,13 @@ void InitWorldTracking()
 		return;
 	}
 
-	PopulateTrackedFences(worldObjects);
-	PopulateTrackedWatchtowers(worldObjects);
-	PopulateTrackedFlags(worldObjects);
-	PopulateTrackedVehicles(worldObjects);
-	PopulateTrackedContainers(worldObjects);
-
+	// Processar todos os objetos em uma única iteração otimizada
 	string containersJson;
 	int totalContainers;
 	int totalContainersWithItems;
 	int totalContainersEmpty;
 	int totalItems;
-	BuildContainersData(worldObjects, containersJson, totalContainers, totalContainersWithItems, totalContainersEmpty, totalItems);
+	ProcessAllWorldObjectsOptimized(worldObjects, containersJson, totalContainers, totalContainersWithItems, totalContainersEmpty, totalItems);
 
 	CleanTrackedFences();
 	CleanTrackedWatchtowers();

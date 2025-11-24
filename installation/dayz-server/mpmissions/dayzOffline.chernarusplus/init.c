@@ -210,11 +210,7 @@ class CustomMission: MissionServer
 			GetGame().GetPlayers(players);
 
 			// Passar para SendPlayersPositions
-			SendPlayersPositions(players);
-
-			// Tracking de veículos a cada 10 segundos (otimizado para performance)
-			//CleanTrackedVehicles(); // Limpa veículos destruídos do array
-			//SendVehiclesPositions(); // Envia posições de todos os veículos rastreados
+			SendPlayersPositions(players);		
 
 			CheckCommands();
 			array<string> msgs = CheckMessages();
@@ -307,6 +303,8 @@ class CustomMission: MissionServer
 				CleanUpDeadEntitiesNearPlayers();
 			} 
 			
+			//CleanTrackedVehicles(); // Limpa veículos destruídos do array
+			//SendVehiclesPositions(); // Envia posições de todos os veículos rastreados
 			//CleanTrackedFences(); // Limpa cercas destruídas do array
 			//SendFencesStatus(); // Envia status de todas as cercas rastreadas
 			//CleanTrackedWatchtowers(); // Limpa watchtowers removidas do array
