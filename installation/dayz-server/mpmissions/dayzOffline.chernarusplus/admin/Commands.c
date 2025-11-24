@@ -220,7 +220,12 @@ bool ExecuteCommand(TStringArray tokens)
                 string posZStr = trackedPosition[1].ToString();
                 string posYStr = trackedPosition[2].ToString();
                 
-                string vehicleResultJson = "{\"request_id\":\"" + sanitizedVehicleRequestId + "\",\"command\":\"checkvehicle\",\"status\":\"success\",\"vehicle_id\":\"" + sanitizedVehicleIdentifier + "\",\"vehicle_name\":\"" + sanitizedVehicleName + "\",\"position\":{\"x\":" + posXStr + ",\"y\":" + posZStr + ",\"z\":" + posYStr + "},\"items\":[" + itemsJson + "],\"attachments\":[" + attachmentsJson + "],\"health_parts\":{" + healthPartsJson + "},\"lifetime\":" + vehicleLifetime.ToString() + ",\"lifetime_max\":" + vehicleLifetimeMax.ToString() + "}";
+                string vehicleResultJson = "{\"request_id\":\"" + sanitizedVehicleRequestId + "\",\"command\":\"checkvehicle\",\"status\":\"success\"";
+                vehicleResultJson = vehicleResultJson + ",\"vehicle_id\":\"" + sanitizedVehicleIdentifier + "\",\"vehicle_name\":\"" + sanitizedVehicleName + "\"";
+                vehicleResultJson = vehicleResultJson + ",\"position\":{\"x\":" + posXStr + ",\"y\":" + posZStr + ",\"z\":" + posYStr + "}";
+                vehicleResultJson = vehicleResultJson + ",\"items\":[" + itemsJson + "],\"attachments\":[" + attachmentsJson + "]";
+                vehicleResultJson = vehicleResultJson + ",\"health_parts\":{" + healthPartsJson + "}";
+                vehicleResultJson = vehicleResultJson + ",\"lifetime\":" + vehicleLifetime.ToString() + ",\"lifetime_max\":" + vehicleLifetimeMax.ToString() + "}";
                 
                 AppendCommandResult(vehicleResultJson, false);
                 WriteToLog("ExecuteCommand(): checkvehicle - Dados enviados para veículo " + sanitizedVehicleName + " (request_id: " + vehicleRequestId + ")", LogFile.INIT, false, LogType.INFO);
@@ -1190,7 +1195,7 @@ bool ExecuteCommand(TStringArray tokens)
             ref array<EntityAI> inventoryItems = new array<EntityAI>();
             checkInventoryTarget.GetInventory().EnumerateInventory(InventoryTraversalType.PREORDER, inventoryItems);
             
-            string itemsJson = "";
+            string inventoryItemsJson = "";
             int itemCount = 0;
             
             foreach (EntityAI inventoryItem : inventoryItems)
@@ -1213,17 +1218,17 @@ bool ExecuteCommand(TStringArray tokens)
                 
                 string sanitizedType = SanitizeForJson(itemType);
                 
-                if (itemsJson != "")
-                    itemsJson = itemsJson + ",";
+                if (inventoryItemsJson != "")
+                    inventoryItemsJson = inventoryItemsJson + ",";
                 
-                itemsJson = itemsJson + "{\"type\":\"" + sanitizedType + "\",\"quantity\":" + itemQuantity.ToString() + "}";
+                inventoryItemsJson = inventoryItemsJson + "{\"type\":\"" + sanitizedType + "\",\"quantity\":" + itemQuantity.ToString() + "}";
             }
             
             string playerName = SanitizeForJson(checkInventoryTarget.GetIdentity().GetName());
             string sanitizedRequestId = SanitizeForJson(requestId);
             string playerIdStr = checkInventoryTarget.GetIdentity().GetId();
             
-            string resultJson = "{\"request_id\":\"" + sanitizedRequestId + "\",\"command\":\"checkinventory\",\"player_id\":\"" + playerIdStr + "\",\"player_name\":\"" + playerName + "\",\"items\":[" + itemsJson + "]}";
+            string resultJson = "{\"request_id\":\"" + sanitizedRequestId + "\",\"command\":\"checkinventory\",\"player_id\":\"" + playerIdStr + "\",\"player_name\":\"" + playerName + "\",\"items\":[" + inventoryItemsJson + "]}";
             
             AppendCommandResult(resultJson, false);
             

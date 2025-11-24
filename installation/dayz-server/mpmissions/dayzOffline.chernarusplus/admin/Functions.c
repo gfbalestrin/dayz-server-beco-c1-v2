@@ -37,19 +37,22 @@ void LogNearbyWorldObjectsForPlayer(PlayerBase player, string safeName, string p
     if (!GetGame() || !player)
         return;
 
-    if (!proximityScanBuffer)
-        proximityScanBuffer = new array<Object>();
-
     int nearbyContainers = 0;
     int nearbyVehicles = 0;
     int nearbyFences = 0;
     int nearbyWatchtowers = 0;
     int nearbyFlags = 0;
 
-    proximityScanBuffer.Clear();
-    GetGame().GetObjectsAtPosition(position, PLAYER_PROXIMITY_SCAN_RADIUS, proximityScanBuffer, null);
+    array<Object> scanBuffer = new array<Object>();
+    if (proximityScanBuffer)
+    {
+        scanBuffer = proximityScanBuffer;
+        scanBuffer.Clear();
+    }
+    
+    GetGame().GetObjectsAtPosition(position, PLAYER_PROXIMITY_SCAN_RADIUS, scanBuffer, null);
 
-    foreach (Object nearbyObject : proximityScanBuffer)
+    foreach (Object nearbyObject : scanBuffer)
     {
         if (!nearbyObject || nearbyObject == player)
             continue;
@@ -92,7 +95,11 @@ void LogNearbyWorldObjectsForPlayer(PlayerBase player, string safeName, string p
         }
     }
 
-        WriteToLog("[PROXIMITY] Player=" + safeName + " (ID=" + playerId + ") Containers=" + nearbyContainers.ToString() + " Vehicles=" + nearbyVehicles.ToString() + " Fences=" + nearbyFences.ToString() + " Watchtowers=" + nearbyWatchtowers.ToString() + " Flags=" + nearbyFlags.ToString() + " Radius=" + PLAYER_PROXIMITY_SCAN_RADIUS.ToString() + "m", LogFile.INIT, false, LogType.DEBUG);
+    string proximityLog = "[PROXIMITY] Player=" + safeName + " (ID=" + playerId + ") Containers=" + nearbyContainers.ToString();
+    proximityLog = proximityLog + " Vehicles=" + nearbyVehicles.ToString() + " Fences=" + nearbyFences.ToString();
+    proximityLog = proximityLog + " Watchtowers=" + nearbyWatchtowers.ToString() + " Flags=" + nearbyFlags.ToString();
+    proximityLog = proximityLog + " Radius=" + PLAYER_PROXIMITY_SCAN_RADIUS.ToString() + "m";
+    WriteToLog(proximityLog, LogFile.INIT, false, LogType.DEBUG);
 }
 
 PlayerBase GetPlayerByName(string name)
