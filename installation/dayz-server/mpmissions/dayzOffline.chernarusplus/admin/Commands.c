@@ -390,6 +390,473 @@ bool ExecuteCommand(TStringArray tokens)
                 WriteToLog("ExecuteCommand(): checkcontainer - Dados enviados para container " + contSanitizedType + " (request_id: " + contRequestId + ")", LogFile.INIT, false, LogType.INFO);
                 
                 return true;
+            case "checkfence":
+                if (tokens.Count() < 4)
+                {
+                    WriteToLog("ExecuteCommand(): checkfence requer fence_id e request_id", LogFile.INIT, false, LogType.ERROR);
+                    return false;
+                }
+                
+                string fenceIdentifierParam = tokens[2];
+                string fenceRequestId = tokens[3];
+                
+                string fenceSanitizedRequestId = SanitizeForJson(fenceRequestId);
+                
+                // Tentar encontrar em m_TrackedFences primeiro
+                Fence fenceTrackedFence = null;
+                Watchtower fenceTrackedWatchtower = null;
+                Object fenceTrackedFlag = null;
+                string fenceStructureType = "";
+                
+                if (m_TrackedFences && m_TrackedFences.Count() > 0)
+                {
+                    foreach (Fence fenceCandidateFence : m_TrackedFences)
+                    {
+                        if (!fenceCandidateFence)
+                            continue;
+                        
+                        int fencePidLow1 = 0;
+                        int fencePidLow2 = 0;
+                        int fencePidHigh1 = 0;
+                        int fencePidHigh2 = 0;
+                        fenceCandidateFence.GetPersistentID(fencePidLow1, fencePidLow2, fencePidHigh1, fencePidHigh2);
+                        
+                        bool fenceHasPersistent = (fencePidLow1 != 0 || fencePidLow2 != 0 || fencePidHigh1 != 0 || fencePidHigh2 != 0);
+                        string fencePersistentKey = fencePidLow1.ToString() + "-" + fencePidLow2.ToString() + "-" + fencePidHigh1.ToString() + "-" + fencePidHigh2.ToString();
+                        string fenceCandidateIdentifier = fencePersistentKey;
+                        if (!fenceHasPersistent)
+                        {
+                            fenceCandidateIdentifier = "pending-" + fenceCandidateFence.GetID().ToString();
+                        }
+                        
+                        if (fenceCandidateIdentifier == fenceIdentifierParam)
+                        {
+                            fenceTrackedFence = fenceCandidateFence;
+                            fenceStructureType = "fence";
+                            break;
+                        }
+                    }
+                }
+                
+                // Se não encontrou em fences, tentar watchtowers
+                if (!fenceTrackedFence && m_TrackedWatchtowers && m_TrackedWatchtowers.Count() > 0)
+                {
+                    foreach (Watchtower fenceCandidateWatchtower : m_TrackedWatchtowers)
+                    {
+                        if (!fenceCandidateWatchtower)
+                            continue;
+                        
+                        int fenceWtPidLow1 = 0;
+                        int fenceWtPidLow2 = 0;
+                        int fenceWtPidHigh1 = 0;
+                        int fenceWtPidHigh2 = 0;
+                        fenceCandidateWatchtower.GetPersistentID(fenceWtPidLow1, fenceWtPidLow2, fenceWtPidHigh1, fenceWtPidHigh2);
+                        
+                        bool fenceWtHasPersistent = (fenceWtPidLow1 != 0 || fenceWtPidLow2 != 0 || fenceWtPidHigh1 != 0 || fenceWtPidHigh2 != 0);
+                        string fenceWtPersistentKey = fenceWtPidLow1.ToString() + "-" + fenceWtPidLow2.ToString() + "-" + fenceWtPidHigh1.ToString() + "-" + fenceWtPidHigh2.ToString();
+                        string fenceWtCandidateIdentifier = fenceWtPersistentKey;
+                        if (!fenceWtHasPersistent)
+                        {
+                            fenceWtCandidateIdentifier = "pending-" + fenceCandidateWatchtower.GetID().ToString();
+                        }
+                        
+                        if (fenceWtCandidateIdentifier == fenceIdentifierParam)
+                        {
+                            fenceTrackedWatchtower = fenceCandidateWatchtower;
+                            fenceStructureType = "watchtower";
+                            break;
+                        }
+                    }
+                }
+                
+                // Se não encontrou em watchtowers, tentar flags
+                if (!fenceTrackedFence && !fenceTrackedWatchtower && m_TrackedFlags && m_TrackedFlags.Count() > 0)
+                {
+                    foreach (Object fenceCandidateFlag : m_TrackedFlags)
+                    {
+                        if (!fenceCandidateFlag)
+                            continue;
+                        
+                        int fenceFlagPidLow1 = 0;
+                        int fenceFlagPidLow2 = 0;
+                        int fenceFlagPidHigh1 = 0;
+                        int fenceFlagPidHigh2 = 0;
+                        fenceCandidateFlag.GetPersistentID(fenceFlagPidLow1, fenceFlagPidLow2, fenceFlagPidHigh1, fenceFlagPidHigh2);
+                        
+                        bool fenceFlagHasPersistent = (fenceFlagPidLow1 != 0 || fenceFlagPidLow2 != 0 || fenceFlagPidHigh1 != 0 || fenceFlagPidHigh2 != 0);
+                        string fenceFlagPersistentKey = fenceFlagPidLow1.ToString() + "-" + fenceFlagPidLow2.ToString() + "-" + fenceFlagPidHigh1.ToString() + "-" + fenceFlagPidHigh2.ToString();
+                        string fenceFlagCandidateIdentifier = fenceFlagPersistentKey;
+                        if (!fenceFlagHasPersistent)
+                        {
+                            fenceFlagCandidateIdentifier = "pending-" + fenceCandidateFlag.GetID().ToString();
+                        }
+                        
+                        if (fenceFlagCandidateIdentifier == fenceIdentifierParam)
+                        {
+                            fenceTrackedFlag = fenceCandidateFlag;
+                            fenceStructureType = "flag";
+                            break;
+                        }
+                    }
+                }
+                
+                // Verificar se encontrou alguma construção
+                if (!fenceTrackedFence && !fenceTrackedWatchtower && !fenceTrackedFlag)
+                {
+                    string fenceNotFoundMessage = "Construção não encontrada: " + fenceIdentifierParam;
+                    WriteToLog("ExecuteCommand(): checkfence - " + fenceNotFoundMessage + " (request_id: " + fenceRequestId + ")", LogFile.INIT, false, LogType.ERROR);
+                    
+                    string fenceNotFoundJson = "{\"request_id\":\"" + fenceSanitizedRequestId + "\",\"command\":\"checkfence\",\"status\":\"error\",\"message\":\"" + SanitizeForJson(fenceNotFoundMessage) + "\"}";
+                    AppendCommandResult(fenceNotFoundJson, false);
+                    return false;
+                }
+                
+                // Coletar dados baseado no tipo
+                vector fencePosition;
+                vector fenceOrientation;
+                string fenceResultJson = "{\"request_id\":\"" + fenceSanitizedRequestId + "\",\"command\":\"checkfence\",\"status\":\"success\",\"structure_type\":\"" + fenceStructureType + "\"";
+                
+                if (fenceTrackedFence)
+                {
+                    // Dados de Fence
+                    if (fenceTrackedFence.GetHealth("", "") <= 0)
+                    {
+                        string fenceDestroyedMessage = "Fence está destruída";
+                        WriteToLog("ExecuteCommand(): checkfence - " + fenceDestroyedMessage + " (request_id: " + fenceRequestId + ")", LogFile.INIT, false, LogType.WARNING);
+                        
+                        string fenceDestroyedJson = "{\"request_id\":\"" + fenceSanitizedRequestId + "\",\"command\":\"checkfence\",\"status\":\"error\",\"message\":\"" + SanitizeForJson(fenceDestroyedMessage) + "\"}";
+                        AppendCommandResult(fenceDestroyedJson, false);
+                        return false;
+                    }
+                    
+                    fencePosition = fenceTrackedFence.GetPosition();
+                    fenceOrientation = fenceTrackedFence.GetOrientation();
+                    
+                    bool fenceHasBase = fenceTrackedFence.HasBase();
+                    Construction fenceConstruction = fenceTrackedFence.GetConstruction();
+                    bool fenceLowerPanelBuilt = false;
+                    bool fenceUpperPanelBuilt = false;
+                    
+                    if (fenceConstruction)
+                    {
+                        array<string> fenceLowerParts = { "wall_wood_down", "wall_metal_down" };
+                        foreach (string fenceLowerPartName : fenceLowerParts)
+                        {
+                            ConstructionPart fenceLowerPart = fenceConstruction.GetConstructionPart(fenceLowerPartName);
+                            if (fenceLowerPart && fenceLowerPart.IsBuilt())
+                            {
+                                fenceLowerPanelBuilt = true;
+                                break;
+                            }
+                        }
+                        
+                        array<string> fenceUpperParts = { "wall_wood_up", "wall_metal_up" };
+                        foreach (string fenceUpperPartName : fenceUpperParts)
+                        {
+                            ConstructionPart fenceUpperPart = fenceConstruction.GetConstructionPart(fenceUpperPartName);
+                            if (fenceUpperPart && fenceUpperPart.IsBuilt())
+                            {
+                                fenceUpperPanelBuilt = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    bool fenceHasGate = fenceTrackedFence.HasFullyConstructedGate();
+                    bool fenceIsOpened = fenceTrackedFence.IsOpened();
+                    bool fenceIsLocked = fenceTrackedFence.IsLocked();
+                    
+                    string fenceAttachmentsJson = "";
+                    if (fenceTrackedFence.GetInventory())
+                    {
+                        int fenceAttachmentCount = fenceTrackedFence.GetInventory().AttachmentCount();
+                        for (int fenceAttachmentIndex = 0; fenceAttachmentIndex < fenceAttachmentCount; fenceAttachmentIndex++)
+                        {
+                            EntityAI fenceAttachmentItem = fenceTrackedFence.GetInventory().GetAttachmentFromIndex(fenceAttachmentIndex);
+                            if (!fenceAttachmentItem)
+                                continue;
+                            
+                            string fenceAttachmentType = fenceAttachmentItem.GetType();
+                            TStringArray fenceUnsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
+                            foreach (string fenceUnsafeChar : fenceUnsafeChars)
+                            {
+                                fenceAttachmentType.Replace(fenceUnsafeChar, "-");
+                            }
+                            
+                            if (fenceAttachmentsJson != "")
+                                fenceAttachmentsJson = fenceAttachmentsJson + ",";
+                            
+                            fenceAttachmentsJson = fenceAttachmentsJson + "\"" + SanitizeForJson(fenceAttachmentType) + "\"";
+                        }
+                    }
+                    
+                    int fencePidLow1Result = 0;
+                    int fencePidLow2Result = 0;
+                    int fencePidHigh1Result = 0;
+                    int fencePidHigh2Result = 0;
+                    fenceTrackedFence.GetPersistentID(fencePidLow1Result, fencePidLow2Result, fencePidHigh1Result, fencePidHigh2Result);
+                    bool fenceHasPersistentResult = (fencePidLow1Result != 0 || fencePidLow2Result != 0 || fencePidHigh1Result != 0 || fencePidHigh2Result != 0);
+                    string fencePersistentKeyResult = fencePidLow1Result.ToString() + "-" + fencePidLow2Result.ToString() + "-" + fencePidHigh1Result.ToString() + "-" + fencePidHigh2Result.ToString();
+                    string fenceFinalIdentifier = fencePersistentKeyResult;
+                    if (!fenceHasPersistentResult)
+                    {
+                        fenceFinalIdentifier = "pending-" + fenceTrackedFence.GetID().ToString();
+                    }
+                    
+                    string fencePosXStr = fencePosition[0].ToString();
+                    string fencePosZStr = fencePosition[1].ToString();
+                    string fencePosYStr = fencePosition[2].ToString();
+                    
+                    string fenceOriXStr = fenceOrientation[0].ToString();
+                    string fenceOriYStr = fenceOrientation[1].ToString();
+                    string fenceOriZStr = fenceOrientation[2].ToString();
+                    
+                    fenceResultJson = fenceResultJson + ",\"fence_id\":\"" + SanitizeForJson(fenceFinalIdentifier) + "\"";
+                    fenceResultJson = fenceResultJson + ",\"position\":{\"x\":" + fencePosXStr + ",\"y\":" + fencePosZStr + ",\"z\":" + fencePosYStr + "}";
+                    fenceResultJson = fenceResultJson + ",\"orientation\":{\"x\":" + fenceOriXStr + ",\"y\":" + fenceOriYStr + ",\"z\":" + fenceOriZStr + "}";
+                    fenceResultJson = fenceResultJson + ",\"has_base\":" + BoolToJson(fenceHasBase);
+                    fenceResultJson = fenceResultJson + ",\"lower_panel_built\":" + BoolToJson(fenceLowerPanelBuilt);
+                    fenceResultJson = fenceResultJson + ",\"upper_panel_built\":" + BoolToJson(fenceUpperPanelBuilt);
+                    fenceResultJson = fenceResultJson + ",\"has_gate\":" + BoolToJson(fenceHasGate);
+                    fenceResultJson = fenceResultJson + ",\"is_opened\":" + BoolToJson(fenceIsOpened);
+                    fenceResultJson = fenceResultJson + ",\"is_locked\":" + BoolToJson(fenceIsLocked);
+                    fenceResultJson = fenceResultJson + ",\"attachments\":[" + fenceAttachmentsJson + "]";
+                }
+                else if (fenceTrackedWatchtower)
+                {
+                    // Dados de Watchtower
+                    if (fenceTrackedWatchtower.GetHealth("", "") <= 0)
+                    {
+                        string fenceWtDestroyedMessage = "Watchtower está destruída";
+                        WriteToLog("ExecuteCommand(): checkfence - " + fenceWtDestroyedMessage + " (request_id: " + fenceRequestId + ")", LogFile.INIT, false, LogType.WARNING);
+                        
+                        string fenceWtDestroyedJson = "{\"request_id\":\"" + fenceSanitizedRequestId + "\",\"command\":\"checkfence\",\"status\":\"error\",\"message\":\"" + SanitizeForJson(fenceWtDestroyedMessage) + "\"}";
+                        AppendCommandResult(fenceWtDestroyedJson, false);
+                        return false;
+                    }
+                    
+                    fencePosition = fenceTrackedWatchtower.GetPosition();
+                    fenceOrientation = fenceTrackedWatchtower.GetOrientation();
+                    
+                    bool fenceWtHasBase = fenceTrackedWatchtower.HasBase();
+                    Construction fenceWtConstruction = fenceTrackedWatchtower.GetConstruction();
+                    
+                    bool fenceWtLevel1BaseBuilt = IsWatchtowerPartBuilt(fenceWtConstruction, "level_1_base");
+                    bool fenceWtLevel2BaseBuilt = IsWatchtowerPartBuilt(fenceWtConstruction, "level_2_base");
+                    bool fenceWtLevel3BaseBuilt = IsWatchtowerPartBuilt(fenceWtConstruction, "level_3_base");
+                    bool fenceWtLevel1StairsBuilt = IsWatchtowerPartBuilt(fenceWtConstruction, "level_1_stairs");
+                    bool fenceWtLevel2StairsBuilt = IsWatchtowerPartBuilt(fenceWtConstruction, "level_2_stairs");
+                    bool fenceWtHasRoof = IsWatchtowerPartBuilt(fenceWtConstruction, "roof");
+                    
+                    // Paredes nível 1
+                    bool fenceWtLevel1Wall1LowerBuilt = false;
+                    bool fenceWtLevel1Wall1UpperBuilt = false;
+                    bool fenceWtLevel1Wall2LowerBuilt = false;
+                    bool fenceWtLevel1Wall2UpperBuilt = false;
+                    bool fenceWtLevel1Wall3LowerBuilt = false;
+                    bool fenceWtLevel1Wall3UpperBuilt = false;
+                    
+                    // Paredes nível 2
+                    bool fenceWtLevel2Wall1LowerBuilt = false;
+                    bool fenceWtLevel2Wall1UpperBuilt = false;
+                    bool fenceWtLevel2Wall2LowerBuilt = false;
+                    bool fenceWtLevel2Wall2UpperBuilt = false;
+                    bool fenceWtLevel2Wall3LowerBuilt = false;
+                    bool fenceWtLevel2Wall3UpperBuilt = false;
+                    
+                    // Paredes nível 3
+                    bool fenceWtLevel3Wall1LowerBuilt = false;
+                    bool fenceWtLevel3Wall1UpperBuilt = false;
+                    bool fenceWtLevel3Wall2LowerBuilt = false;
+                    bool fenceWtLevel3Wall2UpperBuilt = false;
+                    bool fenceWtLevel3Wall3LowerBuilt = false;
+                    bool fenceWtLevel3Wall3UpperBuilt = false;
+                    
+                    if (fenceWtConstruction)
+                    {
+                        array<string> fenceWtLevel1Wall1LowerParts = { "level_1_wall_1_down", "level_1_wall_1_wood_down", "level_1_wall_1_metal_down" };
+                        fenceWtLevel1Wall1LowerBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel1Wall1LowerParts);
+                        array<string> fenceWtLevel1Wall1UpperParts = { "level_1_wall_1_up", "level_1_wall_1_wood_up", "level_1_wall_1_metal_up" };
+                        fenceWtLevel1Wall1UpperBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel1Wall1UpperParts);
+                        
+                        array<string> fenceWtLevel1Wall2LowerParts = { "level_1_wall_2_down", "level_1_wall_2_wood_down", "level_1_wall_2_metal_down" };
+                        fenceWtLevel1Wall2LowerBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel1Wall2LowerParts);
+                        array<string> fenceWtLevel1Wall2UpperParts = { "level_1_wall_2_up", "level_1_wall_2_wood_up", "level_1_wall_2_metal_up" };
+                        fenceWtLevel1Wall2UpperBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel1Wall2UpperParts);
+                        
+                        array<string> fenceWtLevel1Wall3LowerParts = { "level_1_wall_3_down", "level_1_wall_3_wood_down", "level_1_wall_3_metal_down" };
+                        fenceWtLevel1Wall3LowerBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel1Wall3LowerParts);
+                        array<string> fenceWtLevel1Wall3UpperParts = { "level_1_wall_3_up", "level_1_wall_3_wood_up", "level_1_wall_3_metal_up" };
+                        fenceWtLevel1Wall3UpperBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel1Wall3UpperParts);
+                        
+                        array<string> fenceWtLevel2Wall1LowerParts = { "level_2_wall_1_down", "level_2_wall_1_wood_down", "level_2_wall_1_metal_down" };
+                        fenceWtLevel2Wall1LowerBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel2Wall1LowerParts);
+                        array<string> fenceWtLevel2Wall1UpperParts = { "level_2_wall_1_up", "level_2_wall_1_wood_up", "level_2_wall_1_metal_up" };
+                        fenceWtLevel2Wall1UpperBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel2Wall1UpperParts);
+                        
+                        array<string> fenceWtLevel2Wall2LowerParts = { "level_2_wall_2_down", "level_2_wall_2_wood_down", "level_2_wall_2_metal_down" };
+                        fenceWtLevel2Wall2LowerBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel2Wall2LowerParts);
+                        array<string> fenceWtLevel2Wall2UpperParts = { "level_2_wall_2_up", "level_2_wall_2_wood_up", "level_2_wall_2_metal_up" };
+                        fenceWtLevel2Wall2UpperBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel2Wall2UpperParts);
+                        
+                        array<string> fenceWtLevel2Wall3LowerParts = { "level_2_wall_3_down", "level_2_wall_3_wood_down", "level_2_wall_3_metal_down" };
+                        fenceWtLevel2Wall3LowerBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel2Wall3LowerParts);
+                        array<string> fenceWtLevel2Wall3UpperParts = { "level_2_wall_3_up", "level_2_wall_3_wood_up", "level_2_wall_3_metal_up" };
+                        fenceWtLevel2Wall3UpperBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel2Wall3UpperParts);
+                        
+                        array<string> fenceWtLevel3Wall1LowerParts = { "level_3_wall_1_down", "level_3_wall_1_wood_down", "level_3_wall_1_metal_down" };
+                        fenceWtLevel3Wall1LowerBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel3Wall1LowerParts);
+                        array<string> fenceWtLevel3Wall1UpperParts = { "level_3_wall_1_up", "level_3_wall_1_wood_up", "level_3_wall_1_metal_up" };
+                        fenceWtLevel3Wall1UpperBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel3Wall1UpperParts);
+                        
+                        array<string> fenceWtLevel3Wall2LowerParts = { "level_3_wall_2_down", "level_3_wall_2_wood_down", "level_3_wall_2_metal_down" };
+                        fenceWtLevel3Wall2LowerBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel3Wall2LowerParts);
+                        array<string> fenceWtLevel3Wall2UpperParts = { "level_3_wall_2_up", "level_3_wall_2_wood_up", "level_3_wall_2_metal_up" };
+                        fenceWtLevel3Wall2UpperBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel3Wall2UpperParts);
+                        
+                        array<string> fenceWtLevel3Wall3LowerParts = { "level_3_wall_3_down", "level_3_wall_3_wood_down", "level_3_wall_3_metal_down" };
+                        fenceWtLevel3Wall3LowerBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel3Wall3LowerParts);
+                        array<string> fenceWtLevel3Wall3UpperParts = { "level_3_wall_3_up", "level_3_wall_3_wood_up", "level_3_wall_3_metal_up" };
+                        fenceWtLevel3Wall3UpperBuilt = IsAnyWatchtowerPartBuilt(fenceWtConstruction, fenceWtLevel3Wall3UpperParts);
+                    }
+                    
+                    int fenceWtPidLow1Result = 0;
+                    int fenceWtPidLow2Result = 0;
+                    int fenceWtPidHigh1Result = 0;
+                    int fenceWtPidHigh2Result = 0;
+                    fenceTrackedWatchtower.GetPersistentID(fenceWtPidLow1Result, fenceWtPidLow2Result, fenceWtPidHigh1Result, fenceWtPidHigh2Result);
+                    bool fenceWtHasPersistentResult = (fenceWtPidLow1Result != 0 || fenceWtPidLow2Result != 0 || fenceWtPidHigh1Result != 0 || fenceWtPidHigh2Result != 0);
+                    string fenceWtPersistentKeyResult = fenceWtPidLow1Result.ToString() + "-" + fenceWtPidLow2Result.ToString() + "-" + fenceWtPidHigh1Result.ToString() + "-" + fenceWtPidHigh2Result.ToString();
+                    string fenceWtFinalIdentifier = fenceWtPersistentKeyResult;
+                    if (!fenceWtHasPersistentResult)
+                    {
+                        fenceWtFinalIdentifier = "pending-" + fenceTrackedWatchtower.GetID().ToString();
+                    }
+                    
+                    string fenceWtPosXStr = fencePosition[0].ToString();
+                    string fenceWtPosZStr = fencePosition[1].ToString();
+                    string fenceWtPosYStr = fencePosition[2].ToString();
+                    
+                    string fenceWtOriXStr = fenceOrientation[0].ToString();
+                    string fenceWtOriYStr = fenceOrientation[1].ToString();
+                    string fenceWtOriZStr = fenceOrientation[2].ToString();
+                    
+                    fenceResultJson = fenceResultJson + ",\"fence_id\":\"" + SanitizeForJson(fenceWtFinalIdentifier) + "\"";
+                    fenceResultJson = fenceResultJson + ",\"position\":{\"x\":" + fenceWtPosXStr + ",\"y\":" + fenceWtPosZStr + ",\"z\":" + fenceWtPosYStr + "}";
+                    fenceResultJson = fenceResultJson + ",\"orientation\":{\"x\":" + fenceWtOriXStr + ",\"y\":" + fenceWtOriYStr + ",\"z\":" + fenceWtOriZStr + "}";
+                    fenceResultJson = fenceResultJson + ",\"has_base\":" + BoolToJson(fenceWtHasBase);
+                    fenceResultJson = fenceResultJson + ",\"level_1_base\":" + BoolToJson(fenceWtLevel1BaseBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_2_base\":" + BoolToJson(fenceWtLevel2BaseBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_3_base\":" + BoolToJson(fenceWtLevel3BaseBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_1_stairs\":" + BoolToJson(fenceWtLevel1StairsBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_2_stairs\":" + BoolToJson(fenceWtLevel2StairsBuilt);
+                    fenceResultJson = fenceResultJson + ",\"has_roof\":" + BoolToJson(fenceWtHasRoof);
+                    fenceResultJson = fenceResultJson + ",\"level_1_wall_1_lower_built\":" + BoolToJson(fenceWtLevel1Wall1LowerBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_1_wall_1_upper_built\":" + BoolToJson(fenceWtLevel1Wall1UpperBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_1_wall_2_lower_built\":" + BoolToJson(fenceWtLevel1Wall2LowerBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_1_wall_2_upper_built\":" + BoolToJson(fenceWtLevel1Wall2UpperBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_1_wall_3_lower_built\":" + BoolToJson(fenceWtLevel1Wall3LowerBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_1_wall_3_upper_built\":" + BoolToJson(fenceWtLevel1Wall3UpperBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_2_wall_1_lower_built\":" + BoolToJson(fenceWtLevel2Wall1LowerBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_2_wall_1_upper_built\":" + BoolToJson(fenceWtLevel2Wall1UpperBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_2_wall_2_lower_built\":" + BoolToJson(fenceWtLevel2Wall2LowerBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_2_wall_2_upper_built\":" + BoolToJson(fenceWtLevel2Wall2UpperBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_2_wall_3_lower_built\":" + BoolToJson(fenceWtLevel2Wall3LowerBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_2_wall_3_upper_built\":" + BoolToJson(fenceWtLevel2Wall3UpperBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_3_wall_1_lower_built\":" + BoolToJson(fenceWtLevel3Wall1LowerBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_3_wall_1_upper_built\":" + BoolToJson(fenceWtLevel3Wall1UpperBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_3_wall_2_lower_built\":" + BoolToJson(fenceWtLevel3Wall2LowerBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_3_wall_2_upper_built\":" + BoolToJson(fenceWtLevel3Wall2UpperBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_3_wall_3_lower_built\":" + BoolToJson(fenceWtLevel3Wall3LowerBuilt);
+                    fenceResultJson = fenceResultJson + ",\"level_3_wall_3_upper_built\":" + BoolToJson(fenceWtLevel3Wall3UpperBuilt);
+                }
+                else if (fenceTrackedFlag)
+                {
+                    // Dados de Flag
+                    if (fenceTrackedFlag.GetHealth("", "") <= 0)
+                    {
+                        string fenceFlagDestroyedMessage = "Flag está destruída";
+                        WriteToLog("ExecuteCommand(): checkfence - " + fenceFlagDestroyedMessage + " (request_id: " + fenceRequestId + ")", LogFile.INIT, false, LogType.WARNING);
+                        
+                        string fenceFlagDestroyedJson = "{\"request_id\":\"" + fenceSanitizedRequestId + "\",\"command\":\"checkfence\",\"status\":\"error\",\"message\":\"" + SanitizeForJson(fenceFlagDestroyedMessage) + "\"}";
+                        AppendCommandResult(fenceFlagDestroyedJson, false);
+                        return false;
+                    }
+                    
+                    fencePosition = fenceTrackedFlag.GetPosition();
+                    fenceOrientation = fenceTrackedFlag.GetOrientation();
+                    
+                    BaseBuildingBase fenceFlagBuildingBase = BaseBuildingBase.Cast(fenceTrackedFlag);
+                    bool fenceFlagHasBase = false;
+                    bool fenceFlagHasFlagBase = false;
+                    bool fenceFlagRaised = false;
+                    float fenceFlagHeight = 0.0;
+                    
+                    if (fenceFlagBuildingBase)
+                    {
+                        fenceFlagHasBase = fenceFlagBuildingBase.HasBase();
+                        
+                        if (fenceFlagBuildingBase.GetInventory())
+                        {
+                            for (int fenceFlagAttachmentIndex = 0; fenceFlagAttachmentIndex < fenceFlagBuildingBase.GetInventory().AttachmentCount(); fenceFlagAttachmentIndex++)
+                            {
+                                EntityAI fenceFlagAttachment = fenceFlagBuildingBase.GetInventory().GetAttachmentFromIndex(fenceFlagAttachmentIndex);
+                                if (fenceFlagAttachment)
+                                {
+                                    string fenceFlagAttachmentType = fenceFlagAttachment.GetType();
+                                    if (fenceFlagAttachmentType.IndexOf("Flag_") == 0)
+                                    {
+                                        fenceFlagHasFlagBase = true;
+                                        fenceFlagRaised = true;
+                                        
+                                        vector fenceFlagBasePos = fenceFlagAttachment.GetPosition();
+                                        vector fenceFlagPolePos = fenceTrackedFlag.GetPosition();
+                                        fenceFlagHeight = Math.AbsFloat(fenceFlagBasePos[1] - fenceFlagPolePos[1]);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    int fenceFlagPidLow1Result = 0;
+                    int fenceFlagPidLow2Result = 0;
+                    int fenceFlagPidHigh1Result = 0;
+                    int fenceFlagPidHigh2Result = 0;
+                    fenceTrackedFlag.GetPersistentID(fenceFlagPidLow1Result, fenceFlagPidLow2Result, fenceFlagPidHigh1Result, fenceFlagPidHigh2Result);
+                    bool fenceFlagHasPersistentResult = (fenceFlagPidLow1Result != 0 || fenceFlagPidLow2Result != 0 || fenceFlagPidHigh1Result != 0 || fenceFlagPidHigh2Result != 0);
+                    string fenceFlagPersistentKeyResult = fenceFlagPidLow1Result.ToString() + "-" + fenceFlagPidLow2Result.ToString() + "-" + fenceFlagPidHigh1Result.ToString() + "-" + fenceFlagPidHigh2Result.ToString();
+                    string fenceFlagFinalIdentifier = fenceFlagPersistentKeyResult;
+                    if (!fenceFlagHasPersistentResult)
+                    {
+                        fenceFlagFinalIdentifier = "pending-" + fenceTrackedFlag.GetID().ToString();
+                    }
+                    
+                    string fenceFlagPosXStr = fencePosition[0].ToString();
+                    string fenceFlagPosZStr = fencePosition[1].ToString();
+                    string fenceFlagPosYStr = fencePosition[2].ToString();
+                    
+                    string fenceFlagOriXStr = fenceOrientation[0].ToString();
+                    string fenceFlagOriYStr = fenceOrientation[1].ToString();
+                    string fenceFlagOriZStr = fenceOrientation[2].ToString();
+                    
+                    string fenceFlagHeightStr = fenceFlagHeight.ToString();
+                    
+                    fenceResultJson = fenceResultJson + ",\"fence_id\":\"" + SanitizeForJson(fenceFlagFinalIdentifier) + "\"";
+                    fenceResultJson = fenceResultJson + ",\"position\":{\"x\":" + fenceFlagPosXStr + ",\"y\":" + fenceFlagPosZStr + ",\"z\":" + fenceFlagPosYStr + "}";
+                    fenceResultJson = fenceResultJson + ",\"orientation\":{\"x\":" + fenceFlagOriXStr + ",\"y\":" + fenceFlagOriYStr + ",\"z\":" + fenceFlagOriZStr + "}";
+                    fenceResultJson = fenceResultJson + ",\"has_base\":" + BoolToJson(fenceFlagHasBase);
+                    fenceResultJson = fenceResultJson + ",\"has_flag_base\":" + BoolToJson(fenceFlagHasFlagBase);
+                    fenceResultJson = fenceResultJson + ",\"flag_raised\":" + BoolToJson(fenceFlagRaised);
+                    fenceResultJson = fenceResultJson + ",\"flag_height\":" + fenceFlagHeightStr;
+                }
+                
+                fenceResultJson = fenceResultJson + "}";
+                
+                AppendCommandResult(fenceResultJson, false);
+                WriteToLog("ExecuteCommand(): checkfence - Dados enviados para construção tipo " + fenceStructureType + " (request_id: " + fenceRequestId + ")", LogFile.INIT, false, LogType.INFO);
+                
+                return true;
             case "scanregion":
                 if (tokens.Count() < 7)
                 {
