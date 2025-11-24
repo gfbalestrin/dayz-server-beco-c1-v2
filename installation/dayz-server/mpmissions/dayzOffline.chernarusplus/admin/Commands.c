@@ -142,9 +142,9 @@ bool ExecuteCommand(TStringArray tokens)
                     if (typesLogged < 50 && objType.Length() > 0)
                     {
                         bool typeExists = false;
-                        for (int i = 0; i < uniqueTypes.Count(); i++)
+                        for (int typeIdx = 0; typeIdx < uniqueTypes.Count(); typeIdx++)
                         {
-                            if (uniqueTypes.Get(i) == objType)
+                            if (uniqueTypes.Get(typeIdx) == objType)
                             {
                                 typeExists = true;
                                 break;
