@@ -60,10 +60,7 @@ ref array<ref ActivePlayer> ActivePlayers;
 
 // Mapa de desconexões pendentes (aguardando confirmação de logout)
 // Key: PlayerID, Value: timestamp quando logout foi iniciado
-ref map<string, int> PendingDisconnects;
-
-// Array de playerIds que precisam enviar evento player_disconnected após delay
-ref array<string> PendingDisconnectEvents;  
+ref map<string, int> PendingDisconnects;  
 
 void InitializeVestGrenadeSlots()
 {
