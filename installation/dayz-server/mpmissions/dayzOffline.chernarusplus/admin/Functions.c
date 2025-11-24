@@ -194,7 +194,15 @@ void ApplyGhostMode(PlayerBase player, bool enable)
     
     string playerName = player.GetIdentity().GetName();
     string playerId = player.GetIdentity().GetId();
-    string mode = enable ? "ativado" : "desativado";
+    string mode;
+    if (enable)
+    {
+        mode = "ativado";
+    }
+    else
+    {
+        mode = "desativado";
+    }
     
     WriteToLog("ApplyGhostMode(): Aplicando ghostmode " + mode + " para " + playerName + " (ID: " + playerId + ")", LogFile.INIT, false, LogType.INFO);
     
