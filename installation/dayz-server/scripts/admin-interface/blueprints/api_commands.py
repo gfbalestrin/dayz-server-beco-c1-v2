@@ -80,7 +80,14 @@ def api_command_results(request_id):
             if result_data.get('attachments'):
                 enriched_attachments = []
                 for attachment in result_data['attachments']:
-                    attachment_type = attachment.get('type', '')
+                    # Lidar com attachments que podem ser strings (fences) ou objetos (veículos)
+                    if isinstance(attachment, str):
+                        # Se for string, converter para objeto com type
+                        attachment_type = attachment
+                        attachment = {'type': attachment_type}
+                    else:
+                        attachment_type = attachment.get('type', '')
+                    
                     if attachment_type:
                         attachment_details = get_item_details_from_items_db(attachment_type)
                         enriched_attachment = dict(attachment)
