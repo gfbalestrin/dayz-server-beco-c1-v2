@@ -66,12 +66,25 @@ function loadContainers() {
     }
     
     const includeDestroyed = $('#showDestroyedCheck').is(':checked');
+    
+    // Adicionar indicador de loading no botão (apenas se não estiver já em loading)
+    const btn = $('#toggleContainersBtn');
+    if (!btn.prop('disabled') || !btn.html().includes('Carregando')) {
+        btn.html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Carregando...').prop('disabled', true);
+    }
+    
     $.get('/api/containers/positions', { include_destroyed: includeDestroyed })
         .done(function(data) {
             updateContainers(data);
         })
         .fail(function() {
             console.error('Erro ao carregar containers');
+            // Restaurar botão em caso de erro
+            if (MapState.showContainers) {
+                btn.html('<i class="fas fa-eye-slash me-1"></i>Ocultar Containers').prop('disabled', false);
+            } else {
+                btn.html('<i class="fas fa-box me-1"></i>Mostrar Containers').prop('disabled', false);
+            }
         });
 }
 
@@ -87,6 +100,15 @@ function updateContainers(data) {
             addNotificationToLog('info', `Container: ${change.message}`);
         });
     }
+    
+    // Rastrear quais popups estavam abertos antes de remover marcadores
+    const openContainerPopups = [];
+    Object.keys(MapState.containerMarkers).forEach(function(key) {
+        const marker = MapState.containerMarkers[key];
+        if (marker && marker.isPopupOpen && marker.isPopupOpen()) {
+            openContainerPopups.push(key);
+        }
+    });
     
     // Limpar containers antigos
     if (MapState.containerClusterGroup) {
@@ -166,7 +188,29 @@ function updateContainers(data) {
         MapState.containerClusterGroup.addTo(MapState.map);
     }
     
+    // Reabrir popups que estavam abertos antes do auto-refresh
+    if (openContainerPopups.length > 0) {
+        setTimeout(function() {
+            openContainerPopups.forEach(function(containerId) {
+                const marker = MapState.containerMarkers[containerId];
+                if (marker && !marker.isPopupOpen()) {
+                    marker.openPopup();
+                }
+            });
+        }, 100);
+    }
+    
     console.log(`Containers atualizados: ${data.containers.length} containers`);
+    
+    // Remover indicador de loading do botão (apenas se estiver desabilitado)
+    const btn = $('#toggleContainersBtn');
+    if (btn.prop('disabled') && btn.html().includes('Carregando')) {
+        if (MapState.showContainers) {
+            btn.html('<i class="fas fa-eye-slash me-1"></i>Ocultar Containers').prop('disabled', false);
+        } else {
+            btn.html('<i class="fas fa-box me-1"></i>Mostrar Containers').prop('disabled', false);
+        }
+    }
     
     // Recarregar trails de containers que já estão ativos (para atualizar com novos dados)
     setTimeout(function() {

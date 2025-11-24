@@ -113,12 +113,25 @@ function loadFences() {
     }
     
     const includeDestroyed = $('#showDestroyedCheck').is(':checked');
+    
+    // Adicionar indicador de loading no botão (apenas se não estiver já em loading)
+    const btn = $('#toggleFencesBtn');
+    if (!btn.prop('disabled') || !btn.html().includes('Carregando')) {
+        btn.html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Carregando...').prop('disabled', true);
+    }
+    
     $.get('/api/fences/positions', { include_destroyed: includeDestroyed })
         .done(function(data) {
             updateFences(data);
         })
         .fail(function() {
             console.error('Erro ao carregar fences');
+            // Restaurar botão em caso de erro
+            if (MapState.showFences) {
+                btn.html('<i class="fas fa-eye-slash me-1"></i>Ocultar Construções').prop('disabled', false);
+            } else {
+                btn.html('<i class="fas fa-home me-1"></i>Mostrar Construções').prop('disabled', false);
+            }
         });
 }
 
@@ -203,6 +216,16 @@ function updateFences(data) {
     });
     
     console.log(`Fences atualizados: ${data.fences.length} fences`);
+    
+    // Remover indicador de loading do botão (apenas se estiver desabilitado)
+    const btn = $('#toggleFencesBtn');
+    if (btn.prop('disabled') && btn.html().includes('Carregando')) {
+        if (MapState.showFences) {
+            btn.html('<i class="fas fa-eye-slash me-1"></i>Ocultar Construções').prop('disabled', false);
+        } else {
+            btn.html('<i class="fas fa-home me-1"></i>Mostrar Construções').prop('disabled', false);
+        }
+    }
     
     // Salvar estado anterior para próxima comparação
     MapState.previousFencesData = {};

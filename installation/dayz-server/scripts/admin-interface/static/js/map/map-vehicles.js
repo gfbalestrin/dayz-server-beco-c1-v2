@@ -76,12 +76,25 @@ function detectVehicleChanges(newData, oldData) {
  */
 function loadVehicles() {
     const includeDestroyed = $('#showDestroyedCheck').is(':checked');
+    
+    // Adicionar indicador de loading no botão (apenas se não estiver já em loading)
+    const btn = $('#toggleVehiclesBtn');
+    if (!btn.prop('disabled') || !btn.html().includes('Carregando')) {
+        btn.html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Carregando...').prop('disabled', true);
+    }
+    
     $.get('/api/vehicles/positions', { include_destroyed: includeDestroyed })
         .done(function(data) {
             updateVehicles(data);
         })
         .fail(function() {
             console.error('Erro ao carregar veículos');
+            // Restaurar botão em caso de erro
+            if (MapState.showVehicles) {
+                btn.html('<i class="fas fa-eye-slash me-1"></i>Ocultar Veículos').prop('disabled', false);
+            } else {
+                btn.html('<i class="fas fa-car me-1"></i>Mostrar Veículos').prop('disabled', false);
+            }
         });
 }
 
@@ -97,6 +110,15 @@ function updateVehicles(data) {
             addNotificationToLog('info', `Veículo: ${change.message}`);
         });
     }
+    
+    // Rastrear quais popups estavam abertos antes de remover marcadores
+    const openVehiclePopups = [];
+    Object.keys(MapState.vehicleMarkers).forEach(function(key) {
+        const marker = MapState.vehicleMarkers[key];
+        if (marker && marker.isPopupOpen && marker.isPopupOpen()) {
+            openVehiclePopups.push(key);
+        }
+    });
     
     // Limpar veículos antigos
     Object.keys(MapState.vehicleMarkers).forEach(function(key) {
@@ -166,7 +188,29 @@ function updateVehicles(data) {
         MapState.vehicleMarkers[vehicleId] = marker;
     });
     
+    // Reabrir popups que estavam abertos antes do auto-refresh
+    if (openVehiclePopups.length > 0) {
+        setTimeout(function() {
+            openVehiclePopups.forEach(function(vehicleId) {
+                const marker = MapState.vehicleMarkers[vehicleId];
+                if (marker && !marker.isPopupOpen()) {
+                    marker.openPopup();
+                }
+            });
+        }, 100);
+    }
+    
     console.log(`Veículos atualizados: ${data.vehicles.length} veículos`);
+    
+    // Remover indicador de loading do botão (apenas se estiver desabilitado)
+    const btn = $('#toggleVehiclesBtn');
+    if (btn.prop('disabled') && btn.html().includes('Carregando')) {
+        if (MapState.showVehicles) {
+            btn.html('<i class="fas fa-eye-slash me-1"></i>Ocultar Veículos').prop('disabled', false);
+        } else {
+            btn.html('<i class="fas fa-car me-1"></i>Mostrar Veículos').prop('disabled', false);
+        }
+    }
     
     // Atualizar badges de veículos selecionados (para mostrar nomes corretos)
     if (MapState.selectedVehicleFilters.length > 0) {
