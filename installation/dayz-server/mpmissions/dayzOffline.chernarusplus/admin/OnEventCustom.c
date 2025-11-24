@@ -685,9 +685,9 @@ void OnEventCustom(EventType eventTypeId, Param params)
                                 WriteToLog("  -> Removido de PendingDisconnects", LogFile.INIT, false, LogType.DEBUG);
                             }
                             
-                            // Envia evento externo mesmo sem Identity (jogador fechou o jogo abruptamente)
-                            AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + finishedUID + "\"}");
-                            WriteToLog("  -> Evento player_disconnected enviado (sem Identity)", LogFile.INIT, false, LogType.INFO);
+                            // Envia evento externo mesmo sem Identity (jogador fechou o jogo abruptamente) após delay de 2 segundos
+                            GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SendDelayedDisconnectEvent, 2000, false, finishedUID);
+                            WriteToLog("  -> Evento player_disconnected agendado para envio após 2 segundos (sem Identity)", LogFile.INIT, false, LogType.INFO);
                         }
                     }
                 }
@@ -779,6 +779,22 @@ void OnEventCustom(EventType eventTypeId, Param params)
         string eventTypeName = GetEventTypeName(eventTypeId);
         WriteToLog("EVENT: Evento não mapeado capturado - Tipo: " + eventTypeName, LogFile.INIT, false, LogType.DEBUG);
     }
+}
+
+// ============================================================================
+// FUNÇÃO: SendDelayedDisconnectEvent
+// Envia evento player_disconnected após delay de 2 segundos
+// ============================================================================
+void SendDelayedDisconnectEvent(string playerId)
+{
+    if (playerId == "" || playerId == null)
+    {
+        WriteToLog("SendDelayedDisconnectEvent(): PlayerID inválido", LogFile.INIT, false, LogType.ERROR);
+        return;
+    }
+    
+    AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + playerId + "\"}");
+    WriteToLog("SendDelayedDisconnectEvent(): Evento player_disconnected enviado após delay para PlayerID: " + playerId, LogFile.INIT, false, LogType.INFO);
 }
 
 // ============================================================================
@@ -875,9 +891,9 @@ void CheckPendingDisconnect(string playerId)
             PendingDisconnects.Remove(playerId);
             WriteToLog("CheckPendingDisconnect(): Removido de PendingDisconnects", LogFile.INIT, false, LogType.DEBUG);
             
-            // Envia evento externo mesmo sem Identity (jogador fechou o jogo abruptamente)
-            AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + playerId + "\"}");
-            WriteToLog("CheckPendingDisconnect(): Evento player_disconnected enviado (sem Identity)", LogFile.INIT, false, LogType.INFO);
+            // Envia evento externo mesmo sem Identity (jogador fechou o jogo abruptamente) após delay de 2 segundos
+            GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SendDelayedDisconnectEvent, 2000, false, playerId);
+            WriteToLog("CheckPendingDisconnect(): Evento player_disconnected agendado para envio após 2 segundos (sem Identity)", LogFile.INIT, false, LogType.INFO);
         }
     }
     else
