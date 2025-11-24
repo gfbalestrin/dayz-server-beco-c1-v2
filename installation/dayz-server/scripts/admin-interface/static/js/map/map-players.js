@@ -231,6 +231,17 @@ function updatePositions(data) {
                 existingMarker.setOpacity(newOpacity);
             }
             
+            // Verificar se is_alive mudou e atualizar ícone se necessário
+            const previousData = MapState.previousPlayersData[playerId];
+            const previousIsAlive = previousData ? previousData.is_alive : undefined;
+            const currentIsAlive = player.is_alive;
+            
+            if (previousIsAlive !== currentIsAlive) {
+                // Status de vida mudou, atualizar ícone
+                const newIcon = createMarkerIcon(color, currentIsAlive);
+                existingMarker.setIcon(newIcon);
+            }
+            
             // Atualizar tooltip apenas se dados relevantes mudaram
             const tooltipContent = `
                 <strong>👤 ${player.player_name}${player.steam_name ? ` (${player.steam_name})` : ''}</strong><br>
@@ -248,7 +259,7 @@ function updatePositions(data) {
         } else {
             // Criar novo marcador apenas se não existir
             const marker = L.marker([lat, lng], {
-                icon: createMarkerIcon(color),
+                icon: createMarkerIcon(color, player.is_alive),
                 opacity: player.is_online ? 1.0 : 0.9
             }).addTo(MapState.map);
             
@@ -503,45 +514,82 @@ function drawTrail(playerId, trail) {
         return;
     }
     
-    // Criar linha do trail
     // Inverter ordem dos pontos para mostrar do mais antigo para o mais recente
     // (os pontos vêm do servidor ordenados do mais recente para o mais antigo)
-    let latlngs = processedTrail.map(item => item.mapCoords).reverse();
+    const reversedTrail = processedTrail.slice().reverse();
     const color = getPlayerColor(playerId);
     
-    // Adicionar posição atual do jogador ao trail se estiver online e a posição for diferente do primeiro ponto
-    // (após inverter, o primeiro ponto é o mais antigo e o último é o mais recente)
-    const currentMarker = MapState.playerMarkers[playerId];
-    if (currentMarker && latlngs.length > 0) {
-        const currentLatLng = currentMarker.getLatLng();
+    // Criar múltiplas polylines separadas quando houver mudança de is_alive
+    // Isso evita linhas conectando pontos antes/depois de morte/respawn
+    const polylineSegments = [];
+    let currentSegment = [];
+    
+    for (let i = 0; i < reversedTrail.length; i++) {
+        const point = reversedTrail[i];
+        const pointData = point.data;
         
-        // Verificar se marcador tem opacidade 1.0 (jogador online)
+        // Verificar se há mudança de is_alive em relação ao ponto anterior
+        if (i > 0) {
+            const prevPoint = reversedTrail[i - 1];
+            const prevIsAlive = prevPoint.data.is_alive;
+            const currentIsAlive = pointData.is_alive;
+            
+            // Se houver mudança de is_alive (vivo→morto ou morto→vivo), quebrar a linha
+            if (prevIsAlive !== undefined && currentIsAlive !== undefined && 
+                prevIsAlive !== currentIsAlive) {
+                // Finalizar segmento atual se tiver pontos
+                if (currentSegment.length > 0) {
+                    polylineSegments.push(currentSegment);
+                    currentSegment = [];
+                }
+            }
+        }
+        
+        // Adicionar ponto ao segmento atual
+        currentSegment.push(point.mapCoords);
+    }
+    
+    // Adicionar último segmento se tiver pontos
+    if (currentSegment.length > 0) {
+        polylineSegments.push(currentSegment);
+    }
+    
+    // Adicionar posição atual do jogador ao último segmento se estiver online
+    const currentMarker = MapState.playerMarkers[playerId];
+    if (currentMarker && polylineSegments.length > 0) {
+        const currentLatLng = currentMarker.getLatLng();
         const isOnline = currentMarker.options.opacity === 1.0;
         
         if (isOnline && currentLatLng) {
-            // Comparar com o último ponto (mais recente após inverter)
-            const lastTrailPoint = latlngs[latlngs.length - 1];
-            const distance = Math.sqrt(
-                Math.pow(currentLatLng.lat - lastTrailPoint[0], 2) + 
-                Math.pow(currentLatLng.lng - lastTrailPoint[1], 2)
-            );
-            
-            // Se posição atual está significativamente diferente do último ponto do trail, adicionar
-            if (distance > 0.0001) {
-                latlngs.push([currentLatLng.lat, currentLatLng.lng]);
+            const lastSegment = polylineSegments[polylineSegments.length - 1];
+            if (lastSegment.length > 0) {
+                const lastTrailPoint = lastSegment[lastSegment.length - 1];
+                const distance = Math.sqrt(
+                    Math.pow(currentLatLng.lat - lastTrailPoint[0], 2) + 
+                    Math.pow(currentLatLng.lng - lastTrailPoint[1], 2)
+                );
+                
+                // Se posição atual está significativamente diferente do último ponto do trail, adicionar
+                if (distance > 0.0001) {
+                    lastSegment.push([currentLatLng.lat, currentLatLng.lng]);
+                }
             }
         }
     }
     
-    // Garantir que a polyline não seja fechada (não conecte último com primeiro)
-    const polyline = L.polyline(latlngs, {
-        color: color,
-        weight: 4,
-        opacity: 0.85,
-        smoothFactor: 1.0
-    }).addTo(MapState.map);
-    
-    MapState.playerTrails[playerId].push(polyline);
+    // Criar uma polyline para cada segmento
+    polylineSegments.forEach(function(segment) {
+        if (segment.length > 1) {
+            const polyline = L.polyline(segment, {
+                color: color,
+                weight: 4,
+                opacity: 0.85,
+                smoothFactor: 1.0
+            }).addTo(MapState.map);
+            
+            MapState.playerTrails[playerId].push(polyline);
+        }
+    });
     
     // Adicionar marcadores em cada ponto com cálculo de velocidade
     for (let i = 0; i < processedTrail.length; i++) {
@@ -601,21 +649,40 @@ function drawTrail(playerId, trail) {
         // Aumentar raio se houver backup
         const markerRadius = point.has_backup ? 7 : 5;
         
-        // Criar marcador circular no ponto
-        const circleMarker = L.circleMarker(
-            processedTrail[i].mapCoords,
-            {
-                radius: markerRadius,
-                fillColor: pointColor,
-                color: point.has_backup ? '#4caf50' : 'white',
-                weight: point.has_backup ? 2 : 1,
-                opacity: 1,
-                fillOpacity: 1.0
-            }
-        ).addTo(MapState.map);
+        // Criar marcador no ponto - usar caveira se jogador estiver morto
+        let pointMarker;
+        if (point.is_alive === false) {
+            // Jogador morto - usar ícone de caveira vermelha (tamanho maior para melhor visibilidade)
+            const skullSize = point.has_backup ? 24 : 20;
+            const skullFontSize = point.has_backup ? 14 : 12;
+            const skullIcon = L.divIcon({
+                className: 'trail-point-marker',
+                html: `<div style="background-color: #dc3545; border: 2px solid white; width: ${skullSize}px; height: ${skullSize}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+                         <i class="fas fa-skull" style="color: white; font-size: ${skullFontSize}px;"></i>
+                       </div>`,
+                iconSize: [skullSize, skullSize],
+                iconAnchor: [skullSize / 2, skullSize / 2]
+            });
+            pointMarker = L.marker(processedTrail[i].mapCoords, {
+                icon: skullIcon
+            }).addTo(MapState.map);
+        } else {
+            // Jogador vivo - usar circleMarker padrão
+            pointMarker = L.circleMarker(
+                processedTrail[i].mapCoords,
+                {
+                    radius: markerRadius,
+                    fillColor: pointColor,
+                    color: point.has_backup ? '#4caf50' : 'white',
+                    weight: point.has_backup ? 2 : 1,
+                    opacity: 1,
+                    fillOpacity: 1.0
+                }
+            ).addTo(MapState.map);
+        }
         
         // Adicionar evento de clique (sempre, para mostrar menu de ações)
-        circleMarker.on('click', function() {
+        pointMarker.on('click', function() {
             // Encontrar índice do ponto no trail completo
             const fullTrail = MapState.playerTrailsData[playerId] || trail;
             let pointIndexInFullTrail = -1;
@@ -654,18 +721,20 @@ function drawTrail(playerId, trail) {
         });
         
         // Adicionar cursor pointer
-        circleMarker.getElement().style.cursor = 'pointer';
+        if (pointMarker.getElement) {
+            pointMarker.getElement().style.cursor = 'pointer';
+        }
         
         // Adicionar tooltip (direção dinâmica baseada na posição)
         const tooltipDirection = getTooltipDirectionForPoint(pointLat, pointLng);
         
-        circleMarker.bindTooltip(tooltipText, {
+        pointMarker.bindTooltip(tooltipText, {
             permanent: false,
             direction: tooltipDirection,
             className: 'trail-tooltip'
         });
         
-        MapState.playerTrails[playerId].push(circleMarker);
+        MapState.playerTrails[playerId].push(pointMarker);
     }
 }
 
@@ -1725,11 +1794,20 @@ function showPointActionsMenu(playerId, point, pointNumber, pointIndexInTrail, f
     const modal = new bootstrap.Modal(document.getElementById('pointActionsModal'));
     modal.show();
     
-    // Desabilitar botão de backup se não houver backup
-    if (!point.has_backup) {
+    // Desabilitar botões se jogador estiver morto ou se não houver backup
+    if (isAlive === false) {
+        // Jogador morto - desabilitar Restaurar Backup e Clonar Personagem
         $('#restoreBackupActionBtn').prop('disabled', true);
+        $('#cloneCharacterActionBtn').prop('disabled', true);
     } else {
-        $('#restoreBackupActionBtn').prop('disabled', false);
+        // Jogador vivo - habilitar/desabilitar baseado em disponibilidade de backup
+        if (!point.has_backup) {
+            $('#restoreBackupActionBtn').prop('disabled', true);
+        } else {
+            $('#restoreBackupActionBtn').prop('disabled', false);
+        }
+        // Clonar Personagem sempre habilitado quando jogador está vivo
+        $('#cloneCharacterActionBtn').prop('disabled', false);
     }
 }
 
@@ -3111,5 +3189,296 @@ function displayPlayerInventory(inventoryData, playerName) {
     html += `</div>`;
     
     modalBody.html(html);
+}
+
+/**
+ * Mapeamento de tipos de eventos para nomes legíveis em português
+ */
+const EVENT_TYPE_NAMES = {
+    'player_connected': 'Conexão',
+    'player_disconnected': 'Desconexão',
+    'player_death': 'Morte',
+    'player_killed': 'Morto por Jogador',
+    'player_respawn': 'Respawn',
+    'damage_taken': 'Dano Recebido',
+    'damage_dealt': 'Dano Causado',
+    'fence_built': 'Fence Construída',
+    'fence_destroyed': 'Fence Destruída',
+    'watchtower_built': 'Torre Construída',
+    'watchtower_destroyed': 'Torre Destruída',
+    'flag_built': 'Bandeira Construída',
+    'shelter_built': 'Abrigo Construído',
+    'loadout_changed': 'Loadout Alterado',
+    'admin_action': 'Ação Admin',
+    'chat_command': 'Comando de Chat',
+    'item_found': 'Item Encontrado',
+    'item_picked_up': 'Item Coletado',
+    'item_dropped': 'Item Solto',
+    'item_used': 'Item Usado',
+    'vehicle_entered': 'Entrou em Veículo',
+    'vehicle_exited': 'Saiu de Veículo',
+    'vehicle_damaged': 'Veículo Danificado',
+    'infected_killed': 'Zumbi Morto',
+    'teleport': 'Teleporte',
+    'custom_event': 'Evento Customizado'
+};
+
+/**
+ * Formatar tipo de evento para exibição
+ */
+function formatEventType(eventType) {
+    return EVENT_TYPE_NAMES[eventType] || eventType;
+}
+
+/**
+ * Formatar detalhes JSON de forma legível
+ */
+function formatEventDetails(detailsStr) {
+    if (!detailsStr) return 'N/A';
+    
+    try {
+        const details = JSON.parse(detailsStr);
+        const parts = [];
+        
+        for (const [key, value] of Object.entries(details)) {
+            if (value !== null && value !== undefined) {
+                parts.push(`${key}: ${value}`);
+            }
+        }
+        
+        return parts.length > 0 ? parts.join(', ') : 'N/A';
+    } catch (e) {
+        return detailsStr;
+    }
+}
+
+/**
+ * Formatar coordenadas para exibição
+ */
+function formatEventCoords(coordX, coordY, coordZ) {
+    if (coordX !== null && coordX !== undefined && 
+        coordY !== null && coordY !== undefined) {
+        let coords = `X: ${parseFloat(coordX).toFixed(1)}, Y: ${parseFloat(coordY).toFixed(1)}`;
+        if (coordZ !== null && coordZ !== undefined) {
+            coords += `, Z: ${parseFloat(coordZ).toFixed(1)}`;
+        }
+        return coords;
+    }
+    return 'N/A';
+}
+
+/**
+ * Estado do histórico de eventos
+ */
+const EventsHistoryState = {
+    currentPlayerId: null,
+    currentPage: 1,
+    limit: 50,
+    dateFrom: null,
+    dateTo: null,
+    eventType: null
+};
+
+/**
+ * Mostrar modal de histórico de eventos do jogador
+ */
+function showPlayerEventsHistory(playerId, playerName) {
+    if (!playerId || !playerName) {
+        showToast('Erro', 'Dados do jogador não disponíveis', 'error');
+        return;
+    }
+    
+    // Fechar modal de ações do jogador
+    const playerModal = bootstrap.Modal.getInstance(document.getElementById('playerMarkerActionsModal'));
+    if (playerModal) {
+        playerModal.hide();
+    }
+    
+    // Configurar estado
+    EventsHistoryState.currentPlayerId = playerId;
+    EventsHistoryState.currentPage = 1;
+    EventsHistoryState.dateFrom = null;
+    EventsHistoryState.dateTo = null;
+    EventsHistoryState.eventType = null;
+    
+    // Atualizar nome no modal
+    $('#eventsHistoryPlayerName').text(playerName);
+    
+    // Limpar filtros
+    $('#eventsHistoryStartDate').val('');
+    $('#eventsHistoryStartTime').val('');
+    $('#eventsHistoryEndDate').val('');
+    $('#eventsHistoryEndTime').val('');
+    $('#eventsHistoryEventType').val('');
+    
+    // Abrir modal
+    const modal = new bootstrap.Modal(document.getElementById('playerEventsHistoryModal'));
+    modal.show();
+    
+    // Carregar eventos
+    loadPlayerEvents();
+}
+
+/**
+ * Carregar eventos do jogador
+ */
+function loadPlayerEvents() {
+    const playerId = EventsHistoryState.currentPlayerId;
+    if (!playerId) {
+        return;
+    }
+    
+    // Mostrar indicador de carregamento
+    $('#eventsHistoryLoading').show();
+    $('#eventsHistoryTableContainer').hide();
+    $('#eventsHistoryPagination').hide();
+    
+    // Construir parâmetros da API
+    const params = {
+        limit: EventsHistoryState.limit,
+        offset: (EventsHistoryState.currentPage - 1) * EventsHistoryState.limit
+    };
+    
+    // Adicionar filtros de data
+    if (EventsHistoryState.dateFrom) {
+        params.date_from = EventsHistoryState.dateFrom;
+    }
+    if (EventsHistoryState.dateTo) {
+        params.date_to = EventsHistoryState.dateTo;
+    }
+    if (EventsHistoryState.eventType) {
+        params.event_type = EventsHistoryState.eventType;
+    }
+    
+    // Fazer requisição
+    $.get(`/api/players/${playerId}/events`, params)
+        .done(function(data) {
+            $('#eventsHistoryLoading').hide();
+            $('#eventsHistoryTableContainer').show();
+            
+            if (data.events && data.events.length > 0) {
+                renderPlayerEvents(data.events, data.pagination);
+            } else {
+                $('#eventsHistoryTableBody').html(`
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">Nenhum evento encontrado</td>
+                    </tr>
+                `);
+                $('#eventsHistoryPagination').hide();
+            }
+        })
+        .fail(function() {
+            $('#eventsHistoryLoading').hide();
+            $('#eventsHistoryTableContainer').show();
+            $('#eventsHistoryTableBody').html(`
+                <tr>
+                    <td colspan="5" class="text-center text-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Erro ao carregar eventos
+                    </td>
+                </tr>
+            `);
+            $('#eventsHistoryPagination').hide();
+        });
+}
+
+/**
+ * Renderizar eventos na tabela
+ */
+function renderPlayerEvents(events, pagination) {
+    const tbody = $('#eventsHistoryTableBody');
+    tbody.empty();
+    
+    events.forEach(function(event) {
+        const timestamp = new Date(event.timestamp);
+        const formattedDate = timestamp.toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        
+        const eventType = formatEventType(event.event_type);
+        const coords = formatEventCoords(event.coord_x, event.coord_y, event.coord_z);
+        const details = formatEventDetails(event.details);
+        const relatedPlayer = event.related_player_name || (event.related_player_id ? 'ID: ' + event.related_player_id.substring(0, 8) + '...' : 'N/A');
+        
+        const row = `
+            <tr>
+                <td>${formattedDate}</td>
+                <td><span class="badge bg-info">${eventType}</span></td>
+                <td><small>${coords}</small></td>
+                <td><small>${details}</small></td>
+                <td><small>${relatedPlayer}</small></td>
+            </tr>
+        `;
+        tbody.append(row);
+    });
+    
+    // Atualizar paginação
+    if (pagination && pagination.total > 0) {
+        const totalPages = Math.ceil(pagination.total / pagination.limit);
+        $('#eventsHistoryCurrentPage').text(EventsHistoryState.currentPage);
+        $('#eventsHistoryTotalPages').text(totalPages);
+        $('#eventsHistoryTotalCount').text(pagination.total);
+        
+        $('#eventsHistoryPrevPage').prop('disabled', EventsHistoryState.currentPage <= 1);
+        $('#eventsHistoryNextPage').prop('disabled', EventsHistoryState.currentPage >= totalPages || !pagination.has_more);
+        
+        $('#eventsHistoryPagination').show();
+    } else {
+        $('#eventsHistoryPagination').hide();
+    }
+}
+
+/**
+ * Aplicar filtros de histórico
+ */
+function applyEventsHistoryFilters() {
+    const startDate = $('#eventsHistoryStartDate').val();
+    const startTime = $('#eventsHistoryStartTime').val();
+    const endDate = $('#eventsHistoryEndDate').val();
+    const endTime = $('#eventsHistoryEndTime').val();
+    const eventType = $('#eventsHistoryEventType').val();
+    
+    // Construir data início
+    if (startDate) {
+        const startDateTime = startTime ? `${startDate}T${startTime}:00` : `${startDate}T00:00:00`;
+        EventsHistoryState.dateFrom = new Date(startDateTime).toISOString();
+    } else {
+        EventsHistoryState.dateFrom = null;
+    }
+    
+    // Construir data fim
+    if (endDate) {
+        const endDateTime = endTime ? `${endDate}T${endTime}:59` : `${endDate}T23:59:59`;
+        EventsHistoryState.dateTo = new Date(endDateTime).toISOString();
+    } else {
+        EventsHistoryState.dateTo = null;
+    }
+    
+    EventsHistoryState.eventType = eventType || null;
+    EventsHistoryState.currentPage = 1;
+    
+    loadPlayerEvents();
+}
+
+/**
+ * Limpar filtros de histórico
+ */
+function clearEventsHistoryFilters() {
+    $('#eventsHistoryStartDate').val('');
+    $('#eventsHistoryStartTime').val('');
+    $('#eventsHistoryEndDate').val('');
+    $('#eventsHistoryEndTime').val('');
+    $('#eventsHistoryEventType').val('');
+    
+    EventsHistoryState.dateFrom = null;
+    EventsHistoryState.dateTo = null;
+    EventsHistoryState.eventType = null;
+    EventsHistoryState.currentPage = 1;
+    
+    loadPlayerEvents();
 }
 

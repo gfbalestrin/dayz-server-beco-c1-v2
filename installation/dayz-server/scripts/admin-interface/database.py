@@ -5849,3 +5849,61 @@ def clear_player_cheat_events(player_id: str) -> bool:
         
         conn.commit()
         return events_deleted > 0 or scores_updated > 0
+
+def get_player_events(player_id: str, limit: int = 50, offset: int = 0, date_from: str = None, date_to: str = None, event_type: str = None) -> tuple:
+    """
+    Retorna histórico de eventos de um jogador com filtros e paginação
+    Retorna: (events, total_count)
+    
+    Args:
+        player_id: ID do jogador
+        limit: Limite de registros por página (padrão 50)
+        offset: Offset para paginação (padrão 0)
+        date_from: Data inicial para filtrar (formato: 'YYYY-MM-DD HH:MM:SS' ou ISO)
+        date_to: Data final para filtrar (formato: 'YYYY-MM-DD HH:MM:SS' ou ISO)
+        event_type: Tipo de evento para filtrar (opcional)
+    """
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        
+        # Construir condições WHERE dinamicamente
+        where_clauses = ["pe.PlayerID = ?"]
+        params = [player_id]
+        
+        if date_from:
+            where_clauses.append("datetime(pe.TimeStamp) >= datetime(?)")
+            params.append(date_from)
+        
+        if date_to:
+            where_clauses.append("datetime(pe.TimeStamp) <= datetime(?)")
+            params.append(date_to)
+        
+        if event_type:
+            where_clauses.append("pe.EventType = ?")
+            params.append(event_type)
+        
+        where_sql = " AND ".join(where_clauses)
+        
+        # Contar total de registros
+        cursor.execute(f"""
+            SELECT COUNT(*)
+            FROM players_events pe
+            WHERE {where_sql}
+        """, params)
+        total_count = cursor.fetchone()[0]
+        
+        # Buscar eventos com paginação
+        cursor.execute(f"""
+            SELECT pe.EventId, pe.PlayerID, pe.EventType, pe.TimeStamp,
+                   pe.CoordX, pe.CoordY, pe.CoordZ, pe.Details, pe.RelatedPlayerID,
+                   pd_related.PlayerName as RelatedPlayerName
+            FROM players_events pe
+            LEFT JOIN players_database pd_related ON pe.RelatedPlayerID = pd_related.PlayerID
+            WHERE {where_sql}
+            ORDER BY pe.TimeStamp DESC
+            LIMIT ? OFFSET ?
+        """, params + [limit, offset])
+        
+        events = [dict(row) for row in cursor.fetchall()]
+        
+        return (events, total_count)

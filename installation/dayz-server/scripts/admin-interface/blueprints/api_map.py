@@ -18,7 +18,7 @@ from database import (
     get_vehicle_trail, get_containers_last_position, get_container_trail,
     get_fences_last_position, get_watchtowers_last_position, get_flags_last_position,
     get_fence_trail, get_watchtower_trail, get_flag_trail,
-    get_item_details_from_items_db, dayz_to_pixel
+    get_item_details_from_items_db, dayz_to_pixel, get_player_events
 )
 from blueprints.auth import admin_required
 from blueprints.helpers import convert_timestamp_to_br
@@ -177,6 +177,85 @@ def api_player_trail(player_id):
             trail_point['main_items'] = point['MainItems']
         
         result['trail'].append(trail_point)
+    
+    return jsonify(result)
+
+@api_map_bp.route('/api/players/<player_id>/events')
+@admin_required
+def api_player_events(player_id):
+    """API com histórico de eventos de um jogador específico"""
+    limit = request.args.get('limit', 50, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    date_from = request.args.get('date_from', None)
+    date_to = request.args.get('date_to', None)
+    event_type = request.args.get('event_type', None)
+    
+    # Converter parâmetros de data de UTC para formato do banco
+    if date_from:
+        try:
+            dt_from = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
+            if dt_from.tzinfo is None:
+                dt_from = dt_from.replace(tzinfo=ZoneInfo('UTC'))
+            if dt_from.microsecond > 0:
+                date_from = dt_from.strftime('%Y-%m-%d %H:%M:%S.%f')
+            else:
+                date_from = dt_from.strftime('%Y-%m-%d %H:%M:%S')
+        except (ValueError, AttributeError):
+            pass
+    
+    if date_to:
+        try:
+            dt_to = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
+            if dt_to.tzinfo is None:
+                dt_to = dt_to.replace(tzinfo=ZoneInfo('UTC'))
+            if dt_to.microsecond > 0:
+                date_to = dt_to.strftime('%Y-%m-%d %H:%M:%S.%f')
+            else:
+                date_to = dt_to.strftime('%Y-%m-%d %H:%M:%S')
+        except (ValueError, AttributeError):
+            pass
+    
+    events, total_count = get_player_events(player_id, limit, offset, date_from, date_to, event_type)
+    
+    result = {
+        'player_id': player_id,
+        'events': [],
+        'pagination': {
+            'limit': limit,
+            'offset': offset,
+            'total': total_count,
+            'has_more': (offset + limit) < total_count
+        }
+    }
+    
+    for event in events:
+        # Converter timestamp do banco (UTC) para America/Sao_Paulo
+        timestamp_br = None
+        if event.get('TimeStamp'):
+            try:
+                try:
+                    dt_utc = datetime.strptime(event['TimeStamp'], '%Y-%m-%d %H:%M:%S.%f')
+                except ValueError:
+                    dt_utc = datetime.strptime(event['TimeStamp'], '%Y-%m-%d %H:%M:%S')
+                dt_utc = dt_utc.replace(tzinfo=ZoneInfo('UTC'))
+                dt_sp = dt_utc.astimezone(ZoneInfo('America/Sao_Paulo'))
+                timestamp_br = dt_sp.isoformat()
+            except (ValueError, AttributeError):
+                timestamp_br = convert_timestamp_to_br(event['TimeStamp'])
+        
+        event_data = {
+            'event_id': event['EventId'],
+            'event_type': event['EventType'],
+            'timestamp': timestamp_br or event.get('TimeStamp', ''),
+            'coord_x': event.get('CoordX'),
+            'coord_y': event.get('CoordY'),
+            'coord_z': event.get('CoordZ'),
+            'details': event.get('Details'),
+            'related_player_id': event.get('RelatedPlayerID'),
+            'related_player_name': event.get('RelatedPlayerName')
+        }
+        
+        result['events'].append(event_data)
     
     return jsonify(result)
 

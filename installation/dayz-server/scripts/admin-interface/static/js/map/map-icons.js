@@ -6,9 +6,22 @@
 /**
  * Criar ícone de marcador de jogador
  * @param {string} color - Cor hexadecimal do marcador
+ * @param {boolean} isAlive - Indica se o jogador está vivo (opcional)
  * @returns {L.DivIcon} Ícone do Leaflet
  */
-function createMarkerIcon(color) {
+function createMarkerIcon(color, isAlive) {
+    // Se jogador está morto, usar caveira vermelha
+    if (isAlive === false) {
+        return L.divIcon({
+            className: 'player-marker player-marker-pulse',
+            html: `<div style="background-color: #dc3545; border: 2px solid white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                     <i class="fas fa-skull" style="color: white; font-size: 14px;"></i>
+                   </div>`,
+            iconSize: [24, 24]
+        });
+    }
+    
+    // Comportamento padrão para jogador vivo ou quando isAlive não está definido
     return L.divIcon({
         className: 'player-marker player-marker-pulse',
         html: `<div style="background-color: ${color}; border: 2px solid white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">

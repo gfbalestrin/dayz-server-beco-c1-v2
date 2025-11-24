@@ -97,6 +97,12 @@ bool ExecuteCommand(TStringArray tokens)
                 array<Object> scannedObjects = new array<Object>();
                 GetGame().GetObjectsAtPosition(scanPosition, scanRadius, scannedObjects, null);
                 
+                // TODO: Considerar adicionar verificação adicional de veículos rastreados (m_TrackedVehicles)
+                // que estão dentro do raio do scan, pois GetObjectsAtPosition pode não retornar
+                // veículos em certos estados (danificados, etc.). Isso garantiria que veículos
+                // rastreados sejam incluídos mesmo que não sejam retornados pelo GetObjectsAtPosition.
+                // AVISO: Testar impacto na performance antes de implementar.
+                
                 if (!scannedObjects || scannedObjects.Count() == 0)
                 {
                     string emptyResultJson = "{\"request_id\":\"" + SanitizeForJson(scanRequestId) + "\",\"command\":\"scanregion\",\"center\":{\"x\":" + scanCoordX.ToString() + ",\"y\":" + scanCoordY.ToString() + ",\"z\":" + scanCoordZ.ToString() + "},\"radius\":" + scanRadius.ToString() + ",\"objects\":[]}";

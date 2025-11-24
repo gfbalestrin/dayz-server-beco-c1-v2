@@ -262,6 +262,30 @@ $(document).ready(function() {
         }
     });
     
+    // Botão de ver histórico
+    $('#viewHistoryActionBtn').on('click', function() {
+        if (MapState.currentPlayerContext) {
+            showPlayerEventsHistory(
+                MapState.currentPlayerContext.playerId,
+                MapState.currentPlayerContext.playerName
+            );
+        }
+    });
+    
+    // Event listeners do modal de histórico de eventos
+    $('#applyEventsHistoryFilter').on('click', applyEventsHistoryFilters);
+    $('#clearEventsHistoryFilter').on('click', clearEventsHistoryFilters);
+    $('#eventsHistoryPrevPage').on('click', function() {
+        if (EventsHistoryState.currentPage > 1) {
+            EventsHistoryState.currentPage--;
+            loadPlayerEvents();
+        }
+    });
+    $('#eventsHistoryNextPage').on('click', function() {
+        EventsHistoryState.currentPage++;
+        loadPlayerEvents();
+    });
+    
     // Botões do modal de teleporte de jogador
     $('#confirmPlayerTeleportBtn').on('click', executePlayerTeleport);
     $('#useMapPositionForPlayerBtn').on('click', useMapPositionForPlayer);

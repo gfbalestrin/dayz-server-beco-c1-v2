@@ -108,6 +108,13 @@ handle_reset_password() {
     echo "$player_id;Login: $login" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
     echo "$player_id;Nova senha: $senha" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
 
+    # Registrar evento de reset de senha
+    if [[ -n "$player_id" ]] && [[ ${#player_id} -eq 44 ]]; then
+        local DetailsJson
+        DetailsJson="{\"action_type\": \"password_reset\", \"username\": \"$login\"}"
+        INSERT_PLAYER_EVENT "$player_id" "admin_action" "" "" "" "$DetailsJson" ""
+    fi
+
     if [[ -n "$PlayerExists" ]]; then
         local Content
         Content="Jogador **$PlayerName** ([$SteamName](<https://steamcommunity.com/profiles/$SteamID>)) resetou seu acesso no sistema de loadout"

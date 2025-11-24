@@ -43,8 +43,23 @@ handle_chat_command() {
         fi
 
         echo "$PlayerId $Command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
+        
+        # Registrar evento de comando de chat (apenas comandos permitidos)
+        if [[ -n "$PlayerId" ]] && [[ ${#PlayerId} -eq 44 ]] && [[ -n "$Command" ]]; then
+            local DetailsJson
+            DetailsJson="{\"command\": \"$Command\", \"command_name\": \"$CommandName\"}"
+            INSERT_PLAYER_EVENT "$PlayerId" "chat_command" "" "" "" "$DetailsJson" ""
+        fi
+        
         HANDLER_SHOULD_CONTINUE=1
         return
+    fi
+    
+    # Registrar evento de comando de chat para admins
+    if [[ -n "$PlayerId" ]] && [[ ${#PlayerId} -eq 44 ]] && [[ -n "$Command" ]]; then
+        local DetailsJson
+        DetailsJson="{\"command\": \"$Command\", \"command_name\": \"$CommandName\"}"
+        INSERT_PLAYER_EVENT "$PlayerId" "chat_command" "" "" "" "$DetailsJson" ""
     fi
 }
 

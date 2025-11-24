@@ -219,3 +219,29 @@ CREATE INDEX IF NOT EXISTS idx_cheat_events_player_id ON cheat_detection_events(
 CREATE INDEX IF NOT EXISTS idx_cheat_events_event_type ON cheat_detection_events(EventType);
 CREATE INDEX IF NOT EXISTS idx_cheat_events_timestamp ON cheat_detection_events(TimeStamp);
 CREATE INDEX IF NOT EXISTS idx_cheat_events_reviewed ON cheat_detection_events(Reviewed);
+
+-- ============================================================
+-- TABELA DE HISTÓRICO DE EVENTOS DE JOGADORES
+-- ============================================================
+
+-- Tabela players_events: Registra histórico completo de eventos relacionados aos jogadores
+CREATE TABLE IF NOT EXISTS players_events (
+    EventId INTEGER PRIMARY KEY AUTOINCREMENT,
+    PlayerID TEXT NOT NULL,
+    EventType TEXT NOT NULL,  -- Tipo do evento (player_connected, player_death, item_found, etc.)
+    TimeStamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CoordX REAL,  -- Coordenada X (opcional)
+    CoordY REAL,  -- Coordenada Y (opcional)
+    CoordZ REAL,  -- Coordenada Z/Altura (opcional)
+    Details TEXT,  -- JSON com detalhes adicionais do evento
+    RelatedPlayerID TEXT,  -- FK opcional para outro jogador envolvido no evento
+    FOREIGN KEY (PlayerID) REFERENCES players_database(PlayerID) ON DELETE CASCADE,
+    FOREIGN KEY (RelatedPlayerID) REFERENCES players_database(PlayerID) ON DELETE SET NULL
+);
+
+-- Índices para otimizar consultas
+CREATE INDEX IF NOT EXISTS idx_events_player_id ON players_events(PlayerID);
+CREATE INDEX IF NOT EXISTS idx_events_event_type ON players_events(EventType);
+CREATE INDEX IF NOT EXISTS idx_events_timestamp ON players_events(TimeStamp);
+CREATE INDEX IF NOT EXISTS idx_events_player_type ON players_events(PlayerID, EventType);
+CREATE INDEX IF NOT EXISTS idx_events_related_player ON players_events(RelatedPlayerID);

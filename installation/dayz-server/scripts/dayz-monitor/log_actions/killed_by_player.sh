@@ -24,6 +24,21 @@ handle_killed_by_player() {
 
     if [[ "$PlayerIdKilled" != "$PlayerIdKiller" ]]; then
         INSERT_KILLFEED "$PlayerIdKiller" "$PlayerIdKilled" "$Weapon" "$metros" "$Data" "$PosKiller" "$PosKilled"
+        
+        # Registrar evento de morte (player_killed)
+        if [[ -n "$PlayerIdKilled" ]] && [[ ${#PlayerIdKilled} -eq 44 ]] && [[ -n "$PlayerIdKiller" ]] && [[ ${#PlayerIdKiller} -eq 44 ]]; then
+            local CoordX CoordY CoordZ DetailsJson
+            # Extrair coordenadas de PosKilled (formato: X,Y,Z)
+            if [[ -n "$PosKilled" ]]; then
+                CoordX=$(echo "$PosKilled" | cut -d',' -f1 | xargs)
+                CoordY=$(echo "$PosKilled" | cut -d',' -f2 | xargs)
+                CoordZ=$(echo "$PosKilled" | cut -d',' -f3 | xargs)
+            fi
+            
+            # Criar JSON com detalhes
+            DetailsJson="{\"weapon\": \"$Weapon\", \"distance\": $metros, \"pos_killer\": \"$PosKiller\", \"pos_killed\": \"$PosKilled\"}"
+            INSERT_PLAYER_EVENT "$PlayerIdKilled" "player_killed" "$CoordX" "$CoordY" "$CoordZ" "$DetailsJson" "$PlayerIdKiller"
+        fi
     fi
 
     local PlayerKiller PlayerVictim

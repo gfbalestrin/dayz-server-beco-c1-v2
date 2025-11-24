@@ -38,6 +38,17 @@ handle_built_shelter() {
     INSERT_CUSTOM_LOG "$Message" "INFO" "$ScriptName"
     HANDLER_CONTENT="$Message"
 
+    # Registrar evento de construção
+    if [[ -n "$PlayerId" ]] && [[ ${#PlayerId} -eq 44 ]] && [[ -n "$Position" ]]; then
+        local CoordX CoordY CoordZ DetailsJson
+        CoordX=$(echo "$Position" | cut -d',' -f1 | xargs)
+        CoordY=$(echo "$Position" | cut -d',' -f2 | xargs)
+        CoordZ=$(echo "$Position" | cut -d',' -f3 | xargs)
+        
+        DetailsJson="{\"shelter_type\": \"$ShelterType\", \"build_method\": \"$BuildMethod\", \"position\": \"$Position\"}"
+        INSERT_PLAYER_EVENT "$PlayerId" "shelter_built" "$CoordX" "$CoordY" "$CoordZ" "$DetailsJson" ""
+    fi
+
     PosCommand=$(echo "$Position" | tr ',' ' ')
     if [[ -n "$PosCommand" ]]; then
         local CommandLine

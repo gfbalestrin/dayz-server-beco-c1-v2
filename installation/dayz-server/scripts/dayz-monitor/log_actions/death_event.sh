@@ -224,6 +224,28 @@ handle_death_event() {
     UpdatedContent=$(echo "$UpdatedContent" | sed -E 's/id=[^ ]+//g')
     UpdatedContent=$(echo "$UpdatedContent" | sed -E 's/pos=<[^>]+>//g')
 
+    # Registrar evento de morte
+    if [[ ${#PlayerId} -eq 44 ]]; then
+        local Position CoordX CoordY CoordZ DetailsJson Cause
+        # Tentar extrair coordenadas do conteúdo original
+        Position=$(echo "$content" | sed -n 's/.*pos=<\([^>]*\)>.*/\1/p' | sed 's/, */,/g')
+        if [[ -n "$Position" ]]; then
+            CoordX=$(echo "$Position" | cut -d',' -f1 | xargs)
+            CoordY=$(echo "$Position" | cut -d',' -f2 | xargs)
+            CoordZ=$(echo "$Position" | cut -d',' -f3 | xargs)
+        fi
+        
+        # Extrair causa da morte do conteúdo traduzido
+        Cause=$(echo "$UpdatedContent" | sed -E 's/.*(morreu por|morreu para|está inconsciente|bled out).*/\1/' | head -n 1)
+        if [[ -z "$Cause" ]]; then
+            Cause="unknown"
+        fi
+        
+        # Criar JSON com detalhes
+        DetailsJson="{\"cause\": \"$Cause\", \"death_message\": \"$UpdatedContent\"}"
+        INSERT_PLAYER_EVENT "$PlayerId" "player_death" "$CoordX" "$CoordY" "$CoordZ" "$DetailsJson" ""
+    fi
+
     HANDLER_CONTENT=$(echo "$UpdatedContent" | tr -d '\r\n' | sed "s/   */ /g")
 }
 

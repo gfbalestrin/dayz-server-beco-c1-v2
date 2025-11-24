@@ -26,6 +26,13 @@ handle_active_loadout() {
     echo ">> Loadout ativado com sucesso: $msg"
     echo "$player_id;$msg" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
 
+    # Registrar evento de mudança de loadout
+    if [[ -n "$player_id" ]] && [[ ${#player_id} -eq 44 ]] && [[ -n "$loadout_name" ]]; then
+        local DetailsJson
+        DetailsJson="{\"loadout_name\": \"$loadout_name\"}"
+        INSERT_PLAYER_EVENT "$player_id" "loadout_changed" "" "" "" "$DetailsJson" ""
+    fi
+
     local PlayerExists
     PlayerExists=$(sqlite3 -separator "|" "$AppFolder/$AppPlayerBecoC1DbFile" "SELECT PlayerName, SteamID, SteamName FROM players_database WHERE PlayerID = '$player_id';")
     if [[ -n "$PlayerExists" ]]; then

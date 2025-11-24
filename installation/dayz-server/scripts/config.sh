@@ -334,6 +334,95 @@ EOF
     return 1
 }
 
+INSERT_PLAYER_EVENT() {
+    local PlayerID="$1"
+    local EventType="$2"
+    local CoordX="${3:-}"
+    local CoordY="${4:-}"
+    local CoordZ="${5:-}"
+    local Details="${6:-}"
+    local RelatedPlayerID="${7:-}"
+    
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+
+    if [[ -z "$PlayerID" ]] || [[ -z "$EventType" ]]; then
+        echo "Error: PlayerID and EventType are required."
+        return 1
+    fi
+
+    # Escapar aspas simples
+    PlayerID=$(echo "$PlayerID" | sed "s/'/''/g")
+    EventType=$(echo "$EventType" | sed "s/'/''/g")
+    if [[ -n "$Details" ]]; then
+        Details=$(echo "$Details" | sed "s/'/''/g")
+    fi
+    if [[ -n "$RelatedPlayerID" ]]; then
+        RelatedPlayerID=$(echo "$RelatedPlayerID" | sed "s/'/''/g")
+    fi
+
+    # Validar coordenadas (devem ser numéricas ou vazias)
+    local coord_x_sql coord_y_sql coord_z_sql
+    if [[ -n "$CoordX" ]] && [[ "$CoordX" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+        coord_x_sql="$CoordX"
+    else
+        coord_x_sql="NULL"
+    fi
+    
+    if [[ -n "$CoordY" ]] && [[ "$CoordY" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+        coord_y_sql="$CoordY"
+    else
+        coord_y_sql="NULL"
+    fi
+    
+    if [[ -n "$CoordZ" ]] && [[ "$CoordZ" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+        coord_z_sql="$CoordZ"
+    else
+        coord_z_sql="NULL"
+    fi
+
+    # Preparar SQL para Details e RelatedPlayerID
+    local details_sql related_player_sql
+    if [[ -n "$Details" ]]; then
+        details_sql="'$Details'"
+    else
+        details_sql="NULL"
+    fi
+    
+    if [[ -n "$RelatedPlayerID" ]]; then
+        related_player_sql="'$RelatedPlayerID'"
+    else
+        related_player_sql="NULL"
+    fi
+
+    while (( attempt <= max_retries )); do
+        sqlite3 "$AppFolder/$AppPlayerBecoC1DbFile" <<EOF
+INSERT INTO players_events (PlayerID, EventType, CoordX, CoordY, CoordZ, Details, RelatedPlayerID)
+VALUES (
+    '$PlayerID',
+    '$EventType',
+    $coord_x_sql,
+    $coord_y_sql,
+    $coord_z_sql,
+    $details_sql,
+    $related_player_sql
+);
+EOF
+
+        if [[ $? -eq 0 ]]; then
+            return 0
+        else
+            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
+            sleep "$retry_delay"
+            attempt=$((attempt + 1))
+        fi
+    done
+
+    echo "Failed to insert event after $max_retries attempts."
+    return 1
+}
+
 INSERT_PLAYER_DATABASE() {
     local PlayerID="$1"
     local PlayerName="${2}"

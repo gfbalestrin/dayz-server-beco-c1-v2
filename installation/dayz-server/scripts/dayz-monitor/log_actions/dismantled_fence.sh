@@ -27,5 +27,16 @@ handle_dismantled_fence() {
 
     INSERT_CUSTOM_LOG "$Message" "INFO" "$ScriptName"
     HANDLER_CONTENT="$Message"
+
+    # Registrar evento de destruição
+    if [[ -n "$PlayerId" ]] && [[ ${#PlayerId} -eq 44 ]] && [[ -n "$Position" ]]; then
+        local CoordX CoordY CoordZ DetailsJson
+        CoordX=$(echo "$Position" | cut -d',' -f1 | xargs)
+        CoordY=$(echo "$Position" | cut -d',' -f2 | xargs)
+        CoordZ=$(echo "$Position" | cut -d',' -f3 | xargs)
+        
+        DetailsJson="{\"fence_type\": \"fence\", \"position\": \"$Position\", \"action\": \"dismantled\"}"
+        INSERT_PLAYER_EVENT "$PlayerId" "fence_destroyed" "$CoordX" "$CoordY" "$CoordZ" "$DetailsJson" ""
+    fi
 }
 

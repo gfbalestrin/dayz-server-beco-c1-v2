@@ -38,6 +38,33 @@ handle_hit_player() {
 
     INSERT_PLAYER_DAMAGE "$PlayerIdAttacker" "$PlayerIdVictim" "$PosAttacker" "$PosVictim" "$LocalDamage" "$HitType" "$Damage" "$Health" "$Data" "$Weapon" "$DistanceMeter"
 
+    # Registrar eventos de dano
+    if [[ -n "$PlayerIdVictim" ]] && [[ ${#PlayerIdVictim} -eq 44 ]] && [[ -n "$PlayerIdAttacker" ]] && [[ ${#PlayerIdAttacker} -eq 44 ]]; then
+        local CoordXVictim CoordYVictim CoordZVictim CoordXAttacker CoordYAttacker CoordZAttacker DetailsJsonVictim DetailsJsonAttacker
+        
+        # Extrair coordenadas da vítima
+        if [[ -n "$PosVictim" ]]; then
+            CoordXVictim=$(echo "$PosVictim" | cut -d',' -f1 | xargs)
+            CoordYVictim=$(echo "$PosVictim" | cut -d',' -f2 | xargs)
+            CoordZVictim=$(echo "$PosVictim" | cut -d',' -f3 | xargs)
+        fi
+        
+        # Extrair coordenadas do atacante
+        if [[ -n "$PosAttacker" ]]; then
+            CoordXAttacker=$(echo "$PosAttacker" | cut -d',' -f1 | xargs)
+            CoordYAttacker=$(echo "$PosAttacker" | cut -d',' -f2 | xargs)
+            CoordZAttacker=$(echo "$PosAttacker" | cut -d',' -f3 | xargs)
+        fi
+        
+        # Criar JSON para vítima (damage_taken)
+        DetailsJsonVictim="{\"local_damage\": \"$LocalDamage\", \"hit_type\": \"$HitType\", \"damage\": $Damage, \"health\": $Health, \"weapon\": \"$Weapon\", \"distance\": $DistanceMeter, \"attacker_pos\": \"$PosAttacker\"}"
+        INSERT_PLAYER_EVENT "$PlayerIdVictim" "damage_taken" "$CoordXVictim" "$CoordYVictim" "$CoordZVictim" "$DetailsJsonVictim" "$PlayerIdAttacker"
+        
+        # Criar JSON para atacante (damage_dealt)
+        DetailsJsonAttacker="{\"local_damage\": \"$LocalDamage\", \"hit_type\": \"$HitType\", \"damage\": $Damage, \"victim_health\": $Health, \"weapon\": \"$Weapon\", \"distance\": $DistanceMeter, \"victim_pos\": \"$PosVictim\"}"
+        INSERT_PLAYER_EVENT "$PlayerIdAttacker" "damage_dealt" "$CoordXAttacker" "$CoordYAttacker" "$CoordZAttacker" "$DetailsJsonAttacker" "$PlayerIdVictim"
+    fi
+
     if [[ "$DayzDeathmatch" -eq "1" ]]; then
         HANDLER_SHOULD_CONTINUE=1
         return
