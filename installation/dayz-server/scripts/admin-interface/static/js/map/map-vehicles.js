@@ -592,6 +592,23 @@ function saveVehicleCheckToDatabase(vehicleId, commandData) {
 }
 
 /**
+ * Calcular distância entre duas coordenadas DayZ (em metros)
+ * @param {number} x1 - Coordenada X (leste-oeste) da primeira posição
+ * @param {number} y1 - Coordenada Y (norte-sul) da primeira posição
+ * @param {number} x2 - Coordenada X (leste-oeste) da segunda posição
+ * @param {number} y2 - Coordenada Y (norte-sul) da segunda posição
+ * @returns {number} Distância em metros
+ */
+function calculateDayZDistance(x1, y1, x2, y2) {
+    if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2)) {
+        return 0;
+    }
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+/**
  * Aplicar dados retornados pelo comando ao estado local
  */
 function applyVehicleRefreshData(vehicleId, commandData) {
@@ -605,12 +622,24 @@ function applyVehicleRefreshData(vehicleId, commandData) {
         vehicle.vehicle_name = commandData.vehicle_name;
     }
     
+    let oldCoordX = vehicle.coord_x;
+    let oldCoordY = vehicle.coord_y;
+    let hasPositionChanged = false;
+    let distanceMoved = 0;
+    
     if (commandData.position) {
         // Formato JSON do checkvehicle: {"x": leste-oeste, "z": altura, "y": norte-sul} (igual ao VehicleTracking.c)
         // Formato frontend: coord_x (leste-oeste), coord_y (norte-sul), coord_z (altura)
         const coordX = parseFloat(commandData.position.x);
         const coordY = parseFloat(commandData.position.y);  // y do JSON é norte-sul (PositionY no banco)
         const coordZ = parseFloat(commandData.position.z);  // z do JSON é altura (PositionZ no banco)
+        
+        if (!isNaN(coordX) && !isNaN(coordY)) {
+            if (!isNaN(oldCoordX) && !isNaN(oldCoordY)) {
+                distanceMoved = calculateDayZDistance(oldCoordX, oldCoordY, coordX, coordY);
+                hasPositionChanged = distanceMoved > 100;
+            }
+        }
         
         if (!isNaN(coordX)) {
             vehicle.coord_x = coordX;
@@ -628,6 +657,21 @@ function applyVehicleRefreshData(vehicleId, commandData) {
             const mapCoords = convertToMapCoords(pixelCoords);
             if (mapCoords && MapState.vehicleMarkers[vehicleId]) {
                 MapState.vehicleMarkers[vehicleId].setLatLng(mapCoords);
+                
+                const marker = MapState.vehicleMarkers[vehicleId];
+                if (hasPositionChanged && marker && marker.isPopupOpen() && MapState.map) {
+                    MapState.map.panTo(mapCoords, {
+                        animate: true,
+                        duration: 0.5
+                    });
+                    
+                    if (distanceMoved > 0) {
+                        const distanceKm = (distanceMoved / 1000).toFixed(2);
+                        const distanceM = Math.round(distanceMoved);
+                        const distanceText = distanceMoved >= 1000 ? `${distanceKm} km` : `${distanceM} m`;
+                        showToast('Veículo Movido', `${vehicle.vehicle_name || vehicleId} se moveu ${distanceText}`, 'info');
+                    }
+                }
             }
         }
     }
@@ -763,17 +807,17 @@ function createVehiclePopup(vehicle) {
                 ${destroyedInfo}
             </div>
             <div style="flex-shrink: 0; border-top: 1px solid #dee2e6; padding-top: 8px; margin-top: 8px; background-color: #fff;">
-                <div style="display: flex; gap: 4px; flex-wrap: nowrap;">
-                    <button type="button" class="btn btn-sm btn-secondary" style="flex: 1; min-width: 0; font-size: 0.75rem; padding: 0.25rem 0.4rem;" id="vehicleRefreshBtn_${vehicle.vehicle_id}" ${isRefreshing ? 'disabled' : ''} onclick="refreshVehicleData('${vehicle.vehicle_id}')">
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-sm btn-secondary" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" id="vehicleRefreshBtn_${vehicle.vehicle_id}" ${isRefreshing ? 'disabled' : ''} onclick="refreshVehicleData('${vehicle.vehicle_id}')">
                         ${isRefreshing ? '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Atualizando...' : '<i class="fas fa-sync-alt me-1"></i>Atualizar'}
                     </button>
-                    <button type="button" class="btn btn-sm btn-primary" style="flex: 1; min-width: 0; font-size: 0.75rem; padding: 0.25rem 0.4rem;" onclick="toggleVehicleTrail('${vehicle.vehicle_id}')">
+                    <button type="button" class="btn btn-sm btn-primary" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="toggleVehicleTrail('${vehicle.vehicle_id}')">
                         <i class="fas fa-route me-1"></i><span id="vehicleTrailBtn_${vehicle.vehicle_id}">${MapState.vehicleTrails[vehicle.vehicle_id] ? 'Ocultar' : 'Trail'}</span>
                     </button>
-                    <button type="button" class="btn btn-sm btn-info" style="flex: 1; min-width: 0; font-size: 0.75rem; padding: 0.25rem 0.4rem;" onclick="showVehicleLootHistory('${vehicle.vehicle_id}')">
+                    <button type="button" class="btn btn-sm btn-info" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="showVehicleLootHistory('${vehicle.vehicle_id}')">
                         <i class="fas fa-history me-1"></i>Histórico
                     </button>
-                    <button type="button" class="btn btn-sm btn-warning" style="flex: 1; min-width: 0; font-size: 0.75rem; padding: 0.25rem 0.4rem;" onclick="showVehicleTeleportModal('${vehicle.vehicle_id}')">
+                    <button type="button" class="btn btn-sm btn-warning" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="showVehicleTeleportModal('${vehicle.vehicle_id}')">
                         <i class="fas fa-map-marker-alt me-1"></i>Teleportar
                     </button>
                 </div>
