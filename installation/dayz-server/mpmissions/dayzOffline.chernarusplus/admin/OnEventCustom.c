@@ -788,19 +788,6 @@ void HandlePlayerDisconnect(string playerId, PlayerIdentity identity, Man player
     string playerName = identity.GetName();
     WriteToLog("HandlePlayerDisconnect(): Processando desconexão de " + playerName + " (ID: " + playerId + ")", LogFile.INIT, false, LogType.INFO);
     
-    // Verifica se jogador morreu recentemente
-    ActivePlayer disconnectingPlayer = GetActivePlayerById(playerId);
-    bool shouldSendDisconnectLog = true;
-    
-    if (disconnectingPlayer)
-    {
-        if (disconnectingPlayer.IsRecentlyDead(10.0))
-        {
-            WriteToLog("HandlePlayerDisconnect(): Jogador morreu recentemente, não enviando player_disconnected", LogFile.INIT, false, LogType.DEBUG);
-            shouldSendDisconnectLog = false;
-        }
-    }
-    
     // Remove de ActivePlayers
     RemoveActivePlayerById(playerId);
     
@@ -811,16 +798,9 @@ void HandlePlayerDisconnect(string playerId, PlayerIdentity identity, Man player
         WriteToLog("HandlePlayerDisconnect(): Removido de PendingDisconnects", LogFile.INIT, false, LogType.DEBUG);
     }
     
-    // Envia evento externo apenas se não morreu recentemente
-    if (shouldSendDisconnectLog)
-    {
-        AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + playerId + "\"}");
-        WriteToLog("HandlePlayerDisconnect(): Evento player_disconnected enviado", LogFile.INIT, false, LogType.INFO);
-    }
-    else
-    {
-        WriteToLog("HandlePlayerDisconnect(): Evento player_disconnected NÃO enviado (jogador morreu recentemente)", LogFile.INIT, false, LogType.DEBUG);
-    }
+    // Envia evento externo sempre que o jogador desconectar
+    AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + playerId + "\"}");
+    WriteToLog("HandlePlayerDisconnect(): Evento player_disconnected enviado", LogFile.INIT, false, LogType.INFO);
 }
 
 // ============================================================================
