@@ -10,8 +10,12 @@ handle_event_minutes_to_restart() {
     CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
 
     INSERT_CUSTOM_LOG "Evento de aviso de tempo para reiniciar o servidor!" "INFO" "$ScriptName"
+    if [[ "$DayzDeathmatch" -eq "1" ]]; then
+        Content="Mapa atual: $CurrentMap, Próximo mapa: $NextMap, Horário: $CurrentTime"
+    else
+        Content="Horário: $CurrentTime"
+    fi
 
-    Content="Mapa atual: $CurrentMap, Próximo mapa: $NextMap, Horário: $CurrentTime"
     if [[ "$Message" == *"O servidor vai ser reiniciado em 1 minuto"* ]]; then
         SEND_DISCORD_WEBHOOK "⏱️ $Message $Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
     else
