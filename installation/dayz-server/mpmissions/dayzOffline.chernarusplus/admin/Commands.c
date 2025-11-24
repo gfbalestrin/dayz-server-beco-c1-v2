@@ -408,7 +408,144 @@ bool ExecuteCommand(TStringArray tokens)
                 Object fenceTrackedFlag = null;
                 string fenceStructureType = "";
                 
-                if (m_TrackedFences && m_TrackedFences.Count() > 0)
+                // Verificar se o ID está no formato baseado em coordenadas (Fence_x_y_z, Watchtower_x_y_z, Flag_x_y_z)
+                bool fenceIdIsCoordinateBased = false;
+                float fenceCoordX = 0.0;
+                float fenceCoordY = 0.0;
+                float fenceCoordZ = 0.0;
+                string fenceExpectedType = "";
+                
+                if (fenceIdentifierParam.IndexOf("Fence_") == 0)
+                {
+                    fenceExpectedType = "fence";
+                    string fenceCoordPart = fenceIdentifierParam;
+                    fenceCoordPart = fenceCoordPart.Substring(6); // Remove "Fence_"
+                    TStringArray fenceCoordParts = new TStringArray;
+                    fenceCoordPart.Split("_", fenceCoordParts);
+                    if (fenceCoordParts.Count() >= 3)
+                    {
+                        // Formato ID: Fence_{coord_x}_{coord_y}_{coord_z}
+                        // Onde: coord_x = position.x (leste-oeste), coord_y = position.y (norte-sul), coord_z = position.z (altura)
+                        // DayZ GetPosition(): [x (leste-oeste), y (altura), z (norte-sul)]
+                        fenceCoordX = fenceCoordParts.Get(0).ToFloat(); // x (leste-oeste) → [0]
+                        float fenceIdCoordY = fenceCoordParts.Get(1).ToFloat(); // y do ID (norte-sul) → [2] do DayZ
+                        float fenceIdCoordZ = fenceCoordParts.Get(2).ToFloat(); // z do ID (altura) → [1] do DayZ
+                        fenceCoordY = fenceIdCoordZ; // altura → [1]
+                        fenceCoordZ = fenceIdCoordY; // norte-sul → [2]
+                        fenceIdIsCoordinateBased = true;
+                    }
+                }
+                else if (fenceIdentifierParam.IndexOf("Watchtower_") == 0)
+                {
+                    fenceExpectedType = "watchtower";
+                    string fenceWtCoordPart = fenceIdentifierParam;
+                    fenceWtCoordPart = fenceWtCoordPart.Substring(11); // Remove "Watchtower_"
+                    TStringArray fenceWtCoordParts = new TStringArray;
+                    fenceWtCoordPart.Split("_", fenceWtCoordParts);
+                    if (fenceWtCoordParts.Count() >= 3)
+                    {
+                        // Formato ID: Watchtower_{coord_x}_{coord_z}_{coord_y}
+                        // Onde: coord_x = position.x (leste-oeste), coord_z = position.z (altura), coord_y = position.y (norte-sul)
+                        // DayZ GetPosition(): [x (leste-oeste), y (altura), z (norte-sul)]
+                        fenceCoordX = fenceWtCoordParts.Get(0).ToFloat(); // x (leste-oeste) → [0]
+                        float fenceWtIdCoordZ = fenceWtCoordParts.Get(1).ToFloat(); // z do ID (altura) → [1] do DayZ
+                        float fenceWtIdCoordY = fenceWtCoordParts.Get(2).ToFloat(); // y do ID (norte-sul) → [2] do DayZ
+                        fenceCoordY = fenceWtIdCoordZ; // altura → [1]
+                        fenceCoordZ = fenceWtIdCoordY; // norte-sul → [2]
+                        fenceIdIsCoordinateBased = true;
+                    }
+                }
+                else if (fenceIdentifierParam.IndexOf("Flag_") == 0)
+                {
+                    fenceExpectedType = "flag";
+                    string fenceFlagCoordPart = fenceIdentifierParam;
+                    fenceFlagCoordPart = fenceFlagCoordPart.Substring(5); // Remove "Flag_"
+                    TStringArray fenceFlagCoordParts = new TStringArray;
+                    fenceFlagCoordPart.Split("_", fenceFlagCoordParts);
+                    if (fenceFlagCoordParts.Count() >= 3)
+                    {
+                        // Formato ID: Flag_{coord_x}_{coord_z}_{coord_y}
+                        // Onde: coord_x = position.x (leste-oeste), coord_z = position.z (altura), coord_y = position.y (norte-sul)
+                        // DayZ GetPosition(): [x (leste-oeste), y (altura), z (norte-sul)]
+                        fenceCoordX = fenceFlagCoordParts.Get(0).ToFloat(); // x (leste-oeste) → [0]
+                        float fenceFlagIdCoordZ = fenceFlagCoordParts.Get(1).ToFloat(); // z do ID (altura) → [1] do DayZ
+                        float fenceFlagIdCoordY = fenceFlagCoordParts.Get(2).ToFloat(); // y do ID (norte-sul) → [2] do DayZ
+                        fenceCoordY = fenceFlagIdCoordZ; // altura → [1]
+                        fenceCoordZ = fenceFlagIdCoordY; // norte-sul → [2]
+                        fenceIdIsCoordinateBased = true;
+                    }
+                }
+                
+                // Se o ID é baseado em coordenadas, buscar pela posição
+                if (fenceIdIsCoordinateBased)
+                {
+                    // DayZ Vector: Vector(x, y, z) onde x=leste-oeste, y=altura, z=norte-sul
+                    vector fenceSearchPosition = Vector(fenceCoordX, fenceCoordY, fenceCoordZ);
+                    float fenceSearchRadius = 10.0; // Raio maior para tolerar pequenas diferenças de coordenadas
+                    
+                    // Buscar em fences primeiro
+                    if (fenceExpectedType == "fence" && m_TrackedFences && m_TrackedFences.Count() > 0)
+                    {
+                        foreach (Fence fenceCandidateFence : m_TrackedFences)
+                        {
+                            if (!fenceCandidateFence)
+                                continue;
+                            
+                            vector fenceCandidatePos = fenceCandidateFence.GetPosition();
+                            float fenceCandidateDistance = vector.Distance(fenceCandidatePos, fenceSearchPosition);
+                            
+                            if (fenceCandidateDistance <= fenceSearchRadius)
+                            {
+                                fenceTrackedFence = fenceCandidateFence;
+                                fenceStructureType = "fence";
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Buscar em watchtowers
+                    if (!fenceTrackedFence && fenceExpectedType == "watchtower" && m_TrackedWatchtowers && m_TrackedWatchtowers.Count() > 0)
+                    {
+                        foreach (Watchtower fenceCandidateWatchtower : m_TrackedWatchtowers)
+                        {
+                            if (!fenceCandidateWatchtower)
+                                continue;
+                            
+                            vector fenceWtCandidatePos = fenceCandidateWatchtower.GetPosition();
+                            float fenceWtCandidateDistance = vector.Distance(fenceWtCandidatePos, fenceSearchPosition);
+                            
+                            if (fenceWtCandidateDistance <= fenceSearchRadius)
+                            {
+                                fenceTrackedWatchtower = fenceCandidateWatchtower;
+                                fenceStructureType = "watchtower";
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Buscar em flags
+                    if (!fenceTrackedFence && !fenceTrackedWatchtower && fenceExpectedType == "flag" && m_TrackedFlags && m_TrackedFlags.Count() > 0)
+                    {
+                        foreach (Object fenceCandidateFlag : m_TrackedFlags)
+                        {
+                            if (!fenceCandidateFlag)
+                                continue;
+                            
+                            vector fenceFlagCandidatePos = fenceCandidateFlag.GetPosition();
+                            float fenceFlagCandidateDistance = vector.Distance(fenceFlagCandidatePos, fenceSearchPosition);
+                            
+                            if (fenceFlagCandidateDistance <= fenceSearchRadius)
+                            {
+                                fenceTrackedFlag = fenceCandidateFlag;
+                                fenceStructureType = "flag";
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                // Se não encontrou por coordenadas, tentar por PersistentID
+                if (!fenceTrackedFence && !fenceTrackedWatchtower && !fenceTrackedFlag && m_TrackedFences && m_TrackedFences.Count() > 0)
                 {
                     foreach (Fence fenceCandidateFence : m_TrackedFences)
                     {
