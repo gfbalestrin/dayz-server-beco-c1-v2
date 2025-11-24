@@ -489,8 +489,19 @@ function updateContainerPopup(containerId) {
     const container = MapState.containersData[containerId];
     const popupContent = createContainerPopup(container);
     
-    if (marker.isPopupOpen()) {
+    // Verificar se popup está aberto antes de atualizar
+    const wasOpen = marker.isPopupOpen();
+    
+    if (wasOpen) {
+        // Atualizar conteúdo do popup
         marker.setPopupContent(popupContent);
+        
+        // Garantir que popup permaneça aberto após atualização
+        setTimeout(function() {
+            if (marker && !marker.isPopupOpen()) {
+                marker.openPopup();
+            }
+        }, 50);
     }
 }
 
@@ -801,23 +812,10 @@ function startContainerRefreshPolling(requestId, containerId, attempt) {
             if (response.status === 'ready') {
                 const data = response.data || {};
                 if (data.status === 'success') {
-                    // Verificar se popup estava aberto antes de atualizar
-                    const marker = MapState.containerMarkers[containerId];
-                    const wasPopupOpen = marker && marker.isPopupOpen();
-                    
                     applyContainerRefreshData(containerId, data);
                     
                     // Salvar no banco de dados (silenciosamente)
                     saveContainerCheckToDatabase(containerId, data);
-                    
-                    // Reabrir popup se estava aberto antes
-                    if (wasPopupOpen && marker) {
-                        setTimeout(function() {
-                            if (marker && !marker.isPopupOpen()) {
-                                marker.openPopup();
-                            }
-                        }, 200);
-                    }
                     
                     const containerType = (MapState.containersData[containerId] && MapState.containersData[containerId].container_type) || containerId;
                     showToast('Sucesso', `Dados do container ${containerType} atualizados.`, 'success');
@@ -893,6 +891,10 @@ function applyContainerRefreshData(containerId, commandData) {
     let hasPositionChanged = false;
     let distanceMoved = 0;
     
+    // Verificar se popup está aberto antes de qualquer atualização
+    const marker = MapState.containerMarkers[containerId];
+    const wasPopupOpen = marker && marker.isPopupOpen();
+    
     if (commandData.position) {
         // Formato JSON do checkcontainer: {"x": leste-oeste, "z": altura, "y": norte-sul} (igual ao LootTracking.c)
         // Formato frontend: coord_x (leste-oeste), coord_y (norte-sul), coord_z (altura)
@@ -921,11 +923,21 @@ function applyContainerRefreshData(containerId, commandData) {
         if (pixelCoords) {
             container.pixel_coords = pixelCoords;
             const mapCoords = convertToMapCoords(pixelCoords);
-            if (mapCoords && MapState.containerMarkers[containerId]) {
-                MapState.containerMarkers[containerId].setLatLng(mapCoords);
+            if (mapCoords && marker) {
+                // Preservar popup aberto antes de mover marcador
+                const popupWasOpen = marker.isPopupOpen();
+                marker.setLatLng(mapCoords);
                 
-                const marker = MapState.containerMarkers[containerId];
-                if (hasPositionChanged && marker && marker.isPopupOpen() && MapState.map) {
+                // Reabrir popup se estava aberto (setLatLng pode fechar)
+                if (popupWasOpen && !marker.isPopupOpen()) {
+                    setTimeout(function() {
+                        if (marker && !marker.isPopupOpen()) {
+                            marker.openPopup();
+                        }
+                    }, 50);
+                }
+                
+                if (hasPositionChanged && wasPopupOpen && MapState.map) {
                     MapState.map.panTo(mapCoords, {
                         animate: true,
                         duration: 0.5
@@ -970,10 +982,16 @@ function applyContainerRefreshData(containerId, commandData) {
         items: container.items
     };
     
-    // Atualizar popup apenas se estiver aberto (evita fechar)
-    const marker = MapState.containerMarkers[containerId];
-    if (marker && marker.isPopupOpen()) {
+    // Atualizar popup se estava aberto antes (preservar estado)
+    if (marker && wasPopupOpen) {
         updateContainerPopup(containerId);
+        
+        // Garantir que popup permaneça aberto após atualização
+        setTimeout(function() {
+            if (marker && !marker.isPopupOpen()) {
+                marker.openPopup();
+            }
+        }, 100);
     }
 }
 
