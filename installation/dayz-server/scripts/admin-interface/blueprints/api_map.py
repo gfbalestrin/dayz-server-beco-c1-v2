@@ -572,9 +572,15 @@ def api_fences_positions():
         lower_panel_built = fence.get('LowerPanelBuilt')
         upper_panel_built = fence.get('UpperPanelBuilt')
         
+        # Extrair has_gate, is_opened e is_locked do FenceName (seguindo padrão do FencesTracking.c)
+        fence_name = fence.get('FenceName', '')
+        has_gate = '_Gate' in fence_name if fence_name else None
+        is_opened = '_Open' in fence_name if fence_name else None
+        is_locked = '_Locked' in fence_name if fence_name else None
+        
         result['fences'].append({
             'fence_id': fence['FenceId'],
-            'fence_name': fence['FenceName'],
+            'fence_name': fence_name,
             'coord_x': fence['PositionX'],
             'coord_y': fence['PositionY'],  # Sul-Norte (Y do mapa)
             'coord_z': fence['PositionZ'],  # Altitude
@@ -583,6 +589,9 @@ def api_fences_positions():
             'has_base': (has_base == 1) if has_base is not None else None,
             'lower_panel_built': (lower_panel_built == 1) if lower_panel_built is not None else None,
             'upper_panel_built': (upper_panel_built == 1) if upper_panel_built is not None else None,
+            'has_gate': has_gate,
+            'is_opened': is_opened,
+            'is_locked': is_locked,
             'is_destroyed': bool(fence.get('IsDestroyed', 0)) if include_destroyed else False,
             'destroyed_at': fence.get('DestroyedAt') if include_destroyed else None,
             'has_recent_attack': bool(fence.get('has_recent_attack', False)),

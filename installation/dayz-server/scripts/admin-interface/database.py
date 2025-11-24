@@ -6141,7 +6141,19 @@ def save_fence_check_data(fence_id: str, structure_type: str, position: dict, or
             
             if structure_type == 'fence':
                 # Inserir fence
+                # Gerar fence_name baseado nos valores (seguindo padrão do FencesTracking.c e fences_positions.sh)
                 fence_name = 'Fence'
+                has_gate = fence_data.get('has_gate', False)
+                is_opened = fence_data.get('is_opened', False)
+                is_locked = fence_data.get('is_locked', False)
+                
+                if has_gate:
+                    fence_name = fence_name + '_Gate'
+                if is_opened:
+                    fence_name = fence_name + '_Open'
+                if is_locked:
+                    fence_name = fence_name + '_Locked'
+                
                 has_base = 1 if fence_data.get('has_base', False) else 0
                 lower_panel_built = 1 if fence_data.get('lower_panel_built', False) else 0
                 upper_panel_built = 1 if fence_data.get('upper_panel_built', False) else 0

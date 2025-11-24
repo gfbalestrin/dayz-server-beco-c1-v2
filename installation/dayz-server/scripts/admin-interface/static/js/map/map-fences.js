@@ -929,13 +929,19 @@ function createFencePopup(fence) {
     }
 
     const features = [];
-    if (fence.fence_name.includes('Gate')) {
+    // Usar valores diretos quando disponíveis, com fallback para fence_name (compatibilidade com dados antigos)
+    // Se o valor for explicitamente false, não mostrar. Se for null/undefined, usar fallback do fence_name
+    const hasGate = fence.has_gate === true || (fence.has_gate !== false && fence.fence_name && fence.fence_name.includes('Gate'));
+    const isOpened = fence.is_opened === true || (fence.is_opened !== false && fence.fence_name && fence.fence_name.includes('Open'));
+    const isLocked = fence.is_locked === true || (fence.is_locked !== false && fence.fence_name && fence.fence_name.includes('Locked'));
+    
+    if (hasGate) {
         features.push('Portão');
     }
-    if (fence.fence_name.includes('Open')) {
+    if (isOpened) {
         features.push('Aberto');
     }
-    if (fence.fence_name.includes('Locked')) {
+    if (isLocked) {
         features.push('Trancado');
     }
     
@@ -1264,6 +1270,19 @@ function applyFenceRefreshData(fenceId, commandData) {
         fence.is_opened = commandData.is_opened;
         fence.is_locked = commandData.is_locked;
         fence.attachments = commandData.attachments || [];
+        
+        // Atualizar fence_name baseado nos valores atualizados (seguindo padrão do FencesTracking.c)
+        let newFenceName = 'Fence';
+        if (fence.has_gate === true) {
+            newFenceName = newFenceName + '_Gate';
+        }
+        if (fence.is_opened === true) {
+            newFenceName = newFenceName + '_Open';
+        }
+        if (fence.is_locked === true) {
+            newFenceName = newFenceName + '_Locked';
+        }
+        fence.fence_name = newFenceName;
     } else if (commandData.structure_type === 'watchtower') {
         fence.has_base = commandData.has_base;
         fence.watchtower_details = {
