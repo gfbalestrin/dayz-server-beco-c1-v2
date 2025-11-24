@@ -107,6 +107,31 @@ bool ExecuteCommand(TStringArray tokens)
                 
                 WriteToLog("ExecuteCommand(): scanregion - Total de objetos encontrados pelo GetObjectsAtPosition: " + scannedObjects.Count().ToString() + " (request_id: " + scanRequestId + ")", LogFile.INIT, false, LogType.DEBUG);
                 
+                // Logar todos os tipos de objetos encontrados ANTES dos filtros (para diagnóstico)
+                string allTypesList = "";
+                int allTypesCount = 0;
+                int maxTypesToLog = 100; // Limitar a 100 tipos para não poluir muito
+                
+                foreach (Object objForType : scannedObjects)
+                {
+                    if (!objForType)
+                        continue;
+                    
+                    string objTypeForLog = objForType.GetType();
+                    if (objTypeForLog.Length() > 0 && allTypesCount < maxTypesToLog)
+                    {
+                        if (allTypesList != "")
+                            allTypesList = allTypesList + ", ";
+                        allTypesList = allTypesList + objTypeForLog;
+                        allTypesCount++;
+                    }
+                }
+                
+                if (allTypesList.Length() > 0)
+                {
+                    WriteToLog("ExecuteCommand(): scanregion - Todos os tipos de objetos encontrados (antes dos filtros, " + allTypesCount.ToString() + " tipos): " + allTypesList + " (request_id: " + scanRequestId + ")", LogFile.INIT, false, LogType.DEBUG);
+                }
+                
                 // Coletar tipos únicos de objetos para debug (limitar a 50 tipos para não poluir muito)
                 array<string> uniqueTypes = new array<string>();
                 int typesLogged = 0;

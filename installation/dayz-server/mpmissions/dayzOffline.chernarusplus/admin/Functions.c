@@ -2021,7 +2021,7 @@ void SendPlayersPositions(array<Man> players = null)
     }
 
     string jsonAction = "{\"action\":\"players_positions\",\"players\":[" + playersJson + "]}";
-    AppendExternalAction(jsonAction);
+    AppendExternalAction(jsonAction, false);
     
     WriteToLog("SendPlayersPositions(): Processamento concluído - " + processedCount.ToString() + " processados de " + playersToProcess.Count().ToString() + " encontrados", LogFile.INIT, false, LogType.DEBUG);
     WriteToLog("SendPlayersPositions(): Posições de " + processedCount.ToString() + " jogadores enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
