@@ -171,7 +171,16 @@ handle_watchtowers_positions() {
             
             diff_message=""
             
-            if [[ "$coord_x" != "$prev_x" || "$coord_z" != "$prev_z" || "$coord_y" != "$prev_y" ]]; then
+            local coord_x_norm coord_z_norm coord_y_norm
+            local prev_x_norm prev_z_norm prev_y_norm
+            coord_x_norm=$(format_coord "$coord_x")
+            coord_z_norm=$(format_coord "$coord_z")
+            coord_y_norm=$(format_coord "$coord_y")
+            prev_x_norm=$(format_coord "$prev_x")
+            prev_z_norm=$(format_coord "$prev_z")
+            prev_y_norm=$(format_coord "$prev_y")
+            
+            if [[ "$coord_x_norm" != "$prev_x_norm" || "$coord_z_norm" != "$prev_z_norm" || "$coord_y_norm" != "$prev_y_norm" ]]; then
                 diff_message+="coords((${prev_x},${prev_z},${prev_y})->(${coord_x},${coord_z},${coord_y})); "
             fi
             if [[ "$has_base" != "$prev_has_base" ]]; then
