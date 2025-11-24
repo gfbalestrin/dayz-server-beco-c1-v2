@@ -1611,13 +1611,12 @@ bool ExecuteCommand(TStringArray tokens)
             break;
 
         case "ghostmode":
-            target.SetInvisible(true);
-            target.SetScale(0.0001);
+            ApplyGhostMode(target, true);
             target.MessageStatus("Você está invisível");
             break;
 
         case "unghostmode":
-            target.SetInvisible(false);
+            ApplyGhostMode(target, false);
             target.MessageStatus("Você está visível");
             break;
 

@@ -184,6 +184,51 @@ void BroadcastMessage(string message, MessageColor color = MessageColor.STATUS, 
     }
 }
 
+void ApplyGhostMode(PlayerBase player, bool enable)
+{
+    if (!player)
+    {
+        WriteToLog("ApplyGhostMode(): Jogador inválido", LogFile.INIT, false, LogType.ERROR);
+        return;
+    }
+    
+    string playerName = player.GetIdentity().GetName();
+    string playerId = player.GetIdentity().GetId();
+    string mode = enable ? "ativado" : "desativado";
+    
+    WriteToLog("ApplyGhostMode(): Aplicando ghostmode " + mode + " para " + playerName + " (ID: " + playerId + ")", LogFile.INIT, false, LogType.INFO);
+    
+    if (enable)
+    {
+        player.SetInvisible(true);
+        player.SetScale(0.0001);
+        EntityAI playerEntity = EntityAI.Cast(player);
+        if (playerEntity)
+        {
+            playerEntity.SetInvisibleRecursive(true, null, null);
+        }
+        
+        WriteToLog("ApplyGhostMode(): Ghostmode ativado - SetInvisible(true), SetScale(0.0001)", LogFile.INIT, false, LogType.DEBUG);
+    }
+    else
+    {
+        player.SetInvisible(false);
+        player.SetScale(1.0);
+        EntityAI playerEntity = EntityAI.Cast(player);
+        if (playerEntity)
+        {
+            playerEntity.SetInvisibleRecursive(false, null, null);
+        }
+        
+        WriteToLog("ApplyGhostMode(): Ghostmode desativado - SetInvisible(false), SetScale(1.0)", LogFile.INIT, false, LogType.DEBUG);
+    }
+    
+    if (GetGame().IsServer() && GetGame().IsMultiplayer())
+    {
+        player.SetSynchDirty();
+        WriteToLog("ApplyGhostMode(): SetSynchDirty() chamado para sincronizar estado", LogFile.INIT, false, LogType.DEBUG);
+    }
+}
 
 void SetActiveRegionById(int regionId)
 {
