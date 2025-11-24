@@ -797,17 +797,17 @@ void SendDelayedDisconnectEvent()
         return;
     }
     
-    string playerId = PendingDisconnectEvents.Get(0);
+    string disconnectedPlayerId = PendingDisconnectEvents.Get(0);
     PendingDisconnectEvents.Remove(0);
     
-    if (playerId == "" || playerId == null)
+    if (disconnectedPlayerId == "")
     {
         WriteToLog("SendDelayedDisconnectEvent(): PlayerID inválido", LogFile.INIT, false, LogType.ERROR);
         return;
     }
     
-    AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + playerId + "\"}");
-    WriteToLog("SendDelayedDisconnectEvent(): Evento player_disconnected enviado após delay para PlayerID: " + playerId, LogFile.INIT, false, LogType.INFO);
+    AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + disconnectedPlayerId + "\"}");
+    WriteToLog("SendDelayedDisconnectEvent(): Evento player_disconnected enviado após delay para PlayerID: " + disconnectedPlayerId, LogFile.INIT, false, LogType.INFO);
 }
 
 // ============================================================================
