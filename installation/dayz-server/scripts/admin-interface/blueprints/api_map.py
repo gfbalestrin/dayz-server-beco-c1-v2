@@ -20,7 +20,7 @@ from database import (
     get_fence_trail, get_watchtower_trail, get_flag_trail,
     get_item_details_from_items_db, dayz_to_pixel, get_player_events
 )
-from blueprints.auth import admin_required
+from blueprints.auth import admin_required, audit_action
 from blueprints.helpers import convert_timestamp_to_br
 
 api_map_bp = Blueprint('api_map', __name__)
@@ -971,6 +971,120 @@ def api_teleport_container(container_id):
             
     except Exception as e:
         logger.error(f"Erro inesperado ao teleportar container: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'Erro inesperado: {str(e)}'
+        }), 500
+
+@api_map_bp.route('/api/containers/<container_id>/refresh', methods=['POST'])
+@admin_required
+@audit_action('CHECK_CONTAINER')
+def api_refresh_container(container_id):
+    """API para solicitar atualização dos dados de um container rastreado"""
+    logger = logging.getLogger(__name__)
+    
+    try:
+        data = request.get_json(silent=True) or {}
+        request_id = data.get('request_id')
+        
+        if not request_id:
+            return jsonify({
+                'success': False,
+                'message': 'request_id não fornecido'
+            }), 400
+        
+        commands_file = config.COMMANDS_FILE
+        
+        if not os.path.exists(commands_file):
+            logger.error(f"Arquivo de comandos não encontrado: {commands_file}")
+            return jsonify({
+                'success': False,
+                'message': 'Arquivo de comandos não encontrado'
+            }), 500
+        
+        command_line = f"SYSTEM checkcontainer {container_id} {request_id}\n"
+        logger.info(f"Adicionando comando de atualização de container: {command_line.strip()}")
+        
+        try:
+            with open(commands_file, 'a') as f:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.write(command_line)
+                    f.flush()
+                    os.fsync(f.fileno())
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            
+            logger.info("Comando de atualização de container adicionado com sucesso")
+            return jsonify({
+                'success': True,
+                'message': 'Comando enviado com sucesso',
+                'request_id': request_id
+            })
+        except IOError as e:
+            logger.error(f"Erro ao escrever comando de atualização de container: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'Erro ao escrever comando: {str(e)}'
+            }), 500
+    except Exception as e:
+        logger.exception("Erro inesperado ao atualizar container")
+        return jsonify({
+            'success': False,
+            'message': f'Erro inesperado: {str(e)}'
+        }), 500
+
+@api_map_bp.route('/api/containers/<container_id>/save-check', methods=['POST'])
+@admin_required
+@audit_action('SAVE_CONTAINER_CHECK')
+def api_save_container_check(container_id):
+    """API para salvar dados coletados via checkcontainer no banco de dados"""
+    logger = logging.getLogger(__name__)
+    
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'Dados não fornecidos'
+            }), 400
+        
+        container_type = data.get('container_type', 'Container')
+        position = data.get('position', {})
+        items = data.get('items', [])
+        
+        if not position:
+            return jsonify({
+                'success': False,
+                'message': 'Posição não fornecida'
+            }), 400
+        
+        from database import save_container_check_data
+        
+        container_tracking_id = save_container_check_data(
+            container_id=container_id,
+            container_type=container_type,
+            position=position,
+            items=items
+        )
+        
+        if container_tracking_id:
+            logger.info(f"Dados do container {container_id} salvos no banco (tracking_id: {container_tracking_id})")
+            return jsonify({
+                'success': True,
+                'message': 'Dados salvos com sucesso',
+                'container_tracking_id': container_tracking_id
+            })
+        else:
+            logger.error(f"Falha ao salvar dados do container {container_id} no banco")
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao salvar dados no banco'
+            }), 500
+            
+    except Exception as e:
+        logger.exception("Erro inesperado ao salvar dados do container")
         return jsonify({
             'success': False,
             'message': f'Erro inesperado: {str(e)}'

@@ -34,6 +34,8 @@ const MapState = {
     // Status de refresh (comandos) por entidade
     vehicleRefreshStatus: {},
     vehicleRefreshRequests: {},
+    containerRefreshStatus: {},
+    containerRefreshRequests: {},
     
     // Dados completos dos trails (para comparação entre pontos)
     playerTrailsData: {},

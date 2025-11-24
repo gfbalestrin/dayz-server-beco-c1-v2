@@ -238,156 +238,156 @@ bool ExecuteCommand(TStringArray tokens)
                     return false;
                 }
                 
-                string containerIdentifierParam = tokens[2];
-                string containerRequestId = tokens[3];
+                string contIdentifierParam = tokens[2];
+                string contRequestId = tokens[3];
                 
-                string sanitizedContainerRequestId = SanitizeForJson(containerRequestId);
+                string sanitizedContRequestId = SanitizeForJson(contRequestId);
                 
                 if (!m_TrackedContainers || m_TrackedContainers.Count() == 0)
                 {
-                    string trackingErrorMessage = "Sistema de rastreamento de containers não inicializado";
-                    WriteToLog("ExecuteCommand(): checkcontainer - " + trackingErrorMessage, LogFile.INIT, false, LogType.ERROR);
+                    string contTrackingErrorMessage = "Sistema de rastreamento de containers não inicializado";
+                    WriteToLog("ExecuteCommand(): checkcontainer - " + contTrackingErrorMessage, LogFile.INIT, false, LogType.ERROR);
                     
-                    string trackingErrorJson = "{\"request_id\":\"" + sanitizedContainerRequestId + "\",\"command\":\"checkcontainer\",\"status\":\"error\",\"message\":\"" + SanitizeForJson(trackingErrorMessage) + "\"}";
-                    AppendCommandResult(trackingErrorJson, false);
+                    string contTrackingErrorJson = "{\"request_id\":\"" + sanitizedContRequestId + "\",\"command\":\"checkcontainer\",\"status\":\"error\",\"message\":\"" + SanitizeForJson(contTrackingErrorMessage) + "\"}";
+                    AppendCommandResult(contTrackingErrorJson, false);
                     return false;
                 }
                 
-                EntityAI trackedContainer = null;
-                foreach (EntityAI candidateContainer : m_TrackedContainers)
+                EntityAI contTrackedContainer = null;
+                foreach (EntityAI contCandidateContainer : m_TrackedContainers)
                 {
-                    if (!candidateContainer)
+                    if (!contCandidateContainer)
                         continue;
                     
-                    int pidLow1 = 0;
-                    int pidLow2 = 0;
-                    int pidHigh1 = 0;
-                    int pidHigh2 = 0;
-                    candidateContainer.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+                    int contPidLow1 = 0;
+                    int contPidLow2 = 0;
+                    int contPidHigh1 = 0;
+                    int contPidHigh2 = 0;
+                    contCandidateContainer.GetPersistentID(contPidLow1, contPidLow2, contPidHigh1, contPidHigh2);
                     
-                    bool hasPersistent = (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0);
-                    string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
-                    string candidateIdentifier = persistentKey;
-                    if (!hasPersistent)
+                    bool contHasPersistent = (contPidLow1 != 0 || contPidLow2 != 0 || contPidHigh1 != 0 || contPidHigh2 != 0);
+                    string contPersistentKey = contPidLow1.ToString() + "-" + contPidLow2.ToString() + "-" + contPidHigh1.ToString() + "-" + contPidHigh2.ToString();
+                    string contCandidateIdentifier = contPersistentKey;
+                    if (!contHasPersistent)
                     {
-                        candidateIdentifier = "pending-" + candidateContainer.GetID().ToString();
+                        contCandidateIdentifier = "pending-" + contCandidateContainer.GetID().ToString();
                     }
                     
-                    if (candidateIdentifier == containerIdentifierParam)
+                    if (contCandidateIdentifier == contIdentifierParam)
                     {
-                        trackedContainer = candidateContainer;
+                        contTrackedContainer = contCandidateContainer;
                         break;
                     }
                 }
                 
-                if (!trackedContainer)
+                if (!contTrackedContainer)
                 {
-                    string notFoundMessage = "Container não encontrado: " + containerIdentifierParam;
-                    WriteToLog("ExecuteCommand(): checkcontainer - " + notFoundMessage + " (request_id: " + containerRequestId + ")", LogFile.INIT, false, LogType.ERROR);
+                    string contNotFoundMessage = "Container não encontrado: " + contIdentifierParam;
+                    WriteToLog("ExecuteCommand(): checkcontainer - " + contNotFoundMessage + " (request_id: " + contRequestId + ")", LogFile.INIT, false, LogType.ERROR);
                     
-                    string notFoundJson = "{\"request_id\":\"" + sanitizedContainerRequestId + "\",\"command\":\"checkcontainer\",\"status\":\"error\",\"message\":\"" + SanitizeForJson(notFoundMessage) + "\"}";
-                    AppendCommandResult(notFoundJson, false);
+                    string contNotFoundJson = "{\"request_id\":\"" + sanitizedContRequestId + "\",\"command\":\"checkcontainer\",\"status\":\"error\",\"message\":\"" + SanitizeForJson(contNotFoundMessage) + "\"}";
+                    AppendCommandResult(contNotFoundJson, false);
                     return false;
                 }
                 
-                if (trackedContainer.GetHealth("", "") <= 0)
+                if (contTrackedContainer.GetHealth("", "") <= 0)
                 {
-                    string destroyedMessage = "Container está destruído: " + trackedContainer.GetType();
-                    WriteToLog("ExecuteCommand(): checkcontainer - " + destroyedMessage + " (request_id: " + containerRequestId + ")", LogFile.INIT, false, LogType.WARNING);
+                    string contDestroyedMessage = "Container está destruído: " + contTrackedContainer.GetType();
+                    WriteToLog("ExecuteCommand(): checkcontainer - " + contDestroyedMessage + " (request_id: " + contRequestId + ")", LogFile.INIT, false, LogType.WARNING);
                     
-                    string destroyedJson = "{\"request_id\":\"" + sanitizedContainerRequestId + "\",\"command\":\"checkcontainer\",\"status\":\"error\",\"message\":\"" + SanitizeForJson(destroyedMessage) + "\"}";
-                    AppendCommandResult(destroyedJson, false);
+                    string contDestroyedJson = "{\"request_id\":\"" + sanitizedContRequestId + "\",\"command\":\"checkcontainer\",\"status\":\"error\",\"message\":\"" + SanitizeForJson(contDestroyedMessage) + "\"}";
+                    AppendCommandResult(contDestroyedJson, false);
                     return false;
                 }
                 
-                vector trackedPosition = trackedContainer.GetPosition();
-                vector trackedOrientation = trackedContainer.GetOrientation();
-                string containerType = trackedContainer.GetType();
+                vector contTrackedPosition = contTrackedContainer.GetPosition();
+                vector contTrackedOrientation = contTrackedContainer.GetOrientation();
+                string contType = contTrackedContainer.GetType();
                 
-                TStringArray unsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
-                foreach (string unsafeChar : unsafeChars)
+                TStringArray contUnsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
+                foreach (string contUnsafeChar : contUnsafeChars)
                 {
-                    containerType.Replace(unsafeChar, "-");
+                    contType.Replace(contUnsafeChar, "-");
                 }
                 
-                string itemsJson = "";
+                string contItemsJson = "";
                 
-                if (trackedContainer && trackedContainer.GetInventory())
+                if (contTrackedContainer && contTrackedContainer.GetInventory())
                 {
-                    CargoBase containerCargo = trackedContainer.GetInventory().GetCargo();
-                    if (containerCargo)
+                    CargoBase contCargo = contTrackedContainer.GetInventory().GetCargo();
+                    if (contCargo)
                     {
-                        for (int cargoIndex = 0; cargoIndex < containerCargo.GetItemCount(); cargoIndex++)
+                        for (int contCargoIndex = 0; contCargoIndex < contCargo.GetItemCount(); contCargoIndex++)
                         {
-                            EntityAI cargoItem = containerCargo.GetItem(cargoIndex);
-                            if (!cargoItem)
+                            EntityAI contCargoItem = contCargo.GetItem(contCargoIndex);
+                            if (!contCargoItem)
                                 continue;
                             
-                            string cargoType = cargoItem.GetType();
-                            foreach (string unsafeCharItem : unsafeChars)
+                            string contCargoType = contCargoItem.GetType();
+                            foreach (string contUnsafeCharItem : contUnsafeChars)
                             {
-                                cargoType.Replace(unsafeCharItem, "-");
+                                contCargoType.Replace(contUnsafeCharItem, "-");
                             }
                             
-                            if (itemsJson != "")
-                                itemsJson = itemsJson + ",";
+                            if (contItemsJson != "")
+                                contItemsJson = contItemsJson + ",";
                             
-                            itemsJson = itemsJson + "{\"type\":\"" + SanitizeForJson(cargoType) + "\",\"health\":" + cargoItem.GetHealth("", "").ToString() + "}";
+                            contItemsJson = contItemsJson + "{\"type\":\"" + SanitizeForJson(contCargoType) + "\",\"health\":" + contCargoItem.GetHealth("", "").ToString() + "}";
                         }
                     }
                     
-                    int attachmentCount = trackedContainer.GetInventory().AttachmentCount();
-                    for (int attachmentIndex = 0; attachmentIndex < attachmentCount; attachmentIndex++)
+                    int contAttachmentCount = contTrackedContainer.GetInventory().AttachmentCount();
+                    for (int contAttachmentIndex = 0; contAttachmentIndex < contAttachmentCount; contAttachmentIndex++)
                     {
-                        EntityAI attachmentItem = trackedContainer.GetInventory().GetAttachmentFromIndex(attachmentIndex);
-                        if (!attachmentItem)
+                        EntityAI contAttachmentItem = contTrackedContainer.GetInventory().GetAttachmentFromIndex(contAttachmentIndex);
+                        if (!contAttachmentItem)
                             continue;
                         
-                        string attachmentType = attachmentItem.GetType();
-                        foreach (string unsafeCharAttachment : unsafeChars)
+                        string contAttachmentType = contAttachmentItem.GetType();
+                        foreach (string contUnsafeCharAttachment : contUnsafeChars)
                         {
-                            attachmentType.Replace(unsafeCharAttachment, "-");
+                            contAttachmentType.Replace(contUnsafeCharAttachment, "-");
                         }
                         
-                        if (itemsJson != "")
-                            itemsJson = itemsJson + ",";
+                        if (contItemsJson != "")
+                            contItemsJson = contItemsJson + ",";
                         
-                        itemsJson = itemsJson + "{\"type\":\"" + SanitizeForJson(attachmentType) + "\",\"health\":" + attachmentItem.GetHealth("", "").ToString() + "}";
+                        contItemsJson = contItemsJson + "{\"type\":\"" + SanitizeForJson(contAttachmentType) + "\",\"health\":" + contAttachmentItem.GetHealth("", "").ToString() + "}";
                     }
                 }
                 
-                int pidLow1Result = 0;
-                int pidLow2Result = 0;
-                int pidHigh1Result = 0;
-                int pidHigh2Result = 0;
-                trackedContainer.GetPersistentID(pidLow1Result, pidLow2Result, pidHigh1Result, pidHigh2Result);
-                bool hasPersistentResult = (pidLow1Result != 0 || pidLow2Result != 0 || pidHigh1Result != 0 || pidHigh2Result != 0);
-                string persistentKeyResult = pidLow1Result.ToString() + "-" + pidLow2Result.ToString() + "-" + pidHigh1Result.ToString() + "-" + pidHigh2Result.ToString();
-                string finalContainerIdentifier = persistentKeyResult;
-                if (!hasPersistentResult)
+                int contPidLow1Result = 0;
+                int contPidLow2Result = 0;
+                int contPidHigh1Result = 0;
+                int contPidHigh2Result = 0;
+                contTrackedContainer.GetPersistentID(contPidLow1Result, contPidLow2Result, contPidHigh1Result, contPidHigh2Result);
+                bool contHasPersistentResult = (contPidLow1Result != 0 || contPidLow2Result != 0 || contPidHigh1Result != 0 || contPidHigh2Result != 0);
+                string contPersistentKeyResult = contPidLow1Result.ToString() + "-" + contPidLow2Result.ToString() + "-" + contPidHigh1Result.ToString() + "-" + contPidHigh2Result.ToString();
+                string contFinalIdentifier = contPersistentKeyResult;
+                if (!contHasPersistentResult)
                 {
-                    finalContainerIdentifier = "pending-" + trackedContainer.GetID().ToString();
+                    contFinalIdentifier = "pending-" + contTrackedContainer.GetID().ToString();
                 }
                 
-                string sanitizedContainerIdentifier = SanitizeForJson(finalContainerIdentifier);
-                string sanitizedContainerType = SanitizeForJson(containerType);
+                string contSanitizedIdentifier = SanitizeForJson(contFinalIdentifier);
+                string contSanitizedType = SanitizeForJson(contType);
                 
-                string posXStr = trackedPosition[0].ToString();
-                string posZStr = trackedPosition[1].ToString();
-                string posYStr = trackedPosition[2].ToString();
+                string contPosXStr = contTrackedPosition[0].ToString();
+                string contPosZStr = contTrackedPosition[1].ToString();
+                string contPosYStr = contTrackedPosition[2].ToString();
                 
-                string oriXStr = trackedOrientation[0].ToString();
-                string oriYStr = trackedOrientation[1].ToString();
-                string oriZStr = trackedOrientation[2].ToString();
+                string contOriXStr = contTrackedOrientation[0].ToString();
+                string contOriYStr = contTrackedOrientation[1].ToString();
+                string contOriZStr = contTrackedOrientation[2].ToString();
                 
-                string containerResultJson = "{\"request_id\":\"" + sanitizedContainerRequestId + "\",\"command\":\"checkcontainer\",\"status\":\"success\"";
-                containerResultJson = containerResultJson + ",\"container_id\":\"" + sanitizedContainerIdentifier + "\",\"container_type\":\"" + sanitizedContainerType + "\"";
-                containerResultJson = containerResultJson + ",\"position\":{\"x\":" + posXStr + ",\"z\":" + posZStr + ",\"y\":" + posYStr + "}";
-                containerResultJson = containerResultJson + ",\"orientation\":{\"x\":" + oriXStr + ",\"y\":" + oriYStr + ",\"z\":" + oriZStr + "}";
-                containerResultJson = containerResultJson + ",\"items\":[" + itemsJson + "]}";
+                string contResultJson = "{\"request_id\":\"" + sanitizedContRequestId + "\",\"command\":\"checkcontainer\",\"status\":\"success\"";
+                contResultJson = contResultJson + ",\"container_id\":\"" + contSanitizedIdentifier + "\",\"container_type\":\"" + contSanitizedType + "\"";
+                contResultJson = contResultJson + ",\"position\":{\"x\":" + contPosXStr + ",\"z\":" + contPosZStr + ",\"y\":" + contPosYStr + "}";
+                contResultJson = contResultJson + ",\"orientation\":{\"x\":" + contOriXStr + ",\"y\":" + contOriYStr + ",\"z\":" + contOriZStr + "}";
+                contResultJson = contResultJson + ",\"items\":[" + contItemsJson + "]}";
                 
-                AppendCommandResult(containerResultJson, false);
-                WriteToLog("ExecuteCommand(): checkcontainer - Dados enviados para container " + sanitizedContainerType + " (request_id: " + containerRequestId + ")", LogFile.INIT, false, LogType.INFO);
+                AppendCommandResult(contResultJson, false);
+                WriteToLog("ExecuteCommand(): checkcontainer - Dados enviados para container " + contSanitizedType + " (request_id: " + contRequestId + ")", LogFile.INIT, false, LogType.INFO);
                 
                 return true;
             case "scanregion":

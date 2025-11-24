@@ -438,33 +438,42 @@ function createContainerPopup(container) {
         </div>
     ` : '';
     
+    const isRefreshing = MapState.containerRefreshStatus && MapState.containerRefreshStatus[container.container_id];
+    
     return `
-        <div class="player-popup">
-            <strong><i class="fas fa-box me-2"></i>${container.container_type}</strong>
-            <div class="info-row">
-                <span class="info-label">ID:</span>
-                <span class="info-value">${container.container_id}</span>
+        <div class="player-popup" style="display: flex; flex-direction: column; max-height: 580px;">
+            <div style="flex: 1; overflow-y: auto; padding-right: 4px; min-height: 0;">
+                <strong><i class="fas fa-box me-2"></i>${container.container_type}</strong>
+                <div class="info-row">
+                    <span class="info-label">ID:</span>
+                    <span class="info-value">${container.container_id}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Coords:</span>
+                    <span class="info-value">X: ${container.coord_x.toFixed(2)}, Y: ${container.coord_y.toFixed(2)} (altura: ${container.coord_z ? container.coord_z.toFixed(2) : 'N/A'})</span>
+                </div>
+                ${itemsHtml}
+                <div class="info-row mt-2">
+                    <span class="info-label">Atualizado:</span>
+                    <span class="info-value">${container.last_update || 'Desconhecido'}</span>
+                </div>
+                ${destroyedInfo}
             </div>
-            <div class="info-row">
-                <span class="info-label">Coords:</span>
-                <span class="info-value">X: ${container.coord_x.toFixed(2)}, Y: ${container.coord_y.toFixed(2)} (altura: ${container.coord_z ? container.coord_z.toFixed(2) : 'N/A'})</span>
-            </div>
-            ${itemsHtml}
-            <div class="info-row mt-2">
-                <span class="info-label">Atualizado:</span>
-                <span class="info-value">${container.last_update || 'Desconhecido'}</span>
-            </div>
-            ${destroyedInfo}
-            <div class="mt-2" style="display: flex; gap: 4px; flex-wrap: nowrap;">
-                <button type="button" class="btn btn-sm btn-primary" style="flex: 1; min-width: 0; font-size: 0.75rem; padding: 0.25rem 0.4rem;" onclick="toggleContainerTrail('${container.container_id}')">
-                    <i class="fas fa-route me-1"></i><span id="containerTrailBtn_${container.container_id}">${MapState.containerTrails[container.container_id] ? 'Ocultar' : 'Trail'}</span>
-                </button>
-                <button type="button" class="btn btn-sm btn-info" style="flex: 1; min-width: 0; font-size: 0.75rem; padding: 0.25rem 0.4rem;" onclick="showContainerLootHistory('${container.container_id}')">
-                    <i class="fas fa-history me-1"></i>Histórico
-                </button>
-                <button type="button" class="btn btn-sm btn-warning" style="flex: 1; min-width: 0; font-size: 0.75rem; padding: 0.25rem 0.4rem;" onclick="showContainerTeleportModal('${container.container_id}')">
-                    <i class="fas fa-map-marker-alt me-1"></i>Teleportar
-                </button>
+            <div style="flex-shrink: 0; border-top: 1px solid #dee2e6; padding-top: 8px; margin-top: 8px; background-color: #fff;">
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-sm btn-secondary" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" id="containerRefreshBtn_${container.container_id}" ${isRefreshing ? 'disabled' : ''} onclick="refreshContainerData('${container.container_id}')">
+                        ${isRefreshing ? '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Atualizando...' : '<i class="fas fa-sync-alt me-1"></i>Atualizar'}
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="toggleContainerTrail('${container.container_id}')">
+                        <i class="fas fa-route me-1"></i><span id="containerTrailBtn_${container.container_id}">${MapState.containerTrails[container.container_id] ? 'Ocultar' : 'Trail'}</span>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-info" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="showContainerLootHistory('${container.container_id}')">
+                        <i class="fas fa-history me-1"></i>Histórico
+                    </button>
+                    <button type="button" class="btn btn-sm btn-warning" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="showContainerTeleportModal('${container.container_id}')">
+                        <i class="fas fa-map-marker-alt me-1"></i>Teleportar
+                    </button>
+                </div>
             </div>
         </div>
     `;
@@ -698,5 +707,302 @@ function showContainerTeleportModal(containerId) {
     
     // Mostrar modal
     $('#vehicleTeleportModal').modal('show');
+}
+
+/**
+ * Calcular distância entre duas coordenadas DayZ (em metros)
+ * @param {number} x1 - Coordenada X (leste-oeste) da primeira posição
+ * @param {number} y1 - Coordenada Y (norte-sul) da primeira posição
+ * @param {number} x2 - Coordenada X (leste-oeste) da segunda posição
+ * @param {number} y2 - Coordenada Y (norte-sul) da segunda posição
+ * @returns {number} Distância em metros
+ */
+function calculateDayZDistance(x1, y1, x2, y2) {
+    if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2)) {
+        return 0;
+    }
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+/**
+ * Solicitar refresh de informações do container via comando checkcontainer
+ */
+function refreshContainerData(containerId) {
+    if (!containerId) {
+        return;
+    }
+    
+    if (MapState.containerRefreshStatus && MapState.containerRefreshStatus[containerId]) {
+        showToast('Info', 'Atualização já está em andamento para este container.', 'info');
+        return;
+    }
+    
+    const container = MapState.containersData[containerId];
+    if (!container) {
+        showToast('Erro', 'Container não encontrado no mapa.', 'error');
+        return;
+    }
+    
+    const requestId = generateRequestId();
+    if (!MapState.containerRefreshRequests) {
+        MapState.containerRefreshRequests = {};
+    }
+    MapState.containerRefreshRequests[containerId] = requestId;
+    
+    setContainerRefreshState(containerId, true);
+    
+    $.ajax({
+        url: `/api/containers/${containerId}/refresh`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            request_id: requestId
+        }),
+        success: function() {
+            showToast('Info', `Solicitação de atualização enviada para ${container.container_type || containerId}.`, 'info');
+            startContainerRefreshPolling(requestId, containerId, 0);
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            const errorMsg = error.message || error.error || 'Erro ao solicitar atualização do container';
+            showToast('Erro', errorMsg, 'error');
+            setContainerRefreshState(containerId, false);
+            delete MapState.containerRefreshRequests[containerId];
+        }
+    });
+}
+
+/**
+ * Polling para aguardar resultado do comando checkcontainer
+ */
+function startContainerRefreshPolling(requestId, containerId, attempt) {
+    const MAX_ATTEMPTS = 30;
+    const POLL_INTERVAL = 500;
+    
+    if (MapState.containerRefreshRequests[containerId] !== requestId) {
+        return;
+    }
+    
+    if (attempt >= MAX_ATTEMPTS) {
+        showToast('Aviso', 'Tempo limite ao atualizar dados do container.', 'warning');
+        setContainerRefreshState(containerId, false);
+        delete MapState.containerRefreshRequests[containerId];
+        return;
+    }
+    
+    $.get(`/api/commands/results/${requestId}`)
+        .done(function(response) {
+            if (MapState.containerRefreshRequests[containerId] !== requestId) {
+                return;
+            }
+            
+            if (response.status === 'ready') {
+                const data = response.data || {};
+                if (data.status === 'success') {
+                    // Verificar se popup estava aberto antes de atualizar
+                    const marker = MapState.containerMarkers[containerId];
+                    const wasPopupOpen = marker && marker.isPopupOpen();
+                    
+                    applyContainerRefreshData(containerId, data);
+                    
+                    // Salvar no banco de dados (silenciosamente)
+                    saveContainerCheckToDatabase(containerId, data);
+                    
+                    // Reabrir popup se estava aberto antes
+                    if (wasPopupOpen && marker) {
+                        setTimeout(function() {
+                            if (marker && !marker.isPopupOpen()) {
+                                marker.openPopup();
+                            }
+                        }, 200);
+                    }
+                    
+                    const containerType = (MapState.containersData[containerId] && MapState.containersData[containerId].container_type) || containerId;
+                    showToast('Sucesso', `Dados do container ${containerType} atualizados.`, 'success');
+                } else {
+                    const errorMsg = data.message || 'Não foi possível atualizar os dados do container.';
+                    showToast('Aviso', errorMsg, 'warning');
+                }
+                setContainerRefreshState(containerId, false);
+                delete MapState.containerRefreshRequests[containerId];
+            } else if (response.status === 'not_found') {
+                // Resultado ainda não disponível, continuar polling
+                setTimeout(function() {
+                    startContainerRefreshPolling(requestId, containerId, attempt + 1);
+                }, POLL_INTERVAL);
+            } else {
+                // Erro ou status desconhecido
+                const errorMsg = response.message || 'Erro ao buscar resultado do comando.';
+                showToast('Erro', errorMsg, 'error');
+                setContainerRefreshState(containerId, false);
+                delete MapState.containerRefreshRequests[containerId];
+            }
+        })
+        .fail(function(xhr) {
+            if (MapState.containerRefreshRequests[containerId] !== requestId) {
+                return;
+            }
+            
+            const error = xhr.responseJSON || {};
+            const errorMsg = error.message || error.error || 'Erro ao buscar resultado do comando.';
+            showToast('Erro', errorMsg, 'error');
+            setContainerRefreshState(containerId, false);
+            delete MapState.containerRefreshRequests[containerId];
+        });
+}
+
+/**
+ * Gerenciar estado visual do botão de refresh
+ */
+function setContainerRefreshState(containerId, isRefreshing) {
+    if (!MapState.containerRefreshStatus) {
+        MapState.containerRefreshStatus = {};
+    }
+    
+    if (isRefreshing) {
+        MapState.containerRefreshStatus[containerId] = true;
+    } else {
+        delete MapState.containerRefreshStatus[containerId];
+    }
+    
+    // Atualizar botão no popup se estiver aberto
+    const marker = MapState.containerMarkers[containerId];
+    if (marker && marker.isPopupOpen()) {
+        updateContainerPopup(containerId);
+    }
+}
+
+/**
+ * Aplicar dados retornados pelo comando ao estado local
+ */
+function applyContainerRefreshData(containerId, commandData) {
+    if (!commandData) {
+        return;
+    }
+    
+    const container = MapState.containersData[containerId] || { container_id: containerId };
+    
+    if (commandData.container_type) {
+        container.container_type = commandData.container_type;
+    }
+    
+    let oldCoordX = container.coord_x;
+    let oldCoordY = container.coord_y;
+    let hasPositionChanged = false;
+    let distanceMoved = 0;
+    
+    if (commandData.position) {
+        // Formato JSON do checkcontainer: {"x": leste-oeste, "z": altura, "y": norte-sul} (igual ao LootTracking.c)
+        // Formato frontend: coord_x (leste-oeste), coord_y (norte-sul), coord_z (altura)
+        const coordX = parseFloat(commandData.position.x);
+        const coordY = parseFloat(commandData.position.y);  // y do JSON é norte-sul (PositionY no banco)
+        const coordZ = parseFloat(commandData.position.z);  // z do JSON é altura (PositionZ no banco)
+        
+        if (!isNaN(coordX) && !isNaN(coordY)) {
+            if (!isNaN(oldCoordX) && !isNaN(oldCoordY)) {
+                distanceMoved = calculateDayZDistance(oldCoordX, oldCoordY, coordX, coordY);
+                hasPositionChanged = distanceMoved > 100;
+            }
+        }
+        
+        if (!isNaN(coordX)) {
+            container.coord_x = coordX;
+        }
+        if (!isNaN(coordY)) {
+            container.coord_y = coordY;
+        }
+        if (!isNaN(coordZ)) {
+            container.coord_z = coordZ;
+        }
+        
+        const pixelCoords = dayzToPixelCoords(container.coord_x, container.coord_y);
+        if (pixelCoords) {
+            container.pixel_coords = pixelCoords;
+            const mapCoords = convertToMapCoords(pixelCoords);
+            if (mapCoords && MapState.containerMarkers[containerId]) {
+                MapState.containerMarkers[containerId].setLatLng(mapCoords);
+                
+                const marker = MapState.containerMarkers[containerId];
+                if (hasPositionChanged && marker && marker.isPopupOpen() && MapState.map) {
+                    MapState.map.panTo(mapCoords, {
+                        animate: true,
+                        duration: 0.5
+                    });
+                    
+                    if (distanceMoved > 0) {
+                        const distanceKm = (distanceMoved / 1000).toFixed(2);
+                        const distanceM = Math.round(distanceMoved);
+                        const distanceText = distanceMoved >= 1000 ? `${distanceKm} km` : `${distanceM} m`;
+                        showToast('Container Movido', `${container.container_type || containerId} se moveu ${distanceText}`, 'info');
+                    }
+                }
+            }
+        }
+    }
+    
+    if (commandData.orientation) {
+        container.orientation = commandData.orientation;
+    }
+    
+    container.items = (commandData.items || []).map(function(item) {
+        return {
+            type: item.type || '',
+            name: item.name || item.type || 'Item',
+            img: item.img || '',
+            health: item.health
+        };
+    });
+    
+    try {
+        container.last_update = new Date().toLocaleString('pt-BR');
+    } catch (e) {
+        container.last_update = new Date().toISOString();
+    }
+    
+    MapState.containersData[containerId] = container;
+    
+    MapState.previousContainersData[containerId] = {
+        coord_x: container.coord_x,
+        coord_y: container.coord_y,
+        is_destroyed: container.is_destroyed || false,
+        items: container.items
+    };
+    
+    // Atualizar popup apenas se estiver aberto (evita fechar)
+    const marker = MapState.containerMarkers[containerId];
+    if (marker && marker.isPopupOpen()) {
+        updateContainerPopup(containerId);
+    }
+}
+
+/**
+ * Salvar dados do container no banco de dados
+ */
+function saveContainerCheckToDatabase(containerId, commandData) {
+    if (!commandData || commandData.status !== 'success') {
+        return;
+    }
+    
+    $.ajax({
+        url: `/api/containers/${containerId}/save-check`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            container_type: commandData.container_type || 'Container',
+            position: commandData.position || {},
+            items: commandData.items || []
+        }),
+        success: function(response) {
+            if (response.success) {
+                console.log(`Dados do container ${containerId} salvos no banco (tracking_id: ${response.container_tracking_id})`);
+            }
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            console.error(`Erro ao salvar dados do container ${containerId} no banco:`, error.message || 'Erro desconhecido');
+        }
+    });
 }
 

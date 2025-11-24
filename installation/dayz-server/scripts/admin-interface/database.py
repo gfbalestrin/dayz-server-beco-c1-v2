@@ -6044,3 +6044,70 @@ def save_vehicle_check_data(vehicle_id: str, vehicle_name: str, position: dict,
         import logging
         logging.getLogger(__name__).error(f"Erro ao salvar dados do veículo {vehicle_id}: {e}", exc_info=True)
         return None
+
+def save_container_check_data(container_id: str, container_type: str, position: dict, 
+                              items: list) -> Optional[int]:
+    """
+    Salva dados de um container coletados via checkcontainer no banco de dados
+    Retorna o IdContainerTracking do registro inserido ou None em caso de erro
+    
+    Args:
+        container_id: ID do container
+        container_type: Tipo do container
+        position: Dict com x, y, z (coordenadas)
+        items: Lista de dicts com type e health
+    """
+    from datetime import datetime
+    
+    try:
+        with DatabaseConnection(config.DB_CONTAINERS) as conn:
+            cursor = conn.cursor()
+            
+            # Preparar coordenadas
+            # Formato JSON: {"x": leste-oeste, "z": altura, "y": norte-sul} (igual ao LootTracking.c)
+            # Formato banco: PositionX (leste-oeste), PositionZ (altura), PositionY (norte-sul)
+            coord_x = float(position.get('x', 0))
+            coord_z = float(position.get('z', 0))  # z do JSON é altura (PositionZ no banco)
+            coord_y = float(position.get('y', 0))  # y do JSON é norte-sul (PositionY no banco)
+            
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Inserir container
+            cursor.execute("""
+                INSERT INTO containers_tracking 
+                (ContainerId, ContainerName, PositionX, PositionZ, PositionY, TimeStamp)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (container_id, container_type, coord_x, coord_z, coord_y, timestamp))
+            
+            container_tracking_id = cursor.lastrowid
+            
+            # Inserir items
+            if items and container_tracking_id:
+                for item in items:
+                    item_type = item.get('type', '')
+                    item_health = item.get('health')
+                    if item_type:
+                        try:
+                            if item_health is not None:
+                                cursor.execute("""
+                                    INSERT INTO container_items_tracking 
+                                    (ContainerTrackingId, ItemType, ItemHealth, TimeStamp)
+                                    VALUES (?, ?, ?, ?)
+                                """, (container_tracking_id, item_type, float(item_health), timestamp))
+                            else:
+                                cursor.execute("""
+                                    INSERT INTO container_items_tracking 
+                                    (ContainerTrackingId, ItemType, TimeStamp)
+                                    VALUES (?, ?, ?)
+                                """, (container_tracking_id, item_type, timestamp))
+                        except Exception as item_error:
+                            import logging
+                            logging.getLogger(__name__).warning(f"Erro ao inserir item {item_type} do container {container_id}: {item_error}")
+            
+            conn.commit()
+            return container_tracking_id
+            
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Erro ao salvar dados do container {container_id}: {e}", exc_info=True)
+        return None
