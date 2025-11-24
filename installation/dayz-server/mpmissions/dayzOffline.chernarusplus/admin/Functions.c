@@ -206,11 +206,12 @@ void ApplyGhostMode(PlayerBase player, bool enable)
     
     WriteToLog("ApplyGhostMode(): Aplicando ghostmode " + mode + " para " + playerName + " (ID: " + playerId + ")", LogFile.INIT, false, LogType.INFO);
     
+    EntityAI playerEntity = player;
+    
     if (enable)
     {
         player.SetInvisible(true);
         player.SetScale(0.0001);
-        EntityAI playerEntity = EntityAI.Cast(player);
         if (playerEntity)
         {
             playerEntity.SetInvisibleRecursive(true, null, null);
@@ -222,7 +223,6 @@ void ApplyGhostMode(PlayerBase player, bool enable)
     {
         player.SetInvisible(false);
         player.SetScale(1.0);
-        EntityAI playerEntity = EntityAI.Cast(player);
         if (playerEntity)
         {
             playerEntity.SetInvisibleRecursive(false, null, null);
