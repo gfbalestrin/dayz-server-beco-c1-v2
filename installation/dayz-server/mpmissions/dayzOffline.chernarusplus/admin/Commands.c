@@ -107,9 +107,15 @@ bool ExecuteCommand(TStringArray tokens)
                 
                 WriteToLog("ExecuteCommand(): scanregion - Total de objetos encontrados pelo GetObjectsAtPosition: " + scannedObjects.Count().ToString() + " (request_id: " + scanRequestId + ")", LogFile.INIT, false, LogType.DEBUG);
                 
+                // Coletar tipos únicos de objetos para debug (limitar a 50 tipos para não poluir muito)
+                array<string> uniqueTypes = new array<string>();
+                int typesLogged = 0;
+                
                 string objectsJson = "";
                 int objectCount = 0;
                 int filteredCount = 0;
+                int natureFilteredCount = 0;
+                int notDetectedCount = 0;
                 
                 foreach (Object scannedObj : scannedObjects)
                 {
@@ -132,50 +138,104 @@ bool ExecuteCommand(TStringArray tokens)
                     // Obter informações do objeto
                     string objType = scannedObj.GetType();
                     
+                    // Coletar tipos únicos para debug (limitar a 50)
+                    if (typesLogged < 50 && objType.Length() > 0)
+                    {
+                        bool typeExists = false;
+                        for (int i = 0; i < uniqueTypes.Count(); i++)
+                        {
+                            if (uniqueTypes.Get(i) == objType)
+                            {
+                                typeExists = true;
+                                break;
+                            }
+                        }
+                        if (!typeExists)
+                        {
+                            uniqueTypes.Insert(objType);
+                            typesLogged++;
+                        }
+                    }
+                    
                     // Filtrar objetos de natureza (árvores, arbustos, pedras, rochas)
+                    bool isNatureObject = false;
+                    string natureFilterReason = "";
+                    
                     if (objType.Length() > 0)
                     {
                         // Verificar prefixos de natureza
                         if (objType.Length() >= 8 && objType.Substring(0, 8) == "BushSoft")
-                            continue;
-                        if (objType.Length() >= 8 && objType.Substring(0, 8) == "BushHard")
-                            continue;
-                        if (objType.Length() >= 8 && objType.Substring(0, 8) == "TreeSoft")
-                            continue;
-                        if (objType.Length() >= 8 && objType.Substring(0, 8) == "TreeHard")
-                            continue;
-                        
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "BushSoft prefix";
+                        }
+                        else if (objType.Length() >= 8 && objType.Substring(0, 8) == "BushHard")
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "BushHard prefix";
+                        }
+                        else if (objType.Length() >= 8 && objType.Substring(0, 8) == "TreeSoft")
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "TreeSoft prefix";
+                        }
+                        else if (objType.Length() >= 8 && objType.Substring(0, 8) == "TreeHard")
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "TreeHard prefix";
+                        }
                         // Verificar prefixos de pedras e rochas estáticas
-                        if (objType.Length() >= 12 && objType.Substring(0, 12) == "Static_rock_")
-                            continue;
-                        if (objType.Length() >= 13 && objType.Substring(0, 13) == "Static_stone")
-                            continue;
-                        if (objType.Length() >= 14 && objType.Substring(0, 14) == "Static_stones_")
-                            continue;
-                        
+                        else if (objType.Length() >= 12 && objType.Substring(0, 12) == "Static_rock_")
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "Static_rock_ prefix";
+                        }
+                        else if (objType.Length() >= 13 && objType.Substring(0, 13) == "Static_stone")
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "Static_stone prefix";
+                        }
+                        else if (objType.Length() >= 14 && objType.Substring(0, 14) == "Static_stones_")
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "Static_stones_ prefix";
+                        }
                         // Verificar objetos específicos de pedras e rochas
-                        if (objType == "Static_stone5")
-                            continue;
-                        if (objType == "Static_stone4")
-                            continue;
-                        if (objType == "Static_stones_erosion")
-                            continue;
-                        if (objType == "Static_rock_spike1")
-                            continue;
-                        if (objType == "Static_rock_wallh1")
-                            continue;
-                        if (objType == "Static_rock_monolith1")
-                            continue;
-                        
+                        else if (objType == "Static_stone5" || objType == "Static_stone4" || 
+                                 objType == "Static_stones_erosion" || objType == "Static_rock_spike1" ||
+                                 objType == "Static_rock_wallh1" || objType == "Static_rock_monolith1")
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "Specific static rock/stone";
+                        }
                         // Verificar se contém palavras-chave de natureza
-                        if (objType.Contains("Tree"))
-                            continue;
-                        if (objType.Contains("Bush"))
-                            continue;
-                        if (objType.Contains("Static_rock"))
-                            continue;
-                        if (objType.Contains("Static_stone"))
-                            continue;
+                        else if (objType.Contains("Tree"))
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "Contains 'Tree'";
+                        }
+                        else if (objType.Contains("Bush"))
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "Contains 'Bush'";
+                        }
+                        else if (objType.Contains("Static_rock"))
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "Contains 'Static_rock'";
+                        }
+                        else if (objType.Contains("Static_stone"))
+                        {
+                            isNatureObject = true;
+                            natureFilterReason = "Contains 'Static_stone'";
+                        }
+                    }
+                    
+                    if (isNatureObject)
+                    {
+                        natureFilteredCount++;
+                        WriteToLog("ExecuteCommand(): scanregion - Objeto filtrado (natureza): " + objType + " - Razão: " + natureFilterReason + " (request_id: " + scanRequestId + ")", LogFile.INIT, false, LogType.DEBUG);
+                        continue;
                     }
                     
                     string objName = "";
@@ -208,7 +268,15 @@ bool ExecuteCommand(TStringArray tokens)
                     }
                     
                     if (objName == "")
+                    {
                         objName = objType;
+                        // Se não conseguiu obter nome e não é um tipo vazio, pode ser um objeto não detectado
+                        if (objType.Length() > 0)
+                        {
+                            notDetectedCount++;
+                            WriteToLog("ExecuteCommand(): scanregion - Objeto não detectado como veículo/item/container: " + objType + " em " + scannedObj.GetPosition().ToString() + " (request_id: " + scanRequestId + ")", LogFile.INIT, false, LogType.DEBUG);
+                        }
+                    }
                     
                     vector objPosition = scannedObj.GetPosition();
                     
@@ -223,12 +291,25 @@ bool ExecuteCommand(TStringArray tokens)
                     objectCount++;
                 }
                 
+                // Logar tipos únicos encontrados
+                if (uniqueTypes.Count() > 0)
+                {
+                    string typesList = "";
+                    for (int i = 0; i < uniqueTypes.Count() && i < 50; i++)
+                    {
+                        if (typesList != "")
+                            typesList = typesList + ", ";
+                        typesList = typesList + uniqueTypes.Get(i);
+                    }
+                    WriteToLog("ExecuteCommand(): scanregion - Tipos únicos de objetos encontrados (" + uniqueTypes.Count().ToString() + "): " + typesList + " (request_id: " + scanRequestId + ")", LogFile.INIT, false, LogType.DEBUG);
+                }
+                
                 string scanSanitizedRequestId = SanitizeForJson(scanRequestId);
                 string scanResultJson = "{\"request_id\":\"" + scanSanitizedRequestId + "\",\"command\":\"scanregion\",\"center\":{\"x\":" + scanCoordX.ToString() + ",\"y\":" + scanCoordY.ToString() + ",\"z\":" + scanCoordZ.ToString() + "},\"radius\":" + scanRadius.ToString() + ",\"objects\":[" + objectsJson + "]}";
                 
                 AppendCommandResult(scanResultJson, false);
                 
-                WriteToLog("ExecuteCommand(): scanregion - Escaneamento concluído: " + objectCount.ToString() + " objetos processados, " + filteredCount.ToString() + " objetos filtrados (request_id: " + scanRequestId + ")", LogFile.INIT, false, LogType.INFO);
+                WriteToLog("ExecuteCommand(): scanregion - Escaneamento concluído: " + objectCount.ToString() + " objetos processados, " + filteredCount.ToString() + " objetos filtrados (jogadores/edifícios), " + natureFilteredCount.ToString() + " objetos filtrados (natureza), " + notDetectedCount.ToString() + " objetos não detectados (request_id: " + scanRequestId + ")", LogFile.INIT, false, LogType.INFO);
                 
                 return true;
             case "registerfence":
