@@ -2057,6 +2057,265 @@ EOF
     return 1
 }
 
+INSERT_CONTAINERS_POSITIONS_BATCH() {
+    # Primeiro parâmetro pode ser timestamp base (opcional)
+    # Se o primeiro parâmetro parece um timestamp (contém ":" e "-"), usar como base
+    # Caso contrário, tratar todos os parâmetros como containers_array
+    local base_timestamp_param=""
+    local containers_array=()
+    
+    if [[ $# -gt 0 ]] && [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]][0-9]{2}:[0-9]{2}:[0-9]{2}$ ]]; then
+        # Primeiro parâmetro é um timestamp no formato "YYYY-MM-DD HH:MM:SS"
+        base_timestamp_param="$1"
+        shift
+        containers_array=("$@")
+    else
+        # Todos os parâmetros são containers
+        containers_array=("$@")
+    fi
+    
+    if [[ ${#containers_array[@]} -eq 0 ]]; then
+        return 0  # Nada para inserir, retorna sucesso
+    fi
+
+    # Configurar PRAGMAs uma vez (silenciosamente)
+    configure_sqlite_pragmas "$AppFolder/$AppContainerBecoC1DbFile"
+
+    local max_retries=5
+    local base_retry_delay=0.5
+    local attempt=1
+
+    while (( attempt <= max_retries )); do
+        # Obter timestamp base (do parâmetro ou atual)
+        local base_timestamp
+        if [[ -n "$base_timestamp_param" ]]; then
+            # Usar timestamp fornecido (momento da captura)
+            base_timestamp="$base_timestamp_param"
+        else
+            # Fallback: usar timestamp atual (comportamento antigo)
+            base_timestamp=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" "SELECT strftime('%Y-%m-%d %H:%M:%S', 'now', 'localtime');" 2>/dev/null)
+            if [[ -z "$base_timestamp" ]]; then
+                base_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+            fi
+        fi
+        
+        # Construir query SQL com múltiplos VALUES
+        local sql_values=""
+        local first_value=1
+        local row_index=0
+        
+        for container_data in "${containers_array[@]}"; do
+            if [[ -z "$container_data" ]]; then
+                continue
+            fi
+            
+            # Separar campos (formato: "container_id|container_name|coord_x|coord_z|coord_y")
+            IFS='|' read -r ContainerId ContainerName CoordX CoordZ CoordY <<< "$container_data"
+            
+            # Validar campos obrigatórios
+            if [[ -z "$ContainerId" ]]; then
+                continue
+            fi
+            
+            # Validar coordenadas (devem ser números válidos)
+            if [[ -z "$CoordX" ]] || ! [[ "$CoordX" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                CoordX="0"
+            fi
+            if [[ -z "$CoordZ" ]] || ! [[ "$CoordZ" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                CoordZ="0"
+            fi
+            if [[ -z "$CoordY" ]] || ! [[ "$CoordY" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                CoordY="0"
+            fi
+            
+            # Escapar aspas simples
+            local EscapedContainerId
+            EscapedContainerId=$(echo "$ContainerId" | sed "s/'/''/g")
+            local EscapedContainerName
+            EscapedContainerName=$(echo "$ContainerName" | sed "s/'/''/g")
+            
+            # Adicionar vírgula se não for o primeiro valor
+            if [[ $first_value -eq 0 ]]; then
+                sql_values+=", "
+            fi
+            first_value=0
+            
+            # Gerar timestamp único para este registro usando strftime com frações de segundo
+            local timestamp_value
+            local days_fraction
+            days_fraction=$(awk "BEGIN {printf \"%.10f\", $row_index * 0.001 / 86400.0}")
+            if [[ -n "$base_timestamp_param" ]]; then
+                timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('$base_timestamp') + $days_fraction)"
+            else
+                timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('now', 'localtime') + $days_fraction)"
+            fi
+            
+            # Construir valor SQL
+            sql_values+="('$EscapedContainerId', '$EscapedContainerName', '$CoordX', '$CoordZ', '$CoordY', $timestamp_value)"
+            
+            # Incrementar índice para próximo registro
+            ((row_index++))
+        done
+        
+        # Se não há valores válidos, retornar sucesso
+        if [[ -z "$sql_values" ]]; then
+            return 0
+        fi
+        
+        # Construir lista de ContainerIds para query posterior (manter ordem)
+        local container_ids_list=""
+        local first_cid=1
+        for container_data in "${containers_array[@]}"; do
+            if [[ -z "$container_data" ]]; then
+                continue
+            fi
+            IFS='|' read -r ContainerId <<< "$container_data"
+            if [[ -z "$ContainerId" ]]; then
+                continue
+            fi
+            local EscapedCID
+            EscapedCID=$(echo "$ContainerId" | sed "s/'/''/g")
+            if [[ $first_cid -eq 0 ]]; then
+                container_ids_list+=", "
+            fi
+            first_cid=0
+            container_ids_list+="'$EscapedCID'"
+        done
+        
+        # Executar INSERT em lote
+        local sql_error_file
+        sql_error_file=$(mktemp)
+        local sql_result
+        sql_result=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" <<EOF 2>"$sql_error_file"
+BEGIN DEFERRED TRANSACTION;
+INSERT INTO containers_tracking (ContainerId, ContainerName, PositionX, PositionZ, PositionY, TimeStamp)
+VALUES $sql_values;
+SELECT changes();
+SELECT last_insert_rowid();
+COMMIT;
+EOF
+)
+        
+        local sql_exit_code=$?
+        local sql_error
+        sql_error=$(cat "$sql_error_file" 2>/dev/null)
+        rm -f "$sql_error_file"
+        
+        # Extrair inserted_count e last_rowid do resultado
+        local inserted_count=$(echo "$sql_result" | head -n 1)
+        local last_rowid=$(echo "$sql_result" | tail -n 1)
+        
+        # Validar que inserted_count é um número
+        if [[ -z "$inserted_count" ]] || ! [[ "$inserted_count" =~ ^[0-9]+$ ]]; then
+            inserted_count="0"
+        fi
+        
+        # Validar que last_rowid é um número
+        if [[ -z "$last_rowid" ]] || ! [[ "$last_rowid" =~ ^[0-9]+$ ]]; then
+            last_rowid="0"
+        fi
+        
+        # Log de debug em caso de erro
+        if [[ $sql_exit_code -ne 0 ]] || [[ -n "$sql_error" ]]; then
+            echo "INSERT_CONTAINERS_POSITIONS_BATCH: Erro SQL (tentativa $attempt/$max_retries): $sql_error" >&2
+            if [[ $attempt -lt $max_retries ]]; then
+                echo "INSERT_CONTAINERS_POSITIONS_BATCH: Tentando novamente..." >&2
+            fi
+        fi
+        
+        # Verificar se o INSERT foi bem-sucedido
+        if [[ $sql_exit_code -eq 0 ]] && [[ "$inserted_count" =~ ^[0-9]+$ ]] && [[ $inserted_count -gt 0 ]]; then
+            # Buscar ContainerId e ContainerTrackingId dos registros recém-inseridos
+            # Retornar no formato "ContainerId|ContainerTrackingId" para facilitar mapeamento
+            local inserted_ids=""
+            
+            # Método 1: Usar last_insert_rowid() para calcular range de IDs
+            local method_used=0
+            if [[ "$last_rowid" =~ ^[0-9]+$ ]] && [[ "$last_rowid" -gt 0 ]] && [[ "$inserted_count" =~ ^[0-9]+$ ]] && [[ "$inserted_count" -gt 0 ]]; then
+                local first_rowid=$((last_rowid - inserted_count + 1))
+                if [[ $first_rowid -gt 0 ]]; then
+                    # Buscar IDs usando range de ContainerTrackingId
+                    inserted_ids=$(sqlite3 -separator '|' "$AppFolder/$AppContainerBecoC1DbFile" "SELECT ContainerId, IdContainerTracking FROM containers_tracking WHERE IdContainerTracking >= $first_rowid AND IdContainerTracking <= $last_rowid ORDER BY IdContainerTracking ASC;" 2>/dev/null)
+                    
+                    if [[ -n "$inserted_ids" ]]; then
+                        method_used=1
+                    else
+                        echo "INSERT_CONTAINERS_POSITIONS_BATCH: Método 1 não retornou IDs, usando fallback" >&2
+                    fi
+                else
+                    echo "INSERT_CONTAINERS_POSITIONS_BATCH: first_rowid inválido ($first_rowid), usando fallback" >&2
+                fi
+            else
+                echo "INSERT_CONTAINERS_POSITIONS_BATCH: last_rowid ou inserted_count inválido (last_rowid=$last_rowid, inserted_count=$inserted_count), usando fallback" >&2
+            fi
+            
+            # Método 2: Fallback - buscar por ContainerIds com janela de tempo maior (5 segundos)
+            if [[ -z "$inserted_ids" ]] && [[ -n "$container_ids_list" ]]; then
+                echo "INSERT_CONTAINERS_POSITIONS_BATCH: Fallback 1 - Buscando por ContainerIds" >&2
+                inserted_ids=$(sqlite3 -separator '|' "$AppFolder/$AppContainerBecoC1DbFile" "SELECT ContainerId, IdContainerTracking FROM containers_tracking WHERE ContainerId IN ($container_ids_list) AND TimeStamp >= datetime('now', '-5 seconds') ORDER BY IdContainerTracking DESC LIMIT $inserted_count;" 2>/dev/null)
+                
+                if [[ -n "$inserted_ids" ]]; then
+                    method_used=2
+                else
+                    echo "INSERT_CONTAINERS_POSITIONS_BATCH: Fallback 1 não retornou IDs, usando fallback 2" >&2
+                fi
+            fi
+            
+            # Método 3: Fallback final - buscar últimos N registros ordenados por IdContainerTracking DESC
+            if [[ -z "$inserted_ids" ]]; then
+                echo "INSERT_CONTAINERS_POSITIONS_BATCH: Fallback 2 - Buscando últimos registros" >&2
+                inserted_ids=$(sqlite3 -separator '|' "$AppFolder/$AppContainerBecoC1DbFile" "SELECT ContainerId, IdContainerTracking FROM containers_tracking ORDER BY IdContainerTracking DESC LIMIT $inserted_count;" 2>/dev/null)
+                
+                if [[ -n "$inserted_ids" ]]; then
+                    method_used=3
+                else
+                    echo "INSERT_CONTAINERS_POSITIONS_BATCH: Fallback 2 também falhou" >&2
+                fi
+            fi
+            
+            # Retornar IDs inseridos no formato "ContainerId|ContainerTrackingId" (um por linha)
+            if [[ -n "$inserted_ids" ]]; then
+                echo "$inserted_ids"
+                return 0
+            else
+                echo "INSERT_CONTAINERS_POSITIONS_BATCH: Não foi possível obter IDs dos containers inseridos (método usado: $method_used)" >&2
+                if [[ $attempt -lt $max_retries ]]; then
+                    # Backoff exponencial: 0.5s, 1s, 2s, 4s
+                    local retry_multiplier=1
+                    local i
+                    for ((i=1; i<attempt; i++)); do
+                        retry_multiplier=$((retry_multiplier * 2))
+                    done
+                    local retry_delay=$((base_retry_delay * retry_multiplier))
+                    sleep "$retry_delay"
+                    attempt=$((attempt + 1))
+                    continue
+                else
+                    return 1
+                fi
+            fi
+        else
+            if [[ $attempt -lt $max_retries ]]; then
+                # Backoff exponencial: 0.5s, 1s, 2s, 4s
+                local retry_multiplier=1
+                local i
+                for ((i=1; i<attempt; i++)); do
+                    retry_multiplier=$((retry_multiplier * 2))
+                done
+                local retry_delay=$((base_retry_delay * retry_multiplier))
+                sleep "$retry_delay"
+                attempt=$((attempt + 1))
+            else
+                echo "INSERT_CONTAINERS_POSITIONS_BATCH: Falhou após $max_retries tentativas" >&2
+                return 1
+            fi
+        fi
+    done
+
+    echo "INSERT_CONTAINERS_POSITIONS_BATCH: Falhou após $max_retries tentativas"
+    return 1
+}
+
 INSERT_CONTAINER_ITEM() {
     local ContainerTrackingId="$1"
     local ItemType="$2"
@@ -2219,6 +2478,100 @@ EOF
     done
 
     echo "Failed to insert items batch after $max_retries attempts."
+    return 1
+}
+
+INSERT_ALL_CONTAINERS_ITEMS_BATCH() {
+    local CustomTimestamp="$1"  # Timestamp para todos os items
+    shift
+    local items_array=("$@")  # Array de items no formato "ContainerTrackingId|type|health"
+    
+    if [[ ${#items_array[@]} -eq 0 ]]; then
+        return 0  # Nada para inserir, retorna sucesso
+    fi
+
+    local TimestampValue
+    if [[ -n "$CustomTimestamp" ]]; then
+        TimestampValue="'$CustomTimestamp'"
+    else
+        TimestampValue="datetime('now', 'localtime')"
+    fi
+
+    local max_retries=5
+    local base_retry_delay=0.5
+    local attempt=1
+
+    while (( attempt <= max_retries )); do
+        local sql_values=""
+        local first_value=1
+        
+        for item_data in "${items_array[@]}"; do
+            if [[ -z "$item_data" ]]; then
+                continue
+            fi
+            
+            local ContainerTrackingId="${item_data%%|*}"
+            local remaining_data="${item_data#*|}"
+            local item_type="${remaining_data%%|*}"
+            local item_health="${remaining_data#*|}"
+            
+            if [[ "$item_health" == "$remaining_data" ]]; then
+                item_health=""
+            fi
+            
+            if [[ -z "$ContainerTrackingId" || -z "$item_type" || "$item_type" == "empty" || "$item_type" == "null" ]]; then
+                continue
+            fi
+            
+            local EscapedItemType
+            EscapedItemType=$(echo "$item_type" | sed "s/'/''/g")
+            
+            if [[ $first_value -eq 0 ]]; then
+                sql_values+=", "
+            fi
+            first_value=0
+            
+            if [[ -n "$item_health" && "$item_health" != "NULL" && "$item_health" != "null" && "$item_health" != "" ]]; then
+                sql_values+="($ContainerTrackingId, '$EscapedItemType', $item_health, $TimestampValue)"
+            else
+                sql_values+="($ContainerTrackingId, '$EscapedItemType', NULL, $TimestampValue)"
+            fi
+        done
+        
+        if [[ -z "$sql_values" ]]; then
+            return 0
+        fi
+        
+        configure_sqlite_pragmas "$AppFolder/$AppContainerBecoC1DbFile"
+        
+        local sql_result
+        sql_result=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" <<EOF 2>/dev/null
+BEGIN IMMEDIATE TRANSACTION;
+INSERT INTO container_items_tracking (ContainerTrackingId, ItemType, ItemHealth, TimeStamp) VALUES $sql_values;
+COMMIT;
+SELECT changes();
+EOF
+)
+        local inserted_count=$(echo "$sql_result" | tail -n 1)
+
+        if [[ "$inserted_count" =~ ^[0-9]+$ ]]; then
+            echo "$inserted_count"
+            return 0
+        else
+            if [[ $attempt -lt $max_retries ]]; then
+                local retry_multiplier=1
+                local i
+                for ((i=1; i<attempt; i++)); do
+                    retry_multiplier=$((retry_multiplier * 2))
+                done
+                local retry_delay=$(awk "BEGIN {printf \"%.1f\", $base_retry_delay * $retry_multiplier}")
+                sleep "$retry_delay"
+            fi
+            attempt=$((attempt + 1))
+        fi
+    done
+
+    echo "Failed to insert all containers items batch after $max_retries attempts."
     return 1
 }
 

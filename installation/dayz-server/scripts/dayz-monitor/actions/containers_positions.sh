@@ -24,7 +24,7 @@ handle_containers_positions() {
     local line="$1"
     local captured_timestamp="$2"  # Timestamp capturado no momento da leitura
 
-    #echo ">> Recebendo containers para loot: $line"
+    INSERT_CUSTOM_LOG ">> Iniciando processamento de containers_positions" "INFO" "$ScriptName"
 
     local current_timestamp CurrentDate
     # Se timestamp não foi fornecido, usar timestamp atual como fallback
@@ -40,6 +40,10 @@ handle_containers_positions() {
         INSERT_CUSTOM_LOG "JSON de containers vazio ou inválido" "INFO" "$ScriptName"
         return
     fi
+    
+    local container_count_check
+    container_count_check=$(echo "$line" | jq '.container_data | length // 0' 2>/dev/null || echo "0")
+    INSERT_CUSTOM_LOG ">> Containers encontrados no JSON: $container_count_check" "INFO" "$ScriptName"
 
     declare -A prev_containers=()
 
@@ -48,64 +52,186 @@ handle_containers_positions() {
 
     # Verificar se coluna IsDestroyed existe
     local has_is_destroyed
-    has_is_destroyed=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('containers_tracking') WHERE name='IsDestroyed';")
+    local check_stderr
+    check_stderr=$(mktemp)
+    has_is_destroyed=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('containers_tracking') WHERE name='IsDestroyed';" 2>"$check_stderr")
+    local check_error
+    check_error=$(cat "$check_stderr" 2>/dev/null)
+    rm -f "$check_stderr"
+    if [[ -n "$check_error" ]]; then
+        if echo "$check_error" | grep -q "database is locked"; then
+            INSERT_CUSTOM_LOG "SQLite lock detectado (verificar IsDestroyed): $check_error" "WARNING" "$ScriptName"
+        elif [[ -n "$check_error" ]]; then
+            INSERT_CUSTOM_LOG "SQLite error (verificar IsDestroyed): $check_error" "ERROR" "$ScriptName"
+        fi
+    fi
     
-    # Buscar último registro de cada container com items (excluindo destruídos)
+    # Garantir que índice composto otimizado existe
+    local index_stderr
+    index_stderr=$(mktemp)
+    sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" "CREATE INDEX IF NOT EXISTS idx_containers_tracking_lookup ON containers_tracking(ContainerId, TimeStamp, IsDestroyed);" 2>"$index_stderr"
+    local index_error
+    index_error=$(cat "$index_stderr" 2>/dev/null)
+    rm -f "$index_stderr"
+    if [[ -n "$index_error" ]]; then
+        if echo "$index_error" | grep -q "database is locked"; then
+            INSERT_CUSTOM_LOG "SQLite lock detectado (criar índice): $index_error" "WARNING" "$ScriptName"
+        elif [[ -n "$index_error" ]]; then
+            INSERT_CUSTOM_LOG "SQLite error (criar índice): $index_error" "ERROR" "$ScriptName"
+        fi
+    fi
+    
+    # Buscar último registro de cada container com items usando window function (muito mais eficiente que subquery MAX)
+    # Usa índice composto idx_containers_tracking_lookup para performance otimizada
     local sql_query
     if [[ "$has_is_destroyed" -eq 1 ]]; then
         sql_query="SELECT 
-    ct.ContainerId,
-    ct.ContainerName,
-    ct.PositionX,
-    ct.PositionZ,
-    ct.PositionY,
+    ranked.ContainerId,
+    ranked.ContainerName,
+    ranked.PositionX,
+    ranked.PositionZ,
+    ranked.PositionY,
     IFNULL(GROUP_CONCAT(cit.ItemType || ':' || IFNULL(cit.ItemHealth, ''), ','), '')
-FROM containers_tracking ct
-LEFT JOIN container_items_tracking cit ON ct.IdContainerTracking = cit.ContainerTrackingId
-WHERE ct.TimeStamp = (
-    SELECT MAX(ct2.TimeStamp) 
-    FROM containers_tracking ct2 
-    WHERE ct2.ContainerId = ct.ContainerId
-    AND (ct2.IsDestroyed = 0 OR ct2.IsDestroyed IS NULL)
-)
-AND (ct.IsDestroyed = 0 OR ct.IsDestroyed IS NULL)
-GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.PositionY;"
+FROM (
+    SELECT ContainerId, ContainerName, PositionX, PositionZ, PositionY, IdContainerTracking,
+           ROW_NUMBER() OVER (PARTITION BY ContainerId ORDER BY TimeStamp DESC) as rn
+    FROM containers_tracking
+    WHERE (IsDestroyed = 0 OR IsDestroyed IS NULL)
+) ranked
+LEFT JOIN container_items_tracking cit ON ranked.IdContainerTracking = cit.ContainerTrackingId
+WHERE ranked.rn = 1
+GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.PositionZ, ranked.PositionY;"
     else
         sql_query="SELECT 
-    ct.ContainerId,
-    ct.ContainerName,
-    ct.PositionX,
-    ct.PositionZ,
-    ct.PositionY,
+    ranked.ContainerId,
+    ranked.ContainerName,
+    ranked.PositionX,
+    ranked.PositionZ,
+    ranked.PositionY,
     IFNULL(GROUP_CONCAT(cit.ItemType || ':' || IFNULL(cit.ItemHealth, ''), ','), '')
-FROM containers_tracking ct
-LEFT JOIN container_items_tracking cit ON ct.IdContainerTracking = cit.ContainerTrackingId
-WHERE ct.TimeStamp = (
-    SELECT MAX(ct2.TimeStamp) 
-    FROM containers_tracking ct2 
-    WHERE ct2.ContainerId = ct.ContainerId
-)
-GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.PositionY;"
+FROM (
+    SELECT ContainerId, ContainerName, PositionX, PositionZ, PositionY, IdContainerTracking,
+           ROW_NUMBER() OVER (PARTITION BY ContainerId ORDER BY TimeStamp DESC) as rn
+    FROM containers_tracking
+) ranked
+LEFT JOIN container_items_tracking cit ON ranked.IdContainerTracking = cit.ContainerTrackingId
+WHERE ranked.rn = 1
+GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.PositionZ, ranked.PositionY;"
     fi
     
-    while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_items; do
-        # Pular linhas vazias ou quando prev_id está vazio
-        if [[ -z "$prev_id" ]]; then
-            continue
+    INSERT_CUSTOM_LOG ">> Buscando containers anteriores no banco de dados..." "INFO" "$ScriptName"
+    local prev_containers_query_start
+    prev_containers_query_start=$(date +%s.%N 2>/dev/null || date +%s)
+    
+    # Executar query com retry logic para evitar locks
+    local query_output
+    local query_success=false
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+    
+    while [[ $attempt -le $max_retries ]]; do
+        # Configurar PRAGMAs antes de cada tentativa
+        configure_sqlite_pragmas "$AppFolder/$AppContainerBecoC1DbFile"
+        
+        # Separar stdout e stderr para capturar erros
+        local sqlite_stderr
+        sqlite_stderr=$(mktemp)
+        query_output=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" -separator '|' "$sql_query" 2>"$sqlite_stderr")
+        local sqlite_exit_code=$?
+        local sqlite_error
+        sqlite_error=$(cat "$sqlite_stderr" 2>/dev/null)
+        rm -f "$sqlite_stderr"
+        
+        # Logar erros de lock no banco
+        if [[ -n "$sqlite_error" ]]; then
+            if echo "$sqlite_error" | grep -q "database is locked"; then
+                INSERT_CUSTOM_LOG "SQLite lock detectado (containers anteriores, tentativa $attempt/$max_retries): $sqlite_error" "WARNING" "$ScriptName"
+            else
+                INSERT_CUSTOM_LOG "SQLite error (containers anteriores): $sqlite_error" "ERROR" "$ScriptName"
+            fi
         fi
-        prev_containers["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_items"
-    done < <(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" -separator '|' "$sql_query")
+        
+        if [[ $sqlite_exit_code -eq 0 ]]; then
+            query_success=true
+            break
+        fi
+        
+        # Verificar se é erro de lock (código 5)
+        if echo "$sqlite_error" | grep -q "database is locked"; then
+            if [[ $attempt -lt $max_retries ]]; then
+                INSERT_CUSTOM_LOG ">> Query de containers anteriores travou (tentativa $attempt/$max_retries), aguardando..." "WARNING" "$ScriptName"
+                sleep "$retry_delay"
+                # Backoff exponencial: 0.2, 0.4, 0.8, 1.6, 3.2
+                retry_delay=$(awk "BEGIN {printf \"%.1f\", $retry_delay * 2}")
+                attempt=$((attempt + 1))
+                continue
+            fi
+        else
+            # Erro diferente de lock, não tentar novamente
+            INSERT_CUSTOM_LOG ">> Erro na query de containers anteriores: ${sqlite_error:0:200}" "ERROR" "$ScriptName"
+            break
+        fi
+    done
+    
+    local prev_containers_count=0
+    if [[ "$query_success" == true ]]; then
+        while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_items; do
+            # Pular linhas vazias ou quando prev_id está vazio
+            if [[ -z "$prev_id" ]]; then
+                continue
+            fi
+            prev_containers["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_items"
+            prev_containers_count=$((prev_containers_count + 1))
+        done <<< "$query_output"
+    else
+        INSERT_CUSTOM_LOG ">> Erro ao buscar containers anteriores após $max_retries tentativas" "ERROR" "$ScriptName"
+    fi
+    
+    local prev_containers_query_end
+    prev_containers_query_end=$(date +%s.%N 2>/dev/null || date +%s)
+    local prev_containers_query_elapsed_ms
+    if command -v awk >/dev/null 2>&1; then
+        prev_containers_query_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($prev_containers_query_end - $prev_containers_query_start) * 1000}")
+    else
+        local prev_containers_query_elapsed_seconds
+        prev_containers_query_elapsed_seconds=$(echo "$prev_containers_query_end - $prev_containers_query_start" | bc -l 2>/dev/null || echo "0")
+        prev_containers_query_elapsed_ms=$(echo "$prev_containers_query_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+    fi
+    INSERT_CUSTOM_LOG ">> Containers anteriores carregados: $prev_containers_count (tempo: ${prev_containers_query_elapsed_ms}ms)" "INFO" "$ScriptName"
+
+    # Medir tempo do parsing do JSON
+    local parsing_start_time
+    parsing_start_time=$(date +%s.%N 2>/dev/null || date +%s)
 
     local containers container_count processed_count
     containers=$(echo "$line" | jq -c '.container_data[]')
     container_count=$(echo "$line" | jq '.container_data | length')
     processed_count=0
 
+    # Arrays para coletar dados antes de processar
+    declare -a batch_containers_data=()  # Para batch INSERT
+    declare -A containers_items_map=()    # ContainerId -> array de items
+    declare -a containers_to_process=()  # Lista de containers para processar
+    declare -A containers_metadata=()     # ContainerId -> metadata (type, coords, etc)
+
+    # Primeira passagem: coletar todos os dados e fazer comparações
+    INSERT_CUSTOM_LOG ">> Iniciando loop de processamento de containers..." "INFO" "$ScriptName"
     local container_data
+    local containers_processed_in_loop=0
+    local comparison_time_total=0
+    local comparison_count=0
     while IFS= read -r container_data; do
         if [[ -z "$container_data" ]]; then
             continue
         fi
+        containers_processed_in_loop=$((containers_processed_in_loop + 1))
+        if [[ $((containers_processed_in_loop % 100)) -eq 0 ]]; then
+            INSERT_CUSTOM_LOG ">> Processados $containers_processed_in_loop containers no loop..." "INFO" "$ScriptName"
+        fi
+        
+        local container_loop_start
+        container_loop_start=$(date +%s.%N 2>/dev/null || date +%s)
 
         local container_type coord_x coord_z coord_y container_id container_name
         container_id=$(echo "$container_data" | jq -r '.container_id')
@@ -225,47 +351,23 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
                 diff_message+="movido((${prev_x_log},${prev_z_log},${prev_y_log})->(${coord_x_log},${coord_z_log},${coord_y_log})); "
             fi
 
-            local prev_items_array current_items_array
-            declare -A prev_items_map current_items_map
-
+            # Contar items anteriores e atuais (comparação rápida)
+            local prev_items_count=0
+            local current_items_count=0
             if [[ -n "$prev_items_str" ]]; then
-                IFS=',' read -ra prev_items_array <<< "$prev_items_str"
-                for item_pair in "${prev_items_array[@]}"; do
-                    if [[ -n "$item_pair" ]]; then
-                        local item_type_prev item_health_prev
-                        IFS=':' read -r item_type_prev item_health_prev <<< "$item_pair"
-                        if [[ -n "$item_type_prev" ]]; then
-                            if [[ -z "${prev_items_map[$item_type_prev]}" ]]; then
-                                prev_items_map["$item_type_prev"]="1:${item_health_prev}"
-                            else
-                                local existing_count existing_healths
-                                IFS=':' read -r existing_count existing_healths <<< "${prev_items_map[$item_type_prev]}"
-                                local new_count=$((existing_count + 1))
-                                prev_items_map["$item_type_prev"]="${new_count}:${existing_healths},${item_health_prev}"
-                            fi
-                        fi
-                    fi
-                done
+                prev_items_count=$(echo "$prev_items_str" | tr ',' '\n' | grep -c . || echo "0")
             fi
-
             if [[ -n "$current_items_str" ]]; then
-                IFS=',' read -ra current_items_array <<< "$current_items_str"
-                for item_pair in "${current_items_array[@]}"; do
-                    if [[ -n "$item_pair" ]]; then
-                        local item_type_curr item_health_curr
-                        IFS=':' read -r item_type_curr item_health_curr <<< "$item_pair"
-                        if [[ -n "$item_type_curr" ]]; then
-                            if [[ -z "${current_items_map[$item_type_curr]}" ]]; then
-                                current_items_map["$item_type_curr"]="1:${item_health_curr}"
-                            else
-                                local existing_count existing_healths
-                                IFS=':' read -r existing_count existing_healths <<< "${current_items_map[$item_type_curr]}"
-                                local new_count=$((existing_count + 1))
-                                current_items_map["$item_type_curr"]="${new_count}:${existing_healths},${item_health_curr}"
-                            fi
-                        fi
-                    fi
-                done
+                current_items_count=$(echo "$current_items_str" | tr ',' '\n' | grep -c . || echo "0")
+            fi
+            
+            # Fazer comparação detalhada apenas se necessário:
+            # 1. Container mudou de posição
+            # 2. Número de items mudou
+            # 3. Container foi esvaziado
+            local needs_detailed_comparison=false
+            if [[ "$container_moved" == true ]] || [[ "$prev_items_count" != "$current_items_count" ]] || [[ "$should_save_empty" == true ]]; then
+                needs_detailed_comparison=true
             fi
 
             local items_added items_removed items_changed
@@ -273,38 +375,116 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
             items_removed=""
             items_changed=""
 
-            for item_key in "${!prev_items_map[@]}"; do
-                local prev_count prev_healths
-                IFS=':' read -r prev_count prev_healths <<< "${prev_items_map[$item_key]}"
-                
-                if [[ -z "${current_items_map[$item_key]}" ]]; then
-                    if [[ -n "$items_removed" ]]; then
-                        items_removed+=", "
-                    fi
-                    items_removed+="$item_key(qtd:$prev_count)"
-                else
-                    local curr_count curr_healths
-                    IFS=':' read -r curr_count curr_healths <<< "${current_items_map[$item_key]}"
-                    
-                    if [[ "$prev_count" != "$curr_count" ]]; then
-                        if [[ -n "$items_changed" ]]; then
-                            items_changed+=", "
-                        fi
-                        items_changed+="$item_key(qtd:$prev_count->$curr_count)"
-                    fi
-                fi
-            done
+            # Comparação detalhada apenas quando necessário
+            if [[ "$needs_detailed_comparison" == true ]]; then
+                local prev_items_array current_items_array
+                declare -A prev_items_map current_items_map
 
-            for item_key in "${!current_items_map[@]}"; do
-                if [[ -z "${prev_items_map[$item_key]}" ]]; then
-                    local curr_count curr_healths
-                    IFS=':' read -r curr_count curr_healths <<< "${current_items_map[$item_key]}"
-                    if [[ -n "$items_added" ]]; then
-                        items_added+=", "
-                    fi
-                    items_added+="$item_key(qtd:$curr_count)"
+                if [[ -n "$prev_items_str" ]]; then
+                    IFS=',' read -ra prev_items_array <<< "$prev_items_str"
+                    for item_pair in "${prev_items_array[@]}"; do
+                        if [[ -n "$item_pair" ]]; then
+                            local item_type_prev item_health_prev
+                            IFS=':' read -r item_type_prev item_health_prev <<< "$item_pair"
+                            if [[ -n "$item_type_prev" ]]; then
+                                if [[ -z "${prev_items_map[$item_type_prev]}" ]]; then
+                                    prev_items_map["$item_type_prev"]="1:${item_health_prev}"
+                                else
+                                    local existing_count existing_healths
+                                    IFS=':' read -r existing_count existing_healths <<< "${prev_items_map[$item_type_prev]}"
+                                    local new_count=$((existing_count + 1))
+                                    prev_items_map["$item_type_prev"]="${new_count}:${existing_healths},${item_health_prev}"
+                                fi
+                            fi
+                        fi
+                    done
                 fi
-            done
+
+                if [[ -n "$current_items_str" ]]; then
+                    IFS=',' read -ra current_items_array <<< "$current_items_str"
+                    for item_pair in "${current_items_array[@]}"; do
+                        if [[ -n "$item_pair" ]]; then
+                            local item_type_curr item_health_curr
+                            IFS=':' read -r item_type_curr item_health_curr <<< "$item_pair"
+                            if [[ -n "$item_type_curr" ]]; then
+                                if [[ -z "${current_items_map[$item_type_curr]}" ]]; then
+                                    current_items_map["$item_type_curr"]="1:${item_health_curr}"
+                                else
+                                    local existing_count existing_healths
+                                    IFS=':' read -r existing_count existing_healths <<< "${current_items_map[$item_type_curr]}"
+                                    local new_count=$((existing_count + 1))
+                                    current_items_map["$item_type_curr"]="${new_count}:${existing_healths},${item_health_curr}"
+                                fi
+                            fi
+                        fi
+                    done
+                fi
+
+                for item_key in "${!prev_items_map[@]}"; do
+                    local prev_count prev_healths
+                    IFS=':' read -r prev_count prev_healths <<< "${prev_items_map[$item_key]}"
+                    
+                    if [[ -z "${current_items_map[$item_key]}" ]]; then
+                        if [[ -n "$items_removed" ]]; then
+                            items_removed+=", "
+                        fi
+                        items_removed+="$item_key(qtd:$prev_count)"
+                    else
+                        local curr_count curr_healths
+                        IFS=':' read -r curr_count curr_healths <<< "${current_items_map[$item_key]}"
+                        
+                        if [[ "$prev_count" != "$curr_count" ]]; then
+                            if [[ -n "$items_changed" ]]; then
+                                items_changed+=", "
+                            fi
+                            items_changed+="$item_key(qtd:$prev_count->$curr_count)"
+                        fi
+                    fi
+                done
+
+                for item_key in "${!current_items_map[@]}"; do
+                    if [[ -z "${prev_items_map[$item_key]}" ]]; then
+                        local curr_count curr_healths
+                        IFS=':' read -r curr_count curr_healths <<< "${current_items_map[$item_key]}"
+                        if [[ -n "$items_added" ]]; then
+                            items_added+=", "
+                        fi
+                        items_added+="$item_key(qtd:$curr_count)"
+                    fi
+                done
+                
+                local comparison_end
+                comparison_end=$(date +%s.%N 2>/dev/null || date +%s)
+                local comparison_elapsed_ms
+                if command -v awk >/dev/null 2>&1; then
+                    comparison_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($comparison_end - $comparison_start) * 1000}")
+                else
+                    local comparison_elapsed_seconds
+                    comparison_elapsed_seconds=$(echo "$comparison_end - $comparison_start" | bc -l 2>/dev/null || echo "0")
+                    comparison_elapsed_ms=$(echo "$comparison_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+                fi
+                comparison_time_total=$((comparison_time_total + comparison_elapsed_ms))
+                comparison_count=$((comparison_count + 1))
+            else
+                # Se não precisa de comparação detalhada, apenas indicar que items mudaram se contagem mudou
+                if [[ "$prev_items_count" != "$current_items_count" ]]; then
+                    items_changed="contagem_mudou($prev_items_count->$current_items_count)"
+                fi
+            fi
+            
+            local container_loop_end
+            container_loop_end=$(date +%s.%N 2>/dev/null || date +%s)
+            local container_loop_elapsed_ms
+            if command -v awk >/dev/null 2>&1; then
+                container_loop_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($container_loop_end - $container_loop_start) * 1000}")
+            else
+                local container_loop_elapsed_seconds
+                container_loop_elapsed_seconds=$(echo "$container_loop_end - $container_loop_start" | bc -l 2>/dev/null || echo "0")
+                container_loop_elapsed_ms=$(echo "$container_loop_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+            fi
+            if [[ $container_loop_elapsed_ms -gt 100 ]]; then
+                INSERT_CUSTOM_LOG ">> Container $container_id processado em ${container_loop_elapsed_ms}ms (comparação detalhada: $needs_detailed_comparison)" "DEBUG" "$ScriptName"
+            fi
 
             if [[ -n "$items_added" || -n "$items_removed" || -n "$items_changed" || -n "$diff_message" ]]; then
                 if [[ -n "$items_added" ]]; then
@@ -346,59 +526,179 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
             unset "prev_containers[$container_id]"
         fi
 
-        # Salvar container no banco se:
+        # Salvar container para batch INSERT se:
         # 1. Tem items atualmente (comportamento normal)
         # 2. Foi esvaziado (tinha items antes, agora está vazio) - para atualizar timestamp e evitar logs repetidos
+        # 3. É shelter type
         if [[ -n "$current_items_str" || "$should_save_empty" == true || "$is_shelter_type" == true ]]; then
-            local ContainerTrackingId
-            ContainerTrackingId=$(INSERT_CONTAINER_POSITION "$container_id" "$container_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp")
+            # Adicionar ao batch de containers (formato: container_id|container_name|coord_x|coord_z|coord_y)
+            batch_containers_data+=("$container_id|$container_name|$coord_x|$coord_z|$coord_y")
+            containers_to_process+=("$container_id")
+            
+            # Armazenar metadata do container
+            containers_metadata["$container_id"]="$container_type|$coord_x_log|$coord_z_log|$coord_y_log|$is_shelter_type"
+            
+            # Armazenar items do container para processamento posterior
+            if [[ -n "$current_items" ]]; then
+                local items_batch=()
+                local item_data item_type item_health
+                
+                # Coletar todos os items válidos em um array
+                while IFS= read -r item_data; do
+                    if [[ -z "$item_data" || "$item_data" == "null" || "$item_data" == "empty" ]]; then
+                        continue
+                    fi
 
-            if [[ $? -eq 0 && -n "$ContainerTrackingId" ]]; then
-                processed_count=$((processed_count + 1))
+                    # Extrair tipo e health do item
+                    item_type=$(echo "$item_data" | jq -r '.type // empty' 2>/dev/null)
+                    item_health=$(echo "$item_data" | jq -r 'if .health != null and .health != "" then .health else empty end' 2>/dev/null)
 
-                # Inserir items do container em lote
-                if [[ -n "$current_items" ]]; then
-                    local items_batch=()
-                    local item_data item_type item_health
-                    
-                    # Coletar todos os items válidos em um array
-                    while IFS= read -r item_data; do
-                        if [[ -z "$item_data" || "$item_data" == "null" || "$item_data" == "empty" ]]; then
-                            continue
-                        fi
-
-                        # Extrair tipo e health do item
-                        item_type=$(echo "$item_data" | jq -r '.type // empty' 2>/dev/null)
-                        item_health=$(echo "$item_data" | jq -r 'if .health != null and .health != "" then .health else empty end' 2>/dev/null)
-
-                        # Validar que o tipo não está vazio e não é "empty"
-                        if [[ -n "$item_type" && "$item_type" != "empty" && "$item_type" != "null" ]]; then
-                            # Adicionar ao array no formato "type|health"
-                            if [[ -n "$item_health" ]]; then
-                                items_batch+=("${item_type}|${item_health}")
-                            else
-                                items_batch+=("${item_type}")
-                            fi
-                        fi
-                    done <<< "$current_items"
-
-                    # Inserir todos os items em uma única transação
-                    if [[ ${#items_batch[@]} -gt 0 ]]; then
-                        local inserted_item_count
-                        inserted_item_count=$(INSERT_CONTAINER_ITEMS_BATCH "$ContainerTrackingId" "$current_timestamp" "${items_batch[@]}" 2>/dev/null)
-                        if [[ $? -eq 0 && -n "$inserted_item_count" ]]; then
-                            Content="$inserted_item_count item(s) inseridos no container $container_id"
-                            #INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
+                    # Validar que o tipo não está vazio e não é "empty"
+                    if [[ -n "$item_type" && "$item_type" != "empty" && "$item_type" != "null" ]]; then
+                        # Adicionar ao array no formato "type|health"
+                        if [[ -n "$item_health" ]]; then
+                            items_batch+=("${item_type}|${item_health}")
                         else
-                            Content="Erro ao inserir items no container $container_id (batch size: ${#items_batch[@]})"
-                            INSERT_CUSTOM_LOG "$Content" "ERROR" "$ScriptName"
+                            items_batch+=("${item_type}")
                         fi
                     fi
+                done <<< "$current_items"
+                
+                # Armazenar items como string separada por newlines para depois processar
+                if [[ ${#items_batch[@]} -gt 0 ]]; then
+                    containers_items_map["$container_id"]=$(IFS=$'\n'; echo "${items_batch[*]}")
                 fi
             fi
         fi
 
     done <<< "$containers"
+    
+    local avg_comparison_time=0
+    if [[ $comparison_count -gt 0 ]]; then
+        avg_comparison_time=$((comparison_time_total / comparison_count))
+    fi
+    INSERT_CUSTOM_LOG ">> Loop de processamento concluído. Total processado: $containers_processed_in_loop, coletados para batch: ${#batch_containers_data[@]}, comparações detalhadas: $comparison_count (tempo médio: ${avg_comparison_time}ms)" "INFO" "$ScriptName"
+
+    local parsing_end_time
+    parsing_end_time=$(date +%s.%N 2>/dev/null || date +%s)
+    local parsing_elapsed_ms
+    if command -v awk >/dev/null 2>&1; then
+        parsing_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($parsing_end_time - $parsing_start_time) * 1000}")
+    else
+        local parsing_elapsed_seconds
+        parsing_elapsed_seconds=$(echo "$parsing_end_time - $parsing_start_time" | bc -l 2>/dev/null || echo "0")
+        parsing_elapsed_ms=$(echo "$parsing_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+    fi
+    INSERT_CUSTOM_LOG "Etapa [parsing_json_coleta_dados] executada em ${parsing_elapsed_ms}ms (containers: $container_count, coletados para batch: ${#batch_containers_data[@]})" "INFO" "$ScriptName"
+
+    # Batch INSERT de todos os containers
+    local inserted_ids
+    local batch_insert_result
+    if [[ ${#batch_containers_data[@]} -gt 0 ]]; then
+        INSERT_CUSTOM_LOG ">> Iniciando batch INSERT de ${#batch_containers_data[@]} containers" "INFO" "$ScriptName"
+        local containers_insert_start_time
+        containers_insert_start_time=$(date +%s.%N 2>/dev/null || date +%s)
+        
+        inserted_ids=$(INSERT_CONTAINERS_POSITIONS_BATCH "$current_timestamp" "${batch_containers_data[@]}")
+        batch_insert_result=$?
+        
+        local containers_insert_end_time
+        containers_insert_end_time=$(date +%s.%N 2>/dev/null || date +%s)
+        local containers_insert_elapsed_ms
+        if command -v awk >/dev/null 2>&1; then
+            containers_insert_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($containers_insert_end_time - $containers_insert_start_time) * 1000}")
+        else
+            local containers_insert_elapsed_seconds
+            containers_insert_elapsed_seconds=$(echo "$containers_insert_end_time - $containers_insert_start_time" | bc -l 2>/dev/null || echo "0")
+            containers_insert_elapsed_ms=$(echo "$containers_insert_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+        fi
+        INSERT_CUSTOM_LOG "Etapa [batch_insert_containers] executada em ${containers_insert_elapsed_ms}ms (containers: ${#batch_containers_data[@]})" "INFO" "$ScriptName"
+        
+        if [[ $batch_insert_result -ne 0 ]]; then
+            INSERT_CUSTOM_LOG "Erro: não foi possível inserir containers em batch (código: $batch_insert_result)" "ERROR" "$ScriptName"
+            INSERT_CUSTOM_LOG ">> IDs retornados: ${inserted_ids:0:200}..." "DEBUG" "$ScriptName"
+        else
+            processed_count=${#batch_containers_data[@]}
+            INSERT_CUSTOM_LOG ">> Batch INSERT bem-sucedido. IDs obtidos: $(echo "$inserted_ids" | wc -l) linhas" "INFO" "$ScriptName"
+            
+            # Criar mapeamento ContainerId -> ContainerTrackingId
+            declare -A container_tracking_map=()
+            if [[ -n "$inserted_ids" ]]; then
+                local mapping_count=0
+                while IFS='|' read -r cid tracking_id; do
+                    if [[ -n "$cid" && -n "$tracking_id" ]]; then
+                        container_tracking_map["$cid"]="$tracking_id"
+                        mapping_count=$((mapping_count + 1))
+                    fi
+                done <<< "$inserted_ids"
+                INSERT_CUSTOM_LOG ">> Mapeamento criado: $mapping_count containers mapeados" "INFO" "$ScriptName"
+            else
+                INSERT_CUSTOM_LOG ">> AVISO: inserted_ids está vazio, não foi possível criar mapeamento" "WARNING" "$ScriptName"
+            fi
+            
+            # Coletar todos os items de todos os containers em array global
+            local collection_start_time
+            collection_start_time=$(date +%s.%N 2>/dev/null || date +%s)
+            
+            declare -a all_items_batch=()
+            
+            for container_id in "${containers_to_process[@]}"; do
+                local ContainerTrackingId="${container_tracking_map[$container_id]}"
+                if [[ -z "$ContainerTrackingId" ]]; then
+                    continue
+                fi
+                
+                # Coletar items do container no formato ContainerTrackingId|type|health
+                if [[ -n "${containers_items_map[$container_id]}" ]]; then
+                    local items_string="${containers_items_map[$container_id]}"
+                    while IFS= read -r item_entry; do
+                        if [[ -n "$item_entry" ]]; then
+                            # Formato: ContainerTrackingId|type|health (ou ContainerTrackingId|type se não houver health)
+                            all_items_batch+=("$ContainerTrackingId|$item_entry")
+                        fi
+                    done <<< "$items_string"
+                fi
+            done
+            
+            local collection_end_time
+            collection_end_time=$(date +%s.%N 2>/dev/null || date +%s)
+            local collection_elapsed_ms
+            if command -v awk >/dev/null 2>&1; then
+                collection_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($collection_end_time - $collection_start_time) * 1000}")
+            else
+                local collection_elapsed_seconds
+                collection_elapsed_seconds=$(echo "$collection_end_time - $collection_start_time" | bc -l 2>/dev/null || echo "0")
+                collection_elapsed_ms=$(echo "$collection_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+            fi
+            INSERT_CUSTOM_LOG "Etapa [coleta_items_globais] executada em ${collection_elapsed_ms}ms (items: ${#all_items_batch[@]})" "INFO" "$ScriptName"
+            
+            # Processar todos os items em um único batch INSERT
+            if [[ ${#all_items_batch[@]} -gt 0 ]]; then
+                local items_insert_start_time
+                items_insert_start_time=$(date +%s.%N 2>/dev/null || date +%s)
+                
+                local inserted_items_count
+                inserted_items_count=$(INSERT_ALL_CONTAINERS_ITEMS_BATCH "$current_timestamp" "${all_items_batch[@]}" 2>/dev/null)
+                local items_insert_result=$?
+                
+                local items_insert_end_time
+                items_insert_end_time=$(date +%s.%N 2>/dev/null || date +%s)
+                local items_insert_elapsed_ms
+                if command -v awk >/dev/null 2>&1; then
+                    items_insert_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($items_insert_end_time - $items_insert_start_time) * 1000}")
+                else
+                    local items_insert_elapsed_seconds
+                    items_insert_elapsed_seconds=$(echo "$items_insert_end_time - $items_insert_start_time" | bc -l 2>/dev/null || echo "0")
+                    items_insert_elapsed_ms=$(echo "$items_insert_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+                fi
+                INSERT_CUSTOM_LOG "Etapa [batch_insert_items] executada em ${items_insert_elapsed_ms}ms (items: ${#all_items_batch[@]})" "INFO" "$ScriptName"
+                
+                if [[ $items_insert_result -ne 0 ]]; then
+                    INSERT_CUSTOM_LOG "Erro ao inserir items de containers em batch" "ERROR" "$ScriptName"
+                fi
+            fi
+        fi
+    fi
 
     if [[ ${#prev_containers[@]} -gt 0 ]]; then
         local removed_id removed_data rem_name rem_x rem_z rem_y rem_items Content
@@ -460,17 +760,29 @@ GROUP BY ct.ContainerId, ct.ContainerName, ct.PositionX, ct.PositionZ, ct.Positi
             fi
             
             # Marcar todos os registros do container como destruído (garantir que não apareça no mapa)
-            sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" <<EOF
+            local update_stderr
+            update_stderr=$(mktemp)
+            sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" <<EOF 2>"$update_stderr"
 UPDATE containers_tracking
 SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
 WHERE ContainerId = '$removed_id'
 AND (IsDestroyed = 0 OR IsDestroyed IS NULL);
 EOF
+            local update_error
+            update_error=$(cat "$update_stderr" 2>/dev/null)
+            rm -f "$update_stderr"
+            if [[ -n "$update_error" ]]; then
+                if echo "$update_error" | grep -q "database is locked"; then
+                    INSERT_CUSTOM_LOG "SQLite lock detectado (marcar container destruído ID=$removed_id): $update_error" "WARNING" "$ScriptName"
+                elif [[ -n "$update_error" ]]; then
+                    INSERT_CUSTOM_LOG "SQLite error (marcar container destruído ID=$removed_id): $update_error" "ERROR" "$ScriptName"
+                fi
+            fi
             
             #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
         done
     fi
 
     echo ">> $processed_count containers processados de $container_count totais"
-    INSERT_CUSTOM_LOG "Total de $processed_count containers rastreados" "INFO" "$ScriptName"
+    INSERT_CUSTOM_LOG "Total de $processed_count containers rastreados (de $container_count totais no JSON, ${#batch_containers_data[@]} coletados para batch)" "INFO" "$ScriptName"
 }

@@ -336,7 +336,7 @@ void SendFencesStatus()
     //    return;
 
     string jsonAction = "{\"action\":\"fences_positions\",\"fence_data\":[" + fencesJson + "]}";
-    AppendExternalAction(jsonAction);
+    AppendExternalAction(jsonAction, false);
     WriteToLog("SendFencesStatus(): JSON com " + count.ToString() + " fences enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
 
     string summary = "[FENCE TRACKING] Total de fences enviadas: " + count.ToString();
@@ -750,7 +750,7 @@ void SendWatchtowersStatus()
     }
 
     string jsonAction = "{\"action\":\"watchtowers_positions\",\"watchtower_data\":[" + watchtowersJson + "]}";
-    AppendExternalAction(jsonAction);
+    AppendExternalAction(jsonAction, false);
     WriteToLog("SendWatchtowersStatus(): JSON com " + count.ToString() + " watchtowers enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
 }
 
@@ -1044,7 +1044,7 @@ void SendFlagsStatus()
     }
 
     string jsonAction = "{\"action\":\"flags_positions\",\"flag_data\":[" + flagsJson + "]}";
-    AppendExternalAction(jsonAction);
+    AppendExternalAction(jsonAction, false);
     WriteToLog("SendFlagsStatus(): JSON com " + count.ToString() + " flags enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
 }
 
