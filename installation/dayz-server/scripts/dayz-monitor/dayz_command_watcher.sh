@@ -130,6 +130,9 @@ process_action_async() {
             player_disconnected)
                 handle_player_disconnected "$line"
                 ;;
+            player_respawned)
+                handle_player_respawned "$line"
+                ;;
             event_restarting)
                 handle_event_restarting "$line"
                 ;;

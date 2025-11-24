@@ -106,7 +106,7 @@ void OnEventCustom(EventType eventTypeId, Param params)
     
     // ============================================================================
     // EVENTO: ClientDisconnectedEventTypeID
-    // Disparado quando um cliente inicia a desconexão MAS NÃO INDICA QUE O JOGADOR DESCONECTOU!
+    // Disparado quando um cliente inicia a desconexão
     // Params: <PlayerIdentity, Man, int, bool> - Identity, Player, LogoutTime, AuthFailed
     // ============================================================================
     else if (eventTypeId == ClientDisconnectedEventTypeID)
@@ -120,33 +120,46 @@ void OnEventCustom(EventType eventTypeId, Param params)
         
         identity = disconnectedParams.param1;      // PlayerIdentity
         player = disconnectedParams.param2;        // Man/PlayerBase
-        logoutTime = disconnectedParams.param3;    // Tempo de logout
+        logoutTime = disconnectedParams.param3;    // Tempo de logout (em segundos)
         authFailed = disconnectedParams.param4;    // Falha de autenticação
         
         if (identity)
         {
             string playerId = identity.GetId();
-            WriteToLog("  -> Jogador iniciando desconexão: " + identity.GetName() + " | ID: " + playerId, LogFile.INIT, false, LogType.INFO);
+            string playerName = identity.GetName();
+            WriteToLog("  -> Jogador iniciando desconexão: " + playerName + " | ID: " + playerId + " | LogoutTime: " + logoutTime + " | AuthFailed: " + authFailed, LogFile.INIT, false, LogType.INFO);
             
-            // Marca como desconexão pendente (aguarda confirmação via ScriptLogEventTypeID)
-            // Não remove da lista ainda e não envia evento ainda
+            // Se authFailed ou logoutTime == 0, desconecta imediatamente
+            if (authFailed || logoutTime == 0)
+            {
+                WriteToLog("  -> Desconexão imediata (authFailed ou logoutTime=0)", LogFile.INIT, false, LogType.INFO);
+                HandlePlayerDisconnect(playerId, identity, player);
+                return;
+            }
+            
+            // Marca como desconexão pendente e agenda verificação
             if (!PendingDisconnects)
                 PendingDisconnects = new map<string, int>();
             
             int currentTime = GetGame().GetTime();
-            PendingDisconnects.Set(playerId, currentTime);
-            WriteToLog("  -> Desconexão marcada como pendente, aguardando confirmação", LogFile.INIT, false, LogType.DEBUG);
+            int disconnectTime = currentTime + (logoutTime * 1000); // Converte segundos para milissegundos
+            PendingDisconnects.Set(playerId, disconnectTime);
+            WriteToLog("  -> Desconexão agendada para: " + disconnectTime + " (em " + logoutTime + " segundos)", LogFile.INIT, false, LogType.DEBUG);
+            
+            // Agenda verificação após o tempo de logout
+            GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(CheckPendingDisconnect, logoutTime * 1000, false, playerId);
         }
     }
     
     // ============================================================================
     // EVENTO: ClientNewEventTypeID
     // Disparado quando um cliente novo (primeira vez) entra no servidor
+    // IMPORTANTE: Quando jogador morre e entra novamente, apenas este evento é disparado
     // Params: <PlayerIdentity, vector, Serializer> - Identity, Position, Serializer (roupas)
     // ============================================================================
     else if (eventTypeId == ClientNewEventTypeID)
     {
-        WriteToLog("EVENT: ClientNewEventTypeID - Novo jogador entrando pela primeira vez", LogFile.INIT, false, LogType.INFO);
+        WriteToLog("EVENT: ClientNewEventTypeID - Novo jogador entrando", LogFile.INIT, false, LogType.INFO);
         ClientNewEventParams newParams = ClientNewEventParams.Cast(params);
         if (!newParams) {
             WriteToLog("ClientNewEventParams cast falhou.", LogFile.INIT, false, LogType.ERROR);
@@ -158,21 +171,44 @@ void OnEventCustom(EventType eventTypeId, Param params)
         
         if (identity)
         {
-            WriteToLog("  -> Novo jogador: " + identity.GetName() + " | PlayerID: " + identity.GetId() + " | Posição: " + position.ToString(), LogFile.INIT, false, LogType.INFO);
+            string playerId = identity.GetId();
+            string playerName = identity.GetName();
+            WriteToLog("  -> Novo jogador: " + playerName + " | PlayerID: " + playerId + " | Posição: " + position.ToString(), LogFile.INIT, false, LogType.INFO);
             
-            // Tenta obter o objeto Man através do PlayerIdentity
-            Man playerMan = GetManFromIdentity(identity);
+            // Verifica se jogador já está em ActivePlayers
+            ActivePlayer existingPlayer = GetActivePlayerById(playerId);
             
-            // Usa a função reutilizável para processar o jogador
-            ProcessPlayerReady(identity, playerMan);
+            if (existingPlayer)
+            {
+                // Jogador já existe (pode ser reconexão após morte)
+                WriteToLog("  -> Jogador já está em ActivePlayers, atualizando referência", LogFile.INIT, false, LogType.DEBUG);
+                
+                // Tenta obter o objeto Man através do PlayerIdentity
+                Man playerMan = GetManFromIdentity(identity);
+                if (playerMan)
+                {
+                    existingPlayer.SetPlayer(playerMan);
+                    WriteToLog("  -> Referência de Man atualizada", LogFile.INIT, false, LogType.DEBUG);
+                }
+            }
+            else
+            {
+                // Jogador não está em ActivePlayers - primeira conexão ou após morte
+                WriteToLog("  -> Jogador não está em ActivePlayers, processando como nova conexão", LogFile.INIT, false, LogType.INFO);
+                
+                // Tenta obter o objeto Man através do PlayerIdentity
+                Man playerMan = GetManFromIdentity(identity);
+                
+                // Usa a função reutilizável para processar o jogador
+                ProcessPlayerReady(identity, playerMan);
+            }
         }
-        
-        // Aqui você pode personalizar o spawn de novos jogadores
     }
     
     // ============================================================================
     // EVENTO: ClientReadyEventTypeID
     // Disparado quando o cliente está totalmente carregado e pronto para jogar
+    // IMPORTANTE: Este evento NÃO é disparado quando jogador morre e entra novamente
     // Params: <PlayerIdentity, Man> - Identity, Player
     // ============================================================================
     else if (eventTypeId == ClientReadyEventTypeID)
@@ -187,8 +223,22 @@ void OnEventCustom(EventType eventTypeId, Param params)
             
             if (identity)
             {
-                // Usa a função reutilizável para processar o jogador
-                ProcessPlayerReady(identity, player);
+                string playerId = identity.GetId();
+                ActivePlayer existingPlayer = GetActivePlayerById(playerId);
+                
+                if (existingPlayer)
+                {
+                    // Jogador já existe - apenas atualiza referência de Man
+                    WriteToLog("  -> Jogador já está em ActivePlayers, atualizando referência de Man", LogFile.INIT, false, LogType.DEBUG);
+                    existingPlayer.SetPlayer(player);
+                    EnsureActivePlayerHasManRef(playerId, player);
+                }
+                else
+                {
+                    // Jogador não existe - processa como nova conexão
+                    WriteToLog("  -> Jogador não está em ActivePlayers, processando como nova conexão", LogFile.INIT, false, LogType.INFO);
+                    ProcessPlayerReady(identity, player);
+                }
             }
         }
     }
@@ -230,18 +280,39 @@ void OnEventCustom(EventType eventTypeId, Param params)
         if (respawnParams)
         {
             identity = respawnParams.param1;
-            if (identity)
+            player = respawnParams.param2;
+            
+            if (identity && player)
             {
-                WriteToLog("  -> Jogador respawnou: " + identity.GetName() + " | PlayerID: " + identity.GetId(), LogFile.INIT, false, LogType.DEBUG);
-                
-                // Atualiza o jogador na lista (preserva HasSentConnectedEvent)
-                // Não envia player_connected pois é apenas um respawn
-                ActivePlayer respawnedPlayer = GetActivePlayerById(identity.GetId());
-                if (respawnedPlayer)
+                PlayerBase playerBase = PlayerBase.Cast(player);
+                if (playerBase)
                 {
-                    // Limpa o flag de morte para permitir desconexão normal no futuro
-                    respawnedPlayer.ClearDeathFlag();
-                    WriteToLog("  -> Jogador respawnado encontrado em ActivePlayers, flag de morte limpo", LogFile.INIT, false, LogType.DEBUG);
+                    string playerId = identity.GetId();
+                    string playerName = identity.GetName();
+                    vector respawnPos = playerBase.GetPosition();
+                    
+                    WriteToLog("  -> JOGADOR RESPAWNOU: " + playerName + " | PlayerID: " + playerId + " | Posição: " + respawnPos.ToString(), LogFile.INIT, false, LogType.INFO);
+                    
+                    // Registra log de respawn com posição
+                    string logMessage = "RESPAWN: " + playerName + " (ID: " + playerId + ") respawnou na posição " + respawnPos.ToString();
+                    WriteToLog(logMessage, LogFile.INIT, false, LogType.INFO);
+                    
+                    // Opcional: Enviar para sistema externo
+                    string sanitizedPos = respawnPos[0].ToString() + "," + respawnPos[1].ToString() + "," + respawnPos[2].ToString();
+                    AppendExternalAction("{\"action\":\"player_respawned\",\"player_id\":\"" + playerId + "\",\"position\":\"" + sanitizedPos + "\"}");
+                    
+                    // Atualiza o jogador na lista (preserva HasSentConnectedEvent)
+                    ActivePlayer respawnedPlayer = GetActivePlayerById(playerId);
+                    if (respawnedPlayer)
+                    {
+                        respawnedPlayer.SetPlayer(player);
+                        respawnedPlayer.ClearDeathFlag();
+                        WriteToLog("  -> Jogador respawnado atualizado na lista, flag de morte limpo", LogFile.INIT, false, LogType.DEBUG);
+                    }
+                    else
+                    {
+                        WriteToLog("  -> AVISO: Jogador respawnado não encontrado em ActivePlayers", LogFile.INIT, false, LogType.DEBUG);
+                    }
                 }
             }
         }
@@ -553,6 +624,7 @@ void OnEventCustom(EventType eventTypeId, Param params)
                     }
                 }
                 // Verifica se é logout confirmado (finished)
+                // FALLBACK: Usa parsing de log como backup caso o timer não funcione
                 else if (msg.Contains("finished"))
                 {
                     int finishedStart = msg.IndexOf("Player ");
@@ -561,35 +633,50 @@ void OnEventCustom(EventType eventTypeId, Param params)
                     {
                         finishedStart += 7; // Pular "Player "
                         string finishedUID = msg.Substring(finishedStart, finishedEnd - finishedStart).Trim();
-                        WriteToLog("  -> LOGOUT CONFIRMADO (finished) | UID: " + finishedUID, LogFile.INIT, false, LogType.INFO);
+                        WriteToLog("  -> LOGOUT CONFIRMADO (finished) via ScriptLogEventTypeID | UID: " + finishedUID, LogFile.INIT, false, LogType.INFO);
                         
-                        // Verifica se estava pendente ou se o jogador morreu recentemente
+                        // Busca jogador para obter identity
                         ActivePlayer loggingOutPlayer = GetActivePlayerById(finishedUID);
-                        bool shouldSendDisconnectLog = true;
-                        bool wasPending = false;
-                        
-                        if (PendingDisconnects && PendingDisconnects.Contains(finishedUID))
-                        {
-                            wasPending = true;
-                            PendingDisconnects.Remove(finishedUID);
-                            WriteToLog("  -> Desconexão pendente confirmada", LogFile.INIT, false, LogType.DEBUG);
-                        }
+                        PlayerIdentity identity = null;
+                        Man player = null;
                         
                         if (loggingOutPlayer)
                         {
-                            if (loggingOutPlayer.IsRecentlyDead(10.0))
+                            identity = loggingOutPlayer.GetIdentity();
+                            player = loggingOutPlayer.GetPlayer();
+                        }
+                        else
+                        {
+                            // Tenta buscar identity através de GetPlayers
+                            array<Man> players = new array<Man>();
+                            GetGame().GetPlayers(players);
+                            foreach (Man man : players)
                             {
-                                WriteToLog("  -> Jogador morreu recentemente, não enviando player_disconnected", LogFile.INIT, false, LogType.DEBUG);
-                                shouldSendDisconnectLog = false;
+                                PlayerBase pb = PlayerBase.Cast(man);
+                                if (pb && pb.GetIdentity() && pb.GetIdentity().GetId() == finishedUID)
+                                {
+                                    identity = pb.GetIdentity();
+                                    player = man;
+                                    break;
+                                }
                             }
                         }
                         
-                        RemoveActivePlayerById(finishedUID);
-                        
-                        if (shouldSendDisconnectLog)
+                        if (identity)
                         {
-                            AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + finishedUID + "\"}");
-                            WriteToLog("  -> Evento player_disconnected enviado via ScriptLogEventTypeID (logout confirmado)", LogFile.INIT, false, LogType.INFO);
+                            // Usa função centralizada para processar desconexão
+                            HandlePlayerDisconnect(finishedUID, identity, player);
+                            WriteToLog("  -> Desconexão processada via ScriptLogEventTypeID (fallback)", LogFile.INIT, false, LogType.DEBUG);
+                        }
+                        else
+                        {
+                            WriteToLog("  -> AVISO: Não foi possível encontrar Identity para: " + finishedUID, LogFile.INIT, false, LogType.ERROR);
+                            // Remove mesmo assim para não ficar preso
+                            if (PendingDisconnects && PendingDisconnects.Contains(finishedUID))
+                            {
+                                PendingDisconnects.Remove(finishedUID);
+                            }
+                            RemoveActivePlayerById(finishedUID);
                         }
                     }
                 }
@@ -680,5 +767,121 @@ void OnEventCustom(EventType eventTypeId, Param params)
     {
         string eventTypeName = GetEventTypeName(eventTypeId);
         WriteToLog("EVENT: Evento não mapeado capturado - Tipo: " + eventTypeName, LogFile.INIT, false, LogType.DEBUG);
+    }
+}
+
+// ============================================================================
+// FUNÇÃO: HandlePlayerDisconnect
+// Processa desconexão de jogador de forma centralizada
+// ============================================================================
+void HandlePlayerDisconnect(string playerId, PlayerIdentity identity, Man player)
+{
+    if (!identity)
+    {
+        WriteToLog("HandlePlayerDisconnect(): Identity nula para PlayerID: " + playerId, LogFile.INIT, false, LogType.ERROR);
+        return;
+    }
+    
+    string playerName = identity.GetName();
+    WriteToLog("HandlePlayerDisconnect(): Processando desconexão de " + playerName + " (ID: " + playerId + ")", LogFile.INIT, false, LogType.INFO);
+    
+    // Verifica se jogador morreu recentemente
+    ActivePlayer disconnectingPlayer = GetActivePlayerById(playerId);
+    bool shouldSendDisconnectLog = true;
+    
+    if (disconnectingPlayer)
+    {
+        if (disconnectingPlayer.IsRecentlyDead(10.0))
+        {
+            WriteToLog("HandlePlayerDisconnect(): Jogador morreu recentemente, não enviando player_disconnected", LogFile.INIT, false, LogType.DEBUG);
+            shouldSendDisconnectLog = false;
+        }
+    }
+    
+    // Remove de ActivePlayers
+    RemoveActivePlayerById(playerId);
+    
+    // Remove de PendingDisconnects se existir
+    if (PendingDisconnects && PendingDisconnects.Contains(playerId))
+    {
+        PendingDisconnects.Remove(playerId);
+        WriteToLog("HandlePlayerDisconnect(): Removido de PendingDisconnects", LogFile.INIT, false, LogType.DEBUG);
+    }
+    
+    // Envia evento externo apenas se não morreu recentemente
+    if (shouldSendDisconnectLog)
+    {
+        AppendExternalAction("{\"action\":\"player_disconnected\",\"player_id\":\"" + playerId + "\"}");
+        WriteToLog("HandlePlayerDisconnect(): Evento player_disconnected enviado", LogFile.INIT, false, LogType.INFO);
+    }
+    else
+    {
+        WriteToLog("HandlePlayerDisconnect(): Evento player_disconnected NÃO enviado (jogador morreu recentemente)", LogFile.INIT, false, LogType.DEBUG);
+    }
+}
+
+// ============================================================================
+// FUNÇÃO: CheckPendingDisconnect
+// Verifica se uma desconexão agendada deve ser processada
+// ============================================================================
+void CheckPendingDisconnect(string playerId)
+{
+    if (!PendingDisconnects || !PendingDisconnects.Contains(playerId))
+    {
+        WriteToLog("CheckPendingDisconnect(): Jogador não está em PendingDisconnects: " + playerId, LogFile.INIT, false, LogType.DEBUG);
+        return;
+    }
+    
+    int scheduledTime = PendingDisconnects.Get(playerId);
+    int currentTime = GetGame().GetTime();
+    
+    WriteToLog("CheckPendingDisconnect(): Verificando desconexão para: " + playerId + " | Agendado: " + scheduledTime + " | Atual: " + currentTime, LogFile.INIT, false, LogType.DEBUG);
+    
+    // Se já passou o tempo, confirma desconexão
+    if (currentTime >= scheduledTime)
+    {
+        WriteToLog("CheckPendingDisconnect(): Confirmando desconexão para: " + playerId, LogFile.INIT, false, LogType.INFO);
+        
+        // Busca jogador para obter identity
+        ActivePlayer disconnectingPlayer = GetActivePlayerById(playerId);
+        PlayerIdentity identity = null;
+        Man player = null;
+        
+        if (disconnectingPlayer)
+        {
+            identity = disconnectingPlayer.GetIdentity();
+            player = disconnectingPlayer.GetPlayer();
+        }
+        else
+        {
+            // Tenta buscar identity através de GetPlayers
+            array<Man> players = new array<Man>();
+            GetGame().GetPlayers(players);
+            foreach (Man man : players)
+            {
+                PlayerBase pb = PlayerBase.Cast(man);
+                if (pb && pb.GetIdentity() && pb.GetIdentity().GetId() == playerId)
+                {
+                    identity = pb.GetIdentity();
+                    player = man;
+                    break;
+                }
+            }
+        }
+        
+        if (identity)
+        {
+            HandlePlayerDisconnect(playerId, identity, player);
+        }
+        else
+        {
+            WriteToLog("CheckPendingDisconnect(): Não foi possível encontrar Identity para: " + playerId, LogFile.INIT, false, LogType.ERROR);
+            // Remove mesmo assim para não ficar preso
+            PendingDisconnects.Remove(playerId);
+        }
+    }
+    else
+    {
+        WriteToLog("CheckPendingDisconnect(): Ainda não é hora de desconectar: " + playerId + " (faltam " + ((scheduledTime - currentTime) / 1000) + " segundos)", LogFile.INIT, false, LogType.DEBUG);
     }
 }
