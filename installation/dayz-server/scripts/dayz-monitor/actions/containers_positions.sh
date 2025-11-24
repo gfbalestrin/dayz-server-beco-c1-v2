@@ -276,26 +276,23 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
         coord_z_cmp="$coord_z_log"
         coord_y_cmp="$coord_y_log"
 
-        local current_items current_items_str item_count
-        # Processar items - filtrar apenas objetos válidos com tipo não vazio
-        current_items=$(echo "$container_data" | jq -c '.items[]? | select(.type != null and .type != "" and .type != "empty")' 2>/dev/null)
-        current_items_str=""
-        item_count=$(echo "$container_data" | jq '[.items[]? | select(.type != null and .type != "" and .type != "empty")] | length' 2>/dev/null || echo "0")
-        if [[ -n "$current_items" ]]; then
-            while IFS= read -r item_data; do
-                if [[ -z "$item_data" ]]; then
-                    continue
-                fi
-                local item_type item_health
-                item_type=$(echo "$item_data" | jq -r '.type')
-                item_health=$(echo "$item_data" | jq -r '.health // empty')
-                if [[ -n "$item_type" ]]; then
-                    if [[ -n "$current_items_str" ]]; then
-                        current_items_str+=","
-                    fi
-                    current_items_str+="${item_type}:${item_health}"
-                fi
-            done <<< "$current_items"
+        # Processar items de forma otimizada - uma única chamada ao jq
+        local current_items_str item_count
+        current_items_str=$(echo "$container_data" | jq -r '
+          [.items[]? | select(.type != null and .type != "" and .type != "empty")] |
+          if length > 0 then
+            map(.type + ":" + (if .health != null and .health != "" then (.health | tostring) else "" end)) |
+            join(",")
+          else
+            ""
+          end
+        ' 2>/dev/null)
+        
+        # Contar items
+        if [[ -n "$current_items_str" ]]; then
+            item_count=$(echo "$current_items_str" | tr ',' '\n' | grep -c . || echo "0")
+        else
+            item_count=0
         fi
 
         local prev_data
@@ -509,31 +506,26 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
             # Armazenar metadata do container
             containers_metadata["$container_id"]="$container_type|$coord_x_log|$coord_z_log|$coord_y_log|$is_shelter_type"
             
-            # Armazenar items do container para processamento posterior
-            if [[ -n "$current_items" ]]; then
+            # Armazenar items do container para processamento posterior (já processados acima)
+            if [[ -n "$current_items_str" ]]; then
                 local items_batch=()
-                local item_data item_type item_health
                 
-                # Coletar todos os items válidos em um array
-                while IFS= read -r item_data; do
-                    if [[ -z "$item_data" || "$item_data" == "null" || "$item_data" == "empty" ]]; then
-                        continue
-                    fi
-
-                    # Extrair tipo e health do item
-                    item_type=$(echo "$item_data" | jq -r '.type // empty' 2>/dev/null)
-                    item_health=$(echo "$item_data" | jq -r 'if .health != null and .health != "" then .health else empty end' 2>/dev/null)
-
-                    # Validar que o tipo não está vazio e não é "empty"
-                    if [[ -n "$item_type" && "$item_type" != "empty" && "$item_type" != "null" ]]; then
-                        # Adicionar ao array no formato "type|health"
-                        if [[ -n "$item_health" ]]; then
-                            items_batch+=("${item_type}|${item_health}")
-                        else
-                            items_batch+=("${item_type}")
+                # Converter current_items_str (formato "type:health,type:health") para items_batch (formato "type|health")
+                IFS=',' read -ra items_array <<< "$current_items_str"
+                for item_pair in "${items_array[@]}"; do
+                    if [[ -n "$item_pair" ]]; then
+                        local item_type item_health
+                        IFS=':' read -r item_type item_health <<< "$item_pair"
+                        
+                        if [[ -n "$item_type" && "$item_type" != "empty" && "$item_type" != "null" ]]; then
+                            if [[ -n "$item_health" ]]; then
+                                items_batch+=("${item_type}|${item_health}")
+                            else
+                                items_batch+=("${item_type}")
+                            fi
                         fi
                     fi
-                done <<< "$current_items"
+                done
                 
                 # Armazenar items como string separada por newlines para depois processar
                 if [[ ${#items_batch[@]} -gt 0 ]]; then
