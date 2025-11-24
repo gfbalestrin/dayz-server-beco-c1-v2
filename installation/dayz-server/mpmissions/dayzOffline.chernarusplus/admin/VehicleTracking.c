@@ -330,6 +330,8 @@ void LogVehiclesPositionsSimple()
     if (!GetGame() || !GetGame().IsServer())
         return;
 
+    int startTime = GetGame().GetTime();
+
     if (!m_TrackedVehicles || m_TrackedVehicles.Count() == 0)
     {
         WriteToLog("LogVehiclesPositionsSimple(): Nenhum veículo em m_TrackedVehicles. Execute PopulateTrackedVehicles antes do teste.", LogFile.INIT, false, LogType.WARNING);
@@ -347,8 +349,6 @@ void LogVehiclesPositionsSimple()
 
         loggedVehicles++;
 
-        vector pos = candidateVehicle.GetPosition();
-        string vehicleName = candidateVehicle.GetDisplayName();
         float vehicleHealth = candidateVehicle.GetHealth("", "");
         bool isDestroyed = (vehicleHealth <= 0.0 || candidateVehicle.IsDamageDestroyed());
 
@@ -356,28 +356,12 @@ void LogVehiclesPositionsSimple()
             destroyedVehicles++;
         else
             activeVehicles++;
-
-        int pidLow1 = 0;
-        int pidLow2 = 0;
-        int pidHigh1 = 0;
-        int pidHigh2 = 0;
-        candidateVehicle.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
-
-        bool hasPersistent = (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0);
-        string vehicleIdentifier = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
-        if (!hasPersistent)
-        {
-            vehicleIdentifier = "pending-" + candidateVehicle.GetID().ToString();
-        }
-
-        string statusLabel = "ACTIVE";
-        if (isDestroyed)
-            statusLabel = "DESTROYED";
-
-        WriteToLog("[VEHICLE_SIMPLE] ID=" + vehicleIdentifier + " Nome=\"" + vehicleName + "\" Status=" + statusLabel + " Health=" + vehicleHealth.ToString() + " Pos=(" + pos[0].ToString() + "," + pos[1].ToString() + "," + pos[2].ToString() + ")", LogFile.INIT, false, LogType.DEBUG);
     }
 
-    WriteToLog("[VEHICLE_SIMPLE] Total=" + loggedVehicles.ToString() + " Ativos=" + activeVehicles.ToString() + " Destruidos=" + destroyedVehicles.ToString(), LogFile.INIT, false, LogType.INFO);
+    int endTime = GetGame().GetTime();
+    int elapsedMs = endTime - startTime;
+
+    WriteToLog("[VEHICLE_SIMPLE] Total=" + loggedVehicles.ToString() + " Ativos=" + activeVehicles.ToString() + " Destruidos=" + destroyedVehicles.ToString() + " Tempo=" + elapsedMs.ToString() + "ms", LogFile.INIT, false, LogType.INFO);
 }
 
 void CheckVehiclesForLoot()

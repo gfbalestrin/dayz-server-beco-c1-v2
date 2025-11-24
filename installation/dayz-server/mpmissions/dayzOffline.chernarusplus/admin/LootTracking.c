@@ -494,6 +494,8 @@ void LogContainersStatusSimple()
 	if (!GetGame() || !GetGame().IsServer())
 		return;
 
+	int startTime = GetGame().GetTime();
+
 	if (!m_TrackedContainers || m_TrackedContainers.Count() == 0)
 	{
 		WriteToLog("LogContainersStatusSimple(): Nenhum container rastreado no momento.", LogFile.INIT, false, LogType.INFO);
@@ -517,27 +519,10 @@ void LogContainersStatusSimple()
 			isShelter = true;
 			shelterContainers++;
 		}
-
-		int pidLow1 = 0;
-		int pidLow2 = 0;
-		int pidHigh1 = 0;
-		int pidHigh2 = 0;
-		trackedContainer.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
-
-		bool hasPersistent = (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0);
-		string containerIdentifier = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
-		if (!hasPersistent)
-			containerIdentifier = "pending-" + trackedContainer.GetID().ToString();
-
-		string shelterState = "NO";
-		if (isShelter)
-			shelterState = "YES";
-
-		vector containerPos = trackedContainer.GetPosition();
-		float containerHealth = trackedContainer.GetHealth("", "");
-
-		WriteToLog("[CONTAINER_SIMPLE] ID=" + containerIdentifier + " Tipo=\"" + containerType + "\" Pos=(" + containerPos[0].ToString() + "," + containerPos[1].ToString() + "," + containerPos[2].ToString() + ") Health=" + containerHealth.ToString() + " Shelter=" + shelterState, LogFile.INIT, false, LogType.DEBUG);
 	}
 
-	WriteToLog("[CONTAINER_SIMPLE] Total=" + totalContainers.ToString() + " Shelters=" + shelterContainers.ToString(), LogFile.INIT, false, LogType.INFO);
+	int endTime = GetGame().GetTime();
+	int elapsedMs = endTime - startTime;
+
+	WriteToLog("[CONTAINER_SIMPLE] Total=" + totalContainers.ToString() + " Shelters=" + shelterContainers.ToString() + " Tempo=" + elapsedMs.ToString() + "ms", LogFile.INIT, false, LogType.INFO);
 }
