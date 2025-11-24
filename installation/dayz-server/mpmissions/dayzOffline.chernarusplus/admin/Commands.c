@@ -105,8 +105,11 @@ bool ExecuteCommand(TStringArray tokens)
                     return true;
                 }
                 
+                WriteToLog("ExecuteCommand(): scanregion - Total de objetos encontrados pelo GetObjectsAtPosition: " + scannedObjects.Count().ToString() + " (request_id: " + scanRequestId + ")", LogFile.INIT, false, LogType.DEBUG);
+                
                 string objectsJson = "";
                 int objectCount = 0;
+                int filteredCount = 0;
                 
                 foreach (Object scannedObj : scannedObjects)
                 {
@@ -115,10 +118,16 @@ bool ExecuteCommand(TStringArray tokens)
                     
                     // Filtrar objetos: excluir jogadores, edifícios estáticos, objetos do sistema
                     if (scannedObj.IsMan() || scannedObj.IsInherited(PlayerBase))
+                    {
+                        filteredCount++;
                         continue;
+                    }
                     
                     if (scannedObj.IsInherited(BuildingBase) || scannedObj.IsInherited(House))
+                    {
+                        filteredCount++;
                         continue;
+                    }
                     
                     // Obter informações do objeto
                     string objType = scannedObj.GetType();
@@ -172,20 +181,20 @@ bool ExecuteCommand(TStringArray tokens)
                     string objName = "";
                     
                     // Tentar obter nome do objeto
-                    if (scannedObj.IsInherited(ItemBase))
+                    // Primeiro tentar cast direto de CarScript (como em VehicleTracking.c)
+                    // Isso captura veículos que podem não ser detectados como IsInherited(CarScript)
+                    CarScript scanVehicle = CarScript.Cast(scannedObj);
+                    if (scanVehicle)
+                    {
+                        objName = scanVehicle.GetDisplayName();
+                        WriteToLog("ExecuteCommand(): scanregion - Veículo detectado: " + objType + " (" + objName + ") em " + scanVehicle.GetPosition().ToString() + " (request_id: " + scanRequestId + ")", LogFile.INIT, false, LogType.DEBUG);
+                    }
+                    else if (scannedObj.IsInherited(ItemBase))
                     {
                         ItemBase scanItemBase = ItemBase.Cast(scannedObj);
                         if (scanItemBase)
                         {
                             objName = scanItemBase.GetDisplayName();
-                        }
-                    }
-                    else if (scannedObj.IsInherited(CarScript))
-                    {
-                        CarScript scanVehicle = CarScript.Cast(scannedObj);
-                        if (scanVehicle)
-                        {
-                            objName = scanVehicle.GetDisplayName();
                         }
                     }
                     else
@@ -219,7 +228,7 @@ bool ExecuteCommand(TStringArray tokens)
                 
                 AppendCommandResult(scanResultJson, false);
                 
-                WriteToLog("ExecuteCommand(): scanregion - Escaneamento concluído: " + objectCount.ToString() + " objetos encontrados (request_id: " + scanRequestId + ")", LogFile.INIT, false, LogType.INFO);
+                WriteToLog("ExecuteCommand(): scanregion - Escaneamento concluído: " + objectCount.ToString() + " objetos processados, " + filteredCount.ToString() + " objetos filtrados (request_id: " + scanRequestId + ")", LogFile.INIT, false, LogType.INFO);
                 
                 return true;
             case "registerfence":
