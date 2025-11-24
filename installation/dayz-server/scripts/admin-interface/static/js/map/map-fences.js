@@ -148,6 +148,15 @@ function updateFences(data) {
         });
     }
     
+    // Identificar popups abertos antes de limpar marcadores
+    const openFencePopups = [];
+    Object.keys(MapState.fenceMarkers).forEach(function(fenceId) {
+        const marker = MapState.fenceMarkers[fenceId];
+        if (marker && marker.isPopupOpen()) {
+            openFencePopups.push(fenceId);
+        }
+    });
+    
     // Limpar fences antigos
     Object.keys(MapState.fenceMarkers).forEach(function(key) {
         const marker = MapState.fenceMarkers[key];
@@ -214,6 +223,18 @@ function updateFences(data) {
         
         MapState.fenceMarkers[fenceId] = marker;
     });
+    
+    // Reabrir popups que estavam abertos antes do auto-refresh
+    if (openFencePopups.length > 0) {
+        setTimeout(function() {
+            openFencePopups.forEach(function(fenceId) {
+                const marker = MapState.fenceMarkers[fenceId];
+                if (marker && !marker.isPopupOpen()) {
+                    marker.openPopup();
+                }
+            });
+        }, 100);
+    }
     
     console.log(`Fences atualizados: ${data.fences.length} fences`);
     
@@ -970,11 +991,436 @@ function createFencePopup(fence) {
             ${destroyedInfo}
             ${attackWarning}
             <div class="info-row mt-2">
-                <button type="button" class="btn btn-sm btn-warning" onclick="toggleFenceTrail('${fence.fence_id}')">
-                    <i class="fas fa-history me-1"></i>Histórico de Alterações
-                </button>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-sm btn-secondary" style="flex: 1; min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.4rem;" id="fenceRefreshBtn_${fence.fence_id}" ${MapState.fenceRefreshStatus && MapState.fenceRefreshStatus[fence.fence_id] ? 'disabled' : ''} onclick="refreshFenceData('${fence.fence_id}')">
+                        ${MapState.fenceRefreshStatus && MapState.fenceRefreshStatus[fence.fence_id] ? '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Atualizando...' : '<i class="fas fa-sync-alt me-1"></i>Atualizar'}
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary" style="flex: 1; min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.4rem;" onclick="toggleFenceTrail('${fence.fence_id}')">
+                        <i class="fas fa-route me-1"></i><span id="fenceTrailBtn_${fence.fence_id}">${MapState.fenceTrails[fence.fence_id] ? 'Ocultar' : 'Trail'}</span>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-info" style="flex: 1; min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.4rem;" onclick="loadFenceHistory('${fence.fence_id}')">
+                        <i class="fas fa-history me-1"></i>Histórico
+                    </button>
+                    <button type="button" class="btn btn-sm btn-warning" style="flex: 1; min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.4rem;" onclick="showFenceTeleportModal('${fence.fence_id}')">
+                        <i class="fas fa-map-marker-alt me-1"></i>Teleportar
+                    </button>
+                </div>
             </div>
         </div>
     `;
+}
+
+/**
+ * Solicitar atualização dos dados de uma construção
+ */
+function refreshFenceData(fenceId) {
+    if (!fenceId) {
+        return;
+    }
+    
+    if (MapState.fenceRefreshStatus && MapState.fenceRefreshStatus[fenceId]) {
+        showToast('Info', 'Atualização já está em andamento para esta construção.', 'info');
+        return;
+    }
+    
+    const fence = MapState.fencesData[fenceId];
+    if (!fence) {
+        showToast('Erro', 'Construção não encontrada no mapa.', 'error');
+        return;
+    }
+    
+    const requestId = generateRequestId();
+    if (!MapState.fenceRefreshRequests) {
+        MapState.fenceRefreshRequests = {};
+    }
+    MapState.fenceRefreshRequests[fenceId] = requestId;
+    
+    setFenceRefreshState(fenceId, true);
+    
+    $.ajax({
+        url: `/api/fences/${fenceId}/refresh`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            request_id: requestId
+        }),
+        success: function() {
+            const structureName = fence.structure_type === 'watchtower' ? 'Watchtower' : (fence.structure_type === 'flag' ? 'Flag Pole' : 'Fence');
+            showToast('Info', `Solicitação de atualização enviada para ${structureName}.`, 'info');
+            startFenceRefreshPolling(requestId, fenceId, 0);
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            const errorMsg = error.message || error.error || 'Erro ao solicitar atualização da construção';
+            showToast('Erro', errorMsg, 'error');
+            setFenceRefreshState(fenceId, false);
+            delete MapState.fenceRefreshRequests[fenceId];
+        }
+    });
+}
+
+/**
+ * Polling para aguardar resultado do comando checkfence
+ */
+function startFenceRefreshPolling(requestId, fenceId, attempt) {
+    const MAX_ATTEMPTS = 30;
+    const POLL_INTERVAL = 500;
+    
+    if (MapState.fenceRefreshRequests[fenceId] !== requestId) {
+        return;
+    }
+    
+    if (attempt >= MAX_ATTEMPTS) {
+        showToast('Aviso', 'Tempo limite ao atualizar dados da construção.', 'warning');
+        setFenceRefreshState(fenceId, false);
+        delete MapState.fenceRefreshRequests[fenceId];
+        return;
+    }
+    
+    $.get(`/api/commands/results/${requestId}`)
+        .done(function(response) {
+            if (MapState.fenceRefreshRequests[fenceId] !== requestId) {
+                return;
+            }
+            
+            if (response.status === 'ready') {
+                const data = response.data || {};
+                if (data.status === 'success') {
+                    applyFenceRefreshData(fenceId, data);
+                    
+                    // Salvar no banco de dados (silenciosamente)
+                    saveFenceCheckToDatabase(fenceId, data);
+                    
+                    const fence = MapState.fencesData[fenceId];
+                    const structureName = fence && fence.structure_type === 'watchtower' ? 'Watchtower' : (fence && fence.structure_type === 'flag' ? 'Flag Pole' : 'Fence');
+                    showToast('Sucesso', `Dados da construção ${structureName} atualizados.`, 'success');
+                } else {
+                    const errorMsg = data.message || 'Não foi possível atualizar os dados da construção.';
+                    showToast('Aviso', errorMsg, 'warning');
+                }
+                setFenceRefreshState(fenceId, false);
+                delete MapState.fenceRefreshRequests[fenceId];
+            } else if (response.status === 'not_found') {
+                // Resultado ainda não disponível, continuar polling
+                setTimeout(function() {
+                    startFenceRefreshPolling(requestId, fenceId, attempt + 1);
+                }, POLL_INTERVAL);
+            } else {
+                // Erro ou status desconhecido
+                const errorMsg = response.message || 'Erro ao buscar resultado do comando.';
+                showToast('Erro', errorMsg, 'error');
+                setFenceRefreshState(fenceId, false);
+                delete MapState.fenceRefreshRequests[fenceId];
+            }
+        })
+        .fail(function(xhr) {
+            if (MapState.fenceRefreshRequests[fenceId] !== requestId) {
+                return;
+            }
+            
+            const error = xhr.responseJSON || {};
+            const errorMsg = error.message || error.error || 'Erro ao buscar resultado do comando.';
+            showToast('Erro', errorMsg, 'error');
+            setFenceRefreshState(fenceId, false);
+            delete MapState.fenceRefreshRequests[fenceId];
+        });
+}
+
+/**
+ * Gerenciar estado visual do botão de refresh
+ */
+function setFenceRefreshState(fenceId, isRefreshing) {
+    if (!MapState.fenceRefreshStatus) {
+        MapState.fenceRefreshStatus = {};
+    }
+    
+    if (isRefreshing) {
+        MapState.fenceRefreshStatus[fenceId] = true;
+    } else {
+        delete MapState.fenceRefreshStatus[fenceId];
+    }
+    
+    // Atualizar botão no popup se estiver aberto
+    const marker = MapState.fenceMarkers[fenceId];
+    if (marker && marker.isPopupOpen()) {
+        updateFencePopup(fenceId);
+    }
+}
+
+/**
+ * Aplicar dados retornados pelo comando ao estado local
+ */
+function applyFenceRefreshData(fenceId, commandData) {
+    if (!commandData) {
+        return;
+    }
+    
+    const fence = MapState.fencesData[fenceId] || { fence_id: fenceId };
+    
+    let oldCoordX = fence.coord_x;
+    let oldCoordY = fence.coord_y;
+    let hasPositionChanged = false;
+    let distanceMoved = 0;
+    
+    // Verificar se popup está aberto antes de qualquer atualização
+    const marker = MapState.fenceMarkers[fenceId];
+    const wasPopupOpen = marker && marker.isPopupOpen();
+    
+    if (commandData.position) {
+        // Formato JSON do checkfence: {"x": leste-oeste, "y": norte-sul, "z": altura}
+        // Formato frontend: coord_x (leste-oeste), coord_y (norte-sul), coord_z (altura)
+        const coordX = parseFloat(commandData.position.x);
+        const coordY = parseFloat(commandData.position.y);  // y do JSON é norte-sul
+        const coordZ = parseFloat(commandData.position.z);  // z do JSON é altura
+        
+        if (!isNaN(coordX) && !isNaN(coordY)) {
+            if (!isNaN(oldCoordX) && !isNaN(oldCoordY)) {
+                distanceMoved = calculateDayZDistance(oldCoordX, oldCoordY, coordX, coordY);
+                hasPositionChanged = distanceMoved > 50;
+            }
+        }
+        
+        if (!isNaN(coordX)) {
+            fence.coord_x = coordX;
+        }
+        if (!isNaN(coordY)) {
+            fence.coord_y = coordY;
+        }
+        if (!isNaN(coordZ)) {
+            fence.coord_z = coordZ;
+        }
+        
+        const pixelCoords = dayzToPixelCoords(coordX, coordY);
+        if (pixelCoords) {
+            fence.pixel_coords = pixelCoords;
+            const mapCoords = convertToMapCoords(pixelCoords);
+            if (mapCoords && marker) {
+                // Preservar popup aberto antes de mover marcador
+                const popupWasOpen = marker.isPopupOpen();
+                marker.setLatLng(mapCoords);
+                
+                // Reabrir popup se estava aberto (setLatLng pode fechar)
+                if (popupWasOpen && !marker.isPopupOpen()) {
+                    setTimeout(function() {
+                        if (marker && !marker.isPopupOpen()) {
+                            marker.openPopup();
+                        }
+                    }, 50);
+                }
+                
+                if (hasPositionChanged && wasPopupOpen && MapState.map) {
+                    MapState.map.panTo(mapCoords, {
+                        animate: true,
+                        duration: 0.5
+                    });
+                    
+                    if (distanceMoved > 0) {
+                        const distanceKm = (distanceMoved / 1000).toFixed(2);
+                        const distanceM = Math.round(distanceMoved);
+                        const distanceText = distanceMoved >= 1000 ? `${distanceKm} km` : `${distanceM} m`;
+                        const structureName = fence.structure_type === 'watchtower' ? 'Watchtower' : (fence.structure_type === 'flag' ? 'Flag Pole' : 'Fence');
+                        showToast('Construção Movida', `${structureName} se moveu ${distanceText}`, 'info');
+                    }
+                }
+            }
+        }
+    }
+    
+    if (commandData.orientation) {
+        fence.orientation = commandData.orientation;
+    }
+    
+    if (commandData.structure_type) {
+        fence.structure_type = commandData.structure_type;
+    }
+    
+    // Atualizar dados específicos baseado no tipo
+    if (commandData.structure_type === 'fence') {
+        fence.has_base = commandData.has_base;
+        fence.lower_panel_built = commandData.lower_panel_built;
+        fence.upper_panel_built = commandData.upper_panel_built;
+        fence.has_gate = commandData.has_gate;
+        fence.is_opened = commandData.is_opened;
+        fence.is_locked = commandData.is_locked;
+        fence.attachments = commandData.attachments || [];
+    } else if (commandData.structure_type === 'watchtower') {
+        fence.has_base = commandData.has_base;
+        fence.watchtower_details = {
+            has_base: commandData.has_base,
+            level_1_base: commandData.level_1_base,
+            level_2_base: commandData.level_2_base,
+            level_3_base: commandData.level_3_base,
+            level_1_stairs: commandData.level_1_stairs,
+            level_2_stairs: commandData.level_2_stairs,
+            has_roof: commandData.has_roof,
+            level_1_wall_1_lower_built: commandData.level_1_wall_1_lower_built,
+            level_1_wall_1_upper_built: commandData.level_1_wall_1_upper_built,
+            level_1_wall_2_lower_built: commandData.level_1_wall_2_lower_built,
+            level_1_wall_2_upper_built: commandData.level_1_wall_2_upper_built,
+            level_1_wall_3_lower_built: commandData.level_1_wall_3_lower_built,
+            level_1_wall_3_upper_built: commandData.level_1_wall_3_upper_built,
+            level_2_wall_1_lower_built: commandData.level_2_wall_1_lower_built,
+            level_2_wall_1_upper_built: commandData.level_2_wall_1_upper_built,
+            level_2_wall_2_lower_built: commandData.level_2_wall_2_lower_built,
+            level_2_wall_2_upper_built: commandData.level_2_wall_2_upper_built,
+            level_2_wall_3_lower_built: commandData.level_2_wall_3_lower_built,
+            level_2_wall_3_upper_built: commandData.level_2_wall_3_upper_built,
+            level_3_wall_1_lower_built: commandData.level_3_wall_1_lower_built,
+            level_3_wall_1_upper_built: commandData.level_3_wall_1_upper_built,
+            level_3_wall_2_lower_built: commandData.level_3_wall_2_lower_built,
+            level_3_wall_2_upper_built: commandData.level_3_wall_2_upper_built,
+            level_3_wall_3_lower_built: commandData.level_3_wall_3_lower_built,
+            level_3_wall_3_upper_built: commandData.level_3_wall_3_upper_built
+        };
+    } else if (commandData.structure_type === 'flag') {
+        fence.has_base = commandData.has_base;
+        fence.flag_details = {
+            has_base: commandData.has_base,
+            has_flag_base: commandData.has_flag_base,
+            flag_raised: commandData.flag_raised,
+            flag_height: commandData.flag_height
+        };
+    }
+    
+    try {
+        fence.last_update = new Date().toLocaleString('pt-BR');
+    } catch (e) {
+        fence.last_update = new Date().toISOString();
+    }
+    
+    MapState.fencesData[fenceId] = fence;
+    
+    MapState.previousFencesData[fenceId] = {
+        coord_x: fence.coord_x,
+        coord_y: fence.coord_y,
+        is_destroyed: fence.is_destroyed || false,
+        has_base: fence.has_base,
+        lower_panel_built: fence.lower_panel_built,
+        upper_panel_built: fence.upper_panel_built,
+        structure_type: fence.structure_type,
+        watchtower_details: fence.watchtower_details || {},
+        flag_details: fence.flag_details || {}
+    };
+    
+    // Atualizar popup se estava aberto antes (preservar estado)
+    if (marker && wasPopupOpen) {
+        updateFencePopup(fenceId);
+        
+        // Garantir que popup permaneça aberto após atualização
+        setTimeout(function() {
+            if (marker && !marker.isPopupOpen()) {
+                marker.openPopup();
+            }
+        }, 100);
+    }
+}
+
+/**
+ * Salvar dados da construção no banco de dados
+ */
+function saveFenceCheckToDatabase(fenceId, commandData) {
+    if (!commandData || commandData.status !== 'success') {
+        return;
+    }
+    
+    $.ajax({
+        url: `/api/fences/${fenceId}/save-check`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            structure_type: commandData.structure_type || 'fence',
+            position: commandData.position || {},
+            orientation: commandData.orientation || {},
+            has_base: commandData.has_base,
+            lower_panel_built: commandData.lower_panel_built,
+            upper_panel_built: commandData.upper_panel_built,
+            has_gate: commandData.has_gate,
+            is_opened: commandData.is_opened,
+            is_locked: commandData.is_locked,
+            attachments: commandData.attachments || [],
+            level_1_base: commandData.level_1_base,
+            level_2_base: commandData.level_2_base,
+            level_3_base: commandData.level_3_base,
+            level_1_stairs: commandData.level_1_stairs,
+            level_2_stairs: commandData.level_2_stairs,
+            has_roof: commandData.has_roof,
+            level_1_wall_1_lower_built: commandData.level_1_wall_1_lower_built,
+            level_1_wall_1_upper_built: commandData.level_1_wall_1_upper_built,
+            level_1_wall_2_lower_built: commandData.level_1_wall_2_lower_built,
+            level_1_wall_2_upper_built: commandData.level_1_wall_2_upper_built,
+            level_1_wall_3_lower_built: commandData.level_1_wall_3_lower_built,
+            level_1_wall_3_upper_built: commandData.level_1_wall_3_upper_built,
+            level_2_wall_1_lower_built: commandData.level_2_wall_1_lower_built,
+            level_2_wall_1_upper_built: commandData.level_2_wall_1_upper_built,
+            level_2_wall_2_lower_built: commandData.level_2_wall_2_lower_built,
+            level_2_wall_2_upper_built: commandData.level_2_wall_2_upper_built,
+            level_2_wall_3_lower_built: commandData.level_2_wall_3_lower_built,
+            level_2_wall_3_upper_built: commandData.level_2_wall_3_upper_built,
+            level_3_wall_1_lower_built: commandData.level_3_wall_1_lower_built,
+            level_3_wall_1_upper_built: commandData.level_3_wall_1_upper_built,
+            level_3_wall_2_lower_built: commandData.level_3_wall_2_lower_built,
+            level_3_wall_2_upper_built: commandData.level_3_wall_2_upper_built,
+            level_3_wall_3_lower_built: commandData.level_3_wall_3_lower_built,
+            level_3_wall_3_upper_built: commandData.level_3_wall_3_upper_built,
+            has_flag_base: commandData.has_flag_base,
+            flag_raised: commandData.flag_raised,
+            flag_height: commandData.flag_height
+        }),
+        success: function(response) {
+            if (response.success) {
+                console.log(`Dados da construção ${fenceId} salvos no banco (tracking_id: ${response.fence_tracking_id})`);
+            }
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            console.error(`Erro ao salvar dados da construção ${fenceId} no banco:`, error.message || 'Erro desconhecido');
+        }
+    });
+}
+
+/**
+ * Mostrar modal de teleporte de construção (fence/watchtower/flag)
+ */
+function showFenceTeleportModal(fenceId) {
+    const fence = MapState.fencesData[fenceId];
+    if (!fence) {
+        showToast('Erro', 'Construção não encontrada', 'error');
+        return;
+    }
+    
+    // Limpar targets de veículo e container se houver
+    MapState.teleportTargetVehicle = null;
+    MapState.teleportTargetContainer = null;
+    
+    const structureName = fence.structure_type === 'watchtower' ? 'Watchtower' : (fence.structure_type === 'flag' ? 'Flag Pole' : 'Fence');
+    
+    // Usar o mesmo modal de teleporte de veículos
+    $('#teleportVehicleId').val(fenceId);
+    $('#teleportVehicleName').text(structureName);
+    $('#teleportVehicleCurrentCoords').text(`X=${fence.coord_x.toFixed(1)}, Y=${fence.coord_y.toFixed(1)}`);
+    
+    // Atualizar título e texto do modal para construção
+    $('#vehicleTeleportModal .modal-title').html('<i class="fas fa-map-marker-alt me-2"></i>Teleportar Construção');
+    $('#vehicleTeleportModal .alert-info strong').first().text('Construção:');
+    
+    // Limpar campos de coordenadas
+    $('#teleportVehicleX').val('');
+    $('#teleportVehicleY').val('');
+    $('#teleportVehicleZ').val('');
+    
+    // Armazenar fenceId para uso no clique do mapa (usar teleportTargetContainer temporariamente)
+    // Nota: Pode ser necessário criar teleportTargetFence no futuro
+    MapState.teleportTargetContainer = fenceId;
+    
+    // Verificar se está no modo de teleporte
+    if (MapState.currentMode !== 'teleport') {
+        // Mudar para modo de teleporte
+        if (typeof setTeleportMode === 'function') {
+            setTeleportMode();
+        }
+    }
+    
+    // Mostrar modal
+    $('#vehicleTeleportModal').modal('show');
 }
 

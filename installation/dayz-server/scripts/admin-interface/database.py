@@ -6111,3 +6111,136 @@ def save_container_check_data(container_id: str, container_type: str, position: 
         import logging
         logging.getLogger(__name__).error(f"Erro ao salvar dados do container {container_id}: {e}", exc_info=True)
         return None
+
+def save_fence_check_data(fence_id: str, structure_type: str, position: dict, orientation: dict, fence_data: dict):
+    """
+    Salva dados de uma construção coletados via checkfence no banco de dados
+    Retorna o ID do registro inserido ou None em caso de erro
+    
+    Args:
+        fence_id: ID da construção
+        structure_type: Tipo da construção ('fence', 'watchtower', 'flag')
+        position: Dict com x, y, z (coordenadas)
+        orientation: Dict com x, y, z (orientação)
+        fence_data: Dict completo com todos os dados da construção
+    """
+    from datetime import datetime
+    
+    try:
+        with DatabaseConnection(config.DB_STRUCTURES) as conn:
+            cursor = conn.cursor()
+            
+            # Preparar coordenadas
+            # Formato JSON: {"x": leste-oeste, "y": norte-sul, "z": altura}
+            # Formato banco: PositionX (leste-oeste), PositionY (norte-sul), PositionZ (altura)
+            coord_x = float(position.get('x', 0))
+            coord_y = float(position.get('y', 0))  # y do JSON é norte-sul (PositionY no banco)
+            coord_z = float(position.get('z', 0))  # z do JSON é altura (PositionZ no banco)
+            
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            if structure_type == 'fence':
+                # Inserir fence
+                fence_name = 'Fence'
+                has_base = 1 if fence_data.get('has_base', False) else 0
+                lower_panel_built = 1 if fence_data.get('lower_panel_built', False) else 0
+                upper_panel_built = 1 if fence_data.get('upper_panel_built', False) else 0
+                
+                cursor.execute("""
+                    INSERT INTO fences_tracking 
+                    (FenceId, FenceName, PositionX, PositionZ, PositionY, TimeStamp, HasBase, LowerPanelBuilt, UpperPanelBuilt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (fence_id, fence_name, coord_x, coord_z, coord_y, timestamp, has_base, lower_panel_built, upper_panel_built))
+                
+                fence_tracking_id = cursor.lastrowid
+                
+            elif structure_type == 'watchtower':
+                # Inserir watchtower
+                watchtower_name = 'Watchtower'
+                has_base = 1 if fence_data.get('has_base', False) else 0
+                level1_base = 1 if fence_data.get('level_1_base', False) else 0
+                level2_base = 1 if fence_data.get('level_2_base', False) else 0
+                level3_base = 1 if fence_data.get('level_3_base', False) else 0
+                level1_stairs = 1 if fence_data.get('level_1_stairs', False) else 0
+                level2_stairs = 1 if fence_data.get('level_2_stairs', False) else 0
+                has_roof = 1 if fence_data.get('has_roof', False) else 0
+                
+                # Paredes nível 1
+                level1_wall1_lower = 1 if fence_data.get('level_1_wall_1_lower_built', False) else 0
+                level1_wall1_upper = 1 if fence_data.get('level_1_wall_1_upper_built', False) else 0
+                level1_wall2_lower = 1 if fence_data.get('level_1_wall_2_lower_built', False) else 0
+                level1_wall2_upper = 1 if fence_data.get('level_1_wall_2_upper_built', False) else 0
+                level1_wall3_lower = 1 if fence_data.get('level_1_wall_3_lower_built', False) else 0
+                level1_wall3_upper = 1 if fence_data.get('level_1_wall_3_upper_built', False) else 0
+                
+                # Paredes nível 2
+                level2_wall1_lower = 1 if fence_data.get('level_2_wall_1_lower_built', False) else 0
+                level2_wall1_upper = 1 if fence_data.get('level_2_wall_1_upper_built', False) else 0
+                level2_wall2_lower = 1 if fence_data.get('level_2_wall_2_lower_built', False) else 0
+                level2_wall2_upper = 1 if fence_data.get('level_2_wall_2_upper_built', False) else 0
+                level2_wall3_lower = 1 if fence_data.get('level_2_wall_3_lower_built', False) else 0
+                level2_wall3_upper = 1 if fence_data.get('level_2_wall_3_upper_built', False) else 0
+                
+                # Paredes nível 3
+                level3_wall1_lower = 1 if fence_data.get('level_3_wall_1_lower_built', False) else 0
+                level3_wall1_upper = 1 if fence_data.get('level_3_wall_1_upper_built', False) else 0
+                level3_wall2_lower = 1 if fence_data.get('level_3_wall_2_lower_built', False) else 0
+                level3_wall2_upper = 1 if fence_data.get('level_3_wall_2_upper_built', False) else 0
+                level3_wall3_lower = 1 if fence_data.get('level_3_wall_3_lower_built', False) else 0
+                level3_wall3_upper = 1 if fence_data.get('level_3_wall_3_upper_built', False) else 0
+                
+                # Orientação
+                ori_x = float(orientation.get('x', 0)) if orientation else 0.0
+                ori_y = float(orientation.get('y', 0)) if orientation else 0.0
+                ori_z = float(orientation.get('z', 0)) if orientation else 0.0
+                
+                cursor.execute("""
+                    INSERT INTO watchtowers_tracking 
+                    (WatchtowerId, WatchtowerName, PositionX, PositionZ, PositionY, OrientationX, OrientationY, OrientationZ,
+                     TimeStamp, HasBase, Level1BaseBuilt, Level2BaseBuilt, Level3BaseBuilt, Level1StairsBuilt, Level2StairsBuilt, HasRoof,
+                     Level1Wall1LowerBuilt, Level1Wall1UpperBuilt, Level1Wall2LowerBuilt, Level1Wall2UpperBuilt, Level1Wall3LowerBuilt, Level1Wall3UpperBuilt,
+                     Level2Wall1LowerBuilt, Level2Wall1UpperBuilt, Level2Wall2LowerBuilt, Level2Wall2UpperBuilt, Level2Wall3LowerBuilt, Level2Wall3UpperBuilt,
+                     Level3Wall1LowerBuilt, Level3Wall1UpperBuilt, Level3Wall2LowerBuilt, Level3Wall2UpperBuilt, Level3Wall3LowerBuilt, Level3Wall3UpperBuilt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (fence_id, watchtower_name, coord_x, coord_z, coord_y, ori_x, ori_y, ori_z, timestamp,
+                      has_base, level1_base, level2_base, level3_base, level1_stairs, level2_stairs, has_roof,
+                      level1_wall1_lower, level1_wall1_upper, level1_wall2_lower, level1_wall2_upper, level1_wall3_lower, level1_wall3_upper,
+                      level2_wall1_lower, level2_wall1_upper, level2_wall2_lower, level2_wall2_upper, level2_wall3_lower, level2_wall3_upper,
+                      level3_wall1_lower, level3_wall1_upper, level3_wall2_lower, level3_wall2_upper, level3_wall3_lower, level3_wall3_upper))
+                
+                fence_tracking_id = cursor.lastrowid
+                
+            elif structure_type == 'flag':
+                # Inserir flag
+                flag_name = 'Flag Pole'
+                has_base = 1 if fence_data.get('has_base', False) else 0
+                has_flag_base = 1 if fence_data.get('has_flag_base', False) else 0
+                flag_raised = 1 if fence_data.get('flag_raised', False) else 0
+                flag_height = float(fence_data.get('flag_height', 0.0)) if fence_data.get('flag_height') is not None else 0.0
+                
+                # Orientação
+                ori_x = float(orientation.get('x', 0)) if orientation else 0.0
+                ori_y = float(orientation.get('y', 0)) if orientation else 0.0
+                ori_z = float(orientation.get('z', 0)) if orientation else 0.0
+                
+                cursor.execute("""
+                    INSERT INTO flags_tracking 
+                    (FlagId, FlagName, PositionX, PositionZ, PositionY, OrientationX, OrientationY, OrientationZ,
+                     TimeStamp, HasBase, HasFlagBase, FlagRaised, FlagHeight)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (fence_id, flag_name, coord_x, coord_z, coord_y, ori_x, ori_y, ori_z, timestamp,
+                      has_base, has_flag_base, flag_raised, flag_height))
+                
+                fence_tracking_id = cursor.lastrowid
+            else:
+                import logging
+                logging.getLogger(__name__).error(f"Tipo de construção desconhecido: {structure_type}")
+                return None
+            
+            conn.commit()
+            return fence_tracking_id
+            
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Erro ao salvar dados da construção {fence_id} (tipo: {structure_type}): {e}", exc_info=True)
+        return None

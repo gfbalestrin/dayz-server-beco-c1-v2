@@ -1089,3 +1089,119 @@ def api_save_container_check(container_id):
             'success': False,
             'message': f'Erro inesperado: {str(e)}'
         }), 500
+
+@api_map_bp.route('/api/fences/<fence_id>/refresh', methods=['POST'])
+@admin_required
+@audit_action('CHECK_FENCE')
+def api_refresh_fence(fence_id):
+    """API para solicitar atualização dos dados de uma construção rastreada (fence/watchtower/flag)"""
+    logger = logging.getLogger(__name__)
+    
+    try:
+        data = request.get_json(silent=True) or {}
+        request_id = data.get('request_id')
+        
+        if not request_id:
+            return jsonify({
+                'success': False,
+                'message': 'request_id não fornecido'
+            }), 400
+        
+        commands_file = config.COMMANDS_FILE
+        
+        if not os.path.exists(commands_file):
+            logger.error(f"Arquivo de comandos não encontrado: {commands_file}")
+            return jsonify({
+                'success': False,
+                'message': 'Arquivo de comandos não encontrado'
+            }), 500
+        
+        command_line = f"SYSTEM checkfence {fence_id} {request_id}\n"
+        logger.info(f"Adicionando comando de atualização de construção: {command_line.strip()}")
+        
+        try:
+            with open(commands_file, 'a') as f:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.write(command_line)
+                    f.flush()
+                    os.fsync(f.fileno())
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            
+            logger.info("Comando de atualização de construção adicionado com sucesso")
+            return jsonify({
+                'success': True,
+                'request_id': request_id,
+                'message': 'Comando de atualização enviado'
+            })
+        except IOError as e:
+            logger.error(f"Erro ao escrever no arquivo de comandos: {e}")
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao enviar comando'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Erro inesperado ao solicitar atualização de construção: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'Erro inesperado: {str(e)}'
+        }), 500
+
+@api_map_bp.route('/api/fences/<fence_id>/save-check', methods=['POST'])
+@admin_required
+@audit_action('SAVE_FENCE_CHECK')
+def api_save_fence_check(fence_id):
+    """API para salvar dados coletados via checkfence no banco de dados"""
+    logger = logging.getLogger(__name__)
+    
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'Dados não fornecidos'
+            }), 400
+        
+        structure_type = data.get('structure_type', 'fence')
+        position = data.get('position', {})
+        orientation = data.get('orientation', {})
+        
+        if not position:
+            return jsonify({
+                'success': False,
+                'message': 'Posição não fornecida'
+            }), 400
+        
+        from database import save_fence_check_data
+        
+        fence_tracking_id = save_fence_check_data(
+            fence_id=fence_id,
+            structure_type=structure_type,
+            position=position,
+            orientation=orientation,
+            fence_data=data
+        )
+        
+        if fence_tracking_id:
+            logger.info(f"Dados da construção {fence_id} (tipo: {structure_type}) salvos no banco (tracking_id: {fence_tracking_id})")
+            return jsonify({
+                'success': True,
+                'message': 'Dados salvos com sucesso',
+                'fence_tracking_id': fence_tracking_id
+            })
+        else:
+            logger.error(f"Falha ao salvar dados da construção {fence_id} no banco")
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao salvar dados no banco'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Erro inesperado ao salvar dados da construção: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'Erro inesperado: {str(e)}'
+        }), 500

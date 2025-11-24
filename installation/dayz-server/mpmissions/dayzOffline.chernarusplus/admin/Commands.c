@@ -477,16 +477,26 @@ bool ExecuteCommand(TStringArray tokens)
                         if (!fenceCandidateFlag)
                             continue;
                         
+                        EntityAI fenceFlagEntity = EntityAI.Cast(fenceCandidateFlag);
                         int fenceFlagPidLow1 = 0;
                         int fenceFlagPidLow2 = 0;
                         int fenceFlagPidHigh1 = 0;
                         int fenceFlagPidHigh2 = 0;
-                        fenceCandidateFlag.GetPersistentID(fenceFlagPidLow1, fenceFlagPidLow2, fenceFlagPidHigh1, fenceFlagPidHigh2);
+                        bool fenceFlagHasPersistent = false;
+                        string fenceFlagCandidateIdentifier = "";
                         
-                        bool fenceFlagHasPersistent = (fenceFlagPidLow1 != 0 || fenceFlagPidLow2 != 0 || fenceFlagPidHigh1 != 0 || fenceFlagPidHigh2 != 0);
-                        string fenceFlagPersistentKey = fenceFlagPidLow1.ToString() + "-" + fenceFlagPidLow2.ToString() + "-" + fenceFlagPidHigh1.ToString() + "-" + fenceFlagPidHigh2.ToString();
-                        string fenceFlagCandidateIdentifier = fenceFlagPersistentKey;
-                        if (!fenceFlagHasPersistent)
+                        if (fenceFlagEntity)
+                        {
+                            fenceFlagEntity.GetPersistentID(fenceFlagPidLow1, fenceFlagPidLow2, fenceFlagPidHigh1, fenceFlagPidHigh2);
+                            fenceFlagHasPersistent = (fenceFlagPidLow1 != 0 || fenceFlagPidLow2 != 0 || fenceFlagPidHigh1 != 0 || fenceFlagPidHigh2 != 0);
+                        }
+                        
+                        if (fenceFlagHasPersistent)
+                        {
+                            string fenceFlagPersistentKey = fenceFlagPidLow1.ToString() + "-" + fenceFlagPidLow2.ToString() + "-" + fenceFlagPidHigh1.ToString() + "-" + fenceFlagPidHigh2.ToString();
+                            fenceFlagCandidateIdentifier = fenceFlagPersistentKey;
+                        }
+                        else
                         {
                             fenceFlagCandidateIdentifier = "pending-" + fenceCandidateFlag.GetID().ToString();
                         }
@@ -612,7 +622,7 @@ bool ExecuteCommand(TStringArray tokens)
                     string fenceOriZStr = fenceOrientation[2].ToString();
                     
                     fenceResultJson = fenceResultJson + ",\"fence_id\":\"" + SanitizeForJson(fenceFinalIdentifier) + "\"";
-                    fenceResultJson = fenceResultJson + ",\"position\":{\"x\":" + fencePosXStr + ",\"y\":" + fencePosZStr + ",\"z\":" + fencePosYStr + "}";
+                    fenceResultJson = fenceResultJson + ",\"position\":{\"x\":" + fencePosXStr + ",\"z\":" + fencePosZStr + ",\"y\":" + fencePosYStr + "}";
                     fenceResultJson = fenceResultJson + ",\"orientation\":{\"x\":" + fenceOriXStr + ",\"y\":" + fenceOriYStr + ",\"z\":" + fenceOriZStr + "}";
                     fenceResultJson = fenceResultJson + ",\"has_base\":" + BoolToJson(fenceHasBase);
                     fenceResultJson = fenceResultJson + ",\"lower_panel_built\":" + BoolToJson(fenceLowerPanelBuilt);
@@ -742,7 +752,7 @@ bool ExecuteCommand(TStringArray tokens)
                     string fenceWtOriZStr = fenceOrientation[2].ToString();
                     
                     fenceResultJson = fenceResultJson + ",\"fence_id\":\"" + SanitizeForJson(fenceWtFinalIdentifier) + "\"";
-                    fenceResultJson = fenceResultJson + ",\"position\":{\"x\":" + fenceWtPosXStr + ",\"y\":" + fenceWtPosZStr + ",\"z\":" + fenceWtPosYStr + "}";
+                    fenceResultJson = fenceResultJson + ",\"position\":{\"x\":" + fenceWtPosXStr + ",\"z\":" + fenceWtPosZStr + ",\"y\":" + fenceWtPosYStr + "}";
                     fenceResultJson = fenceResultJson + ",\"orientation\":{\"x\":" + fenceWtOriXStr + ",\"y\":" + fenceWtOriYStr + ",\"z\":" + fenceWtOriZStr + "}";
                     fenceResultJson = fenceResultJson + ",\"has_base\":" + BoolToJson(fenceWtHasBase);
                     fenceResultJson = fenceResultJson + ",\"level_1_base\":" + BoolToJson(fenceWtLevel1BaseBuilt);
@@ -819,15 +829,26 @@ bool ExecuteCommand(TStringArray tokens)
                         }
                     }
                     
+                    EntityAI fenceFlagEntityResult = EntityAI.Cast(fenceTrackedFlag);
                     int fenceFlagPidLow1Result = 0;
                     int fenceFlagPidLow2Result = 0;
                     int fenceFlagPidHigh1Result = 0;
                     int fenceFlagPidHigh2Result = 0;
-                    fenceTrackedFlag.GetPersistentID(fenceFlagPidLow1Result, fenceFlagPidLow2Result, fenceFlagPidHigh1Result, fenceFlagPidHigh2Result);
-                    bool fenceFlagHasPersistentResult = (fenceFlagPidLow1Result != 0 || fenceFlagPidLow2Result != 0 || fenceFlagPidHigh1Result != 0 || fenceFlagPidHigh2Result != 0);
-                    string fenceFlagPersistentKeyResult = fenceFlagPidLow1Result.ToString() + "-" + fenceFlagPidLow2Result.ToString() + "-" + fenceFlagPidHigh1Result.ToString() + "-" + fenceFlagPidHigh2Result.ToString();
-                    string fenceFlagFinalIdentifier = fenceFlagPersistentKeyResult;
-                    if (!fenceFlagHasPersistentResult)
+                    bool fenceFlagHasPersistentResult = false;
+                    string fenceFlagFinalIdentifier = "";
+                    
+                    if (fenceFlagEntityResult)
+                    {
+                        fenceFlagEntityResult.GetPersistentID(fenceFlagPidLow1Result, fenceFlagPidLow2Result, fenceFlagPidHigh1Result, fenceFlagPidHigh2Result);
+                        fenceFlagHasPersistentResult = (fenceFlagPidLow1Result != 0 || fenceFlagPidLow2Result != 0 || fenceFlagPidHigh1Result != 0 || fenceFlagPidHigh2Result != 0);
+                    }
+                    
+                    if (fenceFlagHasPersistentResult)
+                    {
+                        string fenceFlagPersistentKeyResult = fenceFlagPidLow1Result.ToString() + "-" + fenceFlagPidLow2Result.ToString() + "-" + fenceFlagPidHigh1Result.ToString() + "-" + fenceFlagPidHigh2Result.ToString();
+                        fenceFlagFinalIdentifier = fenceFlagPersistentKeyResult;
+                    }
+                    else
                     {
                         fenceFlagFinalIdentifier = "pending-" + fenceTrackedFlag.GetID().ToString();
                     }
@@ -843,7 +864,7 @@ bool ExecuteCommand(TStringArray tokens)
                     string fenceFlagHeightStr = fenceFlagHeight.ToString();
                     
                     fenceResultJson = fenceResultJson + ",\"fence_id\":\"" + SanitizeForJson(fenceFlagFinalIdentifier) + "\"";
-                    fenceResultJson = fenceResultJson + ",\"position\":{\"x\":" + fenceFlagPosXStr + ",\"y\":" + fenceFlagPosZStr + ",\"z\":" + fenceFlagPosYStr + "}";
+                    fenceResultJson = fenceResultJson + ",\"position\":{\"x\":" + fenceFlagPosXStr + ",\"z\":" + fenceFlagPosZStr + ",\"y\":" + fenceFlagPosYStr + "}";
                     fenceResultJson = fenceResultJson + ",\"orientation\":{\"x\":" + fenceFlagOriXStr + ",\"y\":" + fenceFlagOriYStr + ",\"z\":" + fenceFlagOriZStr + "}";
                     fenceResultJson = fenceResultJson + ",\"has_base\":" + BoolToJson(fenceFlagHasBase);
                     fenceResultJson = fenceResultJson + ",\"has_flag_base\":" + BoolToJson(fenceFlagHasFlagBase);
@@ -1159,27 +1180,27 @@ bool ExecuteCommand(TStringArray tokens)
                     return false;
                 }
 
-                float fencePosX = tokens[2].ToFloat();
-                float fencePosZ = tokens[3].ToFloat();
-                float fencePosY = tokens[4].ToFloat();
-                vector fencePosition = Vector(fencePosX, fencePosY, fencePosZ);
+                float regFencePosX = tokens[2].ToFloat();
+                float regFencePosZ = tokens[3].ToFloat();
+                float regFencePosY = tokens[4].ToFloat();
+                vector regFencePosition = Vector(regFencePosX, regFencePosY, regFencePosZ);
 
-                float searchRadius = 3.0;
+                float regFenceSearchRadius = 3.0;
                 if (tokens.Count() >= 6)
                 {
-                    float candidateRadius = tokens[5].ToFloat();
-                    if (candidateRadius > 0)
-                        searchRadius = candidateRadius;
+                    float regFenceCandidateRadius = tokens[5].ToFloat();
+                    if (regFenceCandidateRadius > 0)
+                        regFenceSearchRadius = regFenceCandidateRadius;
                 }
 
-                bool fenceRegistered = RegisterFenceAtPosition(fencePosition, searchRadius);
-                if (fenceRegistered)
+                bool regFenceRegistered = RegisterFenceAtPosition(regFencePosition, regFenceSearchRadius);
+                if (regFenceRegistered)
                 {
-                    WriteToLog("ExecuteCommand(): registerfence executado com sucesso em " + fencePosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.INFO);
+                    WriteToLog("ExecuteCommand(): registerfence executado com sucesso em " + regFencePosition.ToString() + " (raio=" + regFenceSearchRadius.ToString() + ")", LogFile.INIT, false, LogType.INFO);
                     return true;
                 }
 
-                WriteToLog("ExecuteCommand(): registerfence falhou em encontrar fence em " + fencePosition.ToString() + " (raio=" + searchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
+                WriteToLog("ExecuteCommand(): registerfence falhou em encontrar fence em " + regFencePosition.ToString() + " (raio=" + regFenceSearchRadius.ToString() + ")", LogFile.INIT, false, LogType.WARNING);
                 return false;
             case "registerwatchtower":
                 if (tokens.Count() < 5)

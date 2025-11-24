@@ -36,6 +36,13 @@ const MapState = {
     vehicleRefreshRequests: {},
     containerRefreshStatus: {},
     containerRefreshRequests: {},
+    fenceRefreshStatus: {},
+    fenceRefreshRequests: {},
+    
+    // Popups abertos (para manter abertos durante auto-refresh)
+    isVehiclePopupOpen: {},
+    isContainerPopupOpen: {},
+    isFencePopupOpen: {},
     
     // Dados completos dos trails (para comparação entre pontos)
     playerTrailsData: {},
