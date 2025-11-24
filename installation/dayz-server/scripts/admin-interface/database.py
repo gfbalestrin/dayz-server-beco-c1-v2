@@ -203,24 +203,44 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
         
         vehicles = [dict(row) for row in cursor.fetchall()]
         
-        # Detectar se cada veículo se moveu (tem múltiplas posições diferentes no histórico)
+        # Detectar se cada veículo se moveu (tem mudanças significativas de posição no histórico)
         # E buscar items, attachments e health_parts
         for vehicle in vehicles:
             vehicle_id = vehicle['VehicleId']
             vehicle_tracking_id = vehicle['IdVehicleTracking']
             
-            # Verificar se há pelo menos 2 posições diferentes para este veículo
+            # Verificar se há mudanças significativas de posição (threshold de 0.1 unidades)
+            # Alinhado com a lógica de count_vehicle_changes
             cursor.execute("""
-                SELECT COUNT(DISTINCT PositionX || ',' || PositionY) as distinct_positions
+                SELECT PositionX, PositionY, PositionZ, TimeStamp
                 FROM vehicles_tracking
                 WHERE VehicleId = ?
+                ORDER BY TimeStamp ASC
+                LIMIT 500
             """, (vehicle_id,))
             
-            result = cursor.fetchone()
-            distinct_positions = result[0] if result else 0
+            positions = [dict(row) for row in cursor.fetchall()]
+            has_moved = False
+            pos_threshold = 0.1
             
-            # Se há mais de 1 posição distinta, o veículo se moveu
-            vehicle['has_moved'] = distinct_positions > 1
+            # Comparar posições consecutivas para detectar mudanças significativas
+            if len(positions) > 1:
+                for i in range(1, len(positions)):
+                    prev_x = positions[i - 1].get('PositionX') or 0
+                    prev_y = positions[i - 1].get('PositionY') or 0
+                    prev_z = positions[i - 1].get('PositionZ') or 0
+                    curr_x = positions[i].get('PositionX') or 0
+                    curr_y = positions[i].get('PositionY') or 0
+                    curr_z = positions[i].get('PositionZ') or 0
+                    
+                    # Verificar se há mudança significativa em qualquer eixo
+                    if (abs(prev_x - curr_x) > pos_threshold or
+                        abs(prev_y - curr_y) > pos_threshold or
+                        abs(prev_z - curr_z) > pos_threshold):
+                        has_moved = True
+                        break
+            
+            vehicle['has_moved'] = has_moved
             
             # Buscar items do veículo
             try:
