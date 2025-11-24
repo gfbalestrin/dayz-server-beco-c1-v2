@@ -222,7 +222,7 @@ bool ExecuteCommand(TStringArray tokens)
                 
                 string vehicleResultJson = "{\"request_id\":\"" + sanitizedVehicleRequestId + "\",\"command\":\"checkvehicle\",\"status\":\"success\"";
                 vehicleResultJson = vehicleResultJson + ",\"vehicle_id\":\"" + sanitizedVehicleIdentifier + "\",\"vehicle_name\":\"" + sanitizedVehicleName + "\"";
-                vehicleResultJson = vehicleResultJson + ",\"position\":{\"x\":" + posXStr + ",\"y\":" + posZStr + ",\"z\":" + posYStr + "}";
+                vehicleResultJson = vehicleResultJson + ",\"position\":{\"x\":" + posXStr + ",\"z\":" + posZStr + ",\"y\":" + posYStr + "}";
                 vehicleResultJson = vehicleResultJson + ",\"items\":[" + itemsJson + "],\"attachments\":[" + attachmentsJson + "]";
                 vehicleResultJson = vehicleResultJson + ",\"health_parts\":{" + healthPartsJson + "}";
                 vehicleResultJson = vehicleResultJson + ",\"lifetime\":" + vehicleLifetime.ToString() + ",\"lifetime_max\":" + vehicleLifetimeMax.ToString() + "}";
