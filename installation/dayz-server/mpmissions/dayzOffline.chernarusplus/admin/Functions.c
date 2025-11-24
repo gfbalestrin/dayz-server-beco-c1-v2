@@ -30,6 +30,71 @@ void EnsureFileExists(string path)
     }
 }
 
+const float PLAYER_PROXIMITY_SCAN_RADIUS = 10.0;
+
+void LogNearbyWorldObjectsForPlayer(PlayerBase player, string safeName, string playerId, vector position, array<Object> proximityScanBuffer)
+{
+    if (!GetGame() || !player)
+        return;
+
+    if (!proximityScanBuffer)
+        proximityScanBuffer = new array<Object>();
+
+    int nearbyContainers = 0;
+    int nearbyVehicles = 0;
+    int nearbyFences = 0;
+    int nearbyWatchtowers = 0;
+    int nearbyFlags = 0;
+
+    proximityScanBuffer.Clear();
+    GetGame().GetObjectsAtPosition(position, PLAYER_PROXIMITY_SCAN_RADIUS, proximityScanBuffer, null);
+
+    foreach (Object nearbyObject : proximityScanBuffer)
+    {
+        if (!nearbyObject || nearbyObject == player)
+            continue;
+
+        string nearbyType = nearbyObject.GetType();
+        if (!nearbyType || nearbyType == "")
+            continue;
+
+        if (IsContainerType(nearbyType))
+        {
+            nearbyContainers++;
+            continue;
+        }
+
+        CarScript nearbyVehicle = CarScript.Cast(nearbyObject);
+        if (nearbyVehicle)
+        {
+            nearbyVehicles++;
+            continue;
+        }
+
+        Fence nearbyFence = Fence.Cast(nearbyObject);
+        if (nearbyFence && nearbyFence.HasBase())
+        {
+            nearbyFences++;
+            continue;
+        }
+
+        Watchtower nearbyWatchtower = Watchtower.Cast(nearbyObject);
+        if (nearbyWatchtower && nearbyWatchtower.HasBase())
+        {
+            nearbyWatchtowers++;
+            continue;
+        }
+
+        if (nearbyType == "TerritoryFlag")
+        {
+            nearbyFlags++;
+            continue;
+        }
+    }
+
+        WriteToLog("[PROXIMITY] Player=" + safeName + " (ID=" + playerId + ") Containers=" + nearbyContainers.ToString() + " Vehicles=" + nearbyVehicles.ToString() + " Fences=" + nearbyFences.ToString() + " Watchtowers=" + nearbyWatchtowers.ToString() + " Flags=" + nearbyFlags.ToString() + " Radius=" + PLAYER_PROXIMITY_SCAN_RADIUS.ToString() + "m", LogFile.INIT, false, LogType.DEBUG);
+}
+
 PlayerBase GetPlayerByName(string name)
 {
     array<Man> players = new array<Man>();
@@ -1900,6 +1965,7 @@ void SendPlayersPositions(array<Man> players = null)
 
     string playersJson = "";
     int processedCount = 0;
+    array<Object> proximityScanBuffer = new array<Object>();
 
     foreach (Man man : playersToProcess)
     {
@@ -1982,6 +2048,9 @@ void SendPlayersPositions(array<Man> players = null)
             mainItems = "";
 
         int itemsCount = CountInventoryItems(player);
+
+        // Scan de proximidade (apenas logs)
+        //LogNearbyWorldObjectsForPlayer(player, safeName, playerId, position, proximityScanBuffer);
 
         // Converte booleanos para string
         string isAliveStr = "false";

@@ -325,6 +325,48 @@ void SendVehiclesPositions()
     WriteToLog("SendVehiclesPositions(): Posições de " + m_TrackedVehicles.Count().ToString() + " veículos enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
 }
 
+void LogVehiclesPositionsSimple()
+{
+    if (!GetGame() || !GetGame().IsServer())
+        return;
+
+    if (!m_TrackedVehicles || m_TrackedVehicles.Count() == 0)
+    {
+        WriteToLog("LogVehiclesPositionsSimple(): Nenhum veículo em m_TrackedVehicles. Execute PopulateTrackedVehicles antes do teste.", LogFile.INIT, false, LogType.WARNING);
+        return;
+    }
+
+    int loggedVehicles = 0;
+
+    foreach (CarScript candidateVehicle : m_TrackedVehicles)
+    {
+        if (!candidateVehicle)
+            continue;
+
+        loggedVehicles++;
+
+        vector pos = candidateVehicle.GetPosition();
+        string vehicleName = candidateVehicle.GetDisplayName();
+
+        int pidLow1 = 0;
+        int pidLow2 = 0;
+        int pidHigh1 = 0;
+        int pidHigh2 = 0;
+        candidateVehicle.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+
+        bool hasPersistent = (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0);
+        string vehicleIdentifier = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+        if (!hasPersistent)
+        {
+            vehicleIdentifier = "pending-" + candidateVehicle.GetID().ToString();
+        }
+
+        WriteToLog("[VEHICLE_SIMPLE] ID=" + vehicleIdentifier + " Nome=\"" + vehicleName + "\" Pos=(" + pos[0].ToString() + "," + pos[1].ToString() + "," + pos[2].ToString() + ")", LogFile.INIT, false, LogType.DEBUG);
+    }
+
+    WriteToLog("[VEHICLE_SIMPLE] Total de veículos logados: " + loggedVehicles.ToString(), LogFile.INIT, false, LogType.INFO);
+}
+
 void CheckVehiclesForLoot()
 {
 	if (!m_TrackedVehicles || m_TrackedVehicles.Count() == 0)
