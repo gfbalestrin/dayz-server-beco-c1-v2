@@ -24,18 +24,27 @@ handle_containers_positions() {
     local line="$1"
     local captured_timestamp="$2"  # Timestamp capturado no momento da leitura
 
+    INSERT_CUSTOM_LOG "DEBUG: handle_containers_positions iniciado" "INFO" "$ScriptName"
+    
     local current_timestamp CurrentDate
     # Se timestamp não foi fornecido, usar timestamp atual como fallback
     if [[ -n "$captured_timestamp" ]]; then
         current_timestamp="$captured_timestamp"
+        INSERT_CUSTOM_LOG "DEBUG: usando timestamp capturado: $captured_timestamp" "INFO" "$ScriptName"
     else
         current_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+        INSERT_CUSTOM_LOG "DEBUG: usando timestamp atual: $current_timestamp" "INFO" "$ScriptName"
     fi
     CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
 
     if ! echo "$line" | jq -e '.container_data' >/dev/null 2>&1; then
+        INSERT_CUSTOM_LOG "DEBUG: JSON de containers vazio ou inválido, retornando" "INFO" "$ScriptName"
         return
     fi
+    
+    local container_count_check
+    container_count_check=$(echo "$line" | jq '.container_data | length // 0' 2>/dev/null || echo "0")
+    INSERT_CUSTOM_LOG "DEBUG: containers encontrados no JSON: $container_count_check" "INFO" "$ScriptName"
 
     declare -A prev_containers=()
 
@@ -103,6 +112,7 @@ WHERE ranked.rn = 1
 GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.PositionZ, ranked.PositionY;"
     fi
     
+    INSERT_CUSTOM_LOG "DEBUG: iniciando busca de containers anteriores no banco" "INFO" "$ScriptName"
     local prev_containers_query_start
     prev_containers_query_start=$(date +%s.%N 2>/dev/null || date +%s)
     
@@ -161,6 +171,7 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
     
     local prev_containers_count=0
     if [[ "$query_success" == true ]]; then
+        INSERT_CUSTOM_LOG "DEBUG: query de containers anteriores bem-sucedida, processando resultados" "INFO" "$ScriptName"
         while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_items; do
             # Pular linhas vazias ou quando prev_id está vazio
             if [[ -z "$prev_id" ]]; then
@@ -169,8 +180,9 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
             prev_containers["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_items"
             prev_containers_count=$((prev_containers_count + 1))
         done <<< "$query_output"
+        INSERT_CUSTOM_LOG "DEBUG: containers anteriores carregados: $prev_containers_count" "INFO" "$ScriptName"
     else
-        INSERT_CUSTOM_LOG ">> Erro ao buscar containers anteriores após $max_retries tentativas" "ERROR" "$ScriptName"
+        INSERT_CUSTOM_LOG "DEBUG: query de containers anteriores falhou após $max_retries tentativas" "WARNING" "$ScriptName"
     fi
     
     local prev_containers_query_end
@@ -192,6 +204,7 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
     local containers container_count processed_count
     containers=$(echo "$line" | jq -c '.container_data[]')
     container_count=$(echo "$line" | jq '.container_data | length')
+    INSERT_CUSTOM_LOG "DEBUG: total de containers no JSON para processar: $container_count" "INFO" "$ScriptName"
     processed_count=0
 
     # Arrays para coletar dados antes de processar
@@ -200,6 +213,7 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
     declare -a containers_to_process=()  # Lista de containers para processar
     declare -A containers_metadata=()     # ContainerId -> metadata (type, coords, etc)
 
+    INSERT_CUSTOM_LOG "DEBUG: iniciando loop de processamento de containers" "INFO" "$ScriptName"
     # Primeira passagem: coletar todos os dados e fazer comparações
     local container_data
     local containers_processed_in_loop=0
@@ -208,6 +222,11 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
             continue
         fi
         containers_processed_in_loop=$((containers_processed_in_loop + 1))
+        
+        # Log de progresso a cada 100 containers
+        if [[ $((containers_processed_in_loop % 100)) -eq 0 ]]; then
+            INSERT_CUSTOM_LOG "DEBUG: processados $containers_processed_in_loop de $container_count containers no loop" "INFO" "$ScriptName"
+        fi
         
         local container_loop_start
         container_loop_start=$(date +%s.%N 2>/dev/null || date +%s)
@@ -220,7 +239,9 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
         coord_y=$(echo "$container_data" | jq -r '.position.y')
 
         if [[ -z "$container_id" || "$container_id" == "null" ]]; then
-            echo ">> Aviso: container_id não encontrado no JSON, pulando container"
+            if [[ $containers_processed_in_loop -le 10 ]]; then
+                INSERT_CUSTOM_LOG "DEBUG: container_id não encontrado no JSON (container $containers_processed_in_loop), pulando" "WARNING" "$ScriptName"
+            fi
             continue
         fi
 
@@ -480,6 +501,11 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
             batch_containers_data+=("$container_id|$container_name|$coord_x|$coord_z|$coord_y")
             containers_to_process+=("$container_id")
             
+            # Log apenas para os primeiros 10 containers para debug
+            if [[ ${#batch_containers_data[@]} -le 10 ]]; then
+                INSERT_CUSTOM_LOG "DEBUG: container adicionado ao batch: $container_id (total no batch: ${#batch_containers_data[@]})" "INFO" "$ScriptName"
+            fi
+            
             # Armazenar metadata do container
             containers_metadata["$container_id"]="$container_type|$coord_x_log|$coord_z_log|$coord_y_log|$is_shelter_type"
             
@@ -517,6 +543,8 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
         fi
 
     done <<< "$containers"
+    
+    INSERT_CUSTOM_LOG "DEBUG: loop de processamento concluído, processados: $containers_processed_in_loop, batch_containers_data: ${#batch_containers_data[@]}" "INFO" "$ScriptName"
     
     # Log resumido do processamento
 
