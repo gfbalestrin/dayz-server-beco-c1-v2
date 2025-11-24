@@ -229,8 +229,18 @@ function updateFences(data) {
         setTimeout(function() {
             openFencePopups.forEach(function(fenceId) {
                 const marker = MapState.fenceMarkers[fenceId];
-                if (marker && !marker.isPopupOpen()) {
-                    marker.openPopup();
+                if (marker) {
+                    // Atualizar conteúdo do popup antes de reabrir
+                    if (MapState.fencesData[fenceId]) {
+                        const fence = MapState.fencesData[fenceId];
+                        const popupContent = createFencePopup(fence);
+                        marker.setPopupContent(popupContent);
+                    }
+                    
+                    // Reabrir popup se não estiver aberto
+                    if (!marker.isPopupOpen()) {
+                        marker.openPopup();
+                    }
                 }
             });
         }, 100);
@@ -290,8 +300,19 @@ function updateFencePopup(fenceId) {
     const fence = MapState.fencesData[fenceId];
     const popupContent = createFencePopup(fence);
     
-    if (marker.isPopupOpen()) {
+    // Verificar se popup está aberto antes de atualizar
+    const wasOpen = marker.isPopupOpen();
+    
+    if (wasOpen) {
+        // Atualizar conteúdo do popup
         marker.setPopupContent(popupContent);
+        
+        // Garantir que popup permaneça aberto após atualização
+        setTimeout(function() {
+            if (marker && !marker.isPopupOpen()) {
+                marker.openPopup();
+            }
+        }, 50);
     }
 }
 

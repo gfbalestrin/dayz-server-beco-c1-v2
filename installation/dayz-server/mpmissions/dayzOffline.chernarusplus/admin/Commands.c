@@ -658,7 +658,7 @@ bool ExecuteCheckFenceCommand(string playerID, string fenceIdentifierParam, stri
     
     fenceResultJson = fenceResultJson + "}";
     
-    AppendCommandResult(fenceResultJson, false);
+    AppendCommandResult(fenceResultJson);
     WriteToLog("ExecuteCommand(): checkfence - Dados enviados para construção tipo " + fenceStructureType + " (request_id: " + fenceRequestId + ")", LogFile.INIT, false, LogType.INFO);
     
     return true;
