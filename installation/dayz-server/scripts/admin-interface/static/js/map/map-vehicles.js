@@ -474,7 +474,24 @@ function startVehicleRefreshPolling(requestId, vehicleId, attempt) {
             if (response.status === 'ready') {
                 const data = response.data || {};
                 if (data.status === 'success') {
+                    // Verificar se popup estava aberto antes de atualizar
+                    const marker = MapState.vehicleMarkers[vehicleId];
+                    const wasPopupOpen = marker && marker.isPopupOpen();
+                    
                     applyVehicleRefreshData(vehicleId, data);
+                    
+                    // Salvar no banco de dados (silenciosamente)
+                    saveVehicleCheckToDatabase(vehicleId, data);
+                    
+                    // Reabrir popup se estava aberto antes (usar delay maior para garantir que setPopupContent terminou)
+                    if (wasPopupOpen && marker) {
+                        setTimeout(function() {
+                            if (marker && !marker.isPopupOpen()) {
+                                marker.openPopup();
+                            }
+                        }, 200);
+                    }
+                    
                     const vehicleName = (MapState.vehiclesData[vehicleId] && MapState.vehiclesData[vehicleId].vehicle_name) || vehicleId;
                     showToast('Sucesso', `Dados do veículo ${vehicleName} atualizados.`, 'success');
                 } else {
@@ -541,6 +558,40 @@ function setVehicleRefreshState(vehicleId, isRefreshing) {
 }
 
 /**
+ * Salvar dados do checkvehicle no banco de dados
+ */
+function saveVehicleCheckToDatabase(vehicleId, commandData) {
+    if (!commandData || commandData.status !== 'success') {
+        return;
+    }
+    
+    // Preparar dados para enviar ao endpoint
+    const saveData = {
+        vehicle_name: commandData.vehicle_name || 'Veículo',
+        position: commandData.position || {},
+        items: commandData.items || [],
+        attachments: commandData.attachments || [],
+        health_parts: commandData.health_parts || {}
+    };
+    
+    // Chamar endpoint de forma assíncrona (não bloquear UI)
+    $.ajax({
+        url: `/api/vehicles/${vehicleId}/save-check`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(saveData),
+        success: function(response) {
+            // Sucesso silencioso (não precisa mostrar toast)
+            console.log(`Dados do veículo ${vehicleId} salvos no banco`);
+        },
+        error: function(xhr) {
+            // Erro silencioso (não bloquear atualização visual)
+            console.warn(`Erro ao salvar dados do veículo ${vehicleId} no banco:`, xhr.responseJSON || xhr.statusText);
+        }
+    });
+}
+
+/**
  * Aplicar dados retornados pelo comando ao estado local
  */
 function applyVehicleRefreshData(vehicleId, commandData) {
@@ -555,9 +606,11 @@ function applyVehicleRefreshData(vehicleId, commandData) {
     }
     
     if (commandData.position) {
+        // Formato JSON do checkvehicle: {"x": leste-oeste, "z": altura, "y": norte-sul} (igual ao VehicleTracking.c)
+        // Formato frontend: coord_x (leste-oeste), coord_y (norte-sul), coord_z (altura)
         const coordX = parseFloat(commandData.position.x);
-        const coordY = parseFloat(commandData.position.z);
-        const coordZ = parseFloat(commandData.position.y);
+        const coordY = parseFloat(commandData.position.y);  // y do JSON é norte-sul (PositionY no banco)
+        const coordZ = parseFloat(commandData.position.z);  // z do JSON é altura (PositionZ no banco)
         
         if (!isNaN(coordX)) {
             vehicle.coord_x = coordX;
@@ -619,7 +672,11 @@ function applyVehicleRefreshData(vehicleId, commandData) {
         body_health: vehicle.health_parts ? vehicle.health_parts.body : null
     };
     
-    updateVehiclePopup(vehicleId);
+    // Atualizar popup apenas se estiver aberto (evita fechar)
+    const marker = MapState.vehicleMarkers[vehicleId];
+    if (marker && marker.isPopupOpen()) {
+        updateVehiclePopup(vehicleId);
+    }
 }
 
 /**

@@ -5907,3 +5907,140 @@ def get_player_events(player_id: str, limit: int = 50, offset: int = 0, date_fro
         events = [dict(row) for row in cursor.fetchall()]
         
         return (events, total_count)
+
+def save_vehicle_check_data(vehicle_id: str, vehicle_name: str, position: dict, 
+                            items: list, attachments: list, health_parts: dict) -> Optional[int]:
+    """
+    Salva dados de um veículo coletados via checkvehicle no banco de dados
+    Retorna o IdVehicleTracking do registro inserido ou None em caso de erro
+    
+    Args:
+        vehicle_id: ID do veículo
+        vehicle_name: Nome do veículo
+        position: Dict com x, y, z (coordenadas)
+        items: Lista de dicts com type e health
+        attachments: Lista de dicts com type e health
+        health_parts: Dict com engine, body, fuel_tank (valores entre 0 e 1)
+    """
+    from datetime import datetime
+    
+    try:
+        with DatabaseConnection(config.DB_VEHICLES) as conn:
+            cursor = conn.cursor()
+            
+            # Verificar se colunas de saúde existem
+            cursor.execute("PRAGMA table_info(vehicles_tracking)")
+            columns = [row[1] for row in cursor.fetchall()]
+            has_engine_health = 'EngineHealth' in columns
+            has_body_health = 'BodyHealth' in columns
+            has_fuel_tank_health = 'FuelTankHealth' in columns
+            
+            # Preparar valores de saúde
+            engine_health = health_parts.get('engine') if health_parts else None
+            body_health = health_parts.get('body') if health_parts else None
+            fuel_tank_health = health_parts.get('fuel_tank') if health_parts else None
+            
+            # Converter valores de saúde (0-1) para porcentagem (0-100) se necessário
+            # O banco pode armazenar como 0-1 ou 0-100, vamos manter como 0-1
+            if engine_health is not None and engine_health > 1:
+                engine_health = engine_health / 100.0
+            if body_health is not None and body_health > 1:
+                body_health = body_health / 100.0
+            if fuel_tank_health is not None and fuel_tank_health > 1:
+                fuel_tank_health = fuel_tank_health / 100.0
+            
+            # Preparar coordenadas
+            # Formato JSON: {"x": leste-oeste, "z": altura, "y": norte-sul} (igual ao VehicleTracking.c)
+            # Formato banco: PositionX (leste-oeste), PositionZ (altura), PositionY (norte-sul)
+            coord_x = float(position.get('x', 0))
+            coord_z = float(position.get('z', 0))  # z do JSON é altura (PositionZ no banco)
+            coord_y = float(position.get('y', 0))  # y do JSON é norte-sul (PositionY no banco)
+            
+            # Construir query dinamicamente baseado nas colunas disponíveis
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            health_columns = ""
+            health_values = ""
+            if has_engine_health:
+                health_columns += ", EngineHealth"
+                health_values += ", ?"
+            if has_body_health:
+                health_columns += ", BodyHealth"
+                health_values += ", ?"
+            if has_fuel_tank_health:
+                health_columns += ", FuelTankHealth"
+                health_values += ", ?"
+            
+            # Preparar parâmetros
+            params = [vehicle_id, vehicle_name, coord_x, coord_z, coord_y, timestamp]
+            if has_engine_health:
+                params.append(engine_health)
+            if has_body_health:
+                params.append(body_health)
+            if has_fuel_tank_health:
+                params.append(fuel_tank_health)
+            
+            # Inserir veículo
+            cursor.execute(f"""
+                INSERT INTO vehicles_tracking 
+                (VehicleId, VehicleName, PositionX, PositionZ, PositionY, TimeStamp{health_columns})
+                VALUES (?, ?, ?, ?, ?, ?{health_values})
+            """, params)
+            
+            vehicle_tracking_id = cursor.lastrowid
+            
+            # Inserir items
+            if items and vehicle_tracking_id:
+                for item in items:
+                    item_type = item.get('type', '')
+                    item_health = item.get('health')
+                    if item_type:
+                        try:
+                            if item_health is not None:
+                                cursor.execute("""
+                                    INSERT INTO vehicles_items 
+                                    (VehicleTrackingId, ItemType, ItemHealth, TimeStamp)
+                                    VALUES (?, ?, ?, ?)
+                                """, (vehicle_tracking_id, item_type, float(item_health), timestamp))
+                            else:
+                                cursor.execute("""
+                                    INSERT INTO vehicles_items 
+                                    (VehicleTrackingId, ItemType, TimeStamp)
+                                    VALUES (?, ?, ?)
+                                """, (vehicle_tracking_id, item_type, timestamp))
+                        except Exception as e:
+                            # Log erro mas continua
+                            import logging
+                            logging.getLogger(__name__).warning(f"Erro ao inserir item {item_type}: {e}")
+            
+            # Inserir attachments
+            if attachments and vehicle_tracking_id:
+                for attachment in attachments:
+                    attachment_type = attachment.get('type', '')
+                    attachment_health = attachment.get('health')
+                    if attachment_type:
+                        try:
+                            if attachment_health is not None:
+                                cursor.execute("""
+                                    INSERT INTO vehicles_attachments 
+                                    (VehicleTrackingId, AttachmentType, AttachmentHealth, TimeStamp)
+                                    VALUES (?, ?, ?, ?)
+                                """, (vehicle_tracking_id, attachment_type, float(attachment_health), timestamp))
+                            else:
+                                cursor.execute("""
+                                    INSERT INTO vehicles_attachments 
+                                    (VehicleTrackingId, AttachmentType, TimeStamp)
+                                    VALUES (?, ?, ?)
+                                """, (vehicle_tracking_id, attachment_type, timestamp))
+                        except Exception as e:
+                            # Log erro mas continua
+                            import logging
+                            logging.getLogger(__name__).warning(f"Erro ao inserir attachment {attachment_type}: {e}")
+            
+            conn.commit()
+            return vehicle_tracking_id
+            
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Erro ao salvar dados do veículo {vehicle_id}: {e}", exc_info=True)
+        return None

@@ -139,6 +139,66 @@ def api_refresh_vehicle(vehicle_id):
             'message': f'Erro inesperado: {str(e)}'
         }), 500
 
+@api_vehicles_bp.route('/api/vehicles/<vehicle_id>/save-check', methods=['POST'])
+@admin_required
+@audit_action('SAVE_VEHICLE_CHECK')
+def api_save_vehicle_check(vehicle_id):
+    """API para salvar dados coletados via checkvehicle no banco de dados"""
+    logger = logging.getLogger(__name__)
+    
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'Dados não fornecidos'
+            }), 400
+        
+        vehicle_name = data.get('vehicle_name', 'Veículo')
+        position = data.get('position', {})
+        items = data.get('items', [])
+        attachments = data.get('attachments', [])
+        health_parts = data.get('health_parts', {})
+        
+        if not position:
+            return jsonify({
+                'success': False,
+                'message': 'Posição não fornecida'
+            }), 400
+        
+        from database import save_vehicle_check_data
+        
+        vehicle_tracking_id = save_vehicle_check_data(
+            vehicle_id=vehicle_id,
+            vehicle_name=vehicle_name,
+            position=position,
+            items=items,
+            attachments=attachments,
+            health_parts=health_parts
+        )
+        
+        if vehicle_tracking_id:
+            logger.info(f"Dados do veículo {vehicle_id} salvos no banco (tracking_id: {vehicle_tracking_id})")
+            return jsonify({
+                'success': True,
+                'message': 'Dados salvos com sucesso',
+                'vehicle_tracking_id': vehicle_tracking_id
+            })
+        else:
+            logger.error(f"Falha ao salvar dados do veículo {vehicle_id} no banco")
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao salvar dados no banco'
+            }), 500
+            
+    except Exception as e:
+        logger.exception("Erro inesperado ao salvar dados do veículo")
+        return jsonify({
+            'success': False,
+            'message': f'Erro inesperado: {str(e)}'
+        }), 500
+
 @api_vehicles_bp.route('/api/vehicles/data', methods=['GET'])
 @admin_required
 def api_vehicles_data():
