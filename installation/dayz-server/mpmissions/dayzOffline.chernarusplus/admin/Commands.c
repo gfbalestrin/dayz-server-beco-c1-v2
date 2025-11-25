@@ -3083,6 +3083,17 @@ void ProcessAttachmentsRecursive(EntityAI parentItem, array<ref ItemAttachmentDa
     }
 }
 
+void SyncVehiclePositionDelayed(CarScript vehicle, vector pos)
+{
+    if (!vehicle)
+        return;
+    
+    vehicle.SetPosition(pos);
+    vehicle.SetSynchDirty();
+    vehicle.Update();
+    vehicle.SetAffectPathgraph(true, false);
+}
+
 bool ExecuteTeleportVehicle(TStringArray tokens)
 {
     // Formato: SYSTEM teleportvehicle VehicleId CoordX Altura CoordY
@@ -3174,6 +3185,9 @@ bool ExecuteTeleportVehicle(TStringArray tokens)
     targetVehicle.SetSynchDirty();
     targetVehicle.Update();
     targetVehicle.SetAffectPathgraph(true, false);
+    
+    // Sincronização adicional após delay para forçar refresh no cliente
+    GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SyncVehiclePositionDelayed, 100, false, targetVehicle, newPos);
     
     string vehicleName = targetVehicle.GetDisplayName();
     WriteToLog("ExecuteTeleportVehicle(): Veículo " + vehicleName + " (" + vehicleId + ") teleportado para X=" + newPos[0].ToString() + " Y=" + newPos[2].ToString() + " Z=" + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
@@ -3267,6 +3281,9 @@ bool ExecuteFlipVehicle(TStringArray tokens)
     targetVehicle.SetSynchDirty();
     targetVehicle.Update();
     targetVehicle.SetAffectPathgraph(true, false);
+    
+    // Sincronização adicional após delay para forçar refresh no cliente
+    GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SyncVehiclePositionDelayed, 100, false, targetVehicle, currentPos);
     
     string vehicleName = targetVehicle.GetDisplayName();
     WriteToLog("ExecuteFlipVehicle(): Veículo " + vehicleName + " (" + vehicleId + ") virado. Orientação anterior: Yaw=" + currentYaw.ToString() + " Pitch=" + currentPitch.ToString() + " Roll=" + currentRoll.ToString(), LogFile.INIT, false, LogType.INFO);
