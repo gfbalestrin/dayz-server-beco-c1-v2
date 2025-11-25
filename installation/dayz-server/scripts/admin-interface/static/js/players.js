@@ -392,51 +392,10 @@ function confirmRedirectToSpawning(playerId, playerName) {
 
 // Função para renderizar ações
 function renderActions(player) {
-    const playerName = escapeJsString(player.PlayerName || 'Jogador');
-    const isAdmin = adminIds.has(player.PlayerID);
-    const addAdminButton = isAdmin ? '' : `
-        <button class="btn btn-outline-primary" onclick="confirmAddAdminFromPlayer('${player.PlayerID}', '${playerName}')" title="Adicionar como Administrador">
-            <i class="fas fa-user-shield"></i>
-        </button>
-    `;
-    const isOnline = player.IsOnline && player.IsOnline !== 0;
-
-    if (!isOnline) {
-        if (addAdminButton) {
-            return `
-                <div class="btn-group btn-group-sm" role="group">
-                    ${addAdminButton}
-                </div>
-            `;
-        }
-        return '<span class="text-muted">-</span>';
-    }
-
     return `
-        <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-success" onclick="confirmExecuteAction('${player.PlayerID}', 'heal', '${playerName}')" title="Curar">
-                <i class="fas fa-heart"></i>
-            </button>
-            <button class="btn btn-warning" onclick="confirmActivateGodMode('${player.PlayerID}', '${playerName}')" title="Ativar God Mode">
-                <i class="fas fa-shield-alt"></i>
-            </button>
-            <button class="btn btn-secondary" onclick="confirmDeactivateGodMode('${player.PlayerID}', '${playerName}')" title="Remover God Mode">
-                <i class="fas fa-shield"></i>
-            </button>
-            <button class="btn btn-danger" onclick="confirmExecuteAction('${player.PlayerID}', 'kill', '${playerName}')" title="Matar">
-                <i class="fas fa-skull"></i>
-            </button>
-            <button class="btn btn-secondary" onclick="confirmExecuteAction('${player.PlayerID}', 'kick', '${playerName}')" title="Kickar">
-                <i class="fas fa-sign-out-alt"></i>
-            </button>
-            <button class="btn btn-info" onclick="confirmExecuteAction('${player.PlayerID}', 'desbug', '${playerName}')" title="Desbug">
-                <i class="fas fa-wrench"></i>
-            </button>
-            <button class="btn btn-primary" onclick="showSendMessageModal('${player.PlayerID}', '${playerName}')" title="Enviar Mensagem Privada">
-                <i class="fas fa-envelope"></i>
-            </button>
-            ${addAdminButton}
-        </div>
+        <button class="btn btn-sm btn-primary" onclick="showPlayerControlPanel('${player.PlayerID}')" title="Ações">
+            <i class="fas fa-sliders-h"></i>
+        </button>
     `;
 }
 
@@ -508,6 +467,88 @@ function renderLocation(player) {
     return parts.length > 0 ? `<div class="small">${parts.join('<br>')}</div>` : '<span class="text-muted">-</span>';
 }
 
+// Função para mostrar painel de controle do jogador
+function showPlayerControlPanel(playerId) {
+    const player = playersData.find(p => p.PlayerID === playerId);
+    if (!player) {
+        showToast('Erro', 'Jogador não encontrado', 'error');
+        return;
+    }
+    
+    const playerName = player.PlayerName || 'Jogador desconhecido';
+    const steamName = player.SteamName || null;
+    const isOnline = player.IsOnline && player.IsOnline !== 0;
+    const isAdmin = adminIds.has(playerId);
+    
+    // Preencher informações do jogador no cabeçalho
+    let displayName = escapeHtml(playerName);
+    if (steamName) {
+        displayName += ` <span class="text-muted">(${escapeHtml(steamName)})</span>`;
+    }
+    $('#controlPanelPlayerName').html(displayName);
+    $('#controlPanelPlayerId').text(playerId);
+    
+    // Configurar estado dos botões baseado em se está online
+    const onlineButtons = ['#controlPanelHealBtn', '#controlPanelKillBtn', '#controlPanelKickBtn', 
+                          '#controlPanelDesbugBtn', '#controlPanelActivateGodModeBtn', 
+                          '#controlPanelDeactivateGodModeBtn', '#controlPanelSendMessageBtn'];
+    
+    onlineButtons.forEach(btnId => {
+        $(btnId).prop('disabled', !isOnline);
+    });
+    
+    // Mostrar/ocultar seção de administração
+    if (isAdmin) {
+        $('#controlPanelAdminSection').hide();
+    } else {
+        $('#controlPanelAdminSection').show();
+    }
+    
+    // Remover event handlers anteriores e adicionar novos
+    $('#controlPanelHealBtn').off('click').on('click', function() {
+        $('#playerControlPanelModal').modal('hide');
+        confirmExecuteAction(playerId, 'heal', playerName);
+    });
+    
+    $('#controlPanelKillBtn').off('click').on('click', function() {
+        $('#playerControlPanelModal').modal('hide');
+        confirmExecuteAction(playerId, 'kill', playerName);
+    });
+    
+    $('#controlPanelKickBtn').off('click').on('click', function() {
+        $('#playerControlPanelModal').modal('hide');
+        confirmExecuteAction(playerId, 'kick', playerName);
+    });
+    
+    $('#controlPanelDesbugBtn').off('click').on('click', function() {
+        $('#playerControlPanelModal').modal('hide');
+        confirmExecuteAction(playerId, 'desbug', playerName);
+    });
+    
+    $('#controlPanelActivateGodModeBtn').off('click').on('click', function() {
+        $('#playerControlPanelModal').modal('hide');
+        confirmActivateGodMode(playerId, playerName);
+    });
+    
+    $('#controlPanelDeactivateGodModeBtn').off('click').on('click', function() {
+        $('#playerControlPanelModal').modal('hide');
+        confirmDeactivateGodMode(playerId, playerName);
+    });
+    
+    $('#controlPanelSendMessageBtn').off('click').on('click', function() {
+        $('#playerControlPanelModal').modal('hide');
+        showSendMessageModal(playerId, playerName);
+    });
+    
+    $('#controlPanelAddAdminBtn').off('click').on('click', function() {
+        $('#playerControlPanelModal').modal('hide');
+        confirmAddAdminFromPlayer(playerId, playerName);
+    });
+    
+    // Abrir modal
+    $('#playerControlPanelModal').modal('show');
+}
+
 // Função para renderizar status
 function renderStatus(player) {
     const isOnline = player.IsOnline && player.IsOnline !== 0;
@@ -567,11 +608,8 @@ function loadPlayers() {
 
 // Função auxiliar para toast
 function showToast(title, message, type) {
-    // Implementação básica - ajustar conforme necessário
     if (typeof toastr !== 'undefined') {
         toastr[type](message, title);
-    } else {
-        alert(message);
     }
 }
 
@@ -794,6 +832,7 @@ $(document).ready(function() {
     window.removeAdmin = removeAdmin;
     window.showSendMessageModal = showSendMessageModal;
     window.confirmAddAdminFromPlayer = confirmAddAdminFromPlayer;
+    window.showPlayerControlPanel = showPlayerControlPanel;
     
     // Limpar intervalos ao sair da página
     $(window).on('beforeunload', function() {

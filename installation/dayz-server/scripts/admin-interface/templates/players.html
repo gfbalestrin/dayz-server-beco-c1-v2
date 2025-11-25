@@ -233,6 +233,110 @@
         </div>
     </div>
 </div>
+
+<!-- Modal de Painel de Controle do Jogador -->
+<div class="modal fade" id="playerControlPanelModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-sliders-h me-2"></i>Painel de Controle
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Informações do Jogador -->
+                <div class="card mb-4 border-primary">
+                    <div class="card-body">
+                        <h4 class="card-title text-primary mb-2" id="controlPanelPlayerName"></h4>
+                        <p class="text-muted mb-1">
+                            <small>Player ID: <code id="controlPanelPlayerId"></code></small>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Seção: Ações Rápidas -->
+                <div class="card mb-3">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="fas fa-bolt me-2"></i>Ações Rápidas</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <button type="button" class="btn btn-success w-100" id="controlPanelHealBtn" title="Curar">
+                                    <i class="fas fa-heart me-2"></i>Curar
+                                </button>
+                            </div>
+                            <div class="col-md-3">
+                                <button type="button" class="btn btn-danger w-100" id="controlPanelKillBtn" title="Matar">
+                                    <i class="fas fa-skull me-2"></i>Matar
+                                </button>
+                            </div>
+                            <div class="col-md-3">
+                                <button type="button" class="btn btn-warning w-100" id="controlPanelKickBtn" title="Kickar">
+                                    <i class="fas fa-sign-out-alt me-2"></i>Kickar
+                                </button>
+                            </div>
+                            <div class="col-md-3">
+                                <button type="button" class="btn btn-info w-100" id="controlPanelDesbugBtn" title="Desbug">
+                                    <i class="fas fa-wrench me-2"></i>Desbug
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Seção: God Mode -->
+                <div class="card mb-3">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="fas fa-shield-alt me-2"></i>God Mode</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <button type="button" class="btn btn-warning w-100" id="controlPanelActivateGodModeBtn" title="Ativar God Mode">
+                                    <i class="fas fa-shield-alt me-2"></i>Ativar God Mode
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <button type="button" class="btn btn-secondary w-100" id="controlPanelDeactivateGodModeBtn" title="Remover God Mode">
+                                    <i class="fas fa-shield me-2"></i>Remover God Mode
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Seção: Comunicação -->
+                <div class="card mb-3">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="fas fa-comments me-2"></i>Comunicação</h6>
+                    </div>
+                    <div class="card-body">
+                        <button type="button" class="btn btn-primary w-100" id="controlPanelSendMessageBtn" title="Enviar Mensagem Privada">
+                            <i class="fas fa-envelope me-2"></i>Enviar Mensagem Privada
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Seção: Administração -->
+                <div class="card mb-3" id="controlPanelAdminSection" style="display: none;">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="fas fa-user-shield me-2"></i>Administração</h6>
+                    </div>
+                    <div class="card-body">
+                        <button type="button" class="btn btn-outline-primary w-100" id="controlPanelAddAdminBtn" title="Adicionar como Administrador">
+                            <i class="fas fa-user-shield me-2"></i>Adicionar como Administrador
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
