@@ -3110,7 +3110,7 @@ void MoveVehicleIncrementStep(VehicleIncrementalMove moveData)
     }
     
     // Calcular posição intermediária
-    float progress = (moveData.m_CurrentStep + 1).ToFloat() / moveData.m_TotalSteps.ToFloat();
+    float progress = (moveData.m_CurrentStep + 1.0) / moveData.m_TotalSteps;
     vector currentPos = moveData.m_StartPos;
     vector delta = moveData.m_TargetPos - moveData.m_StartPos;
     currentPos = currentPos + (delta * progress);
