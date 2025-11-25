@@ -3083,6 +3083,41 @@ void ProcessAttachmentsRecursive(EntityAI parentItem, array<ref ItemAttachmentDa
     }
 }
 
+array<PlayerBase> GetPlayersNearPosition(vector position, float radius)
+{
+    array<PlayerBase> nearbyPlayers = new array<PlayerBase>();
+    array<Man> allPlayers = new array<Man>();
+    
+    GetGame().GetPlayers(allPlayers);
+    
+    foreach (Man man : allPlayers)
+    {
+        PlayerBase player = PlayerBase.Cast(man);
+        if (!player)
+            continue;
+        
+        vector playerPos = player.GetPosition();
+        float distance = vector.Distance(playerPos, position);
+        
+        if (distance <= radius)
+        {
+            nearbyPlayers.Insert(player);
+        }
+    }
+    
+    return nearbyPlayers;
+}
+
+void ForceVehicleSyncForPlayer(CarScript vehicle)
+{
+    if (!vehicle)
+        return;
+    
+    // Forçar sincronização adicional após delay
+    vehicle.SetSynchDirty();
+    vehicle.Synchronize();
+}
+
 void SyncVehicleWithSynchronize(CarScript vehicle, vector pos)
 {
     if (!vehicle)
@@ -3099,6 +3134,28 @@ void SyncVehicleWithSynchronize(CarScript vehicle, vector pos)
     // Chamar Synchronize() explicitamente para forçar sincronização completa
     // Similar ao comportamento quando jogador está dentro do veículo
     vehicle.Synchronize();
+    
+    // Detectar jogadores próximos e forçar sincronização adicional
+    array<PlayerBase> nearbyPlayers = GetPlayersNearPosition(pos, 50.0); // 50 metros de raio
+    
+    if (nearbyPlayers.Count() > 0)
+    {
+        WriteToLog("SyncVehicleWithSynchronize(): Encontrados " + nearbyPlayers.Count().ToString() + " jogador(es) próximo(s) ao veículo", LogFile.INIT, false, LogType.INFO);
+        
+        foreach (PlayerBase nearbyPlayer : nearbyPlayers)
+        {
+            if (!nearbyPlayer || !nearbyPlayer.GetIdentity())
+                continue;
+            
+            string playerName = nearbyPlayer.GetIdentity().GetName();
+            vector playerPos = nearbyPlayer.GetPosition();
+            float distance = vector.Distance(playerPos, pos);
+            WriteToLog("SyncVehicleWithSynchronize(): Jogador próximo: " + playerName + " (distância: " + distance.ToString() + "m)", LogFile.INIT, false, LogType.INFO);
+            
+            // Forçar sincronização adicional após delay para cada jogador próximo
+            GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(ForceVehicleSyncForPlayer, 100, false, vehicle);
+        }
+    }
 }
 
 bool ExecuteTeleportVehicle(TStringArray tokens)
