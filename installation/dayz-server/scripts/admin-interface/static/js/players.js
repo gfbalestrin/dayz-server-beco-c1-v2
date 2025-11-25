@@ -284,7 +284,11 @@ function showActionConfirmationModal(actionName, message, playerId, playerName, 
 }
 
 // Função para mostrar modal de enviar mensagem privada
-function showSendMessageModal(playerId, playerName) {
+// Variável para armazenar intervalo de auto-refresh do chat
+let chatRefreshInterval = null;
+let currentChatPlayerId = null;
+
+function showPlayerChatModal(playerId, playerName) {
     const player = playersData.find(p => p.PlayerID === playerId);
     const displayPlayerName = player ? (player.PlayerName || 'Jogador desconhecido') : (playerName || 'Jogador desconhecido');
     const steamName = player ? (player.SteamName || null) : null;
@@ -295,28 +299,167 @@ function showSendMessageModal(playerId, playerName) {
         displayName += ` (${escapeHtml(steamName)})`;
     }
     
-    $('#sendMessagePlayerName').html(displayName);
-    $('#sendMessagePlayerId').text(playerId);
-    $('#sendMessageText').val('');
+    $('#chatPlayerName').html(displayName);
+    $('#chatPlayerId').text(playerId);
+    $('#chatMessageInput').val('');
+    currentChatPlayerId = playerId;
     
-    // Remover handlers anteriores e adicionar novo
-    $('#sendMessageConfirmBtn').off('click').on('click', function() {
-        const message = $('#sendMessageText').val().trim();
-        
-        if (!message) {
-            showToast('Aviso', 'Por favor, digite uma mensagem', 'warning');
-            return;
+    // Limpar intervalo anterior se existir
+    if (chatRefreshInterval) {
+        clearInterval(chatRefreshInterval);
+        chatRefreshInterval = null;
+    }
+    
+    // Carregar mensagens iniciais
+    loadChatMessages(playerId);
+    
+    // Configurar botão de refresh
+    $('#refreshChatBtn').off('click').on('click', function() {
+        loadChatMessages(playerId);
+    });
+    
+    // Configurar botão de enviar
+    $('#chatSendBtn').off('click').on('click', function() {
+        sendChatMessage(playerId);
+    });
+    
+    // Enviar ao pressionar Enter (Shift+Enter para nova linha)
+    $('#chatMessageInput').off('keydown').on('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendChatMessage(playerId);
         }
+    });
+    
+    // Iniciar auto-refresh a cada 5 segundos
+    chatRefreshInterval = setInterval(function() {
+        if (currentChatPlayerId === playerId) {
+            loadChatMessages(playerId, true); // true = silent refresh
+        }
+    }, 5000);
+    
+    // Limpar intervalo ao fechar modal
+    $('#playerChatModal').off('hidden.bs.modal').on('hidden.bs.modal', function() {
+        if (chatRefreshInterval) {
+            clearInterval(chatRefreshInterval);
+            chatRefreshInterval = null;
+        }
+        currentChatPlayerId = null;
+        $('#chatMessageInput').val('');
+    });
+    
+    $('#playerChatModal').modal('show');
+}
+
+// Função para carregar mensagens de chat
+function loadChatMessages(playerId, silent = false) {
+    if (!silent) {
+        $('#chatMessagesContainer').html('<div class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Carregando mensagens...</div>');
+    }
+    
+    $.ajax({
+        url: `/api/players/${encodeURIComponent(playerId)}/chat`,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                renderChatMessages(response.messages);
+            } else {
+                if (!silent) {
+                    $('#chatMessagesContainer').html(`<div class="alert alert-danger">${response.message || 'Erro ao carregar mensagens'}</div>`);
+                }
+            }
+        },
+        error: function(xhr) {
+            if (!silent) {
+                const errorMessage = xhr.responseJSON?.message || 'Erro ao carregar mensagens';
+                $('#chatMessagesContainer').html(`<div class="alert alert-danger">${errorMessage}</div>`);
+            }
+        }
+    });
+}
+
+// Função para renderizar mensagens de chat
+function renderChatMessages(messages) {
+    const container = $('#chatMessagesContainer');
+    
+    if (messages.length === 0) {
+        container.html('<div class="text-center text-muted">Nenhuma mensagem ainda. Inicie a conversa!</div>');
+        return;
+    }
+    
+    let html = '<div class="d-flex flex-column gap-2">';
+    
+    messages.forEach(msg => {
+        const timestamp = new Date(msg.timestamp);
+        const timeStr = timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const dateStr = timestamp.toLocaleDateString('pt-BR');
         
-        sendPrivateMessage(playerId, message);
+        // Mensagens do jogador à esquerda, admin à direita
+        const isPlayerMessage = msg.type === 'player_message';
+        const alignClass = isPlayerMessage ? 'align-self-start' : 'align-self-end';
+        const bgClass = isPlayerMessage ? 'bg-light border' : 'bg-primary text-white';
+        const author = isPlayerMessage ? 'Jogador' : 'Admin';
+        const icon = isPlayerMessage ? 'fa-user' : 'fa-user-shield';
+        
+        html += `
+            <div class="${alignClass}" style="max-width: 70%;">
+                <div class="card ${bgClass} mb-2 shadow-sm">
+                    <div class="card-body p-2">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <small class="fw-bold">
+                                <i class="fas ${icon} me-1"></i>${escapeHtml(author)}
+                            </small>
+                            <small class="opacity-75">${dateStr} ${timeStr}</small>
+                        </div>
+                        <div class="message-text" style="word-wrap: break-word;">${escapeHtml(msg.message)}</div>
+                    </div>
+                </div>
+            </div>
+        `;
     });
     
-    // Limpar textarea ao fechar modal
-    $('#sendMessageModal').on('hidden.bs.modal', function() {
-        $('#sendMessageText').val('');
-    });
+    html += '</div>';
+    container.html(html);
     
-    $('#sendMessageModal').modal('show');
+    // Scroll para o final
+    container.scrollTop(container[0].scrollHeight);
+}
+
+// Função para enviar mensagem de chat
+function sendChatMessage(playerId) {
+    const message = $('#chatMessageInput').val().trim();
+    
+    if (!message) {
+        showToast('Aviso', 'Por favor, digite uma mensagem', 'warning');
+        return;
+    }
+    
+    // Desabilitar botão durante envio
+    $('#chatSendBtn').prop('disabled', true);
+    
+    $.ajax({
+        url: `/api/players/${encodeURIComponent(playerId)}/send-message`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ message: message }),
+        success: function(response) {
+            if (response.success) {
+                $('#chatMessageInput').val('');
+                // Recarregar mensagens após envio
+                setTimeout(function() {
+                    loadChatMessages(playerId, true);
+                }, 500);
+            } else {
+                showToast('Erro', response.message || 'Erro ao enviar mensagem', 'error');
+            }
+            $('#chatSendBtn').prop('disabled', false);
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            showToast('Erro', error.message || 'Erro ao enviar mensagem', 'error');
+            $('#chatSendBtn').prop('disabled', false);
+        }
+    });
 }
 
 // Função para enviar mensagem privada
@@ -591,7 +734,7 @@ function showPlayerControlPanel(playerId) {
     
     $('#controlPanelSendMessageBtn').off('click').on('click', function() {
         $('#playerControlPanelModal').modal('hide');
-        showSendMessageModal(playerId, playerName);
+        showPlayerChatModal(playerId, playerName);
     });
     
     $('#controlPanelAddAdminBtn').off('click').on('click', function() {
@@ -1031,7 +1174,8 @@ $(document).ready(function() {
     window.confirmDeactivateGodMode = confirmDeactivateGodMode;
     window.confirmRedirectToSpawning = confirmRedirectToSpawning;
     window.removeAdmin = removeAdmin;
-    window.showSendMessageModal = showSendMessageModal;
+    window.showPlayerChatModal = showPlayerChatModal;
+    window.showSendMessageModal = showPlayerChatModal; // Mantém compatibilidade
     window.confirmAddAdminFromPlayer = confirmAddAdminFromPlayer;
     window.showPlayerControlPanel = showPlayerControlPanel;
     window.showBanPlayerModal = showBanPlayerModal;

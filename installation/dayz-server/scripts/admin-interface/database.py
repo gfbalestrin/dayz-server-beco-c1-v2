@@ -5977,6 +5977,41 @@ def get_player_events(player_id: str, limit: int = 50, offset: int = 0, date_fro
         
         return (events, total_count)
 
+def insert_player_event(player_id: str, event_type: str, details: dict = None, 
+                       coord_x: float = None, coord_y: float = None, coord_z: float = None,
+                       related_player_id: str = None) -> Optional[int]:
+    """
+    Insere um evento na tabela players_events
+    
+    Args:
+        player_id: ID do jogador
+        event_type: Tipo do evento
+        details: Dicionário com detalhes do evento (será convertido para JSON)
+        coord_x, coord_y, coord_z: Coordenadas opcionais
+        related_player_id: ID de outro jogador relacionado (opcional)
+    
+    Returns:
+        int: ID do evento inserido ou None em caso de erro
+    """
+    try:
+        import json
+        details_json = json.dumps(details) if details else None
+        
+        with DatabaseConnection(config.DB_PLAYERS) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO players_events 
+                (PlayerID, EventType, CoordX, CoordY, CoordZ, Details, RelatedPlayerID)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (player_id, event_type, coord_x, coord_y, coord_z, details_json, related_player_id))
+            conn.commit()
+            return cursor.lastrowid
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.exception(f"Erro ao inserir evento do jogador: {str(e)}")
+        return None
+
 def save_vehicle_check_data(vehicle_id: str, vehicle_name: str, position: dict, 
                             items: list, attachments: list, health_parts: dict) -> Optional[int]:
     """

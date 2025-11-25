@@ -12,7 +12,8 @@ import config
 from database import (
     get_online_players, check_backup_exists_any_player,
     search_players, get_item_details_from_items_db,
-    get_all_players_with_status, get_player_by_id
+    get_all_players_with_status, get_player_by_id, get_player_events,
+    insert_player_event
 )
 from blueprints.auth import admin_required, audit_action
 
@@ -370,6 +371,14 @@ def api_send_private_message(player_id):
         # Verificar se o comando foi executado com sucesso
         if isinstance(response, dict) and response.get('msg') == ['OK']:
             logger.info(f"Mensagem privada enviada via RCON para jogador {player_id}: {message[:50]}...")
+            
+            # Salvar mensagem do admin no banco para aparecer no chat
+            insert_player_event(
+                player_id=player_id,
+                event_type='admin_message',
+                details={'message': message, 'type': 'admin_message'}
+            )
+            
             return jsonify({
                 'success': True,
                 'message': 'Mensagem privada enviada com sucesso!'
@@ -714,6 +723,69 @@ def api_player_ban(player_id):
         return jsonify({
             'success': False,
             'message': 'Resposta inesperada do servidor RCON'
+        }), 500
+
+
+@api_players_bp.route('/api/players/<player_id>/chat', methods=['GET'])
+@admin_required
+def api_player_chat(player_id):
+    """Buscar mensagens de chat do jogador"""
+    try:
+        # Buscar eventos do tipo chat_command e admin_message
+        # Como get_player_events só aceita um event_type, vamos buscar todos e filtrar
+        events, total_count = get_player_events(
+            player_id=player_id,
+            limit=100,  # Limite maior para histórico de chat
+            offset=0,
+            event_type=None  # Buscar todos os tipos
+        )
+        
+        # Filtrar apenas eventos de chat
+        chat_events = [e for e in events if e.get('EventType') in ['chat_command', 'admin_message']]
+        
+        # Processar eventos e extrair mensagens
+        messages = []
+        for event in chat_events:
+            try:
+                event_type = event.get('EventType', '')
+                details = json.loads(event.get('Details', '{}'))
+                message_text = details.get('message', '')
+                
+                # Determinar tipo de mensagem baseado no tipo de evento
+                if event_type == 'chat_command':
+                    command_name = details.get('command_name', '')
+                    msg_type = 'player_message'
+                elif event_type == 'admin_message':
+                    msg_type = 'admin_message'
+                    command_name = ''
+                else:
+                    continue  # Ignorar outros tipos de evento
+                
+                messages.append({
+                    'id': event.get('EventId'),
+                    'timestamp': event.get('TimeStamp'),
+                    'message': message_text,
+                    'command_name': command_name,
+                    'type': msg_type
+                })
+            except (json.JSONDecodeError, AttributeError) as e:
+                logger.warning(f"Erro ao processar evento de chat {event.get('EventId')}: {str(e)}")
+                continue
+        
+        # Ordenar por timestamp (mais antigo primeiro para chat)
+        messages.sort(key=lambda x: x['timestamp'])
+        
+        return jsonify({
+            'success': True,
+            'messages': messages,
+            'total': len(messages)
+        })
+        
+    except Exception as e:
+        logger.exception("Erro ao buscar mensagens de chat")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao buscar mensagens: {str(e)}'
         }), 500
 
 

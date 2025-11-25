@@ -171,33 +171,46 @@
     </div>
 </div>
 
-<!-- Modal para enviar mensagem privada -->
-<div class="modal fade" id="sendMessageModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+<!-- Modal de Chat com Jogador -->
+<div class="modal fade" id="playerChatModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-envelope me-2"></i>Enviar Mensagem Privada
+                    <i class="fas fa-comments me-2"></i>Chat com Jogador
                 </h5>
+                <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="refreshChatBtn" title="Atualizar">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
                     <p class="mb-2"><strong>Jogador:</strong></p>
-                    <p class="h5 text-primary mb-2" id="sendMessagePlayerName"></p>
-                    <p class="text-muted mb-3"><small>Player ID: <code id="sendMessagePlayerId"></code></small></p>
+                    <p class="h5 text-primary mb-2" id="chatPlayerName"></p>
+                    <p class="text-muted mb-3"><small>Player ID: <code id="chatPlayerId"></code></small></p>
                 </div>
+                
+                <!-- Área de mensagens do chat -->
                 <div class="mb-3">
-                    <label for="sendMessageText" class="form-label">Mensagem:</label>
-                    <textarea class="form-control" id="sendMessageText" rows="4" placeholder="Digite sua mensagem aqui..." required></textarea>
-                    <div class="form-text">A mensagem será enviada como mensagem privada ao jogador no jogo.</div>
+                    <div id="chatMessagesContainer" style="height: 400px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 1rem; background-color: #f8f9fa;">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-spinner fa-spin"></i> Carregando mensagens...
+                        </div>
+                    </div>
                 </div>
+                
+                <!-- Campo de input para enviar mensagem -->
+                <div class="input-group">
+                    <textarea class="form-control" id="chatMessageInput" rows="2" placeholder="Digite sua mensagem aqui..." required></textarea>
+                    <button class="btn btn-primary" type="button" id="chatSendBtn">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div class="form-text">A mensagem será enviada como mensagem privada ao jogador no jogo.</div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="sendMessageConfirmBtn">
-                    <i class="fas fa-paper-plane me-2"></i>Enviar
-                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
             </div>
         </div>
     </div>
