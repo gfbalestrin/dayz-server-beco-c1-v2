@@ -319,6 +319,27 @@
                     </div>
                 </div>
 
+                <!-- Seção: Moderação -->
+                <div class="card mb-3">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="fas fa-gavel me-2"></i>Moderação</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <button type="button" class="btn btn-danger w-100" id="controlPanelBanBtn" title="Banir Jogador">
+                                    <i class="fas fa-ban me-2"></i>Banir
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <button type="button" class="btn btn-info w-100" id="controlPanelViewBansBtn" title="Ver Histórico de Bans">
+                                    <i class="fas fa-history me-2"></i>Histórico de Bans
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Seção: Administração -->
                 <div class="card mb-3" id="controlPanelAdminSection" style="display: none;">
                     <div class="card-header bg-light">
@@ -369,6 +390,76 @@
                 <button type="button" class="btn btn-danger" id="kickModalConfirmBtn">
                     <i class="fas fa-sign-out-alt me-2"></i>Kickar
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de banir jogador -->
+<div class="modal fade" id="banPlayerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-ban me-2"></i>Banir Jogador
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Você está prestes a banir este jogador do servidor.
+                </div>
+                <div class="mb-3">
+                    <p class="mb-2"><strong>Jogador:</strong></p>
+                    <p class="h5 text-primary mb-2" id="banModalPlayerName"></p>
+                    <p class="text-muted mb-0"><small>Player ID: <code id="banModalPlayerId"></code></small></p>
+                </div>
+                <div class="mb-3">
+                    <label for="banMinutes" class="form-label">Tempo de Ban (minutos):</label>
+                    <input type="number" class="form-control" id="banMinutes" min="0" value="0" placeholder="0 = permanente">
+                    <div class="form-text">Digite 0 para ban permanente, ou o número de minutos para ban temporário.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="banMessage" class="form-label">Mensagem de Ban:</label>
+                    <textarea class="form-control" id="banMessage" rows="3" placeholder="Você foi banido do servidor">Você foi banido do servidor</textarea>
+                    <div class="form-text">Esta mensagem será exibida ao jogador quando ele for banido.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="banModalConfirmBtn">
+                    <i class="fas fa-ban me-2"></i>Banir
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de histórico de bans -->
+<div class="modal fade" id="playerBansModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-history me-2"></i>Histórico de Bans
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <p class="mb-2"><strong>Jogador:</strong></p>
+                    <p class="h5 text-primary mb-2" id="bansModalPlayerName"></p>
+                    <p class="text-muted mb-0"><small>Player ID: <code id="bansModalPlayerId"></code></small></p>
+                </div>
+                <div id="bansContent">
+                    <div class="text-center">
+                        <i class="fas fa-spinner fa-spin"></i> Carregando histórico de bans...
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
             </div>
         </div>
     </div>

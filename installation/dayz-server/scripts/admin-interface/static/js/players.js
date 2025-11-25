@@ -542,11 +542,14 @@ function showPlayerControlPanel(playerId) {
     // Configurar estado dos botões baseado em se está online
     const onlineButtons = ['#controlPanelHealBtn', '#controlPanelKillBtn', '#controlPanelKickBtn', 
                           '#controlPanelDesbugBtn', '#controlPanelActivateGodModeBtn', 
-                          '#controlPanelDeactivateGodModeBtn', '#controlPanelSendMessageBtn'];
+                          '#controlPanelDeactivateGodModeBtn', '#controlPanelSendMessageBtn',
+                          '#controlPanelBanBtn'];
     
     onlineButtons.forEach(btnId => {
         $(btnId).prop('disabled', !isOnline);
     });
+    
+    // Botão de histórico de bans sempre habilitado (não precisa estar online)
     
     // Mostrar/ocultar seção de administração
     if (isAdmin) {
@@ -596,8 +599,155 @@ function showPlayerControlPanel(playerId) {
         confirmAddAdminFromPlayer(playerId, playerName);
     });
     
+    $('#controlPanelBanBtn').off('click').on('click', function() {
+        $('#playerControlPanelModal').modal('hide');
+        showBanPlayerModal(playerId, playerName);
+    });
+    
+    $('#controlPanelViewBansBtn').off('click').on('click', function() {
+        $('#playerControlPanelModal').modal('hide');
+        showPlayerBansModal(playerId, playerName);
+    });
+    
     // Abrir modal
     $('#playerControlPanelModal').modal('show');
+}
+
+// Função para mostrar modal de ban
+function showBanPlayerModal(playerId, playerName) {
+    const player = playersData.find(p => p.PlayerID === playerId);
+    const displayName = player ? (player.PlayerName || 'Jogador desconhecido') : playerName;
+    
+    $('#banModalPlayerName').text(displayName);
+    $('#banModalPlayerId').text(playerId);
+    $('#banMinutes').val(0);
+    $('#banMessage').val('Você foi banido do servidor');
+    
+    // Remover handlers anteriores e adicionar novo
+    $('#banModalConfirmBtn').off('click').on('click', function() {
+        const minutes = parseInt($('#banMinutes').val()) || 0;
+        const message = $('#banMessage').val().trim();
+        
+        if (!message) {
+            showToast('Aviso', 'Por favor, digite uma mensagem', 'warning');
+            return;
+        }
+        
+        if (minutes < 0) {
+            showToast('Aviso', 'Tempo em minutos deve ser maior ou igual a 0', 'warning');
+            return;
+        }
+        
+        executeBanAction(playerId, minutes, message);
+        $('#banPlayerModal').modal('hide');
+    });
+    
+    $('#banPlayerModal').modal('show');
+}
+
+// Função para executar ban via RCON
+function executeBanAction(playerId, minutes, message) {
+    $.ajax({
+        url: `/api/players/${encodeURIComponent(playerId)}/ban`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            minutes: minutes,
+            message: message
+        }),
+        success: function(response) {
+            if (response.success) {
+                showToast('Sucesso', response.message, 'success');
+            } else {
+                showToast('Erro', response.message || 'Erro ao banir jogador', 'error');
+            }
+        },
+        error: function(xhr) {
+            const errorMessage = xhr.responseJSON?.message || 'Erro ao banir jogador';
+            showToast('Erro', errorMessage, 'error');
+        }
+    });
+}
+
+// Função para mostrar modal de histórico de bans
+function showPlayerBansModal(playerId, playerName) {
+    const player = playersData.find(p => p.PlayerID === playerId);
+    const displayName = player ? (player.PlayerName || 'Jogador desconhecido') : playerName;
+    
+    $('#bansModalPlayerName').text(displayName);
+    $('#bansModalPlayerId').text(playerId);
+    $('#bansContent').html('<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Carregando histórico de bans...</div>');
+    
+    $('#playerBansModal').modal('show');
+    
+    // Carregar histórico de bans
+    $.ajax({
+        url: `/api/players/${encodeURIComponent(playerId)}/bans`,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                renderBansHistory(response.bans);
+            } else {
+                $('#bansContent').html(`<div class="alert alert-danger">${response.message || 'Erro ao carregar histórico de bans'}</div>`);
+            }
+        },
+        error: function(xhr) {
+            const errorMessage = xhr.responseJSON?.message || 'Erro ao carregar histórico de bans';
+            $('#bansContent').html(`<div class="alert alert-danger">${errorMessage}</div>`);
+        }
+    });
+}
+
+// Função para renderizar histórico de bans
+function renderBansHistory(bans) {
+    const guidBans = bans.guid_bans || [];
+    const ipBans = bans.ip_bans || [];
+    
+    let html = '';
+    
+    if (guidBans.length === 0 && ipBans.length === 0) {
+        html = '<div class="alert alert-info">Nenhum ban encontrado para este jogador.</div>';
+    } else {
+        if (guidBans.length > 0) {
+            html += '<h6 class="mb-3">Bans por GUID:</h6>';
+            html += '<div class="table-responsive mb-4">';
+            html += '<table class="table table-sm table-striped">';
+            html += '<thead><tr><th>ID</th><th>Razão</th><th>Minutos</th><th>Válido</th></tr></thead>';
+            html += '<tbody>';
+            guidBans.forEach(ban => {
+                const minutes = ban.minutes === 0 ? 'Permanente' : `${ban.minutes} min`;
+                const validBadge = ban.valid ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Expirado</span>';
+                html += `<tr>
+                    <td>${escapeHtml(ban.id)}</td>
+                    <td>${escapeHtml(ban.reason || '-')}</td>
+                    <td>${minutes}</td>
+                    <td>${validBadge}</td>
+                </tr>`;
+            });
+            html += '</tbody></table></div>';
+        }
+        
+        if (ipBans.length > 0) {
+            html += '<h6 class="mb-3">Bans por IP:</h6>';
+            html += '<div class="table-responsive">';
+            html += '<table class="table table-sm table-striped">';
+            html += '<thead><tr><th>IP</th><th>Razão</th><th>Minutos</th><th>Válido</th></tr></thead>';
+            html += '<tbody>';
+            ipBans.forEach(ban => {
+                const minutes = ban.minutes === 0 ? 'Permanente' : `${ban.minutes} min`;
+                const validBadge = ban.valid ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Expirado</span>';
+                html += `<tr>
+                    <td>${escapeHtml(ban.ip || '-')}</td>
+                    <td>${escapeHtml(ban.reason || '-')}</td>
+                    <td>${minutes}</td>
+                    <td>${validBadge}</td>
+                </tr>`;
+            });
+            html += '</tbody></table></div>';
+        }
+    }
+    
+    $('#bansContent').html(html);
 }
 
 // Função para renderizar status
@@ -884,6 +1034,8 @@ $(document).ready(function() {
     window.showSendMessageModal = showSendMessageModal;
     window.confirmAddAdminFromPlayer = confirmAddAdminFromPlayer;
     window.showPlayerControlPanel = showPlayerControlPanel;
+    window.showBanPlayerModal = showBanPlayerModal;
+    window.showPlayerBansModal = showPlayerBansModal;
     
     // Limpar intervalos ao sair da página
     $(window).on('beforeunload', function() {

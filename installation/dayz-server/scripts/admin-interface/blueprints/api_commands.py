@@ -7,12 +7,71 @@ import logging
 import fcntl
 import os
 import json
+import subprocess
 import config
 from database import get_item_details_from_items_db
 from blueprints.auth import admin_required, audit_action
 
 api_commands_bp = Blueprint('api_commands', __name__)
 logger = logging.getLogger(__name__)
+
+
+def execute_rcon_command(command):
+    """
+    Executa um comando RCON usando bercon-cli
+    
+    Args:
+        command: Comando RCON a executar (ex: 'say -1 Mensagem')
+    
+    Returns:
+        dict: Resposta JSON do RCON ou None em caso de erro
+    """
+    # Validar se a senha RCON está configurada
+    if not config.RCON_PASSWORD:
+        logger.error("RCON_PASSWORD não está configurada")
+        return None
+    
+    try:
+        cmd = [
+            config.RCON_BIN_PATH,
+            '-i', config.RCON_IP,
+            '-p', str(config.RCON_PORT),
+            '-P', config.RCON_PASSWORD,
+            '-j', command
+        ]
+        
+        logger.debug(f"Executando comando RCON: {' '.join(cmd[:3])} -P *** -j {command}")
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if result.returncode != 0:
+            logger.error(f"Erro ao executar comando RCON (returncode={result.returncode}): {result.stderr}")
+            logger.debug(f"stdout: {result.stdout}")
+            return None
+        
+        # Verificar se stdout está vazio
+        if not result.stdout or not result.stdout.strip():
+            logger.warning("Resposta RCON vazia")
+            return None
+        
+        try:
+            return json.loads(result.stdout)
+        except json.JSONDecodeError as e:
+            logger.error(f"Resposta RCON não é JSON válido: {result.stdout}")
+            logger.debug(f"Erro de parsing: {str(e)}")
+            return None
+            
+    except subprocess.TimeoutExpired:
+        logger.error("Timeout ao executar comando RCON")
+        return None
+    except Exception as e:
+        logger.exception(f"Erro ao executar comando RCON: {str(e)}")
+        return None
 
 
 @api_commands_bp.route('/api/commands/results/<request_id>')
@@ -122,7 +181,15 @@ def api_command_results(request_id):
 @admin_required
 @audit_action('SEND_GLOBAL_MESSAGE')
 def api_send_global_message():
-    """API para enviar mensagem global a todos os jogadores online"""
+    """API para enviar mensagem global a todos os jogadores online via RCON"""
+    # Verificar se RCON está configurado
+    if not config.RCON_PASSWORD:
+        logger.error("RCON_PASSWORD não está configurada")
+        return jsonify({
+            'success': False,
+            'message': 'Configuração RCON não encontrada. Verifique o config.json'
+        }), 500
+    
     try:
         data = request.get_json()
         message = data.get('message', '').strip()
@@ -132,45 +199,30 @@ def api_send_global_message():
         if not message:
             return jsonify({'success': False, 'message': 'Mensagem não pode estar vazia'}), 400
         
-        # Caminho do arquivo de mensagens globais
-        messages_file = config.MESSAGES_TO_SEND_FILE
+        # Executar comando say via RCON: say -1 Mensagem (broadcast)
+        say_command = f"say -1 {message}"
+        logger.info(f"Executando comando say global: {say_command}")
+        response = execute_rcon_command(say_command)
         
-        if not os.path.exists(messages_file):
-            logger.error(f"Arquivo de mensagens globais não encontrado: {messages_file}")
+        if response is None:
+            logger.error(f"Falha ao executar comando say global via RCON")
             return jsonify({
                 'success': False,
-                'message': 'Arquivo de mensagens globais não encontrado'
+                'message': 'Erro ao executar comando say global via RCON. Verifique os logs do servidor.'
             }), 500
         
-        # Formato: apenas a mensagem, sem Player ID
-        message_line = f"{message}\n"
-        
-        logger.info(f"Adicionando mensagem global: {message[:50]}...")
-        
-        # Usar file lock para evitar concorrência
-        try:
-            with open(messages_file, 'a') as f:
-                # Adquirir lock exclusivo
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                try:
-                    f.write(message_line)
-                    f.flush()
-                    os.fsync(f.fileno())
-                finally:
-                    # Liberar lock
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-            
-            logger.info("Mensagem global adicionada com sucesso")
+        # Verificar se o comando foi executado com sucesso
+        if isinstance(response, dict) and response.get('msg') == ['OK']:
+            logger.info(f"Mensagem global enviada via RCON: {message[:50]}...")
             return jsonify({
                 'success': True,
                 'message': 'Mensagem global enviada com sucesso!'
             })
-            
-        except IOError as e:
-            logger.error(f"Erro ao escrever no arquivo de mensagens globais: {e}")
+        else:
+            logger.warning(f"Resposta inesperada do RCON: {response}")
             return jsonify({
                 'success': False,
-                'message': f'Erro ao escrever mensagem: {str(e)}'
+                'message': 'Resposta inesperada do servidor RCON'
             }), 500
             
     except Exception as e:

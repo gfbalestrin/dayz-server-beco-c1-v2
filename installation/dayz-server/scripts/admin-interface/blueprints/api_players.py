@@ -305,7 +305,15 @@ def api_teleport_player(player_id):
 @admin_required
 @audit_action('SEND_PRIVATE_MESSAGE')
 def api_send_private_message(player_id):
-    """API para enviar mensagem privada a um jogador"""
+    """API para enviar mensagem privada a um jogador via RCON"""
+    # Verificar se RCON está configurado
+    if not config.RCON_PASSWORD:
+        logger.error("RCON_PASSWORD não está configurada")
+        return jsonify({
+            'success': False,
+            'message': 'Configuração RCON não encontrada. Verifique o config.json'
+        }), 500
+    
     try:
         data = request.get_json()
         message = data.get('message', '').strip()
@@ -318,45 +326,59 @@ def api_send_private_message(player_id):
         if not player_id or not player_id.strip():
             return jsonify({'success': False, 'message': 'Player ID inválido'}), 400
         
-        # Caminho do arquivo de mensagens privadas
-        messages_file = config.MESSAGES_PRIVATE_TO_SEND_FILE
-        
-        if not os.path.exists(messages_file):
-            logger.error(f"Arquivo de mensagens privadas não encontrado: {messages_file}")
+        # Buscar dados do jogador no banco
+        player = get_player_by_id(player_id)
+        if not player:
             return jsonify({
                 'success': False,
-                'message': 'Arquivo de mensagens privadas não encontrado'
+                'message': 'Jogador não encontrado no banco de dados'
+            }), 404
+        
+        # Verificar se tem RconGuid
+        rcon_guid = player.get('RconGuid')
+        if not rcon_guid:
+            logger.warning(f"RconGuid não encontrado para jogador {player_id}")
+            return jsonify({
+                'success': False,
+                'message': 'RconGuid não encontrado para este jogador'
+            }), 400
+        
+        # Buscar ID do jogador no RCON
+        logger.info(f"Buscando ID RCON para GUID: {rcon_guid}")
+        rcon_id = get_player_rcon_id(rcon_guid)
+        if rcon_id is None:
+            logger.warning(f"Jogador com GUID {rcon_guid} não encontrado online no RCON")
+            return jsonify({
+                'success': False,
+                'message': 'Jogador não está online ou não foi encontrado no RCON'
+            }), 404
+        
+        logger.info(f"Jogador encontrado no RCON com ID: {rcon_id}")
+        
+        # Executar comando say via RCON: say -<id> Mensagem
+        say_command = f"say -{rcon_id} {message}"
+        logger.info(f"Executando comando say: {say_command}")
+        response = execute_rcon_command(say_command)
+        
+        if response is None:
+            logger.error(f"Falha ao executar comando say via RCON para jogador {player_id}")
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao executar comando say via RCON. Verifique os logs do servidor.'
             }), 500
         
-        # Formato: PlayerId;Mensagem
-        message_line = f"{player_id};{message}\n"
-        
-        logger.info(f"Adicionando mensagem privada: {player_id};{message[:50]}...")
-        
-        # Usar file lock para evitar concorrência
-        try:
-            with open(messages_file, 'a') as f:
-                # Adquirir lock exclusivo
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                try:
-                    f.write(message_line)
-                    f.flush()
-                    os.fsync(f.fileno())
-                finally:
-                    # Liberar lock
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-            
-            logger.info("Mensagem privada adicionada com sucesso")
+        # Verificar se o comando foi executado com sucesso
+        if isinstance(response, dict) and response.get('msg') == ['OK']:
+            logger.info(f"Mensagem privada enviada via RCON para jogador {player_id}: {message[:50]}...")
             return jsonify({
                 'success': True,
                 'message': 'Mensagem privada enviada com sucesso!'
             })
-            
-        except IOError as e:
-            logger.error(f"Erro ao escrever no arquivo de mensagens privadas: {e}")
+        else:
+            logger.warning(f"Resposta inesperada do RCON: {response}")
             return jsonify({
                 'success': False,
-                'message': f'Erro ao escrever mensagem: {str(e)}'
+                'message': 'Resposta inesperada do servidor RCON'
             }), 500
             
     except Exception as e:
@@ -605,6 +627,162 @@ def api_player_kick(player_id):
             'success': False,
             'message': 'Resposta inesperada do servidor RCON'
         }), 500
+
+
+@api_players_bp.route('/api/players/<player_id>/ban', methods=['POST'])
+@admin_required
+@audit_action('PLAYER_BAN')
+def api_player_ban(player_id):
+    """Banir jogador via RCON com mensagem e tempo"""
+    # Verificar se RCON está configurado
+    if not config.RCON_PASSWORD:
+        logger.error("RCON_PASSWORD não está configurada")
+        return jsonify({
+            'success': False,
+            'message': 'Configuração RCON não encontrada. Verifique o config.json'
+        }), 500
+    
+    data = request.get_json()
+    message = data.get('message', 'Você foi banido do servidor')
+    minutes = data.get('minutes', 0)
+    
+    # Validar minutos
+    try:
+        minutes = int(minutes)
+        if minutes < 0:
+            return jsonify({
+                'success': False,
+                'message': 'Tempo em minutos deve ser maior ou igual a 0 (0 = permanente)'
+            }), 400
+    except (ValueError, TypeError):
+        return jsonify({
+            'success': False,
+            'message': 'Tempo em minutos deve ser um número válido'
+        }), 400
+    
+    # Buscar dados do jogador no banco
+    player = get_player_by_id(player_id)
+    if not player:
+        return jsonify({
+            'success': False,
+            'message': 'Jogador não encontrado no banco de dados'
+        }), 404
+    
+    # Verificar se tem RconGuid
+    rcon_guid = player.get('RconGuid')
+    if not rcon_guid:
+        logger.warning(f"RconGuid não encontrado para jogador {player_id}")
+        return jsonify({
+            'success': False,
+            'message': 'RconGuid não encontrado para este jogador'
+        }), 400
+    
+    # Buscar ID do jogador no RCON
+    logger.info(f"Buscando ID RCON para GUID: {rcon_guid}")
+    rcon_id = get_player_rcon_id(rcon_guid)
+    if rcon_id is None:
+        logger.warning(f"Jogador com GUID {rcon_guid} não encontrado online no RCON")
+        return jsonify({
+            'success': False,
+            'message': 'Jogador não está online ou não foi encontrado no RCON'
+        }), 404
+    
+    logger.info(f"Jogador encontrado no RCON com ID: {rcon_id}")
+    
+    # Executar comando ban via RCON: ban <id> <minutes> Mensagem
+    ban_command = f"ban {rcon_id} {minutes} {message}"
+    logger.info(f"Executando comando ban: {ban_command}")
+    response = execute_rcon_command(ban_command)
+    
+    if response is None:
+        logger.error(f"Falha ao executar comando ban via RCON para jogador {player_id}")
+        return jsonify({
+            'success': False,
+            'message': 'Erro ao executar comando ban via RCON. Verifique os logs do servidor.'
+        }), 500
+    
+    # Verificar se o comando foi executado com sucesso
+    if isinstance(response, dict) and response.get('msg') == ['OK']:
+        ban_type = 'permanente' if minutes == 0 else f'{minutes} minuto(s)'
+        logger.info(f"Jogador {player_id} banido via RCON por {ban_type} com mensagem: {message[:50]}...")
+        return jsonify({
+            'success': True,
+            'message': f'Jogador banido com sucesso! ({ban_type})'
+        })
+    else:
+        logger.warning(f"Resposta inesperada do RCON: {response}")
+        return jsonify({
+            'success': False,
+            'message': 'Resposta inesperada do servidor RCON'
+        }), 500
+
+
+@api_players_bp.route('/api/players/<player_id>/bans', methods=['GET'])
+@admin_required
+def api_player_bans(player_id):
+    """Consultar histórico de bans do jogador via RCON"""
+    # Verificar se RCON está configurado
+    if not config.RCON_PASSWORD:
+        logger.error("RCON_PASSWORD não está configurada")
+        return jsonify({
+            'success': False,
+            'message': 'Configuração RCON não encontrada. Verifique o config.json'
+        }), 500
+    
+    # Buscar dados do jogador no banco
+    player = get_player_by_id(player_id)
+    if not player:
+        return jsonify({
+            'success': False,
+            'message': 'Jogador não encontrado no banco de dados'
+        }), 404
+    
+    # Verificar se tem RconGuid
+    rcon_guid = player.get('RconGuid')
+    if not rcon_guid:
+        logger.warning(f"RconGuid não encontrado para jogador {player_id}")
+        return jsonify({
+            'success': False,
+            'message': 'RconGuid não encontrado para este jogador'
+        }), 400
+    
+    # Executar comando bans via RCON
+    logger.info(f"Consultando bans para GUID: {rcon_guid}")
+    response = execute_rcon_command('bans')
+    
+    if response is None:
+        logger.error(f"Falha ao consultar bans via RCON")
+        return jsonify({
+            'success': False,
+            'message': 'Erro ao consultar bans via RCON. Verifique os logs do servidor.'
+        }), 500
+    
+    # Filtrar bans por GUID do jogador
+    rcon_guid_lower = rcon_guid.lower()
+    player_bans = {
+        'guid_bans': [],
+        'ip_bans': []
+    }
+    
+    if isinstance(response, dict):
+        # Filtrar guid_bans
+        guid_bans = response.get('guid_bans', [])
+        if isinstance(guid_bans, list):
+            for ban in guid_bans:
+                if isinstance(ban, dict) and ban.get('guid', '').lower() == rcon_guid_lower:
+                    player_bans['guid_bans'].append(ban)
+        
+        # Filtrar ip_bans (se o jogador tiver IP no banco, podemos filtrar também)
+        ip_bans = response.get('ip_bans', [])
+        if isinstance(ip_bans, list):
+            # Por enquanto, retornar todos os IP bans (pode ser melhorado se tivermos IP do jogador)
+            player_bans['ip_bans'] = ip_bans
+    
+    logger.info(f"Encontrados {len(player_bans['guid_bans'])} ban(s) por GUID e {len(player_bans['ip_bans'])} ban(s) por IP")
+    return jsonify({
+        'success': True,
+        'bans': player_bans
+    })
 
 
 @api_players_bp.route('/api/players/<player_id>/action', methods=['POST'])
