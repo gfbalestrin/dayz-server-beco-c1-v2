@@ -3083,68 +3083,22 @@ void ProcessAttachmentsRecursive(EntityAI parentItem, array<ref ItemAttachmentDa
     }
 }
 
-class VehicleIncrementalMove
-{
-    CarScript m_Vehicle;
-    vector m_StartPos;
-    vector m_TargetPos;
-    int m_CurrentStep;
-    int m_TotalSteps;
-}
-
-void MoveVehicleIncrementStep(VehicleIncrementalMove moveData)
-{
-    if (!moveData || !moveData.m_Vehicle)
-        return;
-    
-    if (moveData.m_CurrentStep >= moveData.m_TotalSteps)
-    {
-        // Último passo: mover para posição final exata
-        // A altura já foi calculada corretamente em targetPos
-        moveData.m_Vehicle.SetPosition(moveData.m_TargetPos);
-        moveData.m_Vehicle.SetSynchDirty();
-        moveData.m_Vehicle.Update();
-        moveData.m_Vehicle.SetAffectPathgraph(true, false);
-        delete moveData;
-        return;
-    }
-    
-    // Calcular posição intermediária
-    float progress = (moveData.m_CurrentStep + 1.0) / moveData.m_TotalSteps;
-    vector currentPos = moveData.m_StartPos;
-    vector delta = moveData.m_TargetPos - moveData.m_StartPos;
-    currentPos = currentPos + (delta * progress);
-    
-    // Ajustar altura do terreno
-    currentPos[1] = GetGame().SurfaceY(currentPos[0], currentPos[2]);
-    
-    // Mover veículo
-    moveData.m_Vehicle.SetPosition(currentPos);
-    moveData.m_Vehicle.SetSynchDirty();
-    moveData.m_Vehicle.Update();
-    
-    // Próximo passo
-    moveData.m_CurrentStep++;
-    GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(MoveVehicleIncrementStep, 50, false, moveData);
-}
-
-void SyncVehicleIncremental(CarScript vehicle, vector targetPos)
+void SyncVehicleWithSynchronize(CarScript vehicle, vector pos)
 {
     if (!vehicle)
         return;
     
-    vector startPos = vehicle.GetPosition();
+    // Aplicar posição
+    vehicle.SetPosition(pos);
     
-    // Criar estrutura de movimento incremental
-    VehicleIncrementalMove moveData = new VehicleIncrementalMove();
-    moveData.m_Vehicle = vehicle;
-    moveData.m_StartPos = startPos;
-    moveData.m_TargetPos = targetPos;
-    moveData.m_CurrentStep = 0;
-    moveData.m_TotalSteps = 8; // 8 passos intermediários
+    // Forçar sincronização completa usando múltiplos métodos
+    vehicle.SetSynchDirty();
+    vehicle.Update();
+    vehicle.SetAffectPathgraph(true, false);
     
-    // Iniciar movimento incremental
-    MoveVehicleIncrementStep(moveData);
+    // Chamar Synchronize() explicitamente para forçar sincronização completa
+    // Similar ao comportamento quando jogador está dentro do veículo
+    vehicle.Synchronize();
 }
 
 bool ExecuteTeleportVehicle(TStringArray tokens)
@@ -3233,8 +3187,8 @@ bool ExecuteTeleportVehicle(TStringArray tokens)
         WriteToLog("ExecuteTeleportVehicle(): Ajustando altura automaticamente para: " + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
     }
     
-    // Teleportar veículo com movimento incremental para forçar refresh no cliente
-    SyncVehicleIncremental(targetVehicle, newPos);
+    // Teleportar veículo com Synchronize() explícito para forçar refresh no cliente
+    SyncVehicleWithSynchronize(targetVehicle, newPos);
     
     string vehicleName = targetVehicle.GetDisplayName();
     WriteToLog("ExecuteTeleportVehicle(): Veículo " + vehicleName + " (" + vehicleId + ") teleportado para X=" + newPos[0].ToString() + " Y=" + newPos[2].ToString() + " Z=" + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
@@ -3325,11 +3279,8 @@ bool ExecuteFlipVehicle(TStringArray tokens)
     float groundY = GetGame().SurfaceY(currentPos[0], currentPos[2]);
     currentPos[1] = groundY;
     
-    // Aplicar nova orientação
-    targetVehicle.SetOrientation(newOrientation);
-    
-    // Aplicar posição com movimento incremental para forçar refresh no cliente
-    SyncVehicleIncremental(targetVehicle, currentPos);
+    // Aplicar posição com Synchronize() explícito para forçar refresh no cliente
+    SyncVehicleWithSynchronize(targetVehicle, currentPos);
     
     string vehicleName = targetVehicle.GetDisplayName();
     WriteToLog("ExecuteFlipVehicle(): Veículo " + vehicleName + " (" + vehicleId + ") virado. Orientação anterior: Yaw=" + currentYaw.ToString() + " Pitch=" + currentPitch.ToString() + " Roll=" + currentRoll.ToString(), LogFile.INIT, false, LogType.INFO);
