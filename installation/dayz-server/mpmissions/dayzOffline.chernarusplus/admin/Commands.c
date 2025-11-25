@@ -1405,6 +1405,8 @@ bool ExecuteCommand(TStringArray tokens)
                 return ExecuteFlipVehicle(tokens);
             case "teleportcontainer":
                 return ExecuteTeleportContainer(tokens);
+            case "deleteentity":
+                return ExecuteDeleteEntity(tokens);
             case "registercontainer":
                 if (tokens.Count() < 5)
                 {
@@ -3357,6 +3359,265 @@ bool ExecuteTeleportContainer(TStringArray tokens)
     
     string containerType = targetContainer.GetType();
     WriteToLog("ExecuteTeleportContainer(): Container " + containerType + " (" + containerIdStr + ") teleportado para X=" + newPos[0].ToString() + " Y=" + newPos[2].ToString() + " Z=" + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
+    
+    return true;
+}
+
+bool ExecuteDeleteEntity(TStringArray tokens)
+{
+    // Formato: SYSTEM deleteentity EntityId
+    if (tokens.Count() < 3)
+    {
+        WriteToLog("ExecuteDeleteEntity(): Parâmetros insuficientes. Formato: SYSTEM deleteentity EntityId", LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    string entityId = tokens[2];
+    Object targetEntity = null;
+    string entityType = "";
+    string entityCategory = "";
+    
+    // Buscar em containers primeiro
+    if (m_TrackedContainers && m_TrackedContainers.Count() > 0)
+    {
+        foreach (EntityAI container : m_TrackedContainers)
+        {
+            if (!container)
+                continue;
+            
+            int pidLow1 = 0;
+            int pidLow2 = 0;
+            int pidHigh1 = 0;
+            int pidHigh2 = 0;
+            container.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+            
+            bool hasPersistent = false;
+            if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+            {
+                hasPersistent = true;
+            }
+            
+            string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+            string containerIdentifier = persistentKey;
+            if (!hasPersistent)
+            {
+                containerIdentifier = "pending-" + container.GetID().ToString();
+            }
+            
+            if (containerIdentifier == entityId)
+            {
+                targetEntity = container;
+                entityType = container.GetType();
+                entityCategory = "container";
+                break;
+            }
+        }
+    }
+    
+    // Buscar em veículos
+    if (!targetEntity && m_TrackedVehicles && m_TrackedVehicles.Count() > 0)
+    {
+        foreach (CarScript vehicle : m_TrackedVehicles)
+        {
+            if (!vehicle)
+                continue;
+            
+            int pidLow1 = 0;
+            int pidLow2 = 0;
+            int pidHigh1 = 0;
+            int pidHigh2 = 0;
+            vehicle.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+            
+            bool hasPersistent = false;
+            if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+            {
+                hasPersistent = true;
+            }
+            
+            string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+            string vehicleIdentifier = persistentKey;
+            if (!hasPersistent)
+            {
+                vehicleIdentifier = "pending-" + vehicle.GetID().ToString();
+            }
+            
+            if (vehicleIdentifier == entityId)
+            {
+                targetEntity = vehicle;
+                entityType = vehicle.GetType();
+                entityCategory = "vehicle";
+                break;
+            }
+        }
+    }
+    
+    // Buscar em fences
+    if (!targetEntity && m_TrackedFences && m_TrackedFences.Count() > 0)
+    {
+        foreach (Fence fence : m_TrackedFences)
+        {
+            if (!fence)
+                continue;
+            
+            int pidLow1 = 0;
+            int pidLow2 = 0;
+            int pidHigh1 = 0;
+            int pidHigh2 = 0;
+            fence.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+            
+            bool hasPersistent = false;
+            if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+            {
+                hasPersistent = true;
+            }
+            
+            string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+            string fenceIdentifier = persistentKey;
+            if (!hasPersistent)
+            {
+                fenceIdentifier = "pending-" + fence.GetID().ToString();
+            }
+            
+            if (fenceIdentifier == entityId)
+            {
+                targetEntity = fence;
+                entityType = fence.GetType();
+                entityCategory = "fence";
+                break;
+            }
+        }
+    }
+    
+    // Buscar em watchtowers
+    if (!targetEntity && m_TrackedWatchtowers && m_TrackedWatchtowers.Count() > 0)
+    {
+        foreach (Watchtower watchtower : m_TrackedWatchtowers)
+        {
+            if (!watchtower)
+                continue;
+            
+            int pidLow1 = 0;
+            int pidLow2 = 0;
+            int pidHigh1 = 0;
+            int pidHigh2 = 0;
+            watchtower.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+            
+            bool hasPersistent = false;
+            if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+            {
+                hasPersistent = true;
+            }
+            
+            string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+            string watchtowerIdentifier = persistentKey;
+            if (!hasPersistent)
+            {
+                watchtowerIdentifier = "pending-" + watchtower.GetID().ToString();
+            }
+            
+            if (watchtowerIdentifier == entityId)
+            {
+                targetEntity = watchtower;
+                entityType = watchtower.GetType();
+                entityCategory = "watchtower";
+                break;
+            }
+        }
+    }
+    
+    // Buscar em flags
+    if (!targetEntity && m_TrackedFlags && m_TrackedFlags.Count() > 0)
+    {
+        foreach (Object flag : m_TrackedFlags)
+        {
+            if (!flag)
+                continue;
+            
+            EntityAI flagEntity = EntityAI.Cast(flag);
+            int pidLow1 = 0;
+            int pidLow2 = 0;
+            int pidHigh1 = 0;
+            int pidHigh2 = 0;
+            bool hasPersistent = false;
+            
+            if (flagEntity)
+            {
+                flagEntity.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+                hasPersistent = (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0);
+            }
+            
+            string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+            string flagIdentifier = persistentKey;
+            if (!hasPersistent)
+            {
+                flagIdentifier = "pending-" + flag.GetID().ToString();
+            }
+            
+            if (flagIdentifier == entityId)
+            {
+                targetEntity = flag;
+                entityType = flag.GetType();
+                entityCategory = "flag";
+                break;
+            }
+        }
+    }
+    
+    if (!targetEntity)
+    {
+        WriteToLog("ExecuteDeleteEntity(): Entity não encontrado: " + entityId, LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    // Obter posição antes de deletar para log
+    vector entityPosition = targetEntity.GetPosition();
+    
+    // Deletar objeto
+    GetGame().ObjectDelete(targetEntity);
+    
+    // Remover do array rastreado correspondente
+    if (entityCategory == "container" && m_TrackedContainers)
+    {
+        int containerIndex = m_TrackedContainers.Find(EntityAI.Cast(targetEntity));
+        if (containerIndex >= 0)
+        {
+            m_TrackedContainers.Remove(containerIndex);
+        }
+    }
+    else if (entityCategory == "vehicle" && m_TrackedVehicles)
+    {
+        int vehicleIndex = m_TrackedVehicles.Find(CarScript.Cast(targetEntity));
+        if (vehicleIndex >= 0)
+        {
+            m_TrackedVehicles.Remove(vehicleIndex);
+        }
+    }
+    else if (entityCategory == "fence" && m_TrackedFences)
+    {
+        int fenceIndex = m_TrackedFences.Find(Fence.Cast(targetEntity));
+        if (fenceIndex >= 0)
+        {
+            m_TrackedFences.Remove(fenceIndex);
+        }
+    }
+    else if (entityCategory == "watchtower" && m_TrackedWatchtowers)
+    {
+        int watchtowerIndex = m_TrackedWatchtowers.Find(Watchtower.Cast(targetEntity));
+        if (watchtowerIndex >= 0)
+        {
+            m_TrackedWatchtowers.Remove(watchtowerIndex);
+        }
+    }
+    else if (entityCategory == "flag" && m_TrackedFlags)
+    {
+        int flagIndex = m_TrackedFlags.Find(targetEntity);
+        if (flagIndex >= 0)
+        {
+            m_TrackedFlags.Remove(flagIndex);
+        }
+    }
+    
+    WriteToLog("ExecuteDeleteEntity(): Entity " + entityType + " (" + entityCategory + ", " + entityId + ") deletado em X=" + entityPosition[0].ToString() + " Y=" + entityPosition[2].ToString() + " Z=" + entityPosition[1].ToString(), LogFile.INIT, false, LogType.INFO);
     
     return true;
 }
