@@ -49,11 +49,11 @@ function EnviaLogsDiscord() {
     SteamID=$(echo "$PlayerExists" | cut -d$'\x1F' -f2)
     SteamName=$(echo "$PlayerExists" | cut -d$'\x1F' -f3)
 
-    if [[ -f "$DayzServerFolder/$DayzAdminIdsFile" ]] && grep -q "$PLAYER_ID" "$DayzServerFolder/$DayzAdminIdsFile"; then
-        echo "Ignorando conta do administrador e matando player para renascer com loot admin..."
-        INSERT_CUSTOM_LOG "Ignorando conta do administrador e matando player para renascer com loot admin..." "INFO" "$ScriptName"
-        return 1
-    fi
+    #if [[ -f "$DayzServerFolder/$DayzAdminIdsFile" ]] && grep -q "$PLAYER_ID" "$DayzServerFolder/$DayzAdminIdsFile"; then
+    #    echo "Ignorando conta do administrador e matando player para renascer com loot admin..."
+    #    INSERT_CUSTOM_LOG "Ignorando conta do administrador e matando player para renascer com loot admin..." "INFO" "$ScriptName"
+    #    return 1
+    #fi
 
     if [[ "$EVENT" == "CONNECT" ]]; then
         Content="Jogador **$(sanitize_discord_markdown "$PlayerName")** ([$(sanitize_discord_markdown "$SteamName")](<https://steamcommunity.com/profiles/$SteamID>)) conectou"
@@ -232,7 +232,63 @@ if [[ "$PLAYER_ID" == "RESET" ]]; then
 
     AtualizaPlayersOnlineDiscord
 
-    # SQLITE
+    # Processar todos os jogadores online antes de deletar
+    # Usar set +e para não parar em caso de erro nos logs
+    set +e
+    
+    while IFS=$'\x1F' read -r PlayerId PlayerName SteamID SteamName Country City Lon IP Port Ping
+    do
+        if [[ -z "$PlayerId" ]] || [[ ${#PlayerId} -ne 44 ]]; then
+            continue
+        fi
+        
+        # Enviar webhook Discord de desconexão (não bloquear se falhar)
+        {
+            CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
+            Content="Jogador **$(sanitize_discord_markdown "$PlayerName")** ([$(sanitize_discord_markdown "$SteamName")](<https://steamcommunity.com/profiles/$SteamID>)) desconectou"
+            SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+        } || true
+        
+        # Registrar evento de desconexão (não bloquear se falhar)
+        {
+            CurrentDate=$(date "+%Y-%m-%d %H:%M:%S")
+            
+            DetailsJson=$(jq -n \
+                --arg timestamp "$CurrentDate" \
+                --arg country "${Country:-null}" \
+                --arg city "${City:-null}" \
+                --arg lon "${Lon:-null}" \
+                --arg ip "${IP:-null}" \
+                --arg port "${Port:-null}" \
+                --arg ping "${Ping:-null}" \
+                '{timestamp: $timestamp, Country: (if $country == "" then null else $country end), City: (if $city == "" then null else $city end), Lon: (if $lon == "" then null else ($lon | tonumber) end), IP: (if $ip == "" then null else $ip end), Port: (if $port == "" then null else ($port | tonumber) end), Ping: (if $ping == "" then null else ($ping | tonumber) end)}')
+            
+            INSERT_PLAYER_EVENT "$PlayerId" "player_disconnected" "" "" "" "$DetailsJson" ""
+        } || true
+    done < <(sqlite3 -separator $'\x1F' "$PLAYERS_BECO_C1_DB" "
+        SELECT 
+            o.PlayerID,
+            p.PlayerName,
+            p.SteamID,
+            p.SteamName,
+            o.Country,
+            o.City,
+            o.Lon,
+            o.IP,
+            o.Port,
+            o.Ping
+        FROM 
+            players_online o
+        INNER JOIN 
+            players_database p
+        ON 
+            o.PlayerID = p.PlayerID;
+    ")
+    
+    # Restaurar comportamento padrão de erro
+    set -e
+
+    # SQLITE - DELETE sempre deve executar, independente de falhas nos logs acima
     for ((i = 1; i <= 5; i++)); do
         echo "Tentativa $i de exclusão..."
 
