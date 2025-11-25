@@ -1,5 +1,32 @@
 #!/bin/bash
 
+GENERATE_RCON_GUID() {
+    local SteamID="$1"
+
+    if [[ -z "$SteamID" || "$SteamID" == "null" ]]; then
+        echo ""
+        return 0
+    fi
+
+    if ! [[ "$SteamID" =~ ^[0-9]+$ ]]; then
+        echo ""
+        return 0
+    fi
+
+    local Guid
+    Guid=$(
+        printf "%016x" "$SteamID" \
+        | sed 's/\(..\)/\1 /g' \
+        | awk '{for(i=NF;i>0;i--) printf $i}' \
+        | sed 's/^/42 45 /' \
+        | xxd -r -p \
+        | md5sum \
+        | awk '{print $1}'
+    )
+
+    echo "$Guid"
+}
+
 export TZ=America/Sao_Paulo
 
 # Caminho para o arquivo JSON
@@ -435,6 +462,7 @@ INSERT_PLAYER_DATABASE() {
     local PlayerName="${2}"
     local SteamID="${3}"
     local SteamName="${4}"
+    local RconGuid="${5}"
 
     local max_retries=5
     local retry_delay=0.2
@@ -445,25 +473,32 @@ INSERT_PLAYER_DATABASE() {
         return 1
     fi
 
+    if [[ -z "$RconGuid" ]]; then
+        RconGuid=$(GENERATE_RCON_GUID "$SteamID")
+    fi
+
     local EscapedPlayerID
     local EscapedPlayerName
     local EscapedSteamID
     local EscapedSteamName
+    local EscapedRconGuid
 
     # Escapar aspas simples
     EscapedPlayerID=$(echo "$PlayerID" | sed "s/'/''/g")
     EscapedPlayerName=$(echo "$PlayerName" | sed "s/'/''/g")
     EscapedSteamID=$(echo "$SteamID" | sed "s/'/''/g")
     EscapedSteamName=$(echo "$SteamName" | sed "s/'/''/g")
+    EscapedRconGuid=$(echo "$RconGuid" | sed "s/'/''/g")
 
     while (( attempt <= max_retries )); do
         sqlite3 "$AppFolder/$AppPlayerBecoC1DbFile" <<EOF
-INSERT INTO players_database (PlayerID, PlayerName, SteamID, SteamName)
+INSERT INTO players_database (PlayerID, PlayerName, SteamID, SteamName, RconGuid)
 VALUES (
     '$EscapedPlayerID',
     '$EscapedPlayerName',
     '$EscapedSteamID',
-    '$EscapedSteamName'
+    '$EscapedSteamName',
+    '$EscapedRconGuid'
 );
 EOF
 
@@ -485,6 +520,7 @@ UPDATE_PLAYER_DATABASE() {
     local PlayerName="${2}"
     local SteamID="${3}"
     local SteamName="${4}"
+    local RconGuid="${5}"
 
     local max_retries=5
     local retry_delay=0.2
@@ -495,20 +531,31 @@ UPDATE_PLAYER_DATABASE() {
         return 1
     fi
 
+    if [[ -z "$RconGuid" ]]; then
+        RconGuid=$(GENERATE_RCON_GUID "$SteamID")
+    fi
+
     local EscapedPlayerID
     local EscapedPlayerName
     local EscapedSteamID
     local EscapedSteamName
+    local EscapedRconGuid
 
     # Escapar aspas simples
     EscapedPlayerID=$(echo "$PlayerID" | sed "s/'/''/g")
     EscapedPlayerName=$(echo "$PlayerName" | sed "s/'/''/g")
     EscapedSteamID=$(echo "$SteamID" | sed "s/'/''/g")
     EscapedSteamName=$(echo "$SteamName" | sed "s/'/''/g")
+    EscapedRconGuid=$(echo "$RconGuid" | sed "s/'/''/g")
 
     while (( attempt <= max_retries )); do
         sqlite3 "$AppFolder/$AppPlayerBecoC1DbFile" <<EOF
-UPDATE players_database SET PlayerName = '$EscapedPlayerName', SteamID = '$EscapedSteamID', SteamName = '$EscapedSteamName' WHERE PlayerID = '$EscapedPlayerID';
+UPDATE players_database
+SET PlayerName = '$EscapedPlayerName',
+    SteamID = '$EscapedSteamID',
+    SteamName = '$EscapedSteamName',
+    RconGuid = '$EscapedRconGuid'
+WHERE PlayerID = '$EscapedPlayerID';
 EOF
 
         if [[ $? -eq 0 ]]; then

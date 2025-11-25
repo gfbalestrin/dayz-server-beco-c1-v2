@@ -64,6 +64,99 @@ function EnviaLogsDiscord() {
     SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
 }
 
+function AtualizaPlayersOnlineRcon() {
+    local RconBinary="$AppFolder/$AppRconBinFile"
+
+    if [[ ! -x "$RconBinary" ]]; then
+        INSERT_CUSTOM_LOG "Binário RCON não encontrado em $RconBinary" "ERROR" "$ScriptName"
+        return 1
+    fi
+
+    local RconResponse
+    RconResponse=$("$RconBinary" -i "$DayzRConIP" -p "$DayzRConPort" -P "$DayzRConPassword" -g "$AppFolder/$AppGeoLiteDbFile" -j players 2>&1)
+    if [[ $? -ne 0 ]]; then
+        INSERT_CUSTOM_LOG "Falha ao consultar jogadores via RCON: $RconResponse" "ERROR" "$ScriptName"
+        return 1
+    fi
+
+    if [[ -z "$RconResponse" || "$RconResponse" == "null" ]]; then
+        return 0
+    fi
+
+    if ! echo "$RconResponse" | jq empty >/dev/null 2>&1; then
+        INSERT_CUSTOM_LOG "Resposta inválida do RCON: $RconResponse" "ERROR" "$ScriptName"
+        return 1
+    fi
+
+    echo "$RconResponse" | jq -c '.[]' | while IFS= read -r player_json; do
+        local Guid
+        Guid=$(echo "$player_json" | jq -r '.guid // empty')
+        if [[ -z "$Guid" ]]; then
+            continue
+        fi
+
+        local EscapedGuid
+        EscapedGuid=$(echo "$Guid" | sed "s/'/''/g")
+
+        local PlayerIdDb
+        PlayerIdDb=$(sqlite3 "$PLAYERS_BECO_C1_DB" "SELECT PlayerID FROM players_database WHERE RconGuid = '$EscapedGuid' LIMIT 1;")
+        if [[ -z "$PlayerIdDb" ]]; then
+            continue
+        fi
+
+        local Country City Lat Lon Port Ping
+        Country=$(echo "$player_json" | jq -r '.country // empty')
+        City=$(echo "$player_json" | jq -r '.city // empty')
+        Lat=$(echo "$player_json" | jq -r '.lat // empty')
+        Lon=$(echo "$player_json" | jq -r '.lon // empty')
+        Port=$(echo "$player_json" | jq -r '.port // empty')
+        Ping=$(echo "$player_json" | jq -r '.ping // empty')
+
+        local EscapedPlayerId
+        EscapedPlayerId=$(echo "$PlayerIdDb" | sed "s/'/''/g")
+
+        local CountryValue="NULL"
+        local CityValue="NULL"
+        local LatValue="NULL"
+        local LonValue="NULL"
+        local PortValue="NULL"
+        local PingValue="NULL"
+
+        if [[ -n "$Country" ]]; then
+            local EscapedCountry
+            EscapedCountry=$(echo "$Country" | sed "s/'/''/g")
+            CountryValue="'$EscapedCountry'"
+        fi
+
+        if [[ -n "$City" ]]; then
+            local EscapedCity
+            EscapedCity=$(echo "$City" | sed "s/'/''/g")
+            CityValue="'$EscapedCity'"
+        fi
+
+        if [[ "$Lat" =~ ^-?[0-9]+(\.[0-9]+)?$ ]]; then
+            LatValue="$Lat"
+        fi
+
+        if [[ "$Lon" =~ ^-?[0-9]+(\.[0-9]+)?$ ]]; then
+            LonValue="$Lon"
+        fi
+
+        if [[ "$Port" =~ ^[0-9]+$ ]]; then
+            PortValue="$Port"
+        fi
+
+        if [[ "$Ping" =~ ^[0-9]+$ ]]; then
+            PingValue="$Ping"
+        fi
+
+        local UpdateSQL
+        UpdateSQL="UPDATE players_online SET Country = $CountryValue, City = $CityValue, Lat = $LatValue, Lon = $LonValue, Port = $PortValue, Ping = $PingValue WHERE PlayerID = '$EscapedPlayerId';"
+
+        sqlite3 "$PLAYERS_BECO_C1_DB" "$UpdateSQL" >/dev/null 2>&1 || INSERT_CUSTOM_LOG "Falha ao atualizar dados RCON do player $PlayerIdDb" "ERROR" "$ScriptName"
+    done
+}
+
 if [[ "$PLAYER_ID" == "RESET" ]]; then
     if [[ "$DayzDeathmatch" -eq "1" ]]; then
         DeathMatchCoords="$DayzServerFolder/$DayzDeathmatchCoords"
@@ -192,6 +285,9 @@ else
         
     fi
 fi
+
+# Sincroniza dados do RCON antes de montar o relatório
+AtualizaPlayersOnlineRcon
 
 NUM_REGISTROS=$(sqlite3 "$PLAYERS_BECO_C1_DB" "SELECT COUNT(*) FROM players_online;")
 

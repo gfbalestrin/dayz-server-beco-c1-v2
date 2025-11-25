@@ -12,13 +12,14 @@ handle_update_player() {
         | sed 's/^[[:space:]]\+//; s/[[:space:]]\+$//'
     }
 
-    local PlayerId PlayerName PlayerSteamId
+    local PlayerId PlayerName PlayerSteamId PlayerRconGuid
     PlayerId=$(echo "$line" | jq -r '.player_id')
     PlayerName=$(echo "$line" | jq -r '.player_name' | sanitize_name)
     if [[ -z "$PlayerName" ]]; then
         PlayerName="Unknown"
     fi
     PlayerSteamId=$(echo "$line" | jq -r '.steam_id')
+    PlayerRconGuid=$(GENERATE_RCON_GUID "$PlayerSteamId")
 
     echo ">> Atualizando jogador na player_database: $PlayerId"
 
@@ -40,7 +41,7 @@ handle_update_player() {
 
     if [[ -z "$PlayerExists" ]]; then
         INSERT_CUSTOM_LOG "Player $PlayerId ($PlayerName) ($PlayerSteamId) ($PlayerSteamName) não consta no banco. O player será inserido no banco de dados." "INFO" "$ScriptName"
-        INSERT_PLAYER_DATABASE "$PlayerId" "$PlayerName" "$PlayerSteamId" "$PlayerSteamName"
+        INSERT_PLAYER_DATABASE "$PlayerId" "$PlayerName" "$PlayerSteamId" "$PlayerSteamName" "$PlayerRconGuid"
         sleep 2
         "$AppFolder/$AppScriptUpdatePlayersOnlineFile" "$PlayerId" "CONNECT"
         return
@@ -52,7 +53,7 @@ handle_update_player() {
     PlayerSteamNameCurrent=$(echo "$PlayerExists" | cut -d$'\x1F' -f3)
 
     INSERT_CUSTOM_LOG "Player $PlayerId ($PlayerName) ($PlayerSteamId) ($PlayerSteamName) já consta no banco. O player será atualizado no banco de dados." "INFO" "$ScriptName"
-    UPDATE_PLAYER_DATABASE "$PlayerId" "$PlayerName" "$PlayerSteamId" "$PlayerSteamName"
+    UPDATE_PLAYER_DATABASE "$PlayerId" "$PlayerName" "$PlayerSteamId" "$PlayerSteamName" "$PlayerRconGuid"
 
     if [[ "$PlayerNameCurrent" != "$PlayerName" ]] \
     || [[ "$PlayerSteamIdCurrent" != "$PlayerSteamId" ]] \
