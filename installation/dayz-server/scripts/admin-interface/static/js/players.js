@@ -85,6 +85,14 @@ function executeActionInternal(playerId, action) {
         data: JSON.stringify({ action: action }),
         success: function(response) {
             showToast('Sucesso', response.message, 'success');
+            // Fechar modal de confirmação se estiver aberto
+            $('.modal').modal('hide');
+            // Retornar ao painel principal após sucesso
+            setTimeout(function() {
+                if (currentControlPanelPlayerId && currentControlPanelPlayerName) {
+                    returnToControlPanel(currentControlPanelPlayerId, currentControlPanelPlayerName);
+                }
+            }, 300);
         },
         error: function(xhr) {
             const error = xhr.responseJSON || {};
@@ -145,7 +153,11 @@ function showKickPlayerModal(playerId, playerName) {
         }
         
         executeKickAction(playerId, message);
-        $('#kickPlayerModal').modal('hide');
+    });
+    
+    // Handler para botão voltar
+    $('#kickModalBackBtn').off('click').on('click', function() {
+        returnToControlPanel(playerId, playerName);
     });
     
     $('#kickPlayerModal').modal('show');
@@ -163,6 +175,11 @@ function executeKickAction(playerId, message) {
         success: function(response) {
             if (response.success) {
                 showToast('Sucesso', response.message, 'success');
+                $('#kickPlayerModal').modal('hide');
+                // Retornar ao painel principal após sucesso
+                setTimeout(function() {
+                    returnToControlPanel(playerId, currentControlPanelPlayerName || 'Jogador');
+                }, 300);
             } else {
                 showToast('Erro', response.message || 'Erro ao kickar jogador', 'error');
             }
@@ -183,6 +200,14 @@ function activateGodModeInternal(playerId) {
         data: JSON.stringify({ action: 'godmode' }),
         success: function(response) {
             showToast('Sucesso', response.message, 'success');
+            // Fechar modal de confirmação se estiver aberto
+            $('.modal').modal('hide');
+            // Retornar ao painel principal após sucesso
+            setTimeout(function() {
+                if (currentControlPanelPlayerId && currentControlPanelPlayerName) {
+                    returnToControlPanel(currentControlPanelPlayerId, currentControlPanelPlayerName);
+                }
+            }, 300);
         },
         error: function(xhr) {
             const error = xhr.responseJSON || {};
@@ -216,6 +241,14 @@ function deactivateGodModeInternal(playerId) {
         data: JSON.stringify({ action: 'ungodmode' }),
         success: function(response) {
             showToast('Sucesso', response.message, 'success');
+            // Fechar modal de confirmação se estiver aberto
+            $('.modal').modal('hide');
+            // Retornar ao painel principal após sucesso
+            setTimeout(function() {
+                if (currentControlPanelPlayerId && currentControlPanelPlayerName) {
+                    returnToControlPanel(currentControlPanelPlayerId, currentControlPanelPlayerName);
+                }
+            }, 300);
         },
         error: function(xhr) {
             const error = xhr.responseJSON || {};
@@ -280,6 +313,11 @@ function showActionConfirmationModal(actionName, message, playerId, playerName, 
         }
     });
     
+    // Handler para botão voltar
+    $('#actionModalBackBtn').off('click').on('click', function() {
+        returnToControlPanel(playerId, playerName);
+    });
+    
     $('#actionConfirmationModal').modal('show');
 }
 
@@ -287,6 +325,26 @@ function showActionConfirmationModal(actionName, message, playerId, playerName, 
 // Variável para armazenar intervalo de auto-refresh do chat
 let chatRefreshInterval = null;
 let currentChatPlayerId = null;
+
+// Variáveis para armazenar contexto do jogador ao abrir modais
+let currentControlPanelPlayerId = null;
+let currentControlPanelPlayerName = null;
+
+// Função para retornar ao painel de controle principal
+function returnToControlPanel(playerId, playerName) {
+    // Fechar modal atual
+    $('.modal').modal('hide');
+    
+    // Aguardar um pouco para garantir que o modal foi fechado
+    setTimeout(function() {
+        // Reabrir modal principal com os dados do jogador
+        if (playerId && playerName) {
+            showPlayerControlPanel(playerId, playerName);
+        } else if (currentControlPanelPlayerId && currentControlPanelPlayerName) {
+            showPlayerControlPanel(currentControlPanelPlayerId, currentControlPanelPlayerName);
+        }
+    }, 300);
+}
 
 function showPlayerChatModal(playerId, playerName) {
     const player = playersData.find(p => p.PlayerID === playerId);
@@ -321,6 +379,11 @@ function showPlayerChatModal(playerId, playerName) {
     // Configurar botão de enviar
     $('#chatSendBtn').off('click').on('click', function() {
         sendChatMessage(playerId);
+    });
+    
+    // Handler para botão voltar
+    $('#chatModalBackBtn').off('click').on('click', function() {
+        returnToControlPanel(playerId, playerName);
     });
     
     // Enviar ao pressionar Enter (Shift+Enter para nova linha)
@@ -449,6 +512,7 @@ function sendChatMessage(playerId) {
                 setTimeout(function() {
                     loadChatMessages(playerId, true);
                 }, 500);
+                // Não fechar o modal de chat após enviar mensagem, apenas recarregar
             } else {
                 showToast('Erro', response.message || 'Erro ao enviar mensagem', 'error');
             }
@@ -782,7 +846,11 @@ function showBanPlayerModal(playerId, playerName) {
         }
         
         executeBanAction(playerId, minutes, message);
-        $('#banPlayerModal').modal('hide');
+    });
+    
+    // Handler para botão voltar
+    $('#banModalBackBtn').off('click').on('click', function() {
+        returnToControlPanel(playerId, playerName);
     });
     
     $('#banPlayerModal').modal('show');
@@ -801,6 +869,11 @@ function executeBanAction(playerId, minutes, message) {
         success: function(response) {
             if (response.success) {
                 showToast('Sucesso', response.message, 'success');
+                $('#banPlayerModal').modal('hide');
+                // Retornar ao painel principal após sucesso
+                setTimeout(function() {
+                    returnToControlPanel(playerId, currentControlPanelPlayerName || 'Jogador');
+                }, 300);
             } else {
                 showToast('Erro', response.message || 'Erro ao banir jogador', 'error');
             }
@@ -820,6 +893,11 @@ function showPlayerBansModal(playerId, playerName) {
     $('#bansModalPlayerName').text(displayName);
     $('#bansModalPlayerId').text(playerId);
     $('#bansContent').html('<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Carregando histórico de bans...</div>');
+    
+    // Handler para botão voltar
+    $('#bansModalBackBtn').off('click').on('click', function() {
+        returnToControlPanel(playerId, playerName);
+    });
     
     $('#playerBansModal').modal('show');
     
@@ -1359,7 +1437,7 @@ function renderAdminsTable() {
 }
 
 // Função para adicionar administrador a partir da lista de jogadores (versão interna)
-function addAdminFromPlayerInternal(playerId) {
+function addAdminFromPlayerInternal(playerId, playerName) {
     if (!playerId || !playerId.trim()) {
         showToast('Erro', 'Player ID é obrigatório', 'error');
         return;
@@ -1377,6 +1455,14 @@ function addAdminFromPlayerInternal(playerId) {
                 showToast('Sucesso', response.message, 'success');
                 // Recarregar lista de administradores e jogadores para atualizar botões
                 loadAdmins();
+                // Fechar modal de confirmação se estiver aberto
+                $('.modal').modal('hide');
+                // Retornar ao painel principal após sucesso
+                setTimeout(function() {
+                    if (currentControlPanelPlayerId && currentControlPanelPlayerName) {
+                        returnToControlPanel(currentControlPanelPlayerId, currentControlPanelPlayerName);
+                    }
+                }, 300);
             } else {
                 showToast('Erro', response.message || 'Erro ao adicionar administrador', 'error');
             }
@@ -1399,7 +1485,7 @@ function confirmAddAdminFromPlayer(playerId, playerName) {
         playerId,
         displayName,
         function() {
-            addAdminFromPlayerInternal(playerId);
+            addAdminFromPlayerInternal(playerId, playerName);
         }
     );
 }
