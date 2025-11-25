@@ -36,11 +36,12 @@ handle_player_respawned() {
         if [[ -n "$CoordX" ]] && [[ -n "$CoordY" ]] && [[ -n "$CoordZ" ]]; then
             DetailsJson="{\"timestamp\": \"$CurrentDate\", \"position\": \"$Position\"}"
             INSERT_PLAYER_EVENT "$PlayerId" "player_respawned" "$CoordX" "$CoordY" "$CoordZ" "$DetailsJson" ""
-            INSERT_CUSTOM_LOG "Evento player_respawned registrado para PlayerID: $PlayerId na posição ($CoordX, $CoordY, $CoordZ)" "INFO" "$ScriptName"
+            
             
             # Enviar mensagem para Discord
             local Message
-            Message="Respawn detectado: $SafePlayerInfo respawnou em $Position"
+            Message="$SafePlayerInfo respawnou"
+            INSERT_CUSTOM_LOG "Evento player_respawned registrado para $SafePlayerInfo na posição ($CoordX, $CoordY, $CoordZ)" "INFO" "$ScriptName"
             SEND_DISCORD_WEBHOOK "$Message" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
         else
             INSERT_CUSTOM_LOG "Falha ao extrair coordenadas da posição: $Position" "ERROR" "$ScriptName"
