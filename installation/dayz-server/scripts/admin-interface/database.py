@@ -2058,7 +2058,7 @@ def get_player_by_id(player_id: str) -> Optional[Dict]:
     with DatabaseConnection(config.DB_PLAYERS) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT PlayerID, PlayerName, SteamID, SteamName
+            SELECT PlayerID, PlayerName, SteamID, SteamName, RconGuid
             FROM players_database
             WHERE PlayerID = ?
         """, (player_id,))
@@ -2343,6 +2343,7 @@ def get_all_players_with_status() -> List[Dict]:
         cursor.execute("""
             SELECT 
                 pd.*,
+                pd.RconGuid,
                 po.DataConnect,
                 CASE WHEN po.PlayerID IS NOT NULL THEN 1 ELSE 0 END as IsOnline,
                 po.Country,

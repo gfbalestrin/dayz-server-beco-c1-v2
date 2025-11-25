@@ -95,20 +95,24 @@ function executeActionInternal(playerId, action) {
 
 // Função para executar ação administrativa com confirmação
 function confirmExecuteAction(playerId, action, playerName) {
+    // Se for kick, usar modal especial com mensagem personalizada
+    if (action === 'kick') {
+        showKickPlayerModal(playerId, playerName);
+        return;
+    }
+    
     const player = playersData.find(p => p.PlayerID === playerId);
     const displayName = player ? (player.PlayerName || 'Jogador desconhecido') : playerName;
     
     const actionMessages = {
         'heal': 'Deseja curar este jogador?',
         'kill': 'ATENÇÃO: Deseja MATAR este jogador? Esta ação é irreversível!',
-        'kick': 'Deseja EXPULSAR este jogador do servidor?',
         'desbug': 'Deseja corrigir a posição deste jogador?'
     };
     
     const actionNames = {
         'heal': 'Curar',
         'kill': 'Matar',
-        'kick': 'Expulsar',
         'desbug': 'Corrigir Posição'
     };
     
@@ -121,6 +125,53 @@ function confirmExecuteAction(playerId, action, playerName) {
             executeActionInternal(playerId, action);
         }
     );
+}
+
+// Função para mostrar modal de kick com mensagem personalizada
+function showKickPlayerModal(playerId, playerName) {
+    const player = playersData.find(p => p.PlayerID === playerId);
+    const displayName = player ? (player.PlayerName || 'Jogador desconhecido') : playerName;
+    
+    $('#kickModalPlayerName').text(displayName);
+    $('#kickModalPlayerId').text(playerId);
+    $('#kickMessage').val('Você foi kickado do servidor');
+    
+    // Remover handlers anteriores e adicionar novo
+    $('#kickModalConfirmBtn').off('click').on('click', function() {
+        const message = $('#kickMessage').val().trim();
+        if (!message) {
+            showToast('Aviso', 'Por favor, digite uma mensagem', 'warning');
+            return;
+        }
+        
+        executeKickAction(playerId, message);
+        $('#kickPlayerModal').modal('hide');
+    });
+    
+    $('#kickPlayerModal').modal('show');
+}
+
+// Função para executar kick via RCON
+function executeKickAction(playerId, message) {
+    $.ajax({
+        url: `/api/players/${encodeURIComponent(playerId)}/kick`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            message: message
+        }),
+        success: function(response) {
+            if (response.success) {
+                showToast('Sucesso', response.message, 'success');
+            } else {
+                showToast('Erro', response.message || 'Erro ao kickar jogador', 'error');
+            }
+        },
+        error: function(xhr) {
+            const errorMessage = xhr.responseJSON?.message || 'Erro ao kickar jogador';
+            showToast('Erro', errorMessage, 'error');
+        }
+    });
 }
 
 // Função para ativar God Mode (versão interna)

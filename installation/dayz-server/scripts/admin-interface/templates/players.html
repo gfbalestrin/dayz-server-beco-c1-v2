@@ -337,6 +337,42 @@
         </div>
     </div>
 </div>
+
+<!-- Modal de confirmação de kick com mensagem personalizada -->
+<div class="modal fade" id="kickPlayerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-sign-out-alt me-2"></i>Kickar Jogador
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Você está prestes a kickar este jogador do servidor.
+                </div>
+                <div class="mb-3">
+                    <p class="mb-2"><strong>Jogador:</strong></p>
+                    <p class="h5 text-primary mb-2" id="kickModalPlayerName"></p>
+                    <p class="text-muted mb-0"><small>Player ID: <code id="kickModalPlayerId"></code></small></p>
+                </div>
+                <div class="mb-3">
+                    <label for="kickMessage" class="form-label">Mensagem de Kick:</label>
+                    <textarea class="form-control" id="kickMessage" rows="3" placeholder="Você foi kickado do servidor">Você foi kickado do servidor</textarea>
+                    <div class="form-text">Esta mensagem será exibida ao jogador quando ele for kickado.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="kickModalConfirmBtn">
+                    <i class="fas fa-sign-out-alt me-2"></i>Kickar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}

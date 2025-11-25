@@ -2,6 +2,7 @@
 Configurações da aplicação Flask
 """
 import os
+import json
 
 # Diretório base da aplicação
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -88,3 +89,51 @@ if not os.path.exists(DAYZ_TYPES_FILE):
     raise FileNotFoundError(f"Arquivo types.xml não encontrado: {DAYZ_TYPES_FILE}")
 if not os.path.exists(DAYZ_EVENTS_FILE):
     raise FileNotFoundError(f"Arquivo events.xml não encontrado: {DAYZ_EVENTS_FILE}")
+
+# Configurações RCON - lendo do config.json
+# Caminho: installation/dayz-server/scripts/admin-interface -> installation/dayz-server/scripts/config.json
+CONFIG_JSON_PATH = os.path.join(BASE_DIR, "..", "config.json")
+if os.path.exists(CONFIG_JSON_PATH):
+    try:
+        with open(CONFIG_JSON_PATH, 'r', encoding='utf-8') as f:
+            config_data = json.load(f)
+            # Aceitar tanto "DayZ" quanto "Dayz" (case-insensitive)
+            dayz_config = config_data.get('DayZ') or config_data.get('Dayz') or {}
+            app_config = config_data.get('App') or {}
+            
+            RCON_IP = dayz_config.get('RConIP', '127.0.0.1')
+            RCON_PORT = dayz_config.get('RConPort', '2305')
+            RCON_PASSWORD = dayz_config.get('RConPassword', '')
+            RCON_BIN = app_config.get('RconBinFile', 'bercon-cli')
+            # Caminho completo do binário RCON (assumindo que está no PATH ou no diretório de scripts)
+            RCON_BIN_PATH = RCON_BIN if os.path.isabs(RCON_BIN) or '/' in RCON_BIN else RCON_BIN
+            
+            # Log de debug (sem mostrar a senha completa)
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"RCON configurado: IP={RCON_IP}, PORT={RCON_PORT}, BIN={RCON_BIN_PATH}, PASSWORD={'*' * len(RCON_PASSWORD) if RCON_PASSWORD else 'VAZIA'}")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Erro ao ler config.json: {str(e)}")
+        RCON_IP = '127.0.0.1'
+        RCON_PORT = '2305'
+        RCON_PASSWORD = ''
+        RCON_BIN_PATH = 'bercon-cli'
+else:
+    # Valores padrão se config.json não existir
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning(f"config.json não encontrado em: {CONFIG_JSON_PATH}")
+    RCON_IP = '127.0.0.1'
+    RCON_PORT = '2305'
+    RCON_PASSWORD = ''
+    RCON_BIN_PATH = 'bercon-cli'
+
+# Validar se a senha RCON foi configurada
+if not RCON_PASSWORD:
+    import warnings
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning("RCON_PASSWORD não está configurada. Comandos RCON podem falhar.")
+    warnings.warn("RCON_PASSWORD não está configurada. Comandos RCON podem falhar.")

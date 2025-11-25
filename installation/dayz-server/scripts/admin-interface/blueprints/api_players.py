@@ -12,12 +12,106 @@ import config
 from database import (
     get_online_players, check_backup_exists_any_player,
     search_players, get_item_details_from_items_db,
-    get_all_players_with_status
+    get_all_players_with_status, get_player_by_id
 )
 from blueprints.auth import admin_required, audit_action
 
 api_players_bp = Blueprint('api_players', __name__)
 logger = logging.getLogger(__name__)
+
+
+def execute_rcon_command(command):
+    """
+    Executa um comando RCON usando bercon-cli
+    
+    Args:
+        command: Comando RCON a executar (ex: 'kick 0 Mensagem')
+    
+    Returns:
+        dict: Resposta JSON do RCON ou None em caso de erro
+    """
+    # Validar se a senha RCON está configurada
+    if not config.RCON_PASSWORD:
+        logger.error("RCON_PASSWORD não está configurada")
+        return None
+    
+    try:
+        cmd = [
+            config.RCON_BIN_PATH,
+            '-i', config.RCON_IP,
+            '-p', str(config.RCON_PORT),
+            '-P', config.RCON_PASSWORD,
+            '-j', command
+        ]
+        
+        logger.debug(f"Executando comando RCON: {' '.join(cmd[:3])} -P *** -j {command}")
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if result.returncode != 0:
+            logger.error(f"Erro ao executar comando RCON (returncode={result.returncode}): {result.stderr}")
+            logger.debug(f"stdout: {result.stdout}")
+            return None
+        
+        # Verificar se stdout está vazio
+        if not result.stdout or not result.stdout.strip():
+            logger.warning("Resposta RCON vazia")
+            return None
+        
+        try:
+            return json.loads(result.stdout)
+        except json.JSONDecodeError as e:
+            logger.error(f"Resposta RCON não é JSON válido: {result.stdout}")
+            logger.debug(f"Erro de parsing: {str(e)}")
+            return None
+            
+    except subprocess.TimeoutExpired:
+        logger.error("Timeout ao executar comando RCON")
+        return None
+    except Exception as e:
+        logger.exception(f"Erro ao executar comando RCON: {str(e)}")
+        return None
+
+
+def get_player_rcon_id(player_guid):
+    """
+    Busca o ID do jogador no RCON usando o GUID
+    
+    Args:
+        player_guid: GUID do jogador (RconGuid do banco de dados)
+    
+    Returns:
+        int: ID do jogador no RCON ou None se não encontrado
+    """
+    try:
+        # Listar jogadores online
+        response = execute_rcon_command('players')
+        
+        if not response or not isinstance(response, list):
+            logger.warning("Resposta de players inválida ou vazia")
+            return None
+        
+        # Procurar jogador pelo GUID (comparação case-insensitive)
+        player_guid_lower = player_guid.lower() if player_guid else ''
+        for player in response:
+            if isinstance(player, dict):
+                player_guid_from_rcon = player.get('guid', '').lower()
+                if player_guid_from_rcon == player_guid_lower:
+                    player_id = player.get('id')
+                    if player_id is not None:
+                        return int(player_id)
+        
+        logger.warning(f"Jogador com GUID {player_guid} não encontrado online")
+        return None
+        
+    except Exception as e:
+        logger.exception(f"Erro ao buscar ID do jogador no RCON: {str(e)}")
+        return None
 
 
 @api_players_bp.route('/api/players/online')
@@ -441,6 +535,78 @@ def api_scan_region():
         }), 500
 
 
+@api_players_bp.route('/api/players/<player_id>/kick', methods=['POST'])
+@admin_required
+@audit_action('PLAYER_KICK')
+def api_player_kick(player_id):
+    """Kickar jogador via RCON com mensagem personalizada"""
+    # Verificar se RCON está configurado
+    if not config.RCON_PASSWORD:
+        logger.error("RCON_PASSWORD não está configurada")
+        return jsonify({
+            'success': False,
+            'message': 'Configuração RCON não encontrada. Verifique o config.json'
+        }), 500
+    
+    data = request.get_json()
+    message = data.get('message', 'Você foi kickado do servidor')
+    
+    # Buscar dados do jogador no banco
+    player = get_player_by_id(player_id)
+    if not player:
+        return jsonify({
+            'success': False,
+            'message': 'Jogador não encontrado no banco de dados'
+        }), 404
+    
+    # Verificar se tem RconGuid
+    rcon_guid = player.get('RconGuid')
+    if not rcon_guid:
+        logger.warning(f"RconGuid não encontrado para jogador {player_id}")
+        return jsonify({
+            'success': False,
+            'message': 'RconGuid não encontrado para este jogador'
+        }), 400
+    
+    # Buscar ID do jogador no RCON
+    logger.info(f"Buscando ID RCON para GUID: {rcon_guid}")
+    rcon_id = get_player_rcon_id(rcon_guid)
+    if rcon_id is None:
+        logger.warning(f"Jogador com GUID {rcon_guid} não encontrado online no RCON")
+        return jsonify({
+            'success': False,
+            'message': 'Jogador não está online ou não foi encontrado no RCON'
+        }), 404
+    
+    logger.info(f"Jogador encontrado no RCON com ID: {rcon_id}")
+    
+    # Executar comando kick via RCON
+    kick_command = f"kick {rcon_id} {message}"
+    logger.info(f"Executando comando kick: {kick_command}")
+    response = execute_rcon_command(kick_command)
+    
+    if response is None:
+        logger.error(f"Falha ao executar comando kick via RCON para jogador {player_id}")
+        return jsonify({
+            'success': False,
+            'message': 'Erro ao executar comando kick via RCON. Verifique os logs do servidor.'
+        }), 500
+    
+    # Verificar se o comando foi executado com sucesso
+    if isinstance(response, dict) and response.get('msg') == ['OK']:
+        logger.info(f"Jogador {player_id} kickado via RCON com mensagem: {message}")
+        return jsonify({
+            'success': True,
+            'message': f'Jogador kickado com sucesso!'
+        })
+    else:
+        logger.warning(f"Resposta inesperada do RCON: {response}")
+        return jsonify({
+            'success': False,
+            'message': 'Resposta inesperada do servidor RCON'
+        }), 500
+
+
 @api_players_bp.route('/api/players/<player_id>/action', methods=['POST'])
 @admin_required
 @audit_action('PLAYER_ACTION')
@@ -455,6 +621,10 @@ def api_player_action(player_id):
     
     if action not in valid_actions:
         return jsonify({'success': False, 'message': 'Ação inválida'}), 400
+    
+    # Se for kick, redirecionar para rota específica
+    if action == 'kick':
+        return api_player_kick(player_id)
     
     # Formato: PlayerID action
     command_line = f"{player_id} {action}\n"
