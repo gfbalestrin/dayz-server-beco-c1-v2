@@ -27,6 +27,11 @@ export DayzMessagesXmlFile=$(jq -r '.Dayz.MessagesXmlFile' "$CONFIG_FILE")
 export DayzDeathmatch=$(jq -r '.Dayz.Deathmatch' "$CONFIG_FILE")
 export DayzWipeOnRestart=$(jq -r '.Dayz.WipeOnRestart' "$CONFIG_FILE")
 export DayzCloseTestPassword=$(jq -r '.Dayz.CloseTestPassword' "$CONFIG_FILE")
+export DayzRConPort=$(jq -r '.Dayz.RConPort' "$CONFIG_FILE")
+export DayzRConIP=$(jq -r '.Dayz.RConIP' "$CONFIG_FILE")
+export DayzRConPassword=$(jq -r '.Dayz.RConPassword' "$CONFIG_FILE")
+export DayzMaxPing=$(jq -r '.Dayz.MaxPing' "$CONFIG_FILE")
+export DayzRestrictRCon=$(jq -r '.Dayz.RestrictRCon' "$CONFIG_FILE")
 
 export AppFolder=$(jq -r '.App.Folder' "$CONFIG_FILE")
 export AppPlayerBecoC1DbFile=$(jq -r '.App.PlayerBecoC1DbFile' "$CONFIG_FILE")
@@ -41,6 +46,7 @@ export AppScriptUpdateGeneralKillfeed=$(jq -r '.App.ScriptUpdateGeneralKillfeed'
 export AppScriptGetPlayerDamageFile=$(jq -r '.App.ScriptGetPlayerDamageFile' "$CONFIG_FILE")
 export AppScriptPlayerLoadoutManagerFile=$(jq -r '.App.ScriptPlayerLoadoutManagerFile' "$CONFIG_FILE")
 export AppUrlAppLoadout=$(jq -r '.App.UrlAppLoadout' "$CONFIG_FILE")
+export AppGeoLiteDbFile=$(jq -r '.App.GeoLiteDbFile' "$CONFIG_FILE")
 
 # Print all variables
 # echo "DayzServerFolder: $DayzServerFolder"

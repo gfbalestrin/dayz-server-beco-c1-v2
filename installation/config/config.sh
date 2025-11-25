@@ -278,3 +278,6 @@ export AppFolder
 
 AppUrlAppLoadout=$(jq -r '.App.UrlAppLoadout // empty' "$CONFIG_FILE")
 export AppUrlAppLoadout
+
+AppGeoLiteDbFile=$(jq -r '.App.GeoLiteDbFile // empty' "$CONFIG_FILE")
+export AppGeoLiteDbFile
