@@ -104,13 +104,14 @@ function AtualizaPlayersOnlineRcon() {
             continue
         fi
 
-        local Country City Lat Lon Port Ping
+        local Country City Lat Lon Port Ping IP
         Country=$(echo "$player_json" | jq -r '.country // empty')
         City=$(echo "$player_json" | jq -r '.city // empty')
         Lat=$(echo "$player_json" | jq -r '.lat // empty')
         Lon=$(echo "$player_json" | jq -r '.lon // empty')
         Port=$(echo "$player_json" | jq -r '.port // empty')
         Ping=$(echo "$player_json" | jq -r '.ping // empty')
+        IP=$(echo "$player_json" | jq -r '.ip // empty')
 
         local EscapedPlayerId
         EscapedPlayerId=$(echo "$PlayerIdDb" | sed "s/'/''/g")
@@ -150,8 +151,15 @@ function AtualizaPlayersOnlineRcon() {
             PingValue="$Ping"
         fi
 
+        local IPValue="NULL"
+        if [[ -n "$IP" ]]; then
+            local EscapedIP
+            EscapedIP=$(echo "$IP" | sed "s/'/''/g")
+            IPValue="'$EscapedIP'"
+        fi
+
         local UpdateSQL
-        UpdateSQL="UPDATE players_online SET Country = $CountryValue, City = $CityValue, Lat = $LatValue, Lon = $LonValue, Port = $PortValue, Ping = $PingValue WHERE PlayerID = '$EscapedPlayerId';"
+        UpdateSQL="UPDATE players_online SET Country = $CountryValue, City = $CityValue, Lat = $LatValue, Lon = $LonValue, Port = $PortValue, Ping = $PingValue, IP = $IPValue WHERE PlayerID = '$EscapedPlayerId';"
 
         sqlite3 "$PLAYERS_BECO_C1_DB" "$UpdateSQL" >/dev/null 2>&1 || INSERT_CUSTOM_LOG "Falha ao atualizar dados RCON do player $PlayerIdDb" "ERROR" "$ScriptName"
     done

@@ -440,6 +440,74 @@ function renderActions(player) {
     `;
 }
 
+// Função para converter código de país em emoji de bandeira
+function getCountryFlag(countryCode) {
+    if (!countryCode || countryCode.length !== 2) {
+        return '';
+    }
+    
+    // Converter código de país para emoji de bandeira
+    // Cada letra é convertida para seu equivalente em Regional Indicator Symbol
+    const codePoints = countryCode
+        .toUpperCase()
+        .split('')
+        .map(char => 127397 + char.charCodeAt(0));
+    
+    return String.fromCodePoint(...codePoints);
+}
+
+// Função para renderizar localização
+function renderLocation(player) {
+    const country = player.Country || '';
+    const city = player.City || '';
+    const ip = player.IP || '';
+    const port = player.Port;
+    const ping = player.Ping;
+    
+    // Se não houver nenhum dado de localização, retornar "-"
+    if (!country && !city && !ip && !port && !ping) {
+        return '<span class="text-muted">-</span>';
+    }
+    
+    const parts = [];
+    
+    // Bandeira e país
+    if (country) {
+        const flag = getCountryFlag(country);
+        if (flag) {
+            parts.push(`${flag} ${escapeHtml(country)}`);
+        } else {
+            parts.push(escapeHtml(country));
+        }
+    }
+    
+    // Cidade
+    if (city) {
+        parts.push(escapeHtml(city));
+    }
+    
+    // Link do IP (se disponível)
+    if (ip) {
+        const ipUrl = `https://ip-api.com/#${escapeHtml(ip)}`;
+        parts.push(`<a href="${ipUrl}" target="_blank" class="text-decoration-none">${escapeHtml(ip)}</a>`);
+    }
+    
+    // Port e First ping (se disponíveis)
+    const networkInfo = [];
+    if (port !== null && port !== undefined) {
+        networkInfo.push(`Port: ${port}`);
+    }
+    if (ping !== null && ping !== undefined) {
+        networkInfo.push(`First ping: ${ping}ms`);
+    }
+    
+    if (networkInfo.length > 0) {
+        parts.push(`<small class="text-muted">${networkInfo.join(' | ')}</small>`);
+    }
+    
+    return parts.length > 0 ? `<div class="small">${parts.join('<br>')}</div>` : '<span class="text-muted">-</span>';
+}
+
 // Função para renderizar status
 function renderStatus(player) {
     const isOnline = player.IsOnline && player.IsOnline !== 0;
@@ -617,7 +685,7 @@ function renderPlayersTable() {
     tbody.empty();
     
     if (filteredData.length === 0) {
-        tbody.append('<tr><td colspan="10" class="text-center">Nenhum jogador encontrado</td></tr>');
+        tbody.append('<tr><td colspan="11" class="text-center">Nenhum jogador encontrado</td></tr>');
     } else {
         // Renderizar cada jogador
         filteredData.forEach(player => {
@@ -628,6 +696,7 @@ function renderPlayersTable() {
                     <td>${escapeHtml(player.PlayerName || '-')}</td>
                     <td>${renderLinkedUser(player)}</td>
                     <td>${createSteamLink(player.SteamID, player.SteamName)}</td>
+                    <td>${renderLocation(player)}</td>
                     <td>${renderLoadoutsLink(player)}</td>
                     <td>${renderDateTime(player)}</td>
                     <td>${createMapViewLink(player.PlayerID)}</td>
@@ -649,7 +718,7 @@ function renderPlayersTable() {
         pageLength: 25,
         responsive: true,
         columnDefs: [
-            { orderable: false, targets: [1, 5, 7, 8, 9] } // Player ID, Loadouts, Mapa, Spawnar Itens e Ações não são ordenáveis
+            { orderable: false, targets: [1, 5, 6, 8, 9, 10] } // Player ID, Localização, Loadouts, Mapa, Spawnar Itens e Ações não são ordenáveis
         ]
     });
     console.log('[renderPlayersTable] DataTable recriada com sucesso');
@@ -792,8 +861,12 @@ function updatePlayersTableActions() {
                     const player = filteredData.find(p => p.PlayerID === playerId);
                     
                     if (player) {
-                        const spawnCell = $(rowNode).find('td').eq(8);
-                        const actionCell = $(rowNode).find('td').eq(9);
+                        const mapCell = $(rowNode).find('td').eq(8);
+                        const spawnCell = $(rowNode).find('td').eq(9);
+                        const actionCell = $(rowNode).find('td').eq(10);
+                        if (mapCell.length > 0) {
+                            mapCell.html(createMapViewLink(playerId));
+                        }
                         if (spawnCell.length > 0) {
                             spawnCell.html(renderSpawnButton(player));
                         }

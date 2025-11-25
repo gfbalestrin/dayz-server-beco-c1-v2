@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS players_online (
     Lon REAL,
     Port INTEGER,
     Ping INTEGER,
+    IP TEXT,
     FOREIGN KEY (PlayerID) REFERENCES players_database(PlayerID) ON DELETE CASCADE
 );
 
