@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS vehicles_tracking (
     DestroyedAt DATETIME,
     EngineHealth REAL,
     BodyHealth REAL,
-    FuelTankHealth REAL
+    FuelTankHealth REAL,
+    IsPartialUpdate INTEGER DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_vehicles_tracking_vehicle_id ON vehicles_tracking(VehicleId);
@@ -28,6 +29,8 @@ CREATE INDEX IF NOT EXISTS idx_vehicles_tracking_destroyed ON vehicles_tracking(
 -- Índice composto otimizado para busca de últimos registros por veículo (não destruídos)
 -- Nota: SQLite não suporta DESC na definição do índice, mas ORDER BY DESC na query ainda usa o índice eficientemente
 CREATE INDEX IF NOT EXISTS idx_vehicles_tracking_lookup ON vehicles_tracking(VehicleId, TimeStamp, IsDestroyed);
+-- Índice para otimizar busca de último registro completo (IsPartialUpdate = 0)
+CREATE INDEX IF NOT EXISTS idx_vehicles_tracking_partial ON vehicles_tracking(VehicleId, IsPartialUpdate, TimeStamp);
 
 CREATE TABLE IF NOT EXISTS vehicles_items (
     IdVehicleItem INTEGER PRIMARY KEY AUTOINCREMENT,

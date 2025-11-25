@@ -303,12 +303,12 @@ class CustomMission: MissionServer
 				CleanUpDeadEntitiesNearPlayers();
 			} 
 			//LogVehiclesPositionsSimple(); // Loga coordenadas dos veículos para análise de performance
+			CleanTrackedVehicles(); // Limpa veículos destruídos do array
 			SendVehiclesPositionsSimple(); // Envia apenas coordenadas dos veículos (update parcial)
 			LogFencesStatusSimple(); // Loga informações simples das fences rastreadas
 			LogWatchtowersStatusSimple(); // Loga informações simples das watchtowers rastreadas
 			LogFlagsStatusSimple(); // Loga informações simples das flags rastreadas
 			LogContainersStatusSimple(); // Loga informações básicas dos containers rastreados
-			//CleanTrackedVehicles(); // Limpa veículos destruídos do array
 			//SendVehiclesPositions(); // Completo (comentado para performance)			
 			//CleanTrackedFences(); // Limpa cercas destruídas do array
 			//SendFencesStatus(); // Envia status de todas as cercas rastreadas

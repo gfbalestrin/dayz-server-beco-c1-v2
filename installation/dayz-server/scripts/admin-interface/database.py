@@ -242,46 +242,103 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
             
             vehicle['has_moved'] = has_moved
             
-            # Buscar items do veículo
+            # Buscar último registro completo (IsPartialUpdate = 0) para items/attachments
+            # Usar esse ID para buscar items e attachments, não o último registro (que pode ser parcial)
+            complete_tracking_id = None
+            try:
+                # Verificar se coluna IsPartialUpdate existe
+                cursor.execute("PRAGMA table_info(vehicles_tracking)")
+                columns = [row[1] for row in cursor.fetchall()]
+                has_is_partial_update = 'IsPartialUpdate' in columns
+                
+                if has_is_partial_update:
+                    cursor.execute("""
+                        SELECT IdVehicleTracking, TimeStamp
+                        FROM vehicles_tracking
+                        WHERE VehicleId = ? AND IsPartialUpdate = 0
+                        ORDER BY TimeStamp DESC
+                        LIMIT 1
+                    """, (vehicle_id,))
+                    result = cursor.fetchone()
+                    if result:
+                        complete_tracking_id = result[0]
+                        vehicle['items_attachments_last_update'] = result[1]
+                    else:
+                        # Se não há registros completos, usar None
+                        vehicle['items_attachments_last_update'] = None
+                else:
+                    # Se coluna não existe, usar o vehicle_tracking_id atual e seu timestamp
+                    complete_tracking_id = vehicle_tracking_id
+                    vehicle['items_attachments_last_update'] = vehicle['TimeStamp']
+            except Exception as e:
+                # Em caso de erro, usar o vehicle_tracking_id atual e seu timestamp
+                complete_tracking_id = vehicle_tracking_id
+                vehicle['items_attachments_last_update'] = vehicle.get('TimeStamp')
+            
+            # Se não encontrou registro completo, usar o tracking_id atual (compatibilidade com bancos antigos)
+            if complete_tracking_id is None:
+                complete_tracking_id = vehicle_tracking_id
+            
+            # Buscar items do veículo usando o ID do último registro completo
             try:
                 cursor.execute("""
                     SELECT ItemType, ItemHealth
                     FROM vehicles_items
                     WHERE VehicleTrackingId = ?
                     ORDER BY ItemType
-                """, (vehicle_tracking_id,))
+                """, (complete_tracking_id,))
                 vehicle['items'] = [{'type': row[0], 'health': row[1]} for row in cursor.fetchall()]
             except:
                 vehicle['items'] = []
             
-            # Buscar attachments do veículo
+            # Buscar attachments do veículo usando o ID do último registro completo
             try:
                 cursor.execute("""
                     SELECT AttachmentType, AttachmentHealth
                     FROM vehicles_attachments
                     WHERE VehicleTrackingId = ?
                     ORDER BY AttachmentType
-                """, (vehicle_tracking_id,))
+                """, (complete_tracking_id,))
                 vehicle['attachments'] = [{'type': row[0], 'health': row[1]} for row in cursor.fetchall()]
             except:
                 vehicle['attachments'] = []
             
-            # Buscar health_parts (verificar se colunas existem)
+            # Buscar health_parts do último registro completo (não do parcial)
             try:
                 cursor.execute("PRAGMA table_info(vehicles_tracking)")
                 columns = [row[1] for row in cursor.fetchall()]
                 health_parts = {}
                 
-                if 'EngineHealth' in columns:
-                    health_parts['engine'] = vehicle.get('EngineHealth')
-                if 'BodyHealth' in columns:
-                    health_parts['body'] = vehicle.get('BodyHealth')
-                if 'FuelTankHealth' in columns:
-                    health_parts['fuel_tank'] = vehicle.get('FuelTankHealth')
+                # Buscar health_parts do registro completo
+                if complete_tracking_id and complete_tracking_id != vehicle_tracking_id:
+                    cursor.execute("""
+                        SELECT EngineHealth, BodyHealth, FuelTankHealth
+                        FROM vehicles_tracking
+                        WHERE IdVehicleTracking = ?
+                    """, (complete_tracking_id,))
+                    health_row = cursor.fetchone()
+                    if health_row:
+                        if 'EngineHealth' in columns and health_row[0] is not None:
+                            health_parts['engine'] = health_row[0]
+                        if 'BodyHealth' in columns and health_row[1] is not None:
+                            health_parts['body'] = health_row[1]
+                        if 'FuelTankHealth' in columns and health_row[2] is not None:
+                            health_parts['fuel_tank'] = health_row[2]
+                else:
+                    # Fallback: usar do registro atual
+                    if 'EngineHealth' in columns:
+                        health_parts['engine'] = vehicle.get('EngineHealth')
+                    if 'BodyHealth' in columns:
+                        health_parts['body'] = vehicle.get('BodyHealth')
+                    if 'FuelTankHealth' in columns:
+                        health_parts['fuel_tank'] = vehicle.get('FuelTankHealth')
                 
                 vehicle['health_parts'] = health_parts if health_parts else None
             except:
                 vehicle['health_parts'] = None
+            
+            # Data de atualização das coordenadas (último registro, pode ser parcial)
+            vehicle['coordinates_last_update'] = vehicle['TimeStamp']
         
         return vehicles
 
@@ -411,10 +468,14 @@ def get_vehicle_history(vehicle_id: str, limit: int = 100, offset: int = 0,
         
         where_clause = "WHERE " + " AND ".join(where_conditions)
         
+        # Verificar se coluna IsPartialUpdate existe
+        has_is_partial_update = 'IsPartialUpdate' in columns
+        partial_column = ", IFNULL(IsPartialUpdate, 0) as IsPartialUpdate" if has_is_partial_update else ", 0 as IsPartialUpdate"
+        
         query = f"""
             SELECT IdVehicleTracking, VehicleId, VehicleName,
                    PositionX, PositionY, PositionZ, TimeStamp,
-                   IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt{health_columns}
+                   IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt{health_columns}{partial_column}
             FROM vehicles_tracking
             {where_clause}
             ORDER BY TimeStamp DESC

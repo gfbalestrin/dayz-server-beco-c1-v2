@@ -179,15 +179,40 @@ void CleanTrackedVehicles()
             continue;
         }
 
+        // Verificar se veículo está destruído usando múltiplos métodos
+        bool isDestroyed = false;
+        float vehicleHealth = vehicle.GetHealth("", "");
+        bool isDamageDestroyed = vehicle.IsDamageDestroyed();
+        
         float engineHealth = 0.0;
         bool hasEngineHealth = TryGetVehicleZoneHealth(vehicle, "Engine", engineHealth);
-        if (hasEngineHealth && engineHealth <= 0.0)
+        
+        // Considerar destruído se: health geral <= 0, IsDamageDestroyed() retorna true, ou motor health <= 0
+        if (vehicleHealth <= 0.0 || isDamageDestroyed || (hasEngineHealth && engineHealth <= 0.0))
+        {
+            isDestroyed = true;
+        }
+        
+        if (isDestroyed)
         {
             string vehicleName = vehicle.GetDisplayName();
             vector vehiclePosition = vehicle.GetPosition();
             m_TrackedVehicles.Remove(i);
             cleanedDestroyed++;
-            WriteToLog("CleanTrackedVehicles(): Veículo destruído removido - Nome: " + vehicleName + " em " + vehiclePosition.ToString() + " (motor health: " + engineHealth.ToString() + ")", LogFile.INIT, false, LogType.INFO);
+            string destroyReason = "";
+            if (vehicleHealth <= 0.0)
+            {
+                destroyReason = "health geral: " + vehicleHealth.ToString();
+            }
+            else if (isDamageDestroyed)
+            {
+                destroyReason = "IsDamageDestroyed() = true";
+            }
+            else if (hasEngineHealth && engineHealth <= 0.0)
+            {
+                destroyReason = "motor health: " + engineHealth.ToString();
+            }
+            WriteToLog("CleanTrackedVehicles(): Veículo destruído removido - Nome: " + vehicleName + " em " + vehiclePosition.ToString() + " (" + destroyReason + ")", LogFile.INIT, false, LogType.INFO);
         }
     }
     
@@ -371,8 +396,11 @@ void SendVehiclesPositionsSimple()
         string posZStr = position[1].ToString();
         string posYStr = position[2].ToString();
         
-        // JSON simplificado com flag de update parcial
-        string vehicleJson = "{\"vehicle_id\":\"" + vehicleIdentifier + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + posXStr + ",\"z\":" + posZStr + ",\"y\":" + posYStr + ",\"update_type\":\"position_only\"}";
+        // Coletar saúde de partes principais (omitindo zonas ausentes)
+        string healthPartsJson = BuildVehicleHealthPartsJson(vehicle);
+        
+        // JSON simplificado com flag de update parcial (incluindo health_parts)
+        string vehicleJson = "{\"vehicle_id\":\"" + vehicleIdentifier + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + posXStr + ",\"z\":" + posZStr + ",\"y\":" + posYStr + ",\"health_parts\":{" + healthPartsJson + "},\"update_type\":\"position_only\"}";
         
         if (vehiclesJson != "")
             vehiclesJson += ",";

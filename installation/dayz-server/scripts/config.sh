@@ -1169,6 +1169,8 @@ INSERT_VEHICLES_POSITIONS_BATCH() {
         if [[ "$has_fuel_tank_health" -eq 1 ]]; then
             HealthColumns="$HealthColumns, FuelTankHealth"
         fi
+        # Adicionar IsPartialUpdate (sempre 0 para updates completos)
+        HealthColumns="$HealthColumns, IsPartialUpdate"
         
         for vehicle_data in "${vehicles_array[@]}"; do
             if [[ -z "$vehicle_data" ]]; then
@@ -1176,7 +1178,16 @@ INSERT_VEHICLES_POSITIONS_BATCH() {
             fi
             
             # Separar campos (formato: "vehicle_id|vehicle_name|coord_x|coord_z|coord_y|engine_health|body_health|fuel_tank_health")
-            IFS='|' read -r VehicleId VehicleName CoordX CoordZ CoordY EngineHealth BodyHealth FuelTankHealth <<< "$vehicle_data"
+            # Usar array para garantir leitura correta mesmo com campos vazios
+            IFS='|' read -ra fields <<< "$vehicle_data"
+            VehicleId="${fields[0]}"
+            VehicleName="${fields[1]}"
+            CoordX="${fields[2]}"
+            CoordZ="${fields[3]}"
+            CoordY="${fields[4]}"
+            EngineHealth="${fields[5]}"
+            BodyHealth="${fields[6]}"
+            FuelTankHealth="${fields[7]}"
             
             # Validar campos obrigatórios
             if [[ -z "$VehicleId" ]]; then
@@ -1251,6 +1262,8 @@ INSERT_VEHICLES_POSITIONS_BATCH() {
             if [[ "$has_fuel_tank_health" -eq 1 ]]; then
                 health_values="$health_values, $FuelTankHealthValue"
             fi
+            # Adicionar IsPartialUpdate = 0 (sempre 0 para updates completos)
+            health_values="$health_values, 0"
             
             sql_values+="('$EscapedVehicleId', '$EscapedVehicleName', '$CoordX', '$CoordZ', '$CoordY', $timestamp_value$health_values)"
             
@@ -1431,6 +1444,171 @@ EOF
     done
 
     echo "Failed to insert vehicles positions batch after $max_retries attempts."
+    return 1
+}
+
+UPDATE_VEHICLES_POSITIONS_PARTIAL() {
+    # Primeiro parâmetro é timestamp base
+    # Resto são vehicles_data no formato: "vehicle_id|vehicle_name|coord_x|coord_z|coord_y|||"
+    local base_timestamp="$1"
+    shift
+    local vehicles_data=("$@")
+    
+    if [[ ${#vehicles_data[@]} -eq 0 ]]; then
+        return 0  # Nada para atualizar, retorna sucesso
+    fi
+    
+    # Validar timestamp
+    if [[ -z "$base_timestamp" ]]; then
+        base_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+    fi
+    
+    # Configurar PRAGMAs
+    configure_sqlite_pragmas "$AppFolder/$AppVehicleBecoC1DbFile"
+    
+    local max_retries=5
+    local base_retry_delay=0.5
+    local attempt=1
+    
+    while (( attempt <= max_retries )); do
+        # Construir SQL com múltiplos UPDATEs/INSERTs em transação
+        local sql_statements="BEGIN DEFERRED TRANSACTION;"
+        local update_count=0
+        local insert_count=0
+        
+        for vehicle_entry in "${vehicles_data[@]}"; do
+            if [[ -z "$vehicle_entry" ]]; then
+                continue
+            fi
+            
+            # Separar campos (formato: "vehicle_id|vehicle_name|coord_x|coord_z|coord_y|engine_health|body_health|fuel_tank_health")
+            # Usar array para garantir leitura correta mesmo com campos vazios
+            IFS='|' read -ra fields <<< "$vehicle_entry"
+            VehicleId="${fields[0]}"
+            VehicleName="${fields[1]}"
+            CoordX="${fields[2]}"
+            CoordZ="${fields[3]}"
+            CoordY="${fields[4]}"
+            EngineHealth="${fields[5]}"
+            BodyHealth="${fields[6]}"
+            FuelTankHealth="${fields[7]}"
+            
+            # Validar campos obrigatórios
+            if [[ -z "$VehicleId" ]]; then
+                continue
+            fi
+            
+            # Validar coordenadas
+            if [[ -z "$CoordX" ]] || ! [[ "$CoordX" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                CoordX="0"
+            fi
+            if [[ -z "$CoordZ" ]] || ! [[ "$CoordZ" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                CoordZ="0"
+            fi
+            if [[ -z "$CoordY" ]] || ! [[ "$CoordY" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                CoordY="0"
+            fi
+            
+            # Validar e preparar valores de health
+            local EngineHealthValue BodyHealthValue FuelTankHealthValue
+            local HealthColumns=""
+            local HealthValues=""
+            local HealthUpdateSet=""
+            
+            if [[ -n "$EngineHealth" ]] && [[ "$EngineHealth" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                EngineHealthValue="$EngineHealth"
+                HealthColumns=", EngineHealth"
+                HealthValues=", $EngineHealthValue"
+                HealthUpdateSet=", EngineHealth = $EngineHealthValue"
+            fi
+            
+            if [[ -n "$BodyHealth" ]] && [[ "$BodyHealth" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                BodyHealthValue="$BodyHealth"
+                HealthColumns="$HealthColumns, BodyHealth"
+                HealthValues="$HealthValues, $BodyHealthValue"
+                HealthUpdateSet="$HealthUpdateSet, BodyHealth = $BodyHealthValue"
+            fi
+            
+            if [[ -n "$FuelTankHealth" ]] && [[ "$FuelTankHealth" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                FuelTankHealthValue="$FuelTankHealth"
+                HealthColumns="$HealthColumns, FuelTankHealth"
+                HealthValues="$HealthValues, $FuelTankHealthValue"
+                HealthUpdateSet="$HealthUpdateSet, FuelTankHealth = $FuelTankHealthValue"
+            fi
+            
+            # Escapar aspas simples
+            local EscapedVehicleId
+            EscapedVehicleId=$(echo "$VehicleId" | sed "s/'/''/g")
+            local EscapedVehicleName
+            EscapedVehicleName=$(echo "$VehicleName" | sed "s/'/''/g")
+            
+            # Buscar último VehicleTrackingId para este veículo
+            local last_tracking_id
+            last_tracking_id=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" \
+                "SELECT VehicleTrackingId FROM vehicles_tracking 
+                 WHERE VehicleId = '$EscapedVehicleId' 
+                 ORDER BY TimeStamp DESC LIMIT 1" 2>/dev/null)
+            
+            if [[ -n "$last_tracking_id" ]] && [[ "$last_tracking_id" =~ ^[0-9]+$ ]]; then
+                # UPDATE do último registro (posição, timestamp, health_parts se disponível, marcar como parcial)
+                sql_statements="${sql_statements}
+UPDATE vehicles_tracking 
+SET PositionX = $CoordX, PositionZ = $CoordZ, PositionY = $CoordY, TimeStamp = '$base_timestamp', IsPartialUpdate = 1${HealthUpdateSet}
+WHERE VehicleTrackingId = $last_tracking_id;"
+                ((update_count++))
+            else
+                # Se não existe registro, fazer INSERT básico (com health_parts se disponível, sem items/attachments, marcar como parcial)
+                sql_statements="${sql_statements}
+INSERT INTO vehicles_tracking (VehicleId, VehicleName, PositionX, PositionZ, PositionY, TimeStamp, IsDestroyed, IsPartialUpdate${HealthColumns})
+VALUES ('$EscapedVehicleId', '$EscapedVehicleName', $CoordX, $CoordZ, $CoordY, '$base_timestamp', 0, 1${HealthValues});"
+                ((insert_count++))
+            fi
+        done
+        
+        sql_statements="${sql_statements} COMMIT;"
+        
+        # Executar SQL
+        local sql_error_file
+        sql_error_file=$(mktemp)
+        local sql_result
+        sql_result=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" <<EOF 2>"$sql_error_file"
+$sql_statements
+EOF
+)
+        
+        local sql_exit_code=$?
+        local sql_error
+        sql_error=$(cat "$sql_error_file" 2>/dev/null)
+        rm -f "$sql_error_file"
+        
+        # Verificar se foi bem-sucedido
+        if [[ $sql_exit_code -eq 0 ]] && [[ -z "$sql_error" ]]; then
+            # Sucesso
+            return 0
+        else
+            # Erro, tentar novamente se ainda há tentativas
+            if [[ $attempt -lt $max_retries ]]; then
+                # Verificar se é erro de lock
+                if echo "$sql_error" | grep -q "database is locked"; then
+                    # Backoff exponencial: 0.5s, 1s, 2s, 4s
+                    local retry_multiplier=1
+                    local i
+                    for ((i=1; i<attempt; i++)); do
+                        retry_multiplier=$((retry_multiplier * 2))
+                    done
+                    local retry_delay=$((base_retry_delay * retry_multiplier))
+                    sleep "$retry_delay"
+                else
+                    # Erro diferente de lock, não tentar novamente
+                    echo "UPDATE_VEHICLES_POSITIONS_PARTIAL: Erro SQL: $sql_error" >&2
+                    return 1
+                fi
+            fi
+            attempt=$((attempt + 1))
+        fi
+    done
+    
+    echo "Failed to update vehicles positions partial after $max_retries attempts."
     return 1
 }
 

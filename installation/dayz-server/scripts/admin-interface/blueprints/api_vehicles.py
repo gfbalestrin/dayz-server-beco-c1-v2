@@ -348,8 +348,28 @@ def api_vehicle_history(vehicle_id):
         )
         
         # Para cada registro, buscar items e attachments
+        # Se o registro for parcial (IsPartialUpdate = 1), buscar do último registro completo anterior
         for record in history:
             tracking_id = record['IdVehicleTracking']
+            is_partial = record.get('IsPartialUpdate', 0) == 1
+            
+            # Se for registro parcial, buscar o último registro completo anterior
+            if is_partial:
+                from database import DatabaseConnection
+                import config
+                with DatabaseConnection(config.DB_VEHICLES) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        SELECT IdVehicleTracking
+                        FROM vehicles_tracking
+                        WHERE VehicleId = ? AND IsPartialUpdate = 0 AND TimeStamp <= ?
+                        ORDER BY TimeStamp DESC
+                        LIMIT 1
+                    """, (vehicle_id, record['TimeStamp']))
+                    result = cursor.fetchone()
+                    if result:
+                        tracking_id = result[0]
+            
             record['items'] = get_vehicle_tracking_items(tracking_id)
             record['attachments'] = get_vehicle_tracking_attachments(tracking_id)
         

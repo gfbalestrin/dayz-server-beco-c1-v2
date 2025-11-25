@@ -357,6 +357,8 @@ def api_vehicles_positions():
             'coord_z': veh['PositionZ'],  # Altitude
             'pixel_coords': pixel_coords,
             'last_update': veh['TimeStamp'] or '',
+            'coordinates_last_update': veh.get('coordinates_last_update') or veh['TimeStamp'] or '',
+            'items_attachments_last_update': veh.get('items_attachments_last_update'),
             'is_destroyed': bool(veh.get('IsDestroyed', 0)) if include_destroyed else False,
             'destroyed_at': veh.get('DestroyedAt') if include_destroyed else None,
             'has_moved': bool(veh.get('has_moved', False)),
@@ -424,7 +426,9 @@ def api_vehicles_map_positions():
             'coord_y': veh['PositionY'],  # Sul-Norte (Y do mapa)
             'coord_z': veh['PositionZ'],  # Altitude
             'pixel_coords': pixel_coords,
-            'last_update': veh['TimeStamp'] or ''
+            'last_update': veh['TimeStamp'] or '',
+            'coordinates_last_update': veh.get('coordinates_last_update') or veh['TimeStamp'] or '',
+            'items_attachments_last_update': veh.get('items_attachments_last_update')
         })
     
     return jsonify(result)

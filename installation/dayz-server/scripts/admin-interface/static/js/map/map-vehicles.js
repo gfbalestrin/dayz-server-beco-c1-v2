@@ -180,7 +180,7 @@ function updateVehicles(data) {
             keepInView: true,
             autoPanPaddingTopLeft: [60, 60],
             autoPanPaddingBottomRight: [60, 60],
-            maxWidth: 320,
+            maxWidth: 420,
             maxHeight: 600,
             offset: popupOffset
         });
@@ -768,6 +768,22 @@ function applyVehicleRefreshData(vehicleId, commandData) {
 }
 
 /**
+ * Formatar data para exibição no popup
+ */
+function formatVehicleDate(dateStr) {
+    if (!dateStr) return 'Desconhecido';
+    try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) {
+            return dateStr;
+        }
+        return date.toLocaleString('pt-BR');
+    } catch (e) {
+        return dateStr;
+    }
+}
+
+/**
  * Criar popup de veículo
  */
 function createVehiclePopup(vehicle) {
@@ -775,8 +791,11 @@ function createVehiclePopup(vehicle) {
     const items = vehicle.items || [];
     const isRefreshing = MapState.vehicleRefreshStatus && MapState.vehicleRefreshStatus[vehicle.vehicle_id];
     
+    const itemsUpdateDate = vehicle.items_attachments_last_update ? formatVehicleDate(vehicle.items_attachments_last_update) : null;
+    const itemsUpdateText = itemsUpdateDate ? ` <small class="text-muted">(atualizado: ${itemsUpdateDate})</small>` : '';
+    
     if (items.length > 0) {
-        itemsHtml += '<div class="mt-2"><strong>📦 Itens:</strong><div class="mt-1" style="max-height: 150px; overflow-y: auto; padding-right: 4px;">';
+        itemsHtml += `<div class="mt-2"><strong>📦 Itens:${itemsUpdateText}</strong><div class="mt-1" style="max-height: 150px; overflow-y: auto; padding-right: 4px;">`;
         items.forEach(function(item) {
             const imgTag = item.img ? `<img src="${item.img}" onerror="this.style.display='none'" style="width: 24px; height: 24px; margin-right: 4px; vertical-align: middle;">` : '';
             const healthText = item.health ? ` (HP: ${item.health.toFixed(2)})` : '';
@@ -784,14 +803,16 @@ function createVehiclePopup(vehicle) {
         });
         itemsHtml += '</div></div>';
     } else {
-        itemsHtml = '<div class="text-muted mt-2">Nenhum item no inventário</div>';
+        itemsHtml = `<div class="text-muted mt-2">Nenhum item no inventário${itemsUpdateText}</div>`;
     }
     
     let attachmentsHtml = '';
     const attachments = vehicle.attachments || [];
+    const attachmentsUpdateDate = vehicle.items_attachments_last_update ? formatVehicleDate(vehicle.items_attachments_last_update) : null;
+    const attachmentsUpdateText = attachmentsUpdateDate ? ` <small class="text-muted">(atualizado: ${attachmentsUpdateDate})</small>` : '';
     
     if (attachments.length > 0) {
-        attachmentsHtml += '<div class="mt-2"><strong>🔧 Partes do Veículo:</strong><div class="mt-1" style="max-height: 150px; overflow-y: auto; padding-right: 4px;">';
+        attachmentsHtml += `<div class="mt-2"><strong>🔧 Partes do Veículo:${attachmentsUpdateText}</strong><div class="mt-1" style="max-height: 150px; overflow-y: auto; padding-right: 4px;">`;
         attachments.forEach(function(attachment) {
             const imgTag = attachment.img ? `<img src="${attachment.img}" onerror="this.style.display='none'" style="width: 24px; height: 24px; margin-right: 4px; vertical-align: middle;">` : '';
             const healthText = attachment.health ? ` (HP: ${attachment.health.toFixed(2)})` : '';
@@ -841,13 +862,13 @@ function createVehiclePopup(vehicle) {
                     <span class="info-label">Coords:</span>
                     <span class="info-value">X: ${vehicle.coord_x.toFixed(2)}, Y: ${vehicle.coord_y.toFixed(2)} (altura: ${vehicle.coord_z ? vehicle.coord_z.toFixed(2) : 'N/A'})</span>
                 </div>
+                <div class="info-row">
+                    <span class="info-label">📍 Coordenadas atualizadas:</span>
+                    <span class="info-value">${formatVehicleDate(vehicle.coordinates_last_update || vehicle.TimeStamp || vehicle.last_update)}</span>
+                </div>
                 ${healthPartsHtml}
                 ${itemsHtml}
                 ${attachmentsHtml}
-                <div class="info-row mt-2">
-                    <span class="info-label">Atualizado:</span>
-                    <span class="info-value">${vehicle.last_update || 'Desconhecido'}</span>
-                </div>
                 ${destroyedInfo}
             </div>
             <div style="flex-shrink: 0; border-top: 1px solid #dee2e6; padding-top: 8px; margin-top: 8px; background-color: #fff;">
