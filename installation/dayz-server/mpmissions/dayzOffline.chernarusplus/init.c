@@ -217,7 +217,7 @@ class CustomMission: MissionServer
 			array<string> privMsgs = CheckPrivateMessages();
 			
 			// Detecta e desconecta jogadores ghost automaticamente (aparentemente resolvido e não é necessário mais)
-			//DetectAndDisconnectGhosts();			
+			DetectAndDisconnectGhosts();			
 
 			// Reutilizar o mesmo array
 			foreach (Man man : players)
