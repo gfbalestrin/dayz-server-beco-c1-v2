@@ -21,6 +21,180 @@ api_players_bp = Blueprint('api_players', __name__)
 logger = logging.getLogger(__name__)
 
 
+def steamid_exists_in_ban_file(steam_id):
+    """
+    Verifica se um SteamID já existe no arquivo ban.txt
+    
+    Args:
+        steam_id: SteamID a verificar (string)
+    
+    Returns:
+        bool: True se o SteamID existe, False caso contrário
+    """
+    if not steam_id or not steam_id.strip():
+        return False
+    
+    ban_file_path = config.BAN_FILE_PATH
+    
+    if not os.path.exists(ban_file_path):
+        return False
+    
+    try:
+        with open(ban_file_path, 'r', encoding='utf-8') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_SH)  # Lock compartilhado para leitura
+            try:
+                for line in f:
+                    # Remove espaços e quebras de linha
+                    line = line.strip()
+                    # Ignora comentários e linhas vazias
+                    if not line or line.startswith('//'):
+                        continue
+                    # Compara SteamID (pode ter comentário após o ID)
+                    steam_id_part = line.split('//')[0].strip()
+                    if steam_id_part == steam_id:
+                        return True
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        return False
+    except Exception as e:
+        logger.error(f"Erro ao verificar SteamID no arquivo ban.txt: {str(e)}")
+        return False
+
+
+def add_steamid_to_ban_file(steam_id):
+    """
+    Adiciona um SteamID ao arquivo ban.txt se não existir
+    
+    Args:
+        steam_id: SteamID a adicionar (string)
+    
+    Returns:
+        bool: True se adicionado com sucesso, False caso contrário
+    """
+    if not steam_id or not steam_id.strip():
+        logger.warning("SteamID vazio ou inválido para adicionar ao ban.txt")
+        return False
+    
+    # Verifica se já existe
+    if steamid_exists_in_ban_file(steam_id):
+        logger.info(f"SteamID {steam_id} já existe no arquivo ban.txt")
+        return True
+    
+    ban_file_path = config.BAN_FILE_PATH
+    
+    try:
+        # Cria o arquivo se não existir
+        if not os.path.exists(ban_file_path):
+            os.makedirs(os.path.dirname(ban_file_path), exist_ok=True)
+            # Cria arquivo com cabeçalho padrão
+            with open(ban_file_path, 'w', encoding='utf-8') as f:
+                f.write('//Players added to the ban.txt won\'t be able to connect to this server.\n')
+                f.write('//Bans can be added/removed while the server is running and will come in effect immediately, kicking the player.\n')
+                f.write('//-----------------------------------------------------------------------------------------------------\n')
+                f.write('//To ban a player, add his player ID (44 characters long ID) which can be found in the admin log file (.ADM).\n')
+                f.write('//-----------------------------------------------------------------------------------------------------\n')
+                f.write('//For comments use the // prefix. It can be used after an inserted ID, to easily mark it.\n')
+                f.write('\n')
+        
+        # Adiciona o SteamID ao final do arquivo
+        # Primeiro, verifica se o arquivo termina com quebra de linha
+        with open(ban_file_path, 'rb+') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)  # Lock exclusivo para escrita
+            try:
+                # Move para o final do arquivo
+                f.seek(0, 2)  # 2 = SEEK_END
+                file_size = f.tell()
+                
+                # Se o arquivo não está vazio, verifica se termina com quebra de linha
+                if file_size > 0:
+                    # Lê o último byte
+                    f.seek(-1, 2)  # Move para o último byte
+                    last_byte = f.read(1)
+                    # Se não termina com \n, adiciona antes do novo SteamID
+                    if last_byte != b'\n':
+                        f.write(b'\n')
+                
+                # Adiciona o SteamID em uma nova linha
+                f.write(f'{steam_id}\n'.encode('utf-8'))
+                logger.info(f"SteamID {steam_id} adicionado ao arquivo ban.txt")
+                return True
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                
+    except Exception as e:
+        logger.error(f"Erro ao adicionar SteamID ao arquivo ban.txt: {str(e)}")
+        return False
+
+
+def remove_steamid_from_ban_file(steam_id):
+    """
+    Remove um SteamID do arquivo ban.txt se existir
+    
+    Args:
+        steam_id: SteamID a remover (string)
+    
+    Returns:
+        bool: True se removido com sucesso, False caso contrário
+    """
+    if not steam_id or not steam_id.strip():
+        logger.warning("SteamID vazio ou inválido para remover do ban.txt")
+        return False
+    
+    ban_file_path = config.BAN_FILE_PATH
+    
+    if not os.path.exists(ban_file_path):
+        logger.info(f"Arquivo ban.txt não existe: {ban_file_path}")
+        return False
+    
+    try:
+        # Lê todas as linhas do arquivo
+        with open(ban_file_path, 'r', encoding='utf-8') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)  # Lock exclusivo
+            try:
+                lines = f.readlines()
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        
+        # Filtra as linhas, removendo o SteamID (preserva comentários e formatação)
+        modified = False
+        filtered_lines = []
+        for line in lines:
+            original_line = line
+            line_stripped = line.strip()
+            
+            # Ignora linhas vazias e comentários completos
+            if not line_stripped or line_stripped.startswith('//'):
+                filtered_lines.append(original_line)
+                continue
+            
+            # Verifica se a linha contém o SteamID
+            steam_id_part = line_stripped.split('//')[0].strip()
+            if steam_id_part == steam_id:
+                modified = True
+                logger.info(f"SteamID {steam_id} removido do arquivo ban.txt")
+                continue
+            
+            # Preserva a linha original (mantém formatação e comentários)
+            filtered_lines.append(original_line)
+        
+        # Reescreve o arquivo apenas se houve modificação
+        if modified:
+            with open(ban_file_path, 'w', encoding='utf-8') as f:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.writelines(filtered_lines)
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            return True
+        else:
+            logger.info(f"SteamID {steam_id} não encontrado no arquivo ban.txt")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Erro ao remover SteamID do arquivo ban.txt: {str(e)}")
+        return False
+
+
 def execute_rcon_command(command):
     """
     Executa um comando RCON usando bercon-cli
@@ -77,6 +251,34 @@ def execute_rcon_command(command):
     except Exception as e:
         logger.exception(f"Erro ao executar comando RCON: {str(e)}")
         return None
+
+
+def execute_load_bans():
+    """
+    Executa o comando loadBans via RCON para aplicar bans do arquivo ban.txt
+    
+    Returns:
+        bool: True se executado com sucesso, False caso contrário
+    """
+    if not config.RCON_PASSWORD:
+        logger.error("RCON_PASSWORD não está configurada")
+        return False
+    
+    try:
+        response = execute_rcon_command('loadBans')
+        if response is None:
+            logger.error("Falha ao executar comando loadBans via RCON")
+            return False
+        
+        if isinstance(response, dict) and response.get('msg') == ['OK']:
+            logger.info("Comando loadBans executado com sucesso")
+            return True
+        else:
+            logger.warning(f"Resposta inesperada do RCON ao executar loadBans: {response}")
+            return False
+    except Exception as e:
+        logger.exception(f"Erro ao executar loadBans via RCON: {str(e)}")
+        return False
 
 
 def get_player_rcon_id(player_guid):
@@ -686,21 +888,9 @@ def api_player_ban(player_id):
             'message': 'RconGuid não encontrado para este jogador'
         }), 400
     
-    # Buscar ID do jogador no RCON
-    logger.info(f"Buscando ID RCON para GUID: {rcon_guid}")
-    rcon_id = get_player_rcon_id(rcon_guid)
-    if rcon_id is None:
-        logger.warning(f"Jogador com GUID {rcon_guid} não encontrado online no RCON")
-        return jsonify({
-            'success': False,
-            'message': 'Jogador não está online ou não foi encontrado no RCON'
-        }), 404
-    
-    logger.info(f"Jogador encontrado no RCON com ID: {rcon_id}")
-    
-    # Executar comando ban via RCON: ban <id> <minutes> Mensagem
-    ban_command = f"ban {rcon_id} {minutes} {message}"
-    logger.info(f"Executando comando ban: {ban_command}")
+    # Executar comando addban via RCON: addban <guid> <minutes> <mensagem>
+    ban_command = f"addban {rcon_guid} {minutes} {message}"
+    logger.info(f"Executando comando addban: {ban_command}")
     response = execute_rcon_command(ban_command)
     
     if response is None:
@@ -714,6 +904,24 @@ def api_player_ban(player_id):
     if isinstance(response, dict) and response.get('msg') == ['OK']:
         ban_type = 'permanente' if minutes == 0 else f'{minutes} minuto(s)'
         logger.info(f"Jogador {player_id} banido via RCON por {ban_type} com mensagem: {message[:50]}...")
+        
+        # Se o ban for permanente (minutes == 0 ou -1), adicionar SteamID ao ban.txt e executar loadBans
+        if minutes == 0 or minutes == -1:
+            steam_id = player.get('SteamID')
+            if steam_id:
+                logger.info(f"Ban permanente detectado. Adicionando SteamID {steam_id} ao arquivo ban.txt")
+                if add_steamid_to_ban_file(steam_id):
+                    logger.info(f"SteamID {steam_id} adicionado com sucesso ao arquivo ban.txt")
+                    # Executar loadBans para aplicar o ban do arquivo
+                    if execute_load_bans():
+                        logger.info("Comando loadBans executado com sucesso após adicionar ban permanente")
+                    else:
+                        logger.warning("Falha ao executar loadBans, mas o SteamID foi adicionado ao ban.txt")
+                else:
+                    logger.warning(f"Falha ao adicionar SteamID {steam_id} ao arquivo ban.txt, mas o ban via RCON foi aplicado")
+            else:
+                logger.warning(f"SteamID não encontrado para jogador {player_id}, não é possível adicionar ao ban.txt")
+        
         return jsonify({
             'success': True,
             'message': f'Jogador banido com sucesso! ({ban_type})'
@@ -954,6 +1162,23 @@ def api_player_unban(player_id):
     # Verificar se o comando foi executado com sucesso
     if isinstance(response, dict) and response.get('msg') == ['OK']:
         logger.info(f"Ban {ban_id} removido via RCON para jogador {player_id}")
+        
+        # Remover SteamID do ban.txt se existir e executar loadBans
+        steam_id = player.get('SteamID')
+        if steam_id:
+            logger.info(f"Removendo SteamID {steam_id} do arquivo ban.txt")
+            if remove_steamid_from_ban_file(steam_id):
+                logger.info(f"SteamID {steam_id} removido com sucesso do arquivo ban.txt")
+                # Executar loadBans para atualizar os bans do arquivo
+                if execute_load_bans():
+                    logger.info("Comando loadBans executado com sucesso após remover ban permanente")
+                else:
+                    logger.warning("Falha ao executar loadBans, mas o SteamID foi removido do ban.txt")
+            else:
+                logger.info(f"SteamID {steam_id} não encontrado no arquivo ban.txt ou já foi removido")
+        else:
+            logger.warning(f"SteamID não encontrado para jogador {player_id}, não é possível remover do ban.txt")
+        
         return jsonify({
             'success': True,
             'message': f'Ban removido com sucesso!'

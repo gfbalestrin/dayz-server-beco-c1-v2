@@ -68,6 +68,9 @@ ADMIN_IDS_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.che
 # Arquivo de configuração do deathmatch
 DEATHMATCH_CONFIG_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/deathmatch_config.json'
 
+# Arquivo de ban permanente do servidor DayZ
+BAN_FILE_PATH = '/home/dayzadmin/servers/dayz-server/ban.txt'
+
 # Banco de dados de itens
 DB_ITEMS = os.path.join(BASE_DIR, "..", "databases", "dayz_items.db")
 
