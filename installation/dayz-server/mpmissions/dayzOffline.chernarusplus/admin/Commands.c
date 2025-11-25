@@ -3083,39 +3083,38 @@ void ProcessAttachmentsRecursive(EntityAI parentItem, array<ref ItemAttachmentDa
     }
 }
 
-array<PlayerBase> GetPlayersNearPosition(vector position, float radius)
+void KickPlayersNearVehicle(vector vehiclePos)
 {
-    array<PlayerBase> nearbyPlayers = new array<PlayerBase>();
     array<Man> allPlayers = new array<Man>();
-    
     GetGame().GetPlayers(allPlayers);
+    
+    int kickedCount = 0;
     
     foreach (Man man : allPlayers)
     {
         PlayerBase player = PlayerBase.Cast(man);
-        if (!player)
+        if (!player || !player.GetIdentity())
             continue;
         
         vector playerPos = player.GetPosition();
-        float distance = vector.Distance(playerPos, position);
+        float distance = vector.Distance(playerPos, vehiclePos);
         
-        if (distance <= radius)
+        if (distance <= 100.0) // 100 metros de raio
         {
-            nearbyPlayers.Insert(player);
+            string playerName = player.GetIdentity().GetName();
+            string playerId = player.GetIdentity().GetId();
+            
+            WriteToLog("KickPlayersNearVehicle(): Kickando jogador " + playerName + " (ID: " + playerId + ") - Distância: " + distance.ToString() + "m", LogFile.INIT, false, LogType.INFO);
+            
+            GetGame().DisconnectPlayer(player.GetIdentity(), "Você foi desconectado devido a teleporte/virada de veículo próximo.");
+            kickedCount++;
         }
     }
     
-    return nearbyPlayers;
-}
-
-void ForceVehicleSyncForPlayer(CarScript vehicle)
-{
-    if (!vehicle)
-        return;
-    
-    // Forçar sincronização adicional após delay
-    vehicle.SetSynchDirty();
-    vehicle.Synchronize();
+    if (kickedCount > 0)
+    {
+        WriteToLog("KickPlayersNearVehicle(): Total de " + kickedCount.ToString() + " jogador(es) kickado(s)", LogFile.INIT, false, LogType.INFO);
+    }
 }
 
 void SyncVehicleWithSynchronize(CarScript vehicle, vector pos)
@@ -3126,36 +3125,11 @@ void SyncVehicleWithSynchronize(CarScript vehicle, vector pos)
     // Aplicar posição
     vehicle.SetPosition(pos);
     
-    // Forçar sincronização completa usando múltiplos métodos
+    // Sincronização básica
     vehicle.SetSynchDirty();
     vehicle.Update();
     vehicle.SetAffectPathgraph(true, false);
-    
-    // Chamar Synchronize() explicitamente para forçar sincronização completa
-    // Similar ao comportamento quando jogador está dentro do veículo
     vehicle.Synchronize();
-    
-    // Detectar jogadores próximos e forçar sincronização adicional
-    array<PlayerBase> nearbyPlayers = GetPlayersNearPosition(pos, 50.0); // 50 metros de raio
-    
-    if (nearbyPlayers.Count() > 0)
-    {
-        WriteToLog("SyncVehicleWithSynchronize(): Encontrados " + nearbyPlayers.Count().ToString() + " jogador(es) próximo(s) ao veículo", LogFile.INIT, false, LogType.INFO);
-        
-        foreach (PlayerBase nearbyPlayer : nearbyPlayers)
-        {
-            if (!nearbyPlayer || !nearbyPlayer.GetIdentity())
-                continue;
-            
-            string playerName = nearbyPlayer.GetIdentity().GetName();
-            vector playerPos = nearbyPlayer.GetPosition();
-            float distance = vector.Distance(playerPos, pos);
-            WriteToLog("SyncVehicleWithSynchronize(): Jogador próximo: " + playerName + " (distância: " + distance.ToString() + "m)", LogFile.INIT, false, LogType.INFO);
-            
-            // Forçar sincronização adicional após delay para cada jogador próximo
-            GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(ForceVehicleSyncForPlayer, 100, false, vehicle);
-        }
-    }
 }
 
 bool ExecuteTeleportVehicle(TStringArray tokens)
@@ -3244,8 +3218,11 @@ bool ExecuteTeleportVehicle(TStringArray tokens)
         WriteToLog("ExecuteTeleportVehicle(): Ajustando altura automaticamente para: " + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
     }
     
-    // Teleportar veículo com Synchronize() explícito para forçar refresh no cliente
+    // Teleportar veículo
     SyncVehicleWithSynchronize(targetVehicle, newPos);
+    
+    // Kickar jogadores próximos (100m) para forçar reconexão e visualização correta
+    KickPlayersNearVehicle(newPos);
     
     string vehicleName = targetVehicle.GetDisplayName();
     WriteToLog("ExecuteTeleportVehicle(): Veículo " + vehicleName + " (" + vehicleId + ") teleportado para X=" + newPos[0].ToString() + " Y=" + newPos[2].ToString() + " Z=" + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
@@ -3336,8 +3313,11 @@ bool ExecuteFlipVehicle(TStringArray tokens)
     float groundY = GetGame().SurfaceY(currentPos[0], currentPos[2]);
     currentPos[1] = groundY;
     
-    // Aplicar posição com Synchronize() explícito para forçar refresh no cliente
+    // Aplicar posição
     SyncVehicleWithSynchronize(targetVehicle, currentPos);
+    
+    // Kickar jogadores próximos (100m) para forçar reconexão e visualização correta
+    KickPlayersNearVehicle(currentPos);
     
     string vehicleName = targetVehicle.GetDisplayName();
     WriteToLog("ExecuteFlipVehicle(): Veículo " + vehicleName + " (" + vehicleId + ") virado. Orientação anterior: Yaw=" + currentYaw.ToString() + " Pitch=" + currentPitch.ToString() + " Roll=" + currentRoll.ToString(), LogFile.INIT, false, LogType.INFO);
@@ -3706,4 +3686,5 @@ bool ExecuteDeleteEntity(TStringArray tokens)
     
     return true;
 }
+
 
