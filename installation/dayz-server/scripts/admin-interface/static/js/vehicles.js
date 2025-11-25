@@ -492,6 +492,9 @@ $(document).ready(function() {
                                     <h6 class="mb-0">
                                         <i class="fas fa-clock me-2"></i>
                                         ${formatDateTime(record.TimeStamp)}
+                                        ${record.IsPartialUpdate == 1 ? 
+                                            '<span class="badge bg-info ms-2" title="Update parcial (apenas posição e health_parts)">Parcial</span>' : 
+                                            ''}
                                     </h6>
                                     ${record.IsDestroyed == 1 ? 
                                         '<span class="badge bg-danger">Destruído</span>' : 
@@ -531,6 +534,10 @@ $(document).ready(function() {
         const posThreshold = 0.1;
         const healthThreshold = 0.05; // 5% em formato decimal (valores vêm como 0.0 a 1.0)
         
+        // Verificar se algum registro é parcial
+        const prevIsPartial = (prev.IsPartialUpdate || 0) === 1;
+        const currIsPartial = (curr.IsPartialUpdate || 0) === 1;
+        
         // Verificar mudança de status (destruído/ativo)
         const statusChanged = (prev.IsDestroyed || 0) !== (curr.IsDestroyed || 0);
         
@@ -553,11 +560,17 @@ $(document).ready(function() {
                              (prev.FuelTankHealth === null && curr.FuelTankHealth !== null) ||
                              (prev.FuelTankHealth !== null && curr.FuelTankHealth === null);
         
-        // Verificar mudança em items (quantidade ou conteúdo)
-        const itemsChanged = itemsListChanged(prev.items || [], curr.items || []);
+        // Verificar mudança em items (apenas se ambos forem completos)
+        let itemsChanged = false;
+        if (!prevIsPartial && !currIsPartial) {
+            itemsChanged = itemsListChanged(prev.items || [], curr.items || []);
+        }
         
-        // Verificar mudança em attachments (quantidade ou conteúdo)
-        const attachmentsChanged = attachmentsListChanged(prev.attachments || [], curr.attachments || []);
+        // Verificar mudança em attachments (apenas se ambos forem completos)
+        let attachmentsChanged = false;
+        if (!prevIsPartial && !currIsPartial) {
+            attachmentsChanged = attachmentsListChanged(prev.attachments || [], curr.attachments || []);
+        }
         
         return statusChanged || posChanged || healthChanged || itemsChanged || attachmentsChanged;
     }
@@ -931,17 +944,31 @@ $(document).ready(function() {
             return renderItemsAndAttachments(prev);
         }
         
+        // Verificar se algum registro é parcial
+        const prevIsPartial = (prev.IsPartialUpdate || 0) === 1;
+        const currIsPartial = (curr.IsPartialUpdate || 0) === 1;
+        
         let html = '';
         
-        // Comparar items
-        // prev = registro atual sendo renderizado (mais recente)
-        // curr = próximo registro (mais antigo, para comparação)
-        // Invertemos a ordem para comparar do mais antigo (curr) para o mais recente (prev)
-        // Isso mostra o que mudou DO curr (antigo) PARA o prev (recente)
-        const itemsDiff = getItemsDiff(curr.items || [], prev.items || []);
+        // Se o registro atual é parcial, mostrar aviso
+        if (prevIsPartial) {
+            html += '<div class="alert alert-info mb-2">' +
+                '<i class="fas fa-info-circle me-2"></i>' +
+                '<small>Update parcial: items/attachments preservados do último registro completo</small>' +
+                '</div>';
+        }
         
-        // Mostrar items do registro atual (prev = mais recente), não do curr
-        if (itemsDiff.added.length > 0 || itemsDiff.removed.length > 0 || (prev.items && prev.items.length > 0)) {
+        // Comparar items apenas se ambos forem completos
+        if (!prevIsPartial && !currIsPartial) {
+            // Comparar items
+            // prev = registro atual sendo renderizado (mais recente)
+            // curr = próximo registro (mais antigo, para comparação)
+            // Invertemos a ordem para comparar do mais antigo (curr) para o mais recente (prev)
+            // Isso mostra o que mudou DO curr (antigo) PARA o prev (recente)
+            const itemsDiff = getItemsDiff(curr.items || [], prev.items || []);
+            
+            // Mostrar items do registro atual (prev = mais recente), não do curr
+            if (itemsDiff.added.length > 0 || itemsDiff.removed.length > 0 || (prev.items && prev.items.length > 0)) {
             html += '<div class="mb-2">';
             html += '<strong>Items (' + (prev.items ? prev.items.length : 0) + '):</strong><br>';
             html += '<div class="ms-2">';
@@ -989,17 +1016,17 @@ $(document).ready(function() {
             });
             
             html += '</div></div>';
-        }
-        
-        // Comparar attachments
-        // prev = registro atual sendo renderizado (mais recente)
-        // curr = próximo registro (mais antigo, para comparação)
-        // Invertemos a ordem para comparar do mais antigo (curr) para o mais recente (prev)
-        // Isso mostra o que mudou DO curr (antigo) PARA o prev (recente)
-        const attachmentsDiff = getAttachmentsDiff(curr.attachments || [], prev.attachments || []);
-        
-        // Mostrar attachments do registro atual (prev = mais recente), não do curr
-        if (attachmentsDiff.added.length > 0 || attachmentsDiff.removed.length > 0 || (prev.attachments && prev.attachments.length > 0)) {
+            }
+            
+            // Comparar attachments apenas se ambos forem completos
+            // prev = registro atual sendo renderizado (mais recente)
+            // curr = próximo registro (mais antigo, para comparação)
+            // Invertemos a ordem para comparar do mais antigo (curr) para o mais recente (prev)
+            // Isso mostra o que mudou DO curr (antigo) PARA o prev (recente)
+            const attachmentsDiff = getAttachmentsDiff(curr.attachments || [], prev.attachments || []);
+            
+            // Mostrar attachments do registro atual (prev = mais recente), não do curr
+            if (attachmentsDiff.added.length > 0 || attachmentsDiff.removed.length > 0 || (prev.attachments && prev.attachments.length > 0)) {
             html += '<div>';
             html += '<strong>Attachments (' + (prev.attachments ? prev.attachments.length : 0) + '):</strong><br>';
             html += '<div class="ms-2">';
@@ -1047,6 +1074,42 @@ $(document).ready(function() {
             });
             
             html += '</div></div>';
+            }
+        } else if (!prevIsPartial) {
+            // Se apenas prev é completo, mostrar items/attachments de prev sem comparação
+            if (prev.items && prev.items.length > 0) {
+                html += '<div class="mb-2">';
+                html += '<strong>Items (' + prev.items.length + '):</strong><br>';
+                html += '<div class="ms-2">';
+                const sortedItems = prev.items.slice().sort(function(a, b) {
+                    const typeA = (a.ItemType || '').toLowerCase();
+                    const typeB = (b.ItemType || '').toLowerCase();
+                    return typeA.localeCompare(typeB);
+                });
+                sortedItems.forEach(function(item) {
+                    const health = item.ItemHealth !== null ? 
+                        ' (' + parseFloat(item.ItemHealth || 0).toFixed(0) + '%)' : '';
+                    html += '<small>• ' + escapeHtml(item.ItemType) + health + '</small><br>';
+                });
+                html += '</div></div>';
+            }
+            
+            if (prev.attachments && prev.attachments.length > 0) {
+                html += '<div>';
+                html += '<strong>Attachments (' + prev.attachments.length + '):</strong><br>';
+                html += '<div class="ms-2">';
+                const sortedAttachments = prev.attachments.slice().sort(function(a, b) {
+                    const typeA = (a.AttachmentType || '').toLowerCase();
+                    const typeB = (b.AttachmentType || '').toLowerCase();
+                    return typeA.localeCompare(typeB);
+                });
+                sortedAttachments.forEach(function(attachment) {
+                    const health = attachment.AttachmentHealth !== null ? 
+                        ' (' + parseFloat(attachment.AttachmentHealth || 0).toFixed(0) + '%)' : '';
+                    html += '<small>• ' + escapeHtml(attachment.AttachmentType) + health + '</small><br>';
+                });
+                html += '</div></div>';
+            }
         }
         
         if (!html) {
