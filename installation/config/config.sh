@@ -281,3 +281,6 @@ export AppUrlAppLoadout
 
 AppGeoLiteDbFile=$(jq -r '.App.GeoLiteDbFile // empty' "$CONFIG_FILE")
 export AppGeoLiteDbFile
+
+AppRconBinFile=$(jq -r '.App.RconBinFile // empty' "$CONFIG_FILE")
+export AppRconBinFile

@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS players_database (
     PlayerID TEXT PRIMARY KEY NOT NULL,
     PlayerName TEXT,
     SteamID TEXT,
-    SteamName TEXT
+    SteamName TEXT,
+    RconGuid TEXT
 );
 
 -- Tabela players_killfeed
@@ -37,6 +38,12 @@ CREATE INDEX IF NOT EXISTS idx_killfeed_killed ON players_killfeed(PlayerIDKille
 CREATE TABLE IF NOT EXISTS players_online (
     PlayerID TEXT PRIMARY KEY,
     DataConnect DATETIME NOT NULL,
+    Country TEXT,
+    City TEXT,
+    Lat REAL,
+    Lon REAL,
+    Port INTEGER,
+    Ping INTEGER,
     FOREIGN KEY (PlayerID) REFERENCES players_database(PlayerID) ON DELETE CASCADE
 );
 

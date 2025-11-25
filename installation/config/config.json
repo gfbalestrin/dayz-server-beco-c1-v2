@@ -52,6 +52,7 @@
         "ScriptPlayerLoadoutManagerFile": "player_loadout_manager.sh",     
         "UrlAppLoadout": "http://beco.servegame.com:54321",
         "GeoLiteDbFile": "databases/GeoLite2-City.mmdb",
+        "RconBinFile": "bercon-cli",
         "SteamIdSpoof": [
             { "From": "11111111111111111", "To": "22222222222222222" }
         ]        

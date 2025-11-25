@@ -47,6 +47,7 @@ export AppScriptGetPlayerDamageFile=$(jq -r '.App.ScriptGetPlayerDamageFile' "$C
 export AppScriptPlayerLoadoutManagerFile=$(jq -r '.App.ScriptPlayerLoadoutManagerFile' "$CONFIG_FILE")
 export AppUrlAppLoadout=$(jq -r '.App.UrlAppLoadout' "$CONFIG_FILE")
 export AppGeoLiteDbFile=$(jq -r '.App.GeoLiteDbFile' "$CONFIG_FILE")
+export AppRconBinFile=$(jq -r '.App.RconBinFile' "$CONFIG_FILE")
 
 # Print all variables
 # echo "DayzServerFolder: $DayzServerFolder"
