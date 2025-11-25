@@ -1163,6 +1163,8 @@ void ProcessPlayerReady(PlayerIdentity identity, Man player)
                 WriteToLog("  -> Enviando ação externa: player_connected (primeira conexão)", LogFile.INIT, false, LogType.INFO);
                 AppendExternalAction("{\"action\":\"player_connected\",\"player_id\":\"" + identity.GetId() + "\"}");
                 addedPlayer.MarkConnectedEventSent();
+
+                DetectAndDisconnectGhosts();
             }
             else
             {
