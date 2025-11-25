@@ -325,6 +325,67 @@ void SendVehiclesPositions()
     WriteToLog("SendVehiclesPositions(): Posições de " + m_TrackedVehicles.Count().ToString() + " veículos enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
 }
 
+void SendVehiclesPositionsSimple()
+{
+    if (!m_TrackedVehicles || m_TrackedVehicles.Count() == 0)
+        return;
+
+    string vehiclesJson = "";
+
+    foreach (CarScript vehicle : m_TrackedVehicles)
+    {
+        if (!vehicle)
+            continue;
+
+        vector position = vehicle.GetPosition();
+        string vehicleName = vehicle.GetDisplayName();
+
+        int pidLow1 = 0;
+        int pidLow2 = 0;
+        int pidHigh1 = 0;
+        int pidHigh2 = 0;
+        vehicle.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+
+        bool hasPersistent = false;
+        if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+        {
+            hasPersistent = true;
+        }
+
+        string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+        string vehicleIdentifier = persistentKey;
+        if (!hasPersistent)
+        {
+            vehicleIdentifier = "pending-" + vehicle.GetID().ToString();
+        }
+
+        // Sanitiza o nome do veículo
+        string safeName = vehicleName;
+        TStringArray unsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
+        foreach (string unsafeChar : unsafeChars)
+        {
+            safeName.Replace(unsafeChar, "-");
+        }
+
+        string posXStr = position[0].ToString();
+        string posZStr = position[1].ToString();
+        string posYStr = position[2].ToString();
+        
+        // JSON simplificado com flag de update parcial
+        string vehicleJson = "{\"vehicle_id\":\"" + vehicleIdentifier + "\",\"vehicle_name\":\"" + safeName + "\",\"x\":" + posXStr + ",\"z\":" + posZStr + ",\"y\":" + posYStr + ",\"update_type\":\"position_only\"}";
+        
+        if (vehiclesJson != "")
+            vehiclesJson += ",";
+        
+        vehiclesJson += vehicleJson;
+    }
+
+    string jsonAction = "{\"action\":\"vehicles_positions\",\"vehicles\":[" + vehiclesJson + "],\"update_type\":\"position_only\"}";
+    AppendExternalAction(jsonAction, false);
+    
+    WriteToLog("SendVehiclesPositionsSimple(): Posições simplificadas de " + m_TrackedVehicles.Count().ToString() + " veículos enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
+}
+
 void LogVehiclesPositionsSimple()
 {
     if (!GetGame() || !GetGame().IsServer())
