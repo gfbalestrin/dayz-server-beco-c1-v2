@@ -857,6 +857,115 @@ def api_player_bans(player_id):
     })
 
 
+@api_players_bp.route('/api/players/<player_id>/unban', methods=['POST'])
+@admin_required
+@audit_action('PLAYER_UNBAN')
+def api_player_unban(player_id):
+    """Desbanir jogador via RCON"""
+    # Verificar se RCON está configurado
+    if not config.RCON_PASSWORD:
+        logger.error("RCON_PASSWORD não está configurada")
+        return jsonify({
+            'success': False,
+            'message': 'Configuração RCON não encontrada. Verifique o config.json'
+        }), 500
+    
+    data = request.get_json()
+    ban_id = data.get('ban_id')
+    
+    # Validar ban_id
+    if ban_id is None:
+        return jsonify({
+            'success': False,
+            'message': 'ban_id é obrigatório'
+        }), 400
+    
+    try:
+        ban_id = int(ban_id)
+    except (ValueError, TypeError):
+        return jsonify({
+            'success': False,
+            'message': 'ban_id deve ser um número válido'
+        }), 400
+    
+    # Buscar dados do jogador no banco
+    player = get_player_by_id(player_id)
+    if not player:
+        return jsonify({
+            'success': False,
+            'message': 'Jogador não encontrado no banco de dados'
+        }), 404
+    
+    # Verificar se tem RconGuid
+    rcon_guid = player.get('RconGuid')
+    if not rcon_guid:
+        logger.warning(f"RconGuid não encontrado para jogador {player_id}")
+        return jsonify({
+            'success': False,
+            'message': 'RconGuid não encontrado para este jogador'
+        }), 400
+    
+    # Validar se o ban pertence ao jogador
+    # Buscar lista de bans para verificar
+    logger.info(f"Validando ban {ban_id} para GUID: {rcon_guid}")
+    response = execute_rcon_command('bans')
+    
+    if response is None:
+        logger.error(f"Falha ao consultar bans via RCON para validação")
+        return jsonify({
+            'success': False,
+            'message': 'Erro ao validar ban via RCON. Verifique os logs do servidor.'
+        }), 500
+    
+    # Verificar se o ban existe e pertence ao jogador
+    rcon_guid_lower = rcon_guid.lower()
+    ban_found = False
+    
+    if isinstance(response, dict):
+        guid_bans = response.get('guid_bans', [])
+        if isinstance(guid_bans, list):
+            for ban in guid_bans:
+                if isinstance(ban, dict):
+                    ban_guid = ban.get('guid', '').lower()
+                    ban_ban_id = ban.get('id')
+                    if ban_guid == rcon_guid_lower and ban_ban_id == ban_id:
+                        ban_found = True
+                        break
+    
+    if not ban_found:
+        logger.warning(f"Ban {ban_id} não encontrado ou não pertence ao jogador {player_id}")
+        return jsonify({
+            'success': False,
+            'message': 'Ban não encontrado ou não pertence a este jogador'
+        }), 404
+    
+    # Executar comando removeban via RCON: removeban <ban_id>
+    unban_command = f"removeban {ban_id}"
+    logger.info(f"Executando comando removeban: {unban_command}")
+    response = execute_rcon_command(unban_command)
+    
+    if response is None:
+        logger.error(f"Falha ao executar comando removeban via RCON para ban {ban_id}")
+        return jsonify({
+            'success': False,
+            'message': 'Erro ao executar comando removeban via RCON. Verifique os logs do servidor.'
+        }), 500
+    
+    # Verificar se o comando foi executado com sucesso
+    if isinstance(response, dict) and response.get('msg') == ['OK']:
+        logger.info(f"Ban {ban_id} removido via RCON para jogador {player_id}")
+        return jsonify({
+            'success': True,
+            'message': f'Ban removido com sucesso!'
+        })
+    else:
+        logger.warning(f"Resposta inesperada do RCON: {response}")
+        return jsonify({
+            'success': False,
+            'message': 'Resposta inesperada do servidor RCON'
+        }), 500
+
+
 @api_players_bp.route('/api/players/<player_id>/action', methods=['POST'])
 @admin_required
 @audit_action('PLAYER_ACTION')

@@ -887,6 +887,9 @@ function executeBanAction(playerId, minutes, message) {
 
 // Função para mostrar modal de histórico de bans
 function showPlayerBansModal(playerId, playerName) {
+    // Armazenar playerId para usar na renderização
+    currentBansPlayerId = playerId;
+    
     const player = playersData.find(p => p.PlayerID === playerId);
     const displayName = player ? (player.PlayerName || 'Jogador desconhecido') : playerName;
     
@@ -919,6 +922,9 @@ function showPlayerBansModal(playerId, playerName) {
     });
 }
 
+// Variável para armazenar playerId atual no modal de bans
+let currentBansPlayerId = null;
+
 // Função para renderizar histórico de bans
 function renderBansHistory(bans) {
     const guidBans = bans.guid_bans || [];
@@ -933,16 +939,23 @@ function renderBansHistory(bans) {
             html += '<h6 class="mb-3">Bans por GUID:</h6>';
             html += '<div class="table-responsive mb-4">';
             html += '<table class="table table-sm table-striped">';
-            html += '<thead><tr><th>ID</th><th>Razão</th><th>Minutos</th><th>Válido</th></tr></thead>';
+            html += '<thead><tr><th>ID</th><th>Razão</th><th>Minutos</th><th>Válido</th><th>Ação</th></tr></thead>';
             html += '<tbody>';
             guidBans.forEach(ban => {
-                const minutes = ban.minutes === 0 ? 'Permanente' : `${ban.minutes} min`;
+                const minutes = ban.minutes === 0 || ban.minutes === -1 ? 'Permanente' : `${ban.minutes} min`;
                 const validBadge = ban.valid ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Expirado</span>';
+                const banId = ban.id !== undefined ? ban.id : null;
+                const actionButton = ban.valid && banId !== null ? 
+                    `<button class="btn btn-sm btn-danger" onclick="executeUnbanAction('${currentBansPlayerId}', ${banId})" title="Desbanir">
+                        <i class="fas fa-unlock me-1"></i>Desbanir
+                    </button>` : 
+                    '<span class="text-muted">-</span>';
                 html += `<tr>
-                    <td>${escapeHtml(ban.id)}</td>
+                    <td>${escapeHtml(banId !== null ? banId : '-')}</td>
                     <td>${escapeHtml(ban.reason || '-')}</td>
                     <td>${minutes}</td>
                     <td>${validBadge}</td>
+                    <td>${actionButton}</td>
                 </tr>`;
             });
             html += '</tbody></table></div>';
@@ -955,7 +968,7 @@ function renderBansHistory(bans) {
             html += '<thead><tr><th>IP</th><th>Razão</th><th>Minutos</th><th>Válido</th></tr></thead>';
             html += '<tbody>';
             ipBans.forEach(ban => {
-                const minutes = ban.minutes === 0 ? 'Permanente' : `${ban.minutes} min`;
+                const minutes = ban.minutes === 0 || ban.minutes === -1 ? 'Permanente' : `${ban.minutes} min`;
                 const validBadge = ban.valid ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Expirado</span>';
                 html += `<tr>
                     <td>${escapeHtml(ban.ip || '-')}</td>
@@ -969,6 +982,47 @@ function renderBansHistory(bans) {
     }
     
     $('#bansContent').html(html);
+}
+
+// Função para executar desban via RCON
+function executeUnbanAction(playerId, banId) {
+    if (!confirm('Tem certeza que deseja remover este ban?')) {
+        return;
+    }
+    
+    $.ajax({
+        url: `/api/players/${encodeURIComponent(playerId)}/unban`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            ban_id: banId
+        }),
+        success: function(response) {
+            if (response.success) {
+                showToast('Sucesso', response.message, 'success');
+                // Recarregar histórico de bans
+                setTimeout(function() {
+                    if (currentBansPlayerId) {
+                        $.ajax({
+                            url: `/api/players/${encodeURIComponent(currentBansPlayerId)}/bans`,
+                            method: 'GET',
+                            success: function(response) {
+                                if (response.success) {
+                                    renderBansHistory(response.bans);
+                                }
+                            }
+                        });
+                    }
+                }, 500);
+            } else {
+                showToast('Erro', response.message || 'Erro ao desbanir jogador', 'error');
+            }
+        },
+        error: function(xhr) {
+            const errorMessage = xhr.responseJSON?.message || 'Erro ao desbanir jogador';
+            showToast('Erro', errorMessage, 'error');
+        }
+    });
 }
 
 // Função para renderizar status
@@ -1258,6 +1312,7 @@ $(document).ready(function() {
     window.showPlayerControlPanel = showPlayerControlPanel;
     window.showBanPlayerModal = showBanPlayerModal;
     window.showPlayerBansModal = showPlayerBansModal;
+    window.executeUnbanAction = executeUnbanAction;
     
     // Limpar intervalos ao sair da página
     $(window).on('beforeunload', function() {
