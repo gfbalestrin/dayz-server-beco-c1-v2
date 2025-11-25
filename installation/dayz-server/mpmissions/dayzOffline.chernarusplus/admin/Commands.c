@@ -3377,6 +3377,14 @@ bool ExecuteDeleteEntity(TStringArray tokens)
     string entityType = "";
     string entityCategory = "";
     
+    // Variáveis compartilhadas para todos os blocos de busca
+    int pidLow1 = 0;
+    int pidLow2 = 0;
+    int pidHigh1 = 0;
+    int pidHigh2 = 0;
+    bool hasPersistent = false;
+    string persistentKey = "";
+    
     // Buscar em containers primeiro
     if (m_TrackedContainers && m_TrackedContainers.Count() > 0)
     {
@@ -3385,19 +3393,19 @@ bool ExecuteDeleteEntity(TStringArray tokens)
             if (!container)
                 continue;
             
-            int pidLow1 = 0;
-            int pidLow2 = 0;
-            int pidHigh1 = 0;
-            int pidHigh2 = 0;
+            pidLow1 = 0;
+            pidLow2 = 0;
+            pidHigh1 = 0;
+            pidHigh2 = 0;
             container.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
             
-            bool hasPersistent = false;
+            hasPersistent = false;
             if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
             {
                 hasPersistent = true;
             }
             
-            string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+            persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
             string containerIdentifier = persistentKey;
             if (!hasPersistent)
             {
@@ -3422,19 +3430,19 @@ bool ExecuteDeleteEntity(TStringArray tokens)
             if (!vehicle)
                 continue;
             
-            int pidLow1 = 0;
-            int pidLow2 = 0;
-            int pidHigh1 = 0;
-            int pidHigh2 = 0;
+            pidLow1 = 0;
+            pidLow2 = 0;
+            pidHigh1 = 0;
+            pidHigh2 = 0;
             vehicle.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
             
-            bool hasPersistent = false;
+            hasPersistent = false;
             if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
             {
                 hasPersistent = true;
             }
             
-            string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+            persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
             string vehicleIdentifier = persistentKey;
             if (!hasPersistent)
             {
@@ -3459,19 +3467,19 @@ bool ExecuteDeleteEntity(TStringArray tokens)
             if (!fence)
                 continue;
             
-            int pidLow1 = 0;
-            int pidLow2 = 0;
-            int pidHigh1 = 0;
-            int pidHigh2 = 0;
+            pidLow1 = 0;
+            pidLow2 = 0;
+            pidHigh1 = 0;
+            pidHigh2 = 0;
             fence.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
             
-            bool hasPersistent = false;
+            hasPersistent = false;
             if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
             {
                 hasPersistent = true;
             }
             
-            string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+            persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
             string fenceIdentifier = persistentKey;
             if (!hasPersistent)
             {
@@ -3496,19 +3504,19 @@ bool ExecuteDeleteEntity(TStringArray tokens)
             if (!watchtower)
                 continue;
             
-            int pidLow1 = 0;
-            int pidLow2 = 0;
-            int pidHigh1 = 0;
-            int pidHigh2 = 0;
+            pidLow1 = 0;
+            pidLow2 = 0;
+            pidHigh1 = 0;
+            pidHigh2 = 0;
             watchtower.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
             
-            bool hasPersistent = false;
+            hasPersistent = false;
             if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
             {
                 hasPersistent = true;
             }
             
-            string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+            persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
             string watchtowerIdentifier = persistentKey;
             if (!hasPersistent)
             {
@@ -3534,11 +3542,11 @@ bool ExecuteDeleteEntity(TStringArray tokens)
                 continue;
             
             EntityAI flagEntity = EntityAI.Cast(flag);
-            int pidLow1 = 0;
-            int pidLow2 = 0;
-            int pidHigh1 = 0;
-            int pidHigh2 = 0;
-            bool hasPersistent = false;
+            pidLow1 = 0;
+            pidLow2 = 0;
+            pidHigh1 = 0;
+            pidHigh2 = 0;
+            hasPersistent = false;
             
             if (flagEntity)
             {
@@ -3546,7 +3554,7 @@ bool ExecuteDeleteEntity(TStringArray tokens)
                 hasPersistent = (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0);
             }
             
-            string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+            persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
             string flagIdentifier = persistentKey;
             if (!hasPersistent)
             {
