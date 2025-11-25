@@ -517,6 +517,9 @@ function createContainerPopup(container) {
                     <button type="button" class="btn btn-sm btn-warning" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="showContainerTeleportModal('${container.container_id}')">
                         <i class="fas fa-map-marker-alt me-1"></i>Teleportar
                     </button>
+                    <button type="button" class="btn btn-sm btn-danger" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="deleteContainer('${container.container_id}')">
+                        <i class="fas fa-trash me-1"></i>Deletar
+                    </button>
                 </div>
             </div>
         </div>
@@ -762,6 +765,71 @@ function showContainerTeleportModal(containerId) {
     
     // Mostrar modal
     $('#vehicleTeleportModal').modal('show');
+}
+
+/**
+ * Deletar container
+ */
+function deleteContainer(containerId) {
+    if (!containerId) {
+        return;
+    }
+    
+    const container = MapState.containersData[containerId];
+    if (!container) {
+        showToast('Erro', 'Container não encontrado no mapa.', 'error');
+        return;
+    }
+    
+    const containerType = container.container_type || containerId;
+    
+    // Confirmar antes de deletar
+    if (!confirm(`Tem certeza que deseja deletar o container "${containerType}"?\n\nEsta ação não pode ser desfeita.`)) {
+        return;
+    }
+    
+    $.ajax({
+        url: `/api/containers/${containerId}/delete`,
+        method: 'POST',
+        contentType: 'application/json',
+        success: function(response) {
+            showToast('Sucesso', response.message || `Comando de deletar container ${containerType} enviado com sucesso!`, 'success');
+            
+            // Remover marcador do mapa
+            if (MapState.containerMarkers[containerId]) {
+                MapState.map.removeLayer(MapState.containerMarkers[containerId]);
+                delete MapState.containerMarkers[containerId];
+            }
+            
+            // Remover dos dados
+            if (MapState.containersData[containerId]) {
+                delete MapState.containersData[containerId];
+            }
+            
+            // Remover trail se existir
+            if (MapState.containerTrails[containerId]) {
+                const trail = MapState.containerTrails[containerId];
+                if (Array.isArray(trail)) {
+                    trail.forEach(item => MapState.map.removeLayer(item));
+                } else {
+                    MapState.map.removeLayer(trail);
+                }
+                delete MapState.containerTrails[containerId];
+            }
+            
+            // Recarregar containers após um delay para refletir mudanças
+            setTimeout(function() {
+                if (MapState.showContainers) {
+                    loadContainers();
+                }
+            }, 2000);
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            const errorMsg = error.message || error.error || 'Erro ao enviar comando de deletar container';
+            showToast('Erro', errorMsg, 'error');
+        }
+    });
 }
 
 /**

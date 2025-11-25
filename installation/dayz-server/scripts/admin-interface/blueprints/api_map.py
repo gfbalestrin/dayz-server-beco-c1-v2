@@ -989,6 +989,59 @@ def api_teleport_container(container_id):
             'message': f'Erro inesperado: {str(e)}'
         }), 500
 
+@api_map_bp.route('/api/containers/<container_id>/delete', methods=['POST'])
+@admin_required
+@audit_action('DELETE_CONTAINER')
+def api_delete_container(container_id):
+    """API para deletar container usando sistema de comandos DayZ"""
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.debug(f"Delete container request: container_id={container_id}")
+        
+        commands_file = config.COMMANDS_FILE
+        
+        if not os.path.exists(commands_file):
+            logger.error(f"Arquivo de comandos não encontrado: {commands_file}")
+            return jsonify({
+                'success': False,
+                'message': 'Arquivo de comandos não encontrado'
+            }), 500
+        
+        command_line = f"SYSTEM deleteentity {container_id}\n"
+        
+        logger.info(f"Adicionando comando de deletar container: {command_line.strip()}")
+        
+        try:
+            with open(commands_file, 'a') as f:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.write(command_line)
+                    f.flush()
+                    os.fsync(f.fileno())
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            
+            logger.info("Comando de deletar container adicionado com sucesso")
+            return jsonify({
+                'success': True,
+                'message': 'Comando de deletar container enviado! O container será deletado em instantes.'
+            })
+            
+        except IOError as e:
+            logger.error(f"Erro ao escrever comando de deletar container: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'Erro ao adicionar comando: {str(e)}'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Erro inesperado ao deletar container: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'Erro inesperado: {str(e)}'
+        }), 500
+
 @api_map_bp.route('/api/containers/<container_id>/refresh', methods=['POST'])
 @admin_required
 @audit_action('CHECK_CONTAINER')
