@@ -3172,6 +3172,8 @@ bool ExecuteTeleportVehicle(TStringArray tokens)
     // Teleportar veículo
     targetVehicle.SetPosition(newPos);
     targetVehicle.SetSynchDirty();
+    targetVehicle.Update();
+    targetVehicle.SetAffectPathgraph(true, false);
     
     string vehicleName = targetVehicle.GetDisplayName();
     WriteToLog("ExecuteTeleportVehicle(): Veículo " + vehicleName + " (" + vehicleId + ") teleportado para X=" + newPos[0].ToString() + " Y=" + newPos[2].ToString() + " Z=" + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
@@ -3263,6 +3265,8 @@ bool ExecuteFlipVehicle(TStringArray tokens)
     currentPos[1] = groundY;
     targetVehicle.SetPosition(currentPos);
     targetVehicle.SetSynchDirty();
+    targetVehicle.Update();
+    targetVehicle.SetAffectPathgraph(true, false);
     
     string vehicleName = targetVehicle.GetDisplayName();
     WriteToLog("ExecuteFlipVehicle(): Veículo " + vehicleName + " (" + vehicleId + ") virado. Orientação anterior: Yaw=" + currentYaw.ToString() + " Pitch=" + currentPitch.ToString() + " Roll=" + currentRoll.ToString(), LogFile.INIT, false, LogType.INFO);
