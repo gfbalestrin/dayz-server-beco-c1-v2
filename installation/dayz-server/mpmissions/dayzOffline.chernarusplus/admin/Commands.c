@@ -3083,31 +3083,31 @@ void ProcessAttachmentsRecursive(EntityAI parentItem, array<ref ItemAttachmentDa
     }
 }
 
-void ReenableVehicleDamage(CarScript vehicle)
+void RestoreVehicleTakeable(CarScript vehicle)
 {
     if (!vehicle)
         return;
     
-    // Restaurar dano para true (estado padrão de veículos)
-    vehicle.SetAllowDamage(true);
+    // Restaurar SetTakeable para true (estado padrão de veículos)
+    vehicle.SetTakeable(true);
     vehicle.SetSynchDirty();
     vehicle.Update();
 }
 
-void SyncVehicleWithDamageToggle(CarScript vehicle, vector pos)
+void SyncVehicleWithTakeableToggle(CarScript vehicle, vector pos)
 {
     if (!vehicle)
         return;
     
-    // Desabilitar dano temporariamente para forçar refresh no cliente
-    vehicle.SetAllowDamage(false);
+    // Inverter SetTakeable temporariamente para forçar refresh no cliente
+    vehicle.SetTakeable(false);
     vehicle.SetPosition(pos);
     vehicle.SetSynchDirty();
     vehicle.Update();
     vehicle.SetAffectPathgraph(true, false);
     
-    // Reabilitar dano após delay
-    GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(ReenableVehicleDamage, 200, false, vehicle);
+    // Restaurar SetTakeable após delay
+    GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(RestoreVehicleTakeable, 200, false, vehicle);
 }
 
 bool ExecuteTeleportVehicle(TStringArray tokens)
@@ -3196,8 +3196,8 @@ bool ExecuteTeleportVehicle(TStringArray tokens)
         WriteToLog("ExecuteTeleportVehicle(): Ajustando altura automaticamente para: " + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
     }
     
-    // Teleportar veículo com toggle de dano para forçar refresh no cliente
-    SyncVehicleWithDamageToggle(targetVehicle, newPos);
+    // Teleportar veículo com toggle de SetTakeable para forçar refresh no cliente
+    SyncVehicleWithTakeableToggle(targetVehicle, newPos);
     
     string vehicleName = targetVehicle.GetDisplayName();
     WriteToLog("ExecuteTeleportVehicle(): Veículo " + vehicleName + " (" + vehicleId + ") teleportado para X=" + newPos[0].ToString() + " Y=" + newPos[2].ToString() + " Z=" + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
@@ -3291,8 +3291,8 @@ bool ExecuteFlipVehicle(TStringArray tokens)
     // Aplicar nova orientação
     targetVehicle.SetOrientation(newOrientation);
     
-    // Aplicar posição com toggle de dano para forçar refresh no cliente
-    SyncVehicleWithDamageToggle(targetVehicle, currentPos);
+    // Aplicar posição com toggle de SetTakeable para forçar refresh no cliente
+    SyncVehicleWithTakeableToggle(targetVehicle, currentPos);
     
     string vehicleName = targetVehicle.GetDisplayName();
     WriteToLog("ExecuteFlipVehicle(): Veículo " + vehicleName + " (" + vehicleId + ") virado. Orientação anterior: Yaw=" + currentYaw.ToString() + " Pitch=" + currentPitch.ToString() + " Roll=" + currentRoll.ToString(), LogFile.INIT, false, LogType.INFO);
