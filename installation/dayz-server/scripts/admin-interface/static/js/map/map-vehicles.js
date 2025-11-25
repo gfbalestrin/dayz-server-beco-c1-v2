@@ -492,6 +492,44 @@ function refreshVehicleData(vehicleId) {
 }
 
 /**
+ * Virar veículo capotado
+ */
+function flipVehicle(vehicleId) {
+    if (!vehicleId) {
+        return;
+    }
+    
+    const vehicle = MapState.vehiclesData[vehicleId];
+    if (!vehicle) {
+        showToast('Erro', 'Veículo não encontrado no mapa.', 'error');
+        return;
+    }
+    
+    const vehicleName = vehicle.vehicle_name || vehicleId;
+    
+    $.ajax({
+        url: `/api/vehicles/${vehicleId}/flip`,
+        method: 'POST',
+        contentType: 'application/json',
+        success: function(response) {
+            showToast('Sucesso', response.message || `Comando de virar veículo ${vehicleName} enviado com sucesso!`, 'success');
+            
+            // Recarregar dados do veículo após um delay para refletir mudanças
+            setTimeout(function() {
+                if (MapState.showVehicles) {
+                    loadVehicles();
+                }
+            }, 2000);
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON || {};
+            const errorMsg = error.message || error.error || 'Erro ao enviar comando de virar veículo';
+            showToast('Erro', errorMsg, 'error');
+        }
+    });
+}
+
+/**
  * Polling para aguardar resultado do comando checkvehicle
  */
 function startVehicleRefreshPolling(requestId, vehicleId, attempt) {
@@ -884,6 +922,9 @@ function createVehiclePopup(vehicle) {
                     </button>
                     <button type="button" class="btn btn-sm btn-warning" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="showVehicleTeleportModal('${vehicle.vehicle_id}')">
                         <i class="fas fa-map-marker-alt me-1"></i>Teleportar
+                    </button>
+                    <button type="button" class="btn btn-sm btn-success" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="flipVehicle('${vehicle.vehicle_id}')">
+                        <i class="fas fa-redo me-1"></i>Virar Veículo
                     </button>
                 </div>
             </div>

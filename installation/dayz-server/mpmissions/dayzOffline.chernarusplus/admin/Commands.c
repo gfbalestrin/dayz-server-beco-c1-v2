@@ -1401,6 +1401,8 @@ bool ExecuteCommand(TStringArray tokens)
                 return false;
             case "teleportvehicle":
                 return ExecuteTeleportVehicle(tokens);
+            case "flipvehicle":
+                return ExecuteFlipVehicle(tokens);
             case "teleportcontainer":
                 return ExecuteTeleportContainer(tokens);
             case "registercontainer":
@@ -3170,6 +3172,96 @@ bool ExecuteTeleportVehicle(TStringArray tokens)
     
     string vehicleName = targetVehicle.GetDisplayName();
     WriteToLog("ExecuteTeleportVehicle(): Veículo " + vehicleName + " (" + vehicleId + ") teleportado para X=" + newPos[0].ToString() + " Y=" + newPos[2].ToString() + " Z=" + newPos[1].ToString(), LogFile.INIT, false, LogType.INFO);
+    
+    return true;
+}
+
+bool ExecuteFlipVehicle(TStringArray tokens)
+{
+    // Formato: SYSTEM flipvehicle VehicleId
+    if (tokens.Count() < 3)
+    {
+        WriteToLog("ExecuteFlipVehicle(): Parâmetros insuficientes. Formato: SYSTEM flipvehicle VehicleId", LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    string vehicleId = tokens[2];
+    
+    // Buscar veículo no array m_TrackedVehicles
+    CarScript targetVehicle = null;
+    
+    if (!m_TrackedVehicles || m_TrackedVehicles.Count() == 0)
+    {
+        WriteToLog("ExecuteFlipVehicle(): Nenhum veículo rastreado encontrado", LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    foreach (CarScript vehicle : m_TrackedVehicles)
+    {
+        if (!vehicle)
+            continue;
+        
+        // Gerar identificador do veículo (mesma lógica do ExecuteTeleportVehicle)
+        int pidLow1 = 0;
+        int pidLow2 = 0;
+        int pidHigh1 = 0;
+        int pidHigh2 = 0;
+        vehicle.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+        
+        bool hasPersistent = false;
+        if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+        {
+            hasPersistent = true;
+        }
+        
+        string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+        string vehicleIdentifier = persistentKey;
+        if (!hasPersistent)
+        {
+            vehicleIdentifier = "pending-" + vehicle.GetID().ToString();
+        }
+        
+        // Comparar com o ID fornecido
+        if (vehicleIdentifier == vehicleId)
+        {
+            targetVehicle = vehicle;
+            break;
+        }
+    }
+    
+    if (!targetVehicle)
+    {
+        WriteToLog("ExecuteFlipVehicle(): Veículo não encontrado: " + vehicleId, LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    // Verificar se veículo não está destruído
+    if (targetVehicle.GetHealth("", "") <= 0)
+    {
+        WriteToLog("ExecuteFlipVehicle(): Veículo está destruído: " + vehicleId, LogFile.INIT, false, LogType.ERROR);
+        return false;
+    }
+    
+    // Obter orientação atual
+    vector currentOrientation = targetVehicle.GetOrientation();
+    float currentYaw = currentOrientation[0];
+    float currentPitch = currentOrientation[1];
+    float currentRoll = currentOrientation[2];
+    
+    // Criar nova orientação: manter yaw (direção), resetar pitch e roll
+    vector newOrientation = Vector(currentYaw, 0, 0);
+    
+    // Aplicar nova orientação
+    targetVehicle.SetOrientation(newOrientation);
+    
+    // Garantir que o veículo está na altura correta do terreno
+    vector currentPos = targetVehicle.GetPosition();
+    float groundY = GetGame().SurfaceY(currentPos[0], currentPos[2]);
+    currentPos[1] = groundY;
+    targetVehicle.SetPosition(currentPos);
+    
+    string vehicleName = targetVehicle.GetDisplayName();
+    WriteToLog("ExecuteFlipVehicle(): Veículo " + vehicleName + " (" + vehicleId + ") virado. Orientação anterior: Yaw=" + currentYaw.ToString() + " Pitch=" + currentPitch.ToString() + " Roll=" + currentRoll.ToString(), LogFile.INIT, false, LogType.INFO);
     
     return true;
 }

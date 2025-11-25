@@ -81,6 +81,59 @@ def api_teleport_vehicle(vehicle_id):
             'message': f'Erro inesperado: {str(e)}'
         }), 500
 
+@api_vehicles_bp.route('/api/vehicles/<vehicle_id>/flip', methods=['POST'])
+@admin_required
+@audit_action('FLIP_VEHICLE')
+def api_flip_vehicle(vehicle_id):
+    """API para virar veículo capotado usando sistema de comandos DayZ"""
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.debug(f"Flip vehicle request: vehicle_id={vehicle_id}")
+        
+        commands_file = config.COMMANDS_FILE
+        
+        if not os.path.exists(commands_file):
+            logger.error(f"Arquivo de comandos não encontrado: {commands_file}")
+            return jsonify({
+                'success': False,
+                'message': 'Arquivo de comandos não encontrado'
+            }), 500
+        
+        command_line = f"SYSTEM flipvehicle {vehicle_id}\n"
+        
+        logger.info(f"Adicionando comando de virar veículo: {command_line.strip()}")
+        
+        try:
+            with open(commands_file, 'a') as f:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.write(command_line)
+                    f.flush()
+                    os.fsync(f.fileno())
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            
+            logger.info("Comando de virar veículo adicionado com sucesso")
+            return jsonify({
+                'success': True,
+                'message': 'Comando de virar veículo enviado! O veículo será virado em instantes.'
+            })
+            
+        except IOError as e:
+            logger.error(f"Erro ao escrever comando de virar veículo: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'Erro ao adicionar comando: {str(e)}'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Erro inesperado ao virar veículo: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'Erro inesperado: {str(e)}'
+        }), 500
+
 @api_vehicles_bp.route('/api/vehicles/<vehicle_id>/refresh', methods=['POST'])
 @admin_required
 @audit_action('CHECK_VEHICLE')
