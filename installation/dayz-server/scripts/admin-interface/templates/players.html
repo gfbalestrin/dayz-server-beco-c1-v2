@@ -400,8 +400,13 @@
                 </div>
                 <div class="mb-3">
                     <label for="kickMessage" class="form-label">Mensagem de Kick:</label>
-                    <textarea class="form-control" id="kickMessage" rows="3" placeholder="Você foi kickado do servidor">Você foi kickado do servidor</textarea>
-                    <div class="form-text">Esta mensagem será exibida ao jogador quando ele for kickado.</div>
+                    <textarea class="form-control" id="kickMessage" rows="3" maxlength="50" placeholder="Você foi kickado do servidor">Você foi kickado do servidor</textarea>
+                    <div class="form-text">
+                        Esta mensagem será exibida ao jogador quando ele for kickado.
+                        <small class="d-block mt-1">
+                            <span id="kickMessageCharCount">0</span>/50 caracteres
+                        </small>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -444,8 +449,13 @@
                 </div>
                 <div class="mb-3">
                     <label for="banMessage" class="form-label">Mensagem de Ban:</label>
-                    <textarea class="form-control" id="banMessage" rows="3" placeholder="Você foi banido do servidor">Você foi banido do servidor</textarea>
-                    <div class="form-text">Esta mensagem será exibida ao jogador quando ele for banido.</div>
+                    <textarea class="form-control" id="banMessage" rows="3" maxlength="50" placeholder="Você foi banido do servidor">Você foi banido do servidor</textarea>
+                    <div class="form-text">
+                        Esta mensagem será exibida ao jogador quando ele for banido.
+                        <small class="d-block mt-1">
+                            <span id="banMessageCharCount">0</span>/50 caracteres
+                        </small>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">

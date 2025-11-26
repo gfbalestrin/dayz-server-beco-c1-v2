@@ -135,6 +135,28 @@ function confirmExecuteAction(playerId, action, playerName) {
     );
 }
 
+// Função para atualizar contador de caracteres
+function updateCharacterCount(textareaId, counterId, maxLength) {
+    const textarea = $(textareaId);
+    const counter = $(counterId);
+    const currentLength = textarea.val().length;
+    counter.text(currentLength);
+    
+    // Adicionar classe de aviso se estiver próximo do limite
+    if (currentLength > maxLength * 0.9) {
+        counter.addClass('text-warning');
+    } else {
+        counter.removeClass('text-warning');
+    }
+    
+    // Adicionar classe de perigo se exceder o limite
+    if (currentLength >= maxLength) {
+        counter.addClass('text-danger fw-bold');
+    } else {
+        counter.removeClass('text-danger fw-bold');
+    }
+}
+
 // Função para mostrar modal de kick com mensagem personalizada
 function showKickPlayerModal(playerId, playerName) {
     const player = playersData.find(p => p.PlayerID === playerId);
@@ -144,11 +166,24 @@ function showKickPlayerModal(playerId, playerName) {
     $('#kickModalPlayerId').text(playerId);
     $('#kickMessage').val('Você foi kickado do servidor');
     
+    // Atualizar contador inicial
+    updateCharacterCount('#kickMessage', '#kickMessageCharCount', 50);
+    
+    // Event listener para atualizar contador em tempo real
+    $('#kickMessage').off('input').on('input', function() {
+        updateCharacterCount('#kickMessage', '#kickMessageCharCount', 50);
+    });
+    
     // Remover handlers anteriores e adicionar novo
     $('#kickModalConfirmBtn').off('click').on('click', function() {
         const message = $('#kickMessage').val().trim();
         if (!message) {
             showToast('Aviso', 'Por favor, digite uma mensagem', 'warning');
+            return;
+        }
+        
+        if (message.length > 50) {
+            showToast('Erro', 'A mensagem não pode exceder 50 caracteres', 'error');
             return;
         }
         
@@ -830,6 +865,14 @@ function showBanPlayerModal(playerId, playerName) {
     $('#banMinutes').val(0);
     $('#banMessage').val('Você foi banido do servidor');
     
+    // Atualizar contador inicial
+    updateCharacterCount('#banMessage', '#banMessageCharCount', 50);
+    
+    // Event listener para atualizar contador em tempo real
+    $('#banMessage').off('input').on('input', function() {
+        updateCharacterCount('#banMessage', '#banMessageCharCount', 50);
+    });
+    
     // Remover handlers anteriores e adicionar novo
     $('#banModalConfirmBtn').off('click').on('click', function() {
         const minutes = parseInt($('#banMinutes').val()) || 0;
@@ -837,6 +880,11 @@ function showBanPlayerModal(playerId, playerName) {
         
         if (!message) {
             showToast('Aviso', 'Por favor, digite uma mensagem', 'warning');
+            return;
+        }
+        
+        if (message.length > 50) {
+            showToast('Erro', 'A mensagem não pode exceder 50 caracteres', 'error');
             return;
         }
         
