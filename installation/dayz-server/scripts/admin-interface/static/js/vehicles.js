@@ -970,7 +970,7 @@ $(document).ready(function() {
     
     // Verificar se há mudanças significativas
     function hasSignificantChanges(prev, curr) {
-        const posThreshold = 0.1;
+        const posThreshold = 0.001; // Threshold reduzido para detectar mudanças menores
         const healthThreshold = 0.05; // 5% em formato decimal (valores vêm como 0.0 a 1.0)
         
         // Verificar se algum registro é parcial
@@ -1248,7 +1248,8 @@ $(document).ready(function() {
             return renderPosition(prev);
         }
         
-        const posThreshold = 0.1;
+        // Threshold reduzido para detectar mudanças menores (0.001 unidades)
+        const posThreshold = 0.001;
         // Mostrar valores do registro atual (prev = mais recente)
         const x = parseFloat(prev.PositionX || 0);
         const y = parseFloat(prev.PositionY || 0);
@@ -1268,7 +1269,7 @@ $(document).ready(function() {
         if (xChanged) {
             const diff = x - currX; // Diferença do atual (recente) para o próximo (antigo)
             const arrow = diff > 0 ? '→' : '←';
-            html += `<span>X: <span class="change-modified">${x.toFixed(2)}</span> <small class="text-muted">(${arrow} ${Math.abs(diff).toFixed(2)})</small></span>`;
+            html += `<span>X: <span class="change-modified" style="font-weight: 700; background-color: #fff3cd; color: #856404; padding: 2px 6px; border-radius: 3px; border: 1px solid #ffc107;">${x.toFixed(2)}</span> <small class="text-info" style="font-weight: 600;">(${arrow} ${Math.abs(diff).toFixed(2)})</small></span>`;
         } else {
             html += `<span>X: ${x.toFixed(2)}</span>`;
         }
@@ -1276,7 +1277,7 @@ $(document).ready(function() {
         if (yChanged) {
             const diff = y - currY;
             const arrow = diff > 0 ? '↑' : '↓';
-            html += `<span>Y: <span class="change-modified">${y.toFixed(2)}</span> <small class="text-muted">(${arrow} ${Math.abs(diff).toFixed(2)})</small></span>`;
+            html += `<span>Y: <span class="change-modified" style="font-weight: 700; background-color: #fff3cd; color: #856404; padding: 2px 6px; border-radius: 3px; border: 1px solid #ffc107;">${y.toFixed(2)}</span> <small class="text-info" style="font-weight: 600;">(${arrow} ${Math.abs(diff).toFixed(2)})</small></span>`;
         } else {
             html += `<span>Y: ${y.toFixed(2)}</span>`;
         }
@@ -1284,7 +1285,7 @@ $(document).ready(function() {
         if (zChanged) {
             const diff = z - currZ;
             const arrow = diff > 0 ? '↗' : '↘';
-            html += `<span>Z: <span class="change-modified">${z.toFixed(2)}</span> <small class="text-muted">(${arrow} ${Math.abs(diff).toFixed(2)})</small></span>`;
+            html += `<span>Z: <span class="change-modified" style="font-weight: 700; background-color: #fff3cd; color: #856404; padding: 2px 6px; border-radius: 3px; border: 1px solid #ffc107;">${z.toFixed(2)}</span> <small class="text-info" style="font-weight: 600;">(${arrow} ${Math.abs(diff).toFixed(2)})</small></span>`;
         } else {
             html += `<span>Z: ${z.toFixed(2)}</span>`;
         }
@@ -1327,12 +1328,18 @@ $(document).ready(function() {
                 if (Math.abs(diff) > (healthThreshold * 100)) {
                     const arrow = diff > 0 ? '↑' : '↓';
                     const colorClass = diff > 0 ? 'text-success' : 'text-danger';
-                    changeIndicator = ` <small class="${colorClass}">(${arrow} ${Math.abs(diff).toFixed(1)}%)</small>`;
+                    const borderColor = diff > 0 ? '#28a745' : '#dc3545';
+                    changeIndicator = ` <small class="${colorClass}" style="font-weight: 700;">(${arrow} ${Math.abs(diff).toFixed(1)}%)</small>`;
+                    html += '<div class="d-flex align-items-center gap-2" style="padding: 4px 8px; background-color: ' + (diff > 0 ? '#d4edda' : '#f8d7da') + '; border-radius: 4px; border: 2px solid ' + borderColor + ';"><small style="font-weight: 600;">Motor:</small> ' + 
+                        renderHealthBar(engineHealth) + changeIndicator + '</div>';
+                } else {
+                    html += '<div class="d-flex align-items-center gap-2"><small>Motor:</small> ' + 
+                        renderHealthBar(engineHealth) + changeIndicator + '</div>';
                 }
+            } else {
+                html += '<div class="d-flex align-items-center gap-2"><small>Motor:</small> ' + 
+                    renderHealthBar(engineHealth) + changeIndicator + '</div>';
             }
-            
-            html += '<div class="d-flex align-items-center gap-2"><small>Motor:</small> ' + 
-                renderHealthBar(engineHealth) + changeIndicator + '</div>';
             hasData = true;
         }
         
@@ -1349,12 +1356,18 @@ $(document).ready(function() {
                 if (Math.abs(diff) > (healthThreshold * 100)) {
                     const arrow = diff > 0 ? '↑' : '↓';
                     const colorClass = diff > 0 ? 'text-success' : 'text-danger';
-                    changeIndicator = ` <small class="${colorClass}">(${arrow} ${Math.abs(diff).toFixed(1)}%)</small>`;
+                    const borderColor = diff > 0 ? '#28a745' : '#dc3545';
+                    changeIndicator = ` <small class="${colorClass}" style="font-weight: 700;">(${arrow} ${Math.abs(diff).toFixed(1)}%)</small>`;
+                    html += '<div class="d-flex align-items-center gap-2" style="padding: 4px 8px; background-color: ' + (diff > 0 ? '#d4edda' : '#f8d7da') + '; border-radius: 4px; border: 2px solid ' + borderColor + ';"><small style="font-weight: 600;">Carroceria:</small> ' + 
+                        renderHealthBar(bodyHealth) + changeIndicator + '</div>';
+                } else {
+                    html += '<div class="d-flex align-items-center gap-2"><small>Carroceria:</small> ' + 
+                        renderHealthBar(bodyHealth) + changeIndicator + '</div>';
                 }
+            } else {
+                html += '<div class="d-flex align-items-center gap-2"><small>Carroceria:</small> ' + 
+                    renderHealthBar(bodyHealth) + changeIndicator + '</div>';
             }
-            
-            html += '<div class="d-flex align-items-center gap-2"><small>Carroceria:</small> ' + 
-                renderHealthBar(bodyHealth) + changeIndicator + '</div>';
             hasData = true;
         }
         
@@ -1371,12 +1384,18 @@ $(document).ready(function() {
                 if (Math.abs(diff) > (healthThreshold * 100)) {
                     const arrow = diff > 0 ? '↑' : '↓';
                     const colorClass = diff > 0 ? 'text-success' : 'text-danger';
-                    changeIndicator = ` <small class="${colorClass}">(${arrow} ${Math.abs(diff).toFixed(1)}%)</small>`;
+                    const borderColor = diff > 0 ? '#28a745' : '#dc3545';
+                    changeIndicator = ` <small class="${colorClass}" style="font-weight: 700;">(${arrow} ${Math.abs(diff).toFixed(1)}%)</small>`;
+                    html += '<div class="d-flex align-items-center gap-2" style="padding: 4px 8px; background-color: ' + (diff > 0 ? '#d4edda' : '#f8d7da') + '; border-radius: 4px; border: 2px solid ' + borderColor + ';"><small style="font-weight: 600;">Tanque:</small> ' + 
+                        renderHealthBar(fuelHealth) + changeIndicator + '</div>';
+                } else {
+                    html += '<div class="d-flex align-items-center gap-2"><small>Tanque:</small> ' + 
+                        renderHealthBar(fuelHealth) + changeIndicator + '</div>';
                 }
+            } else {
+                html += '<div class="d-flex align-items-center gap-2"><small>Tanque:</small> ' + 
+                    renderHealthBar(fuelHealth) + changeIndicator + '</div>';
             }
-            
-            html += '<div class="d-flex align-items-center gap-2"><small>Tanque:</small> ' + 
-                renderHealthBar(fuelHealth) + changeIndicator + '</div>';
             hasData = true;
         }
         
