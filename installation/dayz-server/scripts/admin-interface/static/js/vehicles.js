@@ -950,7 +950,9 @@ $(document).ready(function() {
                                             <h6><i class="fas fa-heartbeat me-2"></i>Saúde</h6>
                                             ${renderHealthSectionWithChanges(record, nextRecord)}
                                         </div>
-                                        <div class="col-md-4">
+                                    </div>
+                                    <div class="row mt-3">
+                                        <div class="col-12">
                                             <h6><i class="fas fa-box me-2"></i>Items e Attachments</h6>
                                             ${renderItemsAndAttachmentsWithChanges(record, nextRecord)}
                                         </div>
@@ -1372,6 +1374,53 @@ $(document).ready(function() {
         return html || '<span class="text-muted">N/A</span>';
     }
     
+    // Gerar placeholder SVG inline (não depende de serviço externo)
+    function generatePlaceholderSVG() {
+        // SVG simples com fundo cinza e ícone de caixa (usando encodeURIComponent para compatibilidade)
+        const svg = '<svg width="42" height="42" viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg"><rect width="42" height="42" fill="#6c757d" rx="2"/><path d="M10 14h22v16H10V14zm2 2v12h18V16H12zm2 2h14v2H14v-2zm0 4h10v2H14v-2z" fill="#ffffff" opacity="0.7"/></svg>';
+        return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    }
+    
+    // Helper para montar bloco de ícone em grade (sem badge colorida)
+    // Usado tanto em renderItemsAndAttachments quanto em renderItemsAndAttachmentsWithChanges
+    function buildSimpleIconBlock(label, img, healthValue, title, extraIconHtml) {
+        // Sempre usar uma imagem: img fornecida ou placeholder SVG inline (42px)
+        let iconHtml = '';
+        if (img && img.trim()) {
+            iconHtml = '<img src="' + img + '" alt="' + escapeHtml(label) + '" ' +
+                'class="vehicle-item-icon" style="width: 42px; height: 42px; object-fit: contain; display: block; margin: 0 auto 4px;" onerror="this.src=\'' + generatePlaceholderSVG() + '\'">';
+        } else {
+            // Placeholder SVG inline (não depende de serviço externo)
+            iconHtml = '<img src="' + generatePlaceholderSVG() + '" alt="' + escapeHtml(label) + '" ' +
+                'class="vehicle-item-icon" style="width: 42px; height: 42px; object-fit: contain; display: block; margin: 0 auto 4px;">';
+        }
+        
+        const textHtml = '<span class="small d-block text-center" style="font-size: 0.7rem; line-height: 1.2; word-wrap: break-word; word-break: break-word; overflow-wrap: break-word; hyphens: auto; max-width: 100%;">' + 
+            escapeHtml(label) + (healthValue ? '<br><span class="text-muted">' + healthValue + '</span>' : '') + 
+            '</span>';
+        
+        // Determinar estilo da borda baseado no tipo de mudança
+        let borderStyle = 'border: 1px solid #dee2e6;';
+        let backgroundColor = '';
+        if (extraIconHtml) {
+            if (extraIconHtml.includes('fa-plus-circle text-success')) {
+                // Item/attachment adicionado - borda verde
+                borderStyle = 'border: 2px solid #28a745;';
+                backgroundColor = 'background-color: #d4edda;';
+            } else if (extraIconHtml.includes('fa-minus-circle text-danger')) {
+                // Item/attachment removido - borda vermelha
+                borderStyle = 'border: 2px solid #dc3545;';
+                backgroundColor = 'background-color: #f8d7da;';
+            }
+        }
+        
+        return '<div class="d-flex flex-column align-items-center justify-content-center p-2" style="' + borderStyle + backgroundColor + 'border-radius: 4px; min-height: 90px; position: relative; width: 100%; max-width: 100%; overflow: hidden; box-sizing: border-box;" title="' + escapeHtml(title || label) + '">' +
+            (extraIconHtml ? '<div style="position: absolute; top: 4px; right: 4px; font-size: 0.875rem; z-index: 10;">' + extraIconHtml + '</div>' : '') +
+            iconHtml +
+            '<div style="width: 100%; max-width: 100%;">' + textHtml + '</div>' +
+            '</div>';
+    }
+    
     // Renderizar items e attachments com indicadores de mudança
     // prev = registro atual sendo renderizado (mais recente na timeline)
     // curr = próximo registro na lista (mais antigo, para comparação, pode ser null se for o último)
@@ -1405,55 +1454,7 @@ $(document).ready(function() {
             const itemsDiff = getItemsDiff(curr.items || [], prev.items || []);
             
             // Mostrar items do registro atual (prev = mais recente), não do curr
-            if (itemsDiff.added.length > 0 || itemsDiff.removed.length > 0 || (prev.items && prev.items.length > 0)) {
-            html += '<div class="mb-2">';
-            html += '<strong>Items (' + (prev.items ? prev.items.length : 0) + '):</strong><br>';
-            html += '<div class="ms-2">';
-            
-            // Ordenar arrays alfabeticamente por type
-            const sortedRemoved = itemsDiff.removed.slice().sort(function(a, b) {
-                const typeA = (a.type || '').toLowerCase();
-                const typeB = (b.type || '').toLowerCase();
-                return typeA.localeCompare(typeB);
-            });
-            const sortedUnchanged = itemsDiff.unchanged.slice().sort(function(a, b) {
-                const typeA = (a.type || '').toLowerCase();
-                const typeB = (b.type || '').toLowerCase();
-                return typeA.localeCompare(typeB);
-            });
-            const sortedAdded = itemsDiff.added.slice().sort(function(a, b) {
-                const typeA = (a.type || '').toLowerCase();
-                const typeB = (b.type || '').toLowerCase();
-                return typeA.localeCompare(typeB);
-            });
-            
-            // Mostrar items removidos (estavam em curr mas não em prev = foram removidos entre curr e prev)
-            sortedRemoved.forEach(function(item) {
-                const health = item.item.ItemHealth !== null ? 
-                    ' (' + parseFloat(item.item.ItemHealth || 0).toFixed(0) + '%)' : '';
-                html += '<small class="change-removed">' +
-                    '<i class="fas fa-minus-circle me-1"></i>' +
-                    escapeHtml(item.type) + health + '</small><br>';
-            });
-            
-            // Mostrar items inalterados (presentes em ambos)
-            sortedUnchanged.forEach(function(item) {
-                const health = item.prevItem.ItemHealth !== null ? 
-                    ' (' + parseFloat(item.prevItem.ItemHealth || 0).toFixed(0) + '%)' : '';
-                html += '<small>• ' + escapeHtml(item.type) + health + '</small><br>';
-            });
-            
-            // Mostrar items adicionados (estavam em prev mas não em curr = foram adicionados entre curr e prev)
-            sortedAdded.forEach(function(item) {
-                const health = item.item.ItemHealth !== null ? 
-                    ' (' + parseFloat(item.item.ItemHealth || 0).toFixed(0) + '%)' : '';
-                html += '<small class="change-added">' +
-                    '<i class="fas fa-plus-circle me-1"></i>' +
-                    escapeHtml(item.type) + health + '</small><br>';
-            });
-            
-            html += '</div></div>';
-            }
+            const hasItemsForDiff = itemsDiff.added.length > 0 || itemsDiff.removed.length > 0 || (prev.items && prev.items.length > 0);
             
             // Comparar attachments apenas se ambos forem completos
             // prev = registro atual sendo renderizado (mais recente)
@@ -1461,92 +1462,135 @@ $(document).ready(function() {
             // Invertemos a ordem para comparar do mais antigo (curr) para o mais recente (prev)
             // Isso mostra o que mudou DO curr (antigo) PARA o prev (recente)
             const attachmentsDiff = getAttachmentsDiff(curr.attachments || [], prev.attachments || []);
+            const hasAttachmentsForDiff = attachmentsDiff.added.length > 0 || attachmentsDiff.removed.length > 0 || (prev.attachments && prev.attachments.length > 0);
             
-            // Mostrar attachments do registro atual (prev = mais recente), não do curr
-            if (attachmentsDiff.added.length > 0 || attachmentsDiff.removed.length > 0 || (prev.attachments && prev.attachments.length > 0)) {
-            html += '<div>';
-            html += '<strong>Attachments (' + (prev.attachments ? prev.attachments.length : 0) + '):</strong><br>';
-            html += '<div class="ms-2">';
+            // Linha de Items (linha completa)
+            if (hasItemsForDiff) {
+                html += '<div class="mb-3">';
+                html += '<strong>Items (' + (prev.items ? prev.items.length : 0) + '):</strong><br>';
+                html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; margin-top: 8px;">';
+                
+                // Ordenar arrays alfabeticamente por type
+                const sortedRemoved = itemsDiff.removed.slice().sort(function(a, b) {
+                    const typeA = (a.type || '').toLowerCase();
+                    const typeB = (b.type || '').toLowerCase();
+                    return typeA.localeCompare(typeB);
+                });
+                const sortedUnchanged = itemsDiff.unchanged.slice().sort(function(a, b) {
+                    const typeA = (a.type || '').toLowerCase();
+                    const typeB = (b.type || '').toLowerCase();
+                    return typeA.localeCompare(typeB);
+                });
+                const sortedAdded = itemsDiff.added.slice().sort(function(a, b) {
+                    const typeA = (a.type || '').toLowerCase();
+                    const typeB = (b.type || '').toLowerCase();
+                    return typeA.localeCompare(typeB);
+                });
+                
+                // Helper para montar bloco com ícone indicando adição/remoção/inalterado
+                function buildItemDiffBlock(baseItem, typeIconClass) {
+                    if (!baseItem) {
+                        return '';
+                    }
+                    const type = baseItem.ItemType || '';
+                    const label = baseItem.name || type;
+                    const img = baseItem.img || '';
+                    const healthValue = baseItem.ItemHealth !== null && baseItem.ItemHealth !== undefined
+                        ? parseFloat(baseItem.ItemHealth || 0).toFixed(0) + '%'
+                        : null;
+                    let extraIconHtml = '';
+                    if (typeIconClass === 'added') {
+                        extraIconHtml = '<i class="fas fa-plus-circle text-success me-1"></i>';
+                    } else if (typeIconClass === 'removed') {
+                        extraIconHtml = '<i class="fas fa-minus-circle text-danger me-1"></i>';
+                    } else {
+                        extraIconHtml = '';
+                    }
+                    return buildSimpleIconBlock(label, img, healthValue, type || label, extraIconHtml);
+                }
+                
+                // Mostrar items removidos (estavam em curr mas não em prev = foram removidos entre curr e prev)
+                sortedRemoved.forEach(function(entry) {
+                    html += buildItemDiffBlock(entry.item, 'removed');
+                });
+                
+                // Mostrar items inalterados (presentes em ambos)
+                sortedUnchanged.forEach(function(entry) {
+                    html += buildItemDiffBlock(entry.prevItem, 'unchanged');
+                });
+                
+                // Mostrar items adicionados (estavam em prev mas não em curr = foram adicionados entre curr e prev)
+                sortedAdded.forEach(function(entry) {
+                    html += buildItemDiffBlock(entry.item, 'added');
+                });
+                
+                html += '</div></div>';
+            }
             
-            // Ordenar arrays alfabeticamente por type
-            const sortedRemovedAtt = attachmentsDiff.removed.slice().sort(function(a, b) {
-                const typeA = (a.type || '').toLowerCase();
-                const typeB = (b.type || '').toLowerCase();
-                return typeA.localeCompare(typeB);
-            });
-            const sortedUnchangedAtt = attachmentsDiff.unchanged.slice().sort(function(a, b) {
-                const typeA = (a.type || '').toLowerCase();
-                const typeB = (b.type || '').toLowerCase();
-                return typeA.localeCompare(typeB);
-            });
-            const sortedAddedAtt = attachmentsDiff.added.slice().sort(function(a, b) {
-                const typeA = (a.type || '').toLowerCase();
-                const typeB = (b.type || '').toLowerCase();
-                return typeA.localeCompare(typeB);
-            });
-            
-            // Mostrar attachments removidos (estavam em curr mas não em prev = foram removidos entre curr e prev)
-            sortedRemovedAtt.forEach(function(attachment) {
-                const health = attachment.attachment.AttachmentHealth !== null ? 
-                    ' (' + parseFloat(attachment.attachment.AttachmentHealth || 0).toFixed(0) + '%)' : '';
-                html += '<small class="change-removed">' +
-                    '<i class="fas fa-minus-circle me-1"></i>' +
-                    escapeHtml(attachment.type) + health + '</small><br>';
-            });
-            
-            // Mostrar attachments inalterados (presentes em ambos)
-            sortedUnchangedAtt.forEach(function(attachment) {
-                const health = attachment.prevAttachment.AttachmentHealth !== null ? 
-                    ' (' + parseFloat(attachment.prevAttachment.AttachmentHealth || 0).toFixed(0) + '%)' : '';
-                html += '<small>• ' + escapeHtml(attachment.type) + health + '</small><br>';
-            });
-            
-            // Mostrar attachments adicionados (estavam em prev mas não em curr = foram adicionados entre curr e prev)
-            sortedAddedAtt.forEach(function(attachment) {
-                const health = attachment.attachment.AttachmentHealth !== null ? 
-                    ' (' + parseFloat(attachment.attachment.AttachmentHealth || 0).toFixed(0) + '%)' : '';
-                html += '<small class="change-added">' +
-                    '<i class="fas fa-plus-circle me-1"></i>' +
-                    escapeHtml(attachment.type) + health + '</small><br>';
-            });
-            
-            html += '</div></div>';
+            // Linha de Attachments (linha completa, embaixo dos items)
+            if (hasAttachmentsForDiff) {
+                html += '<div>';
+                html += '<strong>Attachments (' + (prev.attachments ? prev.attachments.length : 0) + '):</strong><br>';
+                html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; margin-top: 8px;">';
+                
+                // Ordenar arrays alfabeticamente por type
+                const sortedRemovedAtt = attachmentsDiff.removed.slice().sort(function(a, b) {
+                    const typeA = (a.type || '').toLowerCase();
+                    const typeB = (b.type || '').toLowerCase();
+                    return typeA.localeCompare(typeB);
+                });
+                const sortedUnchangedAtt = attachmentsDiff.unchanged.slice().sort(function(a, b) {
+                    const typeA = (a.type || '').toLowerCase();
+                    const typeB = (b.type || '').toLowerCase();
+                    return typeA.localeCompare(typeB);
+                });
+                const sortedAddedAtt = attachmentsDiff.added.slice().sort(function(a, b) {
+                    const typeA = (a.type || '').toLowerCase();
+                    const typeB = (b.type || '').toLowerCase();
+                    return typeA.localeCompare(typeB);
+                });
+                
+                function buildAttachmentDiffBlock(baseAttachment, typeIconClass) {
+                    if (!baseAttachment) {
+                        return '';
+                    }
+                    const type = baseAttachment.AttachmentType || '';
+                    const label = baseAttachment.name || type;
+                    const img = baseAttachment.img || '';
+                    const healthValue = baseAttachment.AttachmentHealth !== null && baseAttachment.AttachmentHealth !== undefined
+                        ? parseFloat(baseAttachment.AttachmentHealth || 0).toFixed(0) + '%'
+                        : null;
+                    let extraIconHtml = '';
+                    if (typeIconClass === 'added') {
+                        extraIconHtml = '<i class="fas fa-plus-circle text-success me-1"></i>';
+                    } else if (typeIconClass === 'removed') {
+                        extraIconHtml = '<i class="fas fa-minus-circle text-danger me-1"></i>';
+                    } else {
+                        extraIconHtml = '';
+                    }
+                    return buildSimpleIconBlock(label, img, healthValue, type || label, extraIconHtml);
+                }
+                
+                // Mostrar attachments removidos (estavam em curr mas não em prev = foram removidos entre curr e prev)
+                sortedRemovedAtt.forEach(function(entry) {
+                    html += buildAttachmentDiffBlock(entry.attachment, 'removed');
+                });
+                
+                // Mostrar attachments inalterados (presentes em ambos)
+                sortedUnchangedAtt.forEach(function(entry) {
+                    html += buildAttachmentDiffBlock(entry.prevAttachment, 'unchanged');
+                });
+                
+                // Mostrar attachments adicionados (estavam em prev mas não em curr = foram adicionados entre curr e prev)
+                sortedAddedAtt.forEach(function(entry) {
+                    html += buildAttachmentDiffBlock(entry.attachment, 'added');
+                });
+                
+                html += '</div></div>';
             }
         } else if (!prevIsPartial) {
-            // Se apenas prev é completo, mostrar items/attachments de prev sem comparação
-            if (prev.items && prev.items.length > 0) {
-                html += '<div class="mb-2">';
-                html += '<strong>Items (' + prev.items.length + '):</strong><br>';
-                html += '<div class="ms-2">';
-                const sortedItems = prev.items.slice().sort(function(a, b) {
-                    const typeA = (a.ItemType || '').toLowerCase();
-                    const typeB = (b.ItemType || '').toLowerCase();
-                    return typeA.localeCompare(typeB);
-                });
-                sortedItems.forEach(function(item) {
-                    const health = item.ItemHealth !== null ? 
-                        ' (' + parseFloat(item.ItemHealth || 0).toFixed(0) + '%)' : '';
-                    html += '<small>• ' + escapeHtml(item.ItemType) + health + '</small><br>';
-                });
-                html += '</div></div>';
-            }
-            
-            if (prev.attachments && prev.attachments.length > 0) {
-                html += '<div>';
-                html += '<strong>Attachments (' + prev.attachments.length + '):</strong><br>';
-                html += '<div class="ms-2">';
-                const sortedAttachments = prev.attachments.slice().sort(function(a, b) {
-                    const typeA = (a.AttachmentType || '').toLowerCase();
-                    const typeB = (b.AttachmentType || '').toLowerCase();
-                    return typeA.localeCompare(typeB);
-                });
-                sortedAttachments.forEach(function(attachment) {
-                    const health = attachment.AttachmentHealth !== null ? 
-                        ' (' + parseFloat(attachment.AttachmentHealth || 0).toFixed(0) + '%)' : '';
-                    html += '<small>• ' + escapeHtml(attachment.AttachmentType) + health + '</small><br>';
-                });
-                html += '</div></div>';
-            }
+            // Se apenas prev é completo, reutilizar o mesmo layout simples (grade de ícones) para prev
+            html += renderItemsAndAttachments(prev);
         }
         
         if (!html) {
@@ -1560,44 +1604,57 @@ $(document).ready(function() {
     function renderItemsAndAttachments(record) {
         let html = '';
         
-        if (record.items && record.items.length > 0) {
-            html += '<div class="mb-2">';
+        const hasItems = record.items && record.items.length > 0;
+        const hasAttachments = record.attachments && record.attachments.length > 0;
+        
+        if (!hasItems && !hasAttachments) {
+            return '<span class="text-muted">Nenhum item ou attachment</span>';
+        }
+        
+        // Linha de Items (linha completa)
+        if (hasItems) {
+            html += '<div class="mb-3">';
             html += '<strong>Items (' + record.items.length + '):</strong><br>';
-            html += '<div class="ms-2">';
-            // Ordenar items alfabeticamente por ItemType
+            html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; margin-top: 8px;">';
+            // Ordenar items alfabeticamente por nome amigável ou ItemType
             const sortedItems = record.items.slice().sort(function(a, b) {
-                const typeA = (a.ItemType || '').toLowerCase();
-                const typeB = (b.ItemType || '').toLowerCase();
-                return typeA.localeCompare(typeB);
+                const nameA = (a.name || a.ItemType || '').toLowerCase();
+                const nameB = (b.name || b.ItemType || '').toLowerCase();
+                return nameA.localeCompare(nameB);
             });
             sortedItems.forEach(function(item) {
-                const health = item.ItemHealth !== null ? 
-                    ' (' + parseFloat(item.ItemHealth || 0).toFixed(0) + '%)' : '';
-                html += '<small>• ' + escapeHtml(item.ItemType) + health + '</small><br>';
+                const healthValue = item.ItemHealth !== null && item.ItemHealth !== undefined
+                    ? parseFloat(item.ItemHealth || 0).toFixed(0) + '%'
+                    : null;
+                const label = item.name || item.ItemType || '';
+                const img = item.img || '';
+                const title = item.ItemType || label;
+                html += buildSimpleIconBlock(label, img, healthValue, title, '');
             });
             html += '</div></div>';
         }
         
-        if (record.attachments && record.attachments.length > 0) {
+        // Linha de Attachments (linha completa, embaixo dos items)
+        if (hasAttachments) {
             html += '<div>';
             html += '<strong>Attachments (' + record.attachments.length + '):</strong><br>';
-            html += '<div class="ms-2">';
-            // Ordenar attachments alfabeticamente por AttachmentType
+            html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; margin-top: 8px;">';
+            // Ordenar attachments alfabeticamente por nome amigável ou AttachmentType
             const sortedAttachments = record.attachments.slice().sort(function(a, b) {
-                const typeA = (a.AttachmentType || '').toLowerCase();
-                const typeB = (b.AttachmentType || '').toLowerCase();
-                return typeA.localeCompare(typeB);
+                const nameA = (a.name || a.AttachmentType || '').toLowerCase();
+                const nameB = (b.name || b.AttachmentType || '').toLowerCase();
+                return nameA.localeCompare(nameB);
             });
             sortedAttachments.forEach(function(attachment) {
-                const health = attachment.AttachmentHealth !== null ? 
-                    ' (' + parseFloat(attachment.AttachmentHealth || 0).toFixed(0) + '%)' : '';
-                html += '<small>• ' + escapeHtml(attachment.AttachmentType) + health + '</small><br>';
+                const healthValue = attachment.AttachmentHealth !== null && attachment.AttachmentHealth !== undefined
+                    ? parseFloat(attachment.AttachmentHealth || 0).toFixed(0) + '%'
+                    : null;
+                const label = attachment.name || attachment.AttachmentType || '';
+                const img = attachment.img || '';
+                const title = attachment.AttachmentType || label;
+                html += buildSimpleIconBlock(label, img, healthValue, title, '');
             });
             html += '</div></div>';
-        }
-        
-        if (!html) {
-            html = '<span class="text-muted">Nenhum item ou attachment</span>';
         }
         
         return html;

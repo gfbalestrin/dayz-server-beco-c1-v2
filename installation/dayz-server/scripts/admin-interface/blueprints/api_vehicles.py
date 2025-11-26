@@ -13,7 +13,8 @@ from database import (
     get_vehicle_tracking_items, 
     get_vehicle_tracking_attachments,
     count_vehicle_history,
-    filter_vehicle_history_by_changes
+    filter_vehicle_history_by_changes,
+    get_item_details_from_items_db
 )
 
 api_vehicles_bp = Blueprint('api_vehicles', __name__)
@@ -404,8 +405,36 @@ def api_vehicle_history(vehicle_id):
                     if result:
                         tracking_id = result[0]
             
-            record['items'] = get_vehicle_tracking_items(tracking_id)
-            record['attachments'] = get_vehicle_tracking_attachments(tracking_id)
+            raw_items = get_vehicle_tracking_items(tracking_id)
+            raw_attachments = get_vehicle_tracking_attachments(tracking_id)
+
+            # Enriquecer items com nome/imagem
+            enriched_items = []
+            for item in raw_items:
+                item_type = item.get('ItemType') or ''
+                item_health = item.get('ItemHealth')
+                item_info = get_item_details_from_items_db(item_type)
+                enriched_items.append({
+                    'ItemType': item_type,
+                    'ItemHealth': item_health,
+                    'name': item_info.get('name', item_type) if item_info else item_type,
+                    'img': item_info.get('img', '') if item_info else ''
+                })
+
+            enriched_attachments = []
+            for attachment in raw_attachments:
+                attachment_type = attachment.get('AttachmentType') or ''
+                attachment_health = attachment.get('AttachmentHealth')
+                attachment_info = get_item_details_from_items_db(attachment_type)
+                enriched_attachments.append({
+                    'AttachmentType': attachment_type,
+                    'AttachmentHealth': attachment_health,
+                    'name': attachment_info.get('name', attachment_type) if attachment_info else attachment_type,
+                    'img': attachment_info.get('img', '') if attachment_info else ''
+                })
+
+            record['items'] = enriched_items
+            record['attachments'] = enriched_attachments
         
         # Filtrar registros sem mudanças significativas consecutivas
         # Isso reduz drasticamente o número de registros (de 1500+ para ~6 eventos com mudanças)
