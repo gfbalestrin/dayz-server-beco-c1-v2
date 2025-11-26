@@ -109,16 +109,86 @@ $(document).ready(function() {
     // Event listener para limpar marcadores de escaneamento
     $('#btnClearScanMarkers').on('click', clearScanMarkers);
     
+    // Função para fazer zoom no jogador
+    function zoomToPlayer(playerId) {
+        // Aguardar marcador ser criado (com retry)
+        const maxAttempts = 10;
+        let attempts = 0;
+        
+        const tryZoom = function() {
+            attempts++;
+            const marker = MapState.playerMarkers[playerId];
+            const playerData = MapState.playersData[playerId];
+            
+            if (marker) {
+                // Marcador existe, fazer zoom
+                const latLng = marker.getLatLng();
+                MapState.map.flyTo(latLng, 3, {
+                    animate: true,
+                    duration: 1.0
+                });
+            } else if (playerData && playerData.pixel_coords) {
+                // Marcador ainda não existe, mas temos dados do jogador
+                const mapCoords = convertToMapCoords(playerData.pixel_coords);
+                if (mapCoords) {
+                    MapState.map.flyTo(mapCoords, 3, {
+                        animate: true,
+                        duration: 1.0
+                    });
+                }
+            } else if (attempts < maxAttempts) {
+                // Aguardar mais um pouco e tentar novamente
+                setTimeout(tryZoom, 500);
+            }
+        };
+        
+        // Primeira tentativa após um delay inicial
+        setTimeout(tryZoom, 1000);
+    }
+    
     // Verificar se há filtro de player_id na URL e aplicar
     const urlParams = new URLSearchParams(window.location.search);
     const playerIdFilter = urlParams.get('player_id');
     if (playerIdFilter) {
+        // Desativar filtro "Apenas Online" para permitir visualizar jogadores offline
+        $('#onlineOnlyCheck').prop('checked', false);
+        
+        // Ativar trails dos jogadores
+        if (!MapState.showTrails) {
+            MapState.showTrails = true;
+            $('#toggleTrailsBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar trails dos jogadores');
+        }
+        
         setTimeout(function() {
             // Adicionar ao array de filtros ao invés de usar select
             MapState.selectedPlayerFilters.push(playerIdFilter);
             updateSelectedPlayersBadges();
             filterPlayers();
         }, 500); // Aguardar carga completa do mapa
+        
+        // Fazer zoom no jogador após carregar posições
+        // Usar um listener único para fazer zoom após o primeiro carregamento
+        let zoomExecuted = false;
+        const originalLoadPositions = window.loadPositions;
+        const wrappedLoadPositions = function() {
+            const result = originalLoadPositions.apply(this, arguments);
+            
+            if (!zoomExecuted) {
+                zoomExecuted = true;
+                // Aguardar um pouco para marcadores serem criados
+                setTimeout(function() {
+                    zoomToPlayer(playerIdFilter);
+                }, 1500);
+                
+                // Restaurar função original após primeira execução
+                window.loadPositions = originalLoadPositions;
+            }
+            
+            return result;
+        };
+        
+        // Interceptar apenas uma vez
+        window.loadPositions = wrappedLoadPositions;
     }
     
     // Verificar se há filtro de vehicle_id na URL e aplicar
@@ -262,13 +332,11 @@ $(document).ready(function() {
         }
     });
     
-    // Botão de ver histórico
-    $('#viewHistoryActionBtn').on('click', function() {
+    // Botão de ver mais ações (redireciona para players.html)
+    $('#viewMoreActionsBtn').on('click', function() {
         if (MapState.currentPlayerContext) {
-            showPlayerEventsHistory(
-                MapState.currentPlayerContext.playerId,
-                MapState.currentPlayerContext.playerName
-            );
+            const playerId = MapState.currentPlayerContext.playerId;
+            window.location.href = `/players?player_id=${encodeURIComponent(playerId)}`;
         }
     });
     

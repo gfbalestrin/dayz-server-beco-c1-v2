@@ -1314,6 +1314,37 @@ $(document).ready(function() {
     // loadAdmins() será chamado automaticamente após loadPlayers() completar
     loadPlayers();
     
+    // Verificar se há player_id na URL e abrir modal de ações automaticamente
+    const urlParams = new URLSearchParams(window.location.search);
+    const playerIdFromUrl = urlParams.get('player_id');
+    if (playerIdFromUrl) {
+        // Aguardar dados serem carregados antes de abrir o modal
+        const checkAndOpenModal = function() {
+            if (playersData && playersData.length > 0) {
+                const player = playersData.find(p => p.PlayerID === playerIdFromUrl);
+                if (player) {
+                    // Remover parâmetro da URL para limpar
+                    const newUrl = window.location.pathname;
+                    window.history.replaceState({}, document.title, newUrl);
+                    
+                    // Abrir modal de ações
+                    setTimeout(function() {
+                        showPlayerControlPanel(playerIdFromUrl);
+                    }, 500);
+                } else {
+                    // Tentar novamente após um delay
+                    setTimeout(checkAndOpenModal, 500);
+                }
+            } else {
+                // Dados ainda não carregaram, tentar novamente
+                setTimeout(checkAndOpenModal, 500);
+            }
+        };
+        
+        // Iniciar verificação após um pequeno delay
+        setTimeout(checkAndOpenModal, 1000);
+    }
+    
     // Iniciar auto-refresh
     updateRefreshInterval();
     
