@@ -376,29 +376,24 @@ class CustomMission: MissionServer
 		} else {
 			WriteToLog("CreateCharacter(): " + playerName + " é jogador comum.", LogFile.INIT, false, LogType.DEBUG);
 
-			m_player.SetAllowDamage(false);
-
-			if (!GiveCustomLoadout(m_player, playerId)) {
-				WriteToLog("CreateCharacter(): Loadout customizado não encontrado. Aplicando padrão.", LogFile.INIT, false, LogType.DEBUG);
-				if (IsDeathmatchEnabled)
-				{
-					GiveDefaultDeathmatchLoadout(m_player, playerId);
-				}					
-			}
-
 			if (IsDeathmatchEnabled)
 			{
-				// Stats/posição/dano depois
-				//GetGame().GetCallQueue(CALL_CATEGORY_GAMEPLAY).CallLater(PostSpawnInit, 300, false, m_player, pos);
-				//ScheduleSpawnStaminaBurst(m_player);
-				m_player.SetHealth("", "", 100);
-				m_player.SetHealth("GlobalHealth", "Blood", 5000);
-				m_player.SetHealth("GlobalHealth", "Shock", 5000);
-				m_player.GetStatEnergy().Set(4000);
-				m_player.GetStatWater().Set(4000);
-			}
-
-			m_player.SetAllowDamage(true);
+				m_player.SetAllowDamage(false);
+				if (!GiveCustomLoadout(m_player, playerId)) {
+					WriteToLog("CreateCharacter(): Loadout customizado não encontrado. Aplicando padrão.", LogFile.INIT, false, LogType.DEBUG);
+					GiveDefaultDeathmatchLoadout(m_player, playerId);		
+					// Stats/posição/dano depois
+					//GetGame().GetCallQueue(CALL_CATEGORY_GAMEPLAY).CallLater(PostSpawnInit, 300, false, m_player, pos);
+					//ScheduleSpawnStaminaBurst(m_player);
+					m_player.SetHealth("", "", 100);
+					m_player.SetHealth("GlobalHealth", "Blood", 5000);
+					m_player.SetHealth("GlobalHealth", "Shock", 5000);
+					m_player.GetStatEnergy().Set(4000);
+					m_player.GetStatWater().Set(4000);		
+				}
+				m_player.SetAllowDamage(true);
+			}		
+			
 		}
 
 		return m_player;
@@ -432,14 +427,13 @@ class CustomMission: MissionServer
 		if (CheckIfIsAdmin(playerId))
 		{
 			WriteToLog("StartingEquipSetup(): Player é admin, pulando equipamento inicial.", LogFile.INIT, false, LogType.DEBUG);
-			return;
-		}
 
-		ref array<ref LoadoutPlayer> loadoutsPlayer = GetAllLoudoutsFromPlayer(playerId);
-		if (!loadoutsPlayer) {
-			WriteToLog("Nenhum loadout encontrado para o playerId: " + playerId, LogFile.INIT, false, LogType.INFO);
+			ref array<ref LoadoutPlayer> loadoutsPlayer = GetAllLoudoutsFromPlayer(playerId);
+			if (!loadoutsPlayer) {
+				WriteToLog("Nenhum loadout encontrado para o playerId: " + playerId, LogFile.INIT, false, LogType.INFO);
+			}
 			return;
-		}
+		}		
 		
 		EntityAI itemClothing;
 		EntityAI itemEnt;

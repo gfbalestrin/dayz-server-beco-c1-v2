@@ -526,12 +526,12 @@ function renderChatMessages(messages) {
 // Função para enviar mensagem de chat
 function sendChatMessage(playerId) {
     const message = $('#chatMessageInput').val().trim();
-    
-    if (!message) {
-        showToast('Aviso', 'Por favor, digite uma mensagem', 'warning');
-        return;
-    }
-    
+        
+        if (!message) {
+            showToast('Aviso', 'Por favor, digite uma mensagem', 'warning');
+            return;
+        }
+        
     // Desabilitar botão durante envio
     $('#chatSendBtn').prop('disabled', true);
     
@@ -635,20 +635,6 @@ function escapeJsString(str) {
     return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
 }
 
-// Função para renderizar botão de spawnar
-function renderSpawnButton(player) {
-    if (!player.IsOnline || player.IsOnline === 0) {
-        return '<span class="text-muted">-</span>';
-    }
-    
-    const playerName = escapeJsString(player.PlayerName || 'Jogador');
-    return `
-        <button class="btn btn-primary btn-sm" onclick="confirmRedirectToSpawning('${player.PlayerID}', '${playerName}')" title="Spawnar Itens">
-            <i class="fas fa-magic"></i>
-        </button>
-    `;
-}
-
 // Função para renderizar usuário vinculado
 function renderLinkedUser(player) {
     if (player.LinkedUsername) {
@@ -665,22 +651,6 @@ function renderLoadoutsLink(player) {
     }
     const label = loadoutCount === 1 ? 'Ver 1 loadout' : `Ver ${loadoutCount} loadouts`;
     return `<a href="/loadouts#players-tab?player_id=${player.PlayerID}" class="btn btn-link p-0">${label}</a>`;
-}
-
-// Função para redirecionar para spawning com confirmação
-function confirmRedirectToSpawning(playerId, playerName) {
-    const player = playersData.find(p => p.PlayerID === playerId);
-    const displayName = player ? (player.PlayerName || 'Jogador desconhecido') : playerName;
-    
-    showActionConfirmationModal(
-        'Spawnar Itens',
-        'Deseja abrir a página de spawning de itens para este jogador?',
-        playerId,
-        displayName,
-        function() {
-            window.location.href = `/spawning?player_id=${playerId}`;
-        }
-    );
 }
 
 // Função para renderizar ações
@@ -720,7 +690,7 @@ function renderLocation(player) {
     if (!country && !city && !ip && !port && !ping) {
         return '<span class="text-muted">-</span>';
     }
-    
+
     const parts = [];
     
     // Bandeira e país
@@ -785,7 +755,7 @@ function showPlayerControlPanel(playerId) {
     const onlineButtons = ['#controlPanelHealBtn', '#controlPanelKillBtn', '#controlPanelKickBtn', 
                           '#controlPanelDesbugBtn', '#controlPanelActivateGodModeBtn', 
                           '#controlPanelDeactivateGodModeBtn', '#controlPanelSendMessageBtn',
-                          '#controlPanelBanBtn'];
+                          '#controlPanelBanBtn', '#controlPanelSpawnItemsBtn'];
     
     onlineButtons.forEach(btnId => {
         $(btnId).prop('disabled', !isOnline);
@@ -854,6 +824,15 @@ function showPlayerControlPanel(playerId) {
     $('#controlPanelViewHistoryBtn').off('click').on('click', function() {
         $('#playerControlPanelModal').modal('hide');
         showPlayerEventsHistory(playerId, playerName);
+    });
+    
+    // Botão Spawnar Itens
+    $('#controlPanelSpawnItemsBtn').off('click').on('click', function() {
+        if (!isOnline) {
+            showToast('Aviso', 'Jogador precisa estar online para spawnar itens', 'warning');
+            return;
+        }
+        window.location.href = `/spawning?player_id=${playerId}`;
     });
     
     // Abrir modal
@@ -1252,7 +1231,7 @@ function renderPlayersTable() {
     tbody.empty();
     
     if (filteredData.length === 0) {
-        tbody.append('<tr><td colspan="11" class="text-center">Nenhum jogador encontrado</td></tr>');
+        tbody.append('<tr><td colspan="10" class="text-center">Nenhum jogador encontrado</td></tr>');
     } else {
         // Renderizar cada jogador
         filteredData.forEach(player => {
@@ -1267,7 +1246,6 @@ function renderPlayersTable() {
                     <td>${renderLoadoutsLink(player)}</td>
                     <td>${renderDateTime(player)}</td>
                     <td>${createMapViewLink(player.PlayerID)}</td>
-                    <td>${renderSpawnButton(player)}</td>
                     <td>${renderActions(player)}</td>
                 </tr>
             `;
@@ -1285,7 +1263,7 @@ function renderPlayersTable() {
         pageLength: 25,
         responsive: true,
         columnDefs: [
-            { orderable: false, targets: [1, 5, 6, 8, 9, 10] } // Player ID, Localização, Loadouts, Mapa, Spawnar Itens e Ações não são ordenáveis
+            { orderable: false, targets: [1, 5, 6, 8, 9] } // Player ID, Localização, Loadouts, Mapa e Ações não são ordenáveis
         ]
     });
     console.log('[renderPlayersTable] DataTable recriada com sucesso');
@@ -1357,7 +1335,6 @@ $(document).ready(function() {
     window.confirmExecuteAction = confirmExecuteAction;
     window.confirmActivateGodMode = confirmActivateGodMode;
     window.confirmDeactivateGodMode = confirmDeactivateGodMode;
-    window.confirmRedirectToSpawning = confirmRedirectToSpawning;
     window.removeAdmin = removeAdmin;
     window.showPlayerChatModal = showPlayerChatModal;
     window.showSendMessageModal = showPlayerChatModal; // Mantém compatibilidade
@@ -1434,13 +1411,9 @@ function updatePlayersTableActions() {
                     
                     if (player) {
                         const mapCell = $(rowNode).find('td').eq(8);
-                        const spawnCell = $(rowNode).find('td').eq(9);
-                        const actionCell = $(rowNode).find('td').eq(10);
+                        const actionCell = $(rowNode).find('td').eq(9);
                         if (mapCell.length > 0) {
                             mapCell.html(createMapViewLink(playerId));
-                        }
-                        if (spawnCell.length > 0) {
-                            spawnCell.html(renderSpawnButton(player));
                         }
                         if (actionCell.length > 0) {
                             actionCell.html(renderActions(player));
