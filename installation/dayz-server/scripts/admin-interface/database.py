@@ -754,37 +754,48 @@ def count_vehicle_changes(vehicle_id: str, date_from: str = None, date_to: str =
         return change_count, change_flags
 
 def filter_vehicle_history_by_changes(history: List[Dict]) -> List[Dict]:
-    """Filtra histórico mantendo apenas registros com mudanças significativas consecutivas"""
+    """
+    Filtra histórico mantendo apenas registros com mudanças significativas.
+    
+    Regras:
+    - Histórico vem em ordem DESC (mais recente primeiro) na entrada.
+    - Posição/saúde/status: analisados entre registros consecutivos (ao longo do tempo).
+    - Items/attachments: analisados apenas entre snapshots COMPLETOS consecutivos
+      (ignorando updates parciais entre eles).
+    - Sempre mantém o snapshot mais recente.
+    """
     if len(history) <= 1:
         return history
-    
-    # O histórico vem em ordem DESC (mais recente primeiro)
-    # Sempre incluir o primeiro registro (mais recente)
-    filtered = [history[0]]
-    
+
     pos_threshold = 0.1
     health_threshold = 0.05
-    
-    # Comparar registros consecutivos (já vem em ordem DESC)
-    for i in range(1, len(history)):
-        prev = history[i - 1]  # Mais recente
-        curr = history[i]       # Mais antigo
-        
-        # Verificar se são parciais
+
+    n = len(history)
+    # Trabalhar em ordem ASC (do mais antigo para o mais recente)
+    asc_history = list(reversed(history))
+    # Flags de quais índices em ASC devem ser mantidos
+    keep_asc = [False] * n
+
+    last_complete_idx = None
+
+    for i in range(1, n):
+        prev = asc_history[i - 1]  # mais antigo
+        curr = asc_history[i]      # mais recente
+
         prev_is_partial = prev.get('IsPartialUpdate', 0) == 1
         curr_is_partial = curr.get('IsPartialUpdate', 0) == 1
-        
-        # Verificar mudança de posição
+
+        # Mudança de posição
         pos_changed = (
             abs((prev.get('PositionX') or 0) - (curr.get('PositionX') or 0)) > pos_threshold or
             abs((prev.get('PositionY') or 0) - (curr.get('PositionY') or 0)) > pos_threshold or
             abs((prev.get('PositionZ') or 0) - (curr.get('PositionZ') or 0)) > pos_threshold
         )
-        
-        # Verificar mudança de status (destruído/ativo)
+
+        # Mudança de status
         status_changed = (prev.get('IsDestroyed') or 0) != (curr.get('IsDestroyed') or 0)
-        
-        # Verificar mudança de saúde
+
+        # Mudança de saúde
         health_changed = False
         for health_field in ['EngineHealth', 'BodyHealth', 'FuelTankHealth']:
             prev_val = prev.get(health_field)
@@ -794,57 +805,75 @@ def filter_vehicle_history_by_changes(history: List[Dict]) -> List[Dict]:
                     health_changed = True
                     break
             elif prev_val != curr_val:
-                # Mudança de null para valor ou vice-versa
                 health_changed = True
                 break
-        
-        # Verificar mudança em items e attachments (apenas se ambos forem completos)
+
+        # Mudanças em items/attachments: apenas entre snapshots COMPLETOS consecutivos
         items_changed = False
         attachments_changed = False
-        
-        if not prev_is_partial and not curr_is_partial:
-            # Comparar items (já carregados no record)
-            prev_items = prev.get('items', [])
+
+        if not curr_is_partial and last_complete_idx is not None and last_complete_idx != i:
+            prev_complete = asc_history[last_complete_idx]
+
+            # Items
+            prev_items = prev_complete.get('items', [])
             curr_items = curr.get('items', [])
-            
-            # Criar contadores por tipo (ignorando ordem)
+
             prev_items_count = {}
             for item in prev_items:
                 item_type = item.get('ItemType') or item.get('type')
                 if item_type and item_type.strip() and item_type != 'empty':
                     prev_items_count[item_type] = prev_items_count.get(item_type, 0) + 1
-            
+
             curr_items_count = {}
             for item in curr_items:
                 item_type = item.get('ItemType') or item.get('type')
                 if item_type and item_type.strip() and item_type != 'empty':
                     curr_items_count[item_type] = curr_items_count.get(item_type, 0) + 1
-            
-            items_changed = prev_items_count != curr_items_count
-            
-            # Comparar attachments
-            prev_att = prev.get('attachments', [])
+
+            if prev_items_count != curr_items_count:
+                items_changed = True
+
+            # Attachments
+            prev_att = prev_complete.get('attachments', [])
             curr_att = curr.get('attachments', [])
-            
+
             prev_att_count = {}
             for att in prev_att:
                 att_type = att.get('AttachmentType') or att.get('type')
                 if att_type and att_type.strip() and att_type != 'empty':
                     prev_att_count[att_type] = prev_att_count.get(att_type, 0) + 1
-            
+
             curr_att_count = {}
             for att in curr_att:
                 att_type = att.get('AttachmentType') or att.get('type')
                 if att_type and att_type.strip() and att_type != 'empty':
                     curr_att_count[att_type] = curr_att_count.get(att_type, 0) + 1
-            
-            attachments_changed = prev_att_count != curr_att_count
-        
-        # Se houve qualquer mudança significativa, incluir o registro atual
+
+            if prev_att_count != curr_att_count:
+                attachments_changed = True
+
+        # Se houve qualquer mudança significativa entre prev→curr, marcar curr para manter
         if pos_changed or status_changed or health_changed or items_changed or attachments_changed:
-            filtered.append(curr)
-        # Caso contrário, não incluir (excluir silenciosamente - sem mudanças consecutivas)
-    
+            keep_asc[i] = True
+
+        # Atualizar último snapshot completo
+        if not curr_is_partial:
+            last_complete_idx = i
+
+    # Garantir que o snapshot mais recente (índice ASC n-1 → DESC 0) seja mantido
+    keep_asc[n - 1] = True
+
+    # Opcional: se quiser sempre manter também o mais antigo, descomente:
+    # keep_asc[0] = True
+
+    # Reconstruir lista filtrada em ordem DESC original
+    filtered = []
+    for desc_idx in range(n):
+        asc_idx = n - 1 - desc_idx
+        if keep_asc[asc_idx]:
+            filtered.append(history[desc_idx])
+
     return filtered
 
 def get_vehicles_paginated(status_filter: str, change_types: Optional[List[str]], date_from: str, date_to: str, 
