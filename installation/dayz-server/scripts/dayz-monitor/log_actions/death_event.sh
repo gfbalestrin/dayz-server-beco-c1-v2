@@ -246,6 +246,29 @@ handle_death_event() {
             # Criar JSON com detalhes
             DetailsJson="{\"cause\": \"$Cause\", \"death_message\": \"$UpdatedContent\"}"
             INSERT_PLAYER_EVENT "$PlayerId" "player_death" "$CoordX" "$CoordY" "$CoordZ" "$DetailsJson" ""
+            
+            # Atualizar IsAlive na última posição registrada do jogador
+            local EscapedPlayerId
+            EscapedPlayerId=$(echo "$PlayerId" | sed "s/'/''/g")
+            
+            sqlite3 "$AppFolder/$AppPlayerBecoC1DbFile" "
+                UPDATE players_coord 
+                SET IsAlive = 0 
+                WHERE PlayerID = '$EscapedPlayerId' 
+                  AND PlayerCoordId = (
+                      SELECT PlayerCoordId 
+                      FROM players_coord 
+                      WHERE PlayerID = '$EscapedPlayerId' 
+                      ORDER BY Data DESC 
+                      LIMIT 1
+                  );
+            " 2>/dev/null
+            
+            if [[ $? -eq 0 ]]; then
+                INSERT_CUSTOM_LOG "Campo IsAlive atualizado para 0 (morto) na última posição do PlayerId: $PlayerId" "INFO" "$ScriptName"
+            else
+                INSERT_CUSTOM_LOG "Erro ao atualizar IsAlive para PlayerId: $PlayerId" "WARNING" "$ScriptName"
+            fi
         else
             INSERT_CUSTOM_LOG "Evento de inconsciência detectado. Não será registrado como morte para PlayerId: $PlayerId" "INFO" "$ScriptName"
         fi
