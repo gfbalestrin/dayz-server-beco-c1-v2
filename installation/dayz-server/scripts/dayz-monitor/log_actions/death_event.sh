@@ -249,8 +249,6 @@ handle_death_event() {
         # BAN AUTOMÁTICO AO MORRER (PARAMETRIZADO)
         # ============================================================================
         if [[ "$DayzAutoBanOnDeathEnabled" == "1" ]]; then
-            INSERT_CUSTOM_LOG "Ban automático ao morrer está ativado. Verificando condições para banir PlayerId: $PlayerId" "DEBUG" "$ScriptName"
-            
             # Verificar se variáveis RCON estão configuradas
             if [[ -z "$DayzRConIP" ]] || [[ -z "$DayzRConPort" ]] || [[ -z "$DayzRConPassword" ]] || [[ -z "$AppRconBinFile" ]]; then
                 INSERT_CUSTOM_LOG "Configurações RCON não estão completas. Não é possível banir automaticamente." "WARNING" "$ScriptName"
@@ -280,7 +278,7 @@ handle_death_event() {
                         # Calcular data/hora de desban
                         local UnbanDateTime
                         UnbanDateTime=$(date -d "+$BanMinutes minutes" "+%d/%m/%Y %H:%M" 2>/dev/null || date -v+${BanMinutes}M "+%d/%m/%Y %H:%M" 2>/dev/null || date "+%d/%m/%Y %H:%M")
-                        BanMessage="Morreu e foi banido por $BanMinutes minutos. Será desbanido em $UnbanDateTime"
+                        BanMessage="Você morreu e só poderá logar em $UnbanDateTime"
                     else
                         BanMessage="Morreu e foi banido permanentemente"
                     fi
