@@ -1777,6 +1777,11 @@ function showPlayerEventsHistory(playerId, playerName) {
     const modal = new bootstrap.Modal(document.getElementById('playerEventsHistoryModal'));
     modal.show();
     
+    // Handler do botão "Voltar ao Painel"
+    $('#eventsHistoryModalBackBtn').off('click').on('click', function() {
+        returnToControlPanel(playerId, playerName);
+    });
+    
     // Carregar eventos
     loadPlayerEvents();
 }
