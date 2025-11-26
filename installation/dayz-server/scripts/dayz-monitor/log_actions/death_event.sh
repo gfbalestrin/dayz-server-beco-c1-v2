@@ -271,6 +271,20 @@ handle_death_event() {
             fi
         else
             INSERT_CUSTOM_LOG "Evento de inconsciência detectado. Não será registrado como morte para PlayerId: $PlayerId" "INFO" "$ScriptName"
+            
+            # Registrar evento de inconsciência
+            local Position CoordX CoordY CoordZ DetailsJson
+            # Tentar extrair coordenadas do conteúdo original
+            Position=$(echo "$content" | sed -n 's/.*pos=<\([^>]*\)>.*/\1/p' | sed 's/, */,/g')
+            if [[ -n "$Position" ]]; then
+                CoordX=$(echo "$Position" | cut -d',' -f1 | xargs)
+                CoordY=$(echo "$Position" | cut -d',' -f2 | xargs)
+                CoordZ=$(echo "$Position" | cut -d',' -f3 | xargs)
+            fi
+            
+            # Criar JSON com detalhes
+            DetailsJson="{\"unconscious_message\": \"$UpdatedContent\"}"
+            INSERT_PLAYER_EVENT "$PlayerId" "player_unconscious" "$CoordX" "$CoordY" "$CoordZ" "$DetailsJson" ""
         fi
         
         # ============================================================================

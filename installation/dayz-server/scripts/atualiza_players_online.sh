@@ -263,6 +263,7 @@ if [[ "$PLAYER_ID" == "RESET" ]]; then
                 --arg ping "${Ping:-null}" \
                 '{timestamp: $timestamp, Country: (if $country == "" then null else $country end), City: (if $city == "" then null else $city end), Lon: (if $lon == "" then null else ($lon | tonumber) end), IP: (if $ip == "" then null else $ip end), Port: (if $port == "" then null else ($port | tonumber) end), Ping: (if $ping == "" then null else ($ping | tonumber) end)}')
             
+            sleep 2
             INSERT_PLAYER_EVENT "$PlayerId" "player_disconnected" "" "" "" "$DetailsJson" ""
         } || true
     done < <(sqlite3 -separator $'\x1F' "$PLAYERS_BECO_C1_DB" "
@@ -363,6 +364,7 @@ if [ -n "$DATACONNECT" ]; then
                 --arg ping "${Ping:-null}" \
                 '{timestamp: $timestamp, Country: (if $country == "" then null else $country end), City: (if $city == "" then null else $city end), Lon: (if $lon == "" then null else ($lon | tonumber) end), IP: (if $ip == "" then null else $ip end), Port: (if $port == "" then null else ($port | tonumber) end), Ping: (if $ping == "" then null else ($ping | tonumber) end)}')
             
+            sleep 2
             INSERT_PLAYER_EVENT "$PLAYER_ID" "player_disconnected" "" "" "" "$DetailsJson" ""
         fi
         
@@ -393,40 +395,6 @@ if [ -n "$DATACONNECT" ]; then
 
             if [ $? -eq 0 ]; then
                 echo "Registro da tabela 'players_online' atualizado com sucesso."
-                
-                if [[ -n "$PLAYER_ID" ]] && [[ ${#PLAYER_ID} -eq 44 ]]; then
-                    GeoData=$(BuscaDadosGeolocalizacaoRcon "$PLAYER_ID")
-                    
-                    CurrentDate=$(date "+%Y-%m-%d %H:%M:%S")
-                    
-                    Country=""
-                    City=""
-                    Lon=""
-                    IP=""
-                    Port=""
-                    Ping=""
-                    if [[ -n "$GeoData" ]]; then
-                        Country=$(echo "$GeoData" | cut -d'|' -f1)
-                        City=$(echo "$GeoData" | cut -d'|' -f2)
-                        Lon=$(echo "$GeoData" | cut -d'|' -f3)
-                        IP=$(echo "$GeoData" | cut -d'|' -f4)
-                        Port=$(echo "$GeoData" | cut -d'|' -f5)
-                        Ping=$(echo "$GeoData" | cut -d'|' -f6)
-                    fi
-                    
-                    DetailsJson=$(jq -n \
-                        --arg timestamp "$CurrentDate" \
-                        --arg country "${Country:-null}" \
-                        --arg city "${City:-null}" \
-                        --arg lon "${Lon:-null}" \
-                        --arg ip "${IP:-null}" \
-                        --arg port "${Port:-null}" \
-                        --arg ping "${Ping:-null}" \
-                        '{timestamp: $timestamp, Country: (if $country == "" then null else $country end), City: (if $city == "" then null else $city end), Lon: (if $lon == "" then null else ($lon | tonumber) end), IP: (if $ip == "" then null else $ip end), Port: (if $port == "" then null else ($port | tonumber) end), Ping: (if $ping == "" then null else ($ping | tonumber) end)}')
-                    
-                    INSERT_PLAYER_EVENT "$PLAYER_ID" "player_connected" "" "" "" "$DetailsJson" ""
-                fi
-                
                 break;
             else
                 if echo "$OUTPUT" | grep -q "database is locked"; then
