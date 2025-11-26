@@ -146,6 +146,43 @@ $(document).ready(function() {
         setTimeout(tryZoom, 1000);
     }
     
+    // Função para fazer zoom no veículo
+    function zoomToVehicle(vehicleId) {
+        // Aguardar marcador ser criado (com retry)
+        const maxAttempts = 10;
+        let attempts = 0;
+        
+        const tryZoom = function() {
+            attempts++;
+            const marker = MapState.vehicleMarkers[vehicleId];
+            const vehicleData = MapState.vehiclesData[vehicleId];
+            
+            if (marker) {
+                // Marcador existe, fazer zoom
+                const latLng = marker.getLatLng();
+                MapState.map.flyTo(latLng, 3, {
+                    animate: true,
+                    duration: 1.0
+                });
+            } else if (vehicleData && vehicleData.pixel_coords) {
+                // Marcador ainda não existe, mas temos dados do veículo
+                const mapCoords = convertToMapCoords(vehicleData.pixel_coords);
+                if (mapCoords) {
+                    MapState.map.flyTo(mapCoords, 3, {
+                        animate: true,
+                        duration: 1.0
+                    });
+                }
+            } else if (attempts < maxAttempts) {
+                // Aguardar mais um pouco e tentar novamente
+                setTimeout(tryZoom, 500);
+            }
+        };
+        
+        // Primeira tentativa após um delay inicial
+        setTimeout(tryZoom, 1000);
+    }
+    
     // Verificar se há filtro de player_id na URL e aplicar
     const urlParams = new URLSearchParams(window.location.search);
     const playerIdFilter = urlParams.get('player_id');
@@ -210,9 +247,36 @@ $(document).ready(function() {
             // Adicionar ao array de filtros
             MapState.selectedVehicleFilters.push(vehicleIdFilter);
             updateSelectedVehiclesBadges();
-            // Carregar veículos (que aplicará o filtro automaticamente)
-            loadVehicles();
         }, 500); // Aguardar carga completa do mapa
+        
+        // Fazer zoom no veículo após carregar veículos
+        // Usar um listener único para fazer zoom após o primeiro carregamento
+        let zoomExecuted = false;
+        const originalLoadVehicles = window.loadVehicles;
+        const wrappedLoadVehicles = function() {
+            const result = originalLoadVehicles.apply(this, arguments);
+            
+            if (!zoomExecuted) {
+                zoomExecuted = true;
+                // Aguardar um pouco para marcadores serem criados
+                setTimeout(function() {
+                    zoomToVehicle(vehicleIdFilter);
+                }, 1500);
+                
+                // Restaurar função original após primeira execução
+                window.loadVehicles = originalLoadVehicles;
+            }
+            
+            return result;
+        };
+        
+        // Interceptar apenas uma vez
+        window.loadVehicles = wrappedLoadVehicles;
+        
+        // Carregar veículos (que aplicará o filtro automaticamente)
+        setTimeout(function() {
+            loadVehicles();
+        }, 500);
     }
     
     // Auto-refresh inicial
