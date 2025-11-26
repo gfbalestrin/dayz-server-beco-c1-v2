@@ -2,6 +2,16 @@ $(document).ready(function() {
     let vehiclesTable;
     let currentVehicleId = null;
     let autoRefreshInterval = null;
+    const QUICK_FILTERS = {
+        last10m: { minutes: 10 },
+        last1h: { minutes: 60 },
+        last4h: { minutes: 240 },
+        last24h: { minutes: 1440 },
+        today: { type: 'day', offsetDays: 0 },
+        yesterday: { type: 'day', offsetDays: -1 },
+        last7d: { days: 7 }
+    };
+    let activeQuickFilter = null;
     
     // Estado de paginação do histórico
     let historyState = {
@@ -45,11 +55,15 @@ $(document).ready(function() {
                 url: '/api/vehicles/data',
                 type: 'GET',
                 data: function(d) {
-                    // Converter explicitamente para string 'true'/'false' para garantir conversão correta
-                    d.include_destroyed = $('#includeDestroyed').is(':checked') ? 'true' : 'false';
-                    d.only_with_changes = $('#onlyWithChanges').is(':checked') ? 'true' : 'false';
-                    d.date_from = $('#dateFrom').val() || null;
-                    d.date_to = $('#dateTo').val() || null;
+                    d.status_filter = $('#statusFilter').val();
+                    const selectedChangeTypes = [];
+                    $('.change-type-checkbox:checked').each(function() {
+                        selectedChangeTypes.push($(this).val());
+                    });
+                    d.change_types = selectedChangeTypes;
+                    const dateRange = getCurrentDateRange();
+                    d.datetime_from = dateRange.from;
+                    d.datetime_to = dateRange.to;
                     if (d.search && d.search.value) {
                         d.search = d.search.value;
                     } else {
@@ -90,37 +104,18 @@ $(document).ready(function() {
                 {
                     data: 'ChangeCount',
                     orderable: true, // Ordenável - ordenação feita em memória no backend
-                    render: function(data) {
-                        const count = parseInt(data || 0);
-                        let badgeClass = 'bg-success';
-                        let icon = '';
-                        
-                        if (count === 0) {
-                            badgeClass = 'bg-secondary';
-                        } else if (count >= 1 && count <= 2) {
-                            badgeClass = 'bg-success';
-                        } else if (count >= 3 && count <= 5) {
-                            badgeClass = 'bg-warning';
-                        } else if (count >= 6 && count <= 10) {
-                            badgeClass = 'bg-warning text-dark';
-                            icon = '<i class="fas fa-exclamation-triangle me-1"></i>';
-                        } else {
-                            badgeClass = 'bg-danger';
-                            icon = '<i class="fas fa-exclamation-circle me-1"></i>';
-                        }
-                        
-                        return '<span class="badge ' + badgeClass + '" title="Número de alterações significativas detectadas no histórico do veículo">' + 
-                               icon + count + '</span>';
+                    render: function(data, type, row) {
+                        return renderChangeBadges(row.ChangeFlags);
                     }
                 },
                 {
                     data: null,
                     orderable: false, // Não ordenável - coluna composta
                     render: function(data) {
-                        const x = parseFloat(data.PositionX || 0).toFixed(2);
-                        const y = parseFloat(data.PositionY || 0).toFixed(2);
-                        const z = parseFloat(data.PositionZ || 0).toFixed(2);
-                        return `X: ${x}<br>Y: ${y}<br>Z: ${z}`;
+                        const vehicleId = encodeURIComponent(data.VehicleId || '');
+                        const mapUrl = `/map?vehicle_id=${vehicleId}`;
+                        return `<a class="btn btn-link p-0" href="${mapUrl}" title="Abrir veículo no mapa">` +
+                            `<i class="fas fa-map-marker-alt me-1"></i>Ver no mapa</a>`;
                     }
                 },
                 {
@@ -161,15 +156,10 @@ $(document).ready(function() {
                 {
                     data: 'VehicleId',
                     orderable: false,
-                    render: function(data, type, row) {
+                    render: function(data) {
                         const vehicleId = escapeHtml(data);
-                        const mapUrl = '/map?vehicle_id=' + encodeURIComponent(vehicleId);
-                        return '<div class="btn-group" role="group">' +
-                            '<button class="btn btn-sm btn-primary view-history-btn" data-vehicle-id="' + vehicleId + '">' +
-                            '<i class="fas fa-history me-1"></i>Ver Histórico</button>' +
-                            '<a href="' + mapUrl + '" class="btn btn-sm btn-info" title="Ver no Mapa">' +
-                            '<i class="fas fa-map-marker-alt"></i></a>' +
-                            '</div>';
+                        return '<button class="btn btn-sm btn-primary view-history-btn" data-vehicle-id="' + vehicleId + '">' +
+                            '<i class="fas fa-history me-1"></i>Ver Histórico</button>';
                     }
                 }
             ],
@@ -219,6 +209,165 @@ $(document).ready(function() {
             healthValue.toFixed(0) + '%</div></div>';
     }
     
+    function renderChangeBadges(changeFlags) {
+        const flags = changeFlags || {};
+        const badgeConfig = [
+            { key: 'position', label: 'Coordenadas', classes: 'bg-info text-dark', icon: 'fa-location-arrow' },
+            { key: 'health', label: 'Saúde', classes: 'bg-danger', icon: 'fa-heartbeat' },
+            { key: 'items', label: 'Items', classes: 'bg-primary', icon: 'fa-boxes' },
+            { key: 'attachments', label: 'Attachments', classes: 'bg-warning text-dark', icon: 'fa-tools' }
+        ];
+        const badges = [];
+        
+        badgeConfig.forEach(function(config) {
+            if (flags[config.key]) {
+                badges.push(
+                    `<span class="badge ${config.classes} me-1 mb-1" title="${config.label}">` +
+                    `<i class="fas ${config.icon} me-1"></i>${config.label}</span>`
+                );
+            }
+        });
+        
+        if (badges.length === 0) {
+            return '<span class="badge bg-secondary">Sem alterações</span>';
+        }
+        
+        return badges.join('');
+    }
+    
+    let suppressDateInputListeners = false;
+    
+    function padZero(value) {
+        return String(value).padStart(2, '0');
+    }
+    
+    function startOfDay(date) {
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+    }
+    
+    function formatDateForInput(date) {
+        return `${date.getFullYear()}-${padZero(date.getMonth() + 1)}-${padZero(date.getDate())}`;
+    }
+    
+    function formatTimeForInput(date) {
+        return `${padZero(date.getHours())}:${padZero(date.getMinutes())}`;
+    }
+    
+    function formatDateTimeForServer(date) {
+        if (!date) {
+            return null;
+        }
+        return `${date.getFullYear()}-${padZero(date.getMonth() + 1)}-${padZero(date.getDate())} ${padZero(date.getHours())}:${padZero(date.getMinutes())}:${padZero(date.getSeconds())}`;
+    }
+    
+    function setCustomDateInputs(fromDate, toDate) {
+        suppressDateInputListeners = true;
+        if (fromDate) {
+            $('#customDateFrom').val(formatDateForInput(fromDate));
+            $('#customTimeFrom').val(formatTimeForInput(fromDate));
+        } else {
+            $('#customDateFrom').val('');
+            $('#customTimeFrom').val('');
+        }
+        
+        if (toDate) {
+            $('#customDateTo').val(formatDateForInput(toDate));
+            $('#customTimeTo').val(formatTimeForInput(toDate));
+        } else {
+            $('#customDateTo').val('');
+            $('#customTimeTo').val('');
+        }
+        suppressDateInputListeners = false;
+    }
+    
+    function clearCustomDateInputs() {
+        suppressDateInputListeners = true;
+        $('#customDateFrom, #customDateTo').val('');
+        $('#customTimeFrom, #customTimeTo').val('');
+        suppressDateInputListeners = false;
+    }
+    
+    function computeQuickRange(filterKey) {
+        if (!filterKey || !QUICK_FILTERS[filterKey]) {
+            return null;
+        }
+        
+        const config = QUICK_FILTERS[filterKey];
+        const now = new Date();
+        let end = new Date(now);
+        let start = null;
+        
+        if (config.minutes) {
+            start = new Date(end.getTime() - config.minutes * 60 * 1000);
+        } else if (config.days) {
+            start = new Date(end.getTime() - config.days * 24 * 60 * 60 * 1000);
+        } else if (config.type === 'day') {
+            const todayStart = startOfDay(now);
+            if (config.offsetDays === 0) {
+                start = todayStart;
+                end = new Date(now);
+            } else if (config.offsetDays === -1) {
+                const endOfYesterday = new Date(todayStart.getTime() - 1000);
+                end = endOfYesterday;
+                start = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
+            } else {
+                const targetStart = new Date(todayStart.getTime() + config.offsetDays * 24 * 60 * 60 * 1000);
+                start = targetStart;
+                end = new Date(targetStart.getTime() + 24 * 60 * 60 * 1000 - 1000);
+            }
+        }
+        
+        if (!start) {
+            start = new Date(now);
+        }
+        
+        return { from: start, to: end };
+    }
+    
+    function getInputDateTime(dateValue, timeValue) {
+        if (!dateValue && !timeValue) {
+            return null;
+        }
+        
+        if (!dateValue || !timeValue) {
+            return null;
+        }
+        
+        let timeString = timeValue;
+        if (timeString.length === 5) {
+            timeString = `${timeString}:00`;
+        }
+        
+        return `${dateValue} ${timeString}`;
+    }
+    
+    function getCurrentDateRange() {
+        if (activeQuickFilter) {
+            const range = computeQuickRange(activeQuickFilter);
+            if (range) {
+                return {
+                    from: formatDateTimeForServer(range.from),
+                    to: formatDateTimeForServer(range.to)
+                };
+            }
+        }
+        
+        const customFrom = getInputDateTime($('#customDateFrom').val(), $('#customTimeFrom').val());
+        const customTo = getInputDateTime($('#customDateTo').val(), $('#customTimeTo').val());
+        
+        return {
+            from: customFrom,
+            to: customTo
+        };
+    }
+    
+    function updateQuickShortcutButtons() {
+        $('.vehicle-quick-filter').removeClass('active');
+        if (activeQuickFilter) {
+            $(`.vehicle-quick-filter[data-filter="${activeQuickFilter}"]`).addClass('active');
+        }
+    }
+    
     // Escapar HTML
     function escapeHtml(text) {
         const map = {
@@ -232,23 +381,82 @@ $(document).ready(function() {
     }
     
     // Função para recarregar tabela
-    function reloadTable() {
+    function reloadTable(resetPage = true) {
         if (vehiclesTable) {
-            vehiclesTable.page('first');
+            if (activeQuickFilter) {
+                const range = computeQuickRange(activeQuickFilter);
+                if (range) {
+                    setCustomDateInputs(range.from, range.to);
+                }
+            }
+            if (resetPage) {
+                vehiclesTable.page('first');
+            }
             vehiclesTable.ajax.reload(null, false);
         }
     }
     
+    function applyQuickFilter(filterKey) {
+        if (filterKey === 'clear') {
+            activeQuickFilter = null;
+            updateQuickShortcutButtons();
+            clearCustomDateInputs();
+            reloadTable();
+            return;
+        }
+        
+        activeQuickFilter = filterKey;
+        updateQuickShortcutButtons();
+        const range = computeQuickRange(filterKey);
+        if (range) {
+            setCustomDateInputs(range.from, range.to);
+        }
+        reloadTable();
+    }
+    
+    function handleCustomDateChange() {
+        if (suppressDateInputListeners) {
+            return;
+        }
+        activeQuickFilter = null;
+        updateQuickShortcutButtons();
+    }
+    
     // Event listeners para filtros
-    $('#includeDestroyed, #onlyWithChanges, #dateFrom, #dateTo').on('change', function() {
+    $('#statusFilter').on('change', function() {
         reloadTable();
     });
     
+    $('.change-type-checkbox').on('change', function() {
+        reloadTable();
+    });
+    
+    $('.vehicle-quick-filter').on('click', function() {
+        const filterKey = $(this).data('filter');
+        applyQuickFilter(filterKey);
+    });
+    
+    $('#applyCustomDateFilter').on('click', function() {
+        activeQuickFilter = null;
+        updateQuickShortcutButtons();
+        reloadTable();
+    });
+    
+    $('#clearCustomDateFilter').on('click', function() {
+        activeQuickFilter = null;
+        updateQuickShortcutButtons();
+        clearCustomDateInputs();
+        reloadTable();
+    });
+    
+    $('#customDateFrom, #customTimeFrom, #customDateTo, #customTimeTo').on('input', handleCustomDateChange);
+    
     $('#clearFilters').on('click', function() {
-        $('#includeDestroyed').prop('checked', false);
-        $('#onlyWithChanges').prop('checked', false);
-        $('#dateFrom').val('');
-        $('#dateTo').val('');
+        $('#statusFilter').val('active');
+        $('.change-type-checkbox').prop('checked', false);
+        activeQuickFilter = null;
+        updateQuickShortcutButtons();
+        clearCustomDateInputs();
         reloadTable();
     });
     
@@ -266,7 +474,7 @@ $(document).ready(function() {
             const intervalMs = Math.max(5000, intervalSeconds * 1000); // Mínimo 5 segundos
             
             autoRefreshInterval = setInterval(function() {
-                reloadTable();
+                reloadTable(false);
             }, intervalMs);
         }
     }
@@ -440,39 +648,17 @@ $(document).ready(function() {
             return;
         }
         
-        // Filtrar registros duplicados: manter apenas quando há mudanças significativas
-        // Como o histórico vem ordenado DESC (mais recente primeiro), sempre manter o primeiro
-        const filteredHistory = [];
+        // NOTA: O histórico já vem filtrado do backend (apenas registros com mudanças significativas)
+        // Não é necessário filtrar novamente no frontend
         
-        for (let i = 0; i < history.length; i++) {
-            const currentRecord = history[i];
-            
-            // Sempre incluir o primeiro registro (mais recente)
-            if (i === 0) {
-                filteredHistory.push(currentRecord);
-                continue;
-            }
-            
-            // Comparar com o último registro incluído (mais recente)
-            // Como o histórico vem em DESC, lastIncluded é mais recente que currentRecord
-            const lastIncluded = filteredHistory[filteredHistory.length - 1];
-            
-            // Comparar o mais recente (lastIncluded) com o mais antigo (currentRecord)
-            // Se há mudanças significativas, incluir o registro mais antigo
-            if (hasSignificantChanges(currentRecord, lastIncluded)) {
-                filteredHistory.push(currentRecord);
-            }
-            // Se não há mudanças, pular (já temos o mais recente)
-        }
-        
-        // Renderizar apenas os registros filtrados
+        // Renderizar os registros do histórico
         // O histórico vem em ordem DESC: [mais recente, ..., mais antigo]
         // Cada registro deve ser comparado com o PRÓXIMO na lista (mais antigo)
         // para mostrar as mudanças que aconteceram neste momento específico
         
-        filteredHistory.forEach(function(record, index) {
+        history.forEach(function(record, index) {
             // Obter o próximo registro na lista (mais antigo)
-            const nextRecord = index < filteredHistory.length - 1 ? filteredHistory[index + 1] : null;
+            const nextRecord = index < history.length - 1 ? history[index + 1] : null;
             
             // Comparar este registro com o próximo (mais antigo) para detectar mudanças
             // Se há próximo registro, comparar para ver o que mudou DESSE registro PARA o próximo
@@ -484,7 +670,7 @@ $(document).ready(function() {
                     <div class="d-flex">
                         <div class="timeline-marker me-3">
                             <div class="timeline-dot ${record.IsDestroyed == 1 ? 'bg-danger' : 'bg-primary'}"></div>
-                            ${index < filteredHistory.length - 1 ? '<div class="timeline-line"></div>' : ''}
+                            ${index < history.length - 1 ? '<div class="timeline-line"></div>' : ''}
                         </div>
                         <div class="flex-grow-1">
                             <div class="card">

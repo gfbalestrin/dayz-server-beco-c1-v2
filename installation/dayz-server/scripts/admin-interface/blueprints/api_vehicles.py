@@ -12,7 +12,8 @@ from database import (
     get_vehicle_history, 
     get_vehicle_tracking_items, 
     get_vehicle_tracking_attachments,
-    count_vehicle_history
+    count_vehicle_history,
+    filter_vehicle_history_by_changes
 )
 
 api_vehicles_bp = Blueprint('api_vehicles', __name__)
@@ -262,12 +263,12 @@ def api_vehicles_data():
         length = int(request.args.get('length', 50))
         
         # Filtros
-        include_destroyed_param = request.args.get('include_destroyed', 'false')
-        include_destroyed = include_destroyed_param.lower() == 'true'
-        only_with_changes_param = request.args.get('only_with_changes', 'false')
-        only_with_changes = only_with_changes_param.lower() == 'true'
-        date_from = request.args.get('date_from', None)
-        date_to = request.args.get('date_to', None)
+        status_filter = request.args.get('status_filter', 'active')
+        change_types = request.args.getlist('change_types[]')
+        if not change_types:
+            change_types = request.args.getlist('change_types')
+        datetime_from = request.args.get('datetime_from', None) or request.args.get('date_from', None)
+        datetime_to = request.args.get('datetime_to', None) or request.args.get('date_to', None)
         search = request.args.get('search', None)
         
         # Parâmetros de ordenação do DataTables
@@ -285,6 +286,7 @@ def api_vehicles_data():
         
         order_by = None
         order_by_change_count = False
+        order_by_change_count_dir = None
         if order_column and order_column in column_map:
             field = column_map[order_column]
             # ChangeCount não pode ser ordenado no servidor (calculado depois)
@@ -296,14 +298,14 @@ def api_vehicles_data():
         
         # Log de debug (pode ser removido depois)
         logger = logging.getLogger(__name__)
-        logger.debug(f"API vehicles/data - include_destroyed param: '{include_destroyed_param}', parsed: {include_destroyed}")
+        logger.debug(f"API vehicles/data - status_filter: '{status_filter}', datetime_from: '{datetime_from}', datetime_to: '{datetime_to}', change_types: {change_types}")
         
         # Buscar dados paginados
         data, total_records = get_vehicles_paginated(
-            include_destroyed=include_destroyed,
-            only_with_changes=only_with_changes,
-            date_from=date_from,
-            date_to=date_to,
+            status_filter=status_filter,
+            change_types=change_types,
+            date_from=datetime_from,
+            date_to=datetime_to,
             start=start,
             length=length,
             search=search,
@@ -363,46 +365,25 @@ def api_vehicle_history(vehicle_id):
                     'error': 'Formato de data inválido. Use YYYY-MM-DD'
                 }), 400
         
-        # Se não há parâmetros de paginação, usar comportamento padrão (limit 100)
-        if page is None and per_page is None:
-            limit = int(request.args.get('limit', 100))
-            offset = 0
-            total_records = None
-            total_pages = None
-            current_page = 1
-            per_page_value = limit
-        else:
-            # Paginação ativa
-            page = int(page) if page else 1
-            per_page_value = int(per_page) if per_page else 10
-            
-            # Validar valores
-            if page < 1:
-                page = 1
-            if per_page_value < 1:
-                per_page_value = 10
-            
-            # Calcular offset
-            offset = (page - 1) * per_page_value
-            limit = per_page_value
-            
-            # Contar total de registros com filtros aplicados
-            total_records = count_vehicle_history(vehicle_id, date_from=date_from, date_to=date_to)
-            total_pages = (total_records + per_page_value - 1) // per_page_value if total_records > 0 else 1
-            current_page = page
+        # IMPORTANTE: Para filtrar corretamente registros sem mudanças, precisamos:
+        # 1. Buscar TODOS os registros (sem paginação inicial)
+        # 2. Carregar items/attachments para todos
+        # 3. Filtrar mantendo apenas os com mudanças significativas consecutivas
+        # 4. Aplicar paginação nos resultados filtrados
         
-        # Buscar histórico
-        history = get_vehicle_history(
+        # Buscar TODOS os registros do histórico (sem limite inicial)
+        # Limitar a 5000 registros para evitar problemas de memória
+        all_history = get_vehicle_history(
             vehicle_id, 
-            limit=limit, 
-            offset=offset,
+            limit=5000, 
+            offset=0,
             date_from=date_from,
             date_to=date_to
         )
         
         # Para cada registro, buscar items e attachments
         # Se o registro for parcial (IsPartialUpdate = 1), buscar do último registro completo anterior
-        for record in history:
+        for record in all_history:
             tracking_id = record['IdVehicleTracking']
             is_partial = record.get('IsPartialUpdate', 0) == 1
             
@@ -425,6 +406,43 @@ def api_vehicle_history(vehicle_id):
             
             record['items'] = get_vehicle_tracking_items(tracking_id)
             record['attachments'] = get_vehicle_tracking_attachments(tracking_id)
+        
+        # Filtrar registros sem mudanças significativas consecutivas
+        # Isso reduz drasticamente o número de registros (de 1500+ para ~6 eventos com mudanças)
+        filtered_history = filter_vehicle_history_by_changes(all_history)
+        
+        # Aplicar paginação nos registros filtrados
+        if page is None and per_page is None:
+            per_page_value = int(request.args.get('limit', 100))
+            current_page = 1
+        else:
+            # Paginação ativa
+            page = int(page) if page else 1
+            per_page_value = int(per_page) if per_page else 10
+            
+            # Validar valores
+            if page < 1:
+                page = 1
+            if per_page_value < 1:
+                per_page_value = 10
+            
+            current_page = page
+        
+        # Calcular paginação sobre os registros filtrados
+        total_filtered_records = len(filtered_history)
+        total_pages = (total_filtered_records + per_page_value - 1) // per_page_value if total_filtered_records > 0 else 1
+        
+        # Ajustar página atual se necessário
+        if current_page > total_pages:
+            current_page = total_pages
+        
+        # Aplicar paginação aos registros filtrados
+        start_idx = (current_page - 1) * per_page_value
+        end_idx = start_idx + per_page_value
+        history = filtered_history[start_idx:end_idx]
+        
+        # Total de registros para paginação (baseado nos filtrados)
+        total_records = total_filtered_records
         
         # Preparar resposta
         response = {

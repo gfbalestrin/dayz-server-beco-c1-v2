@@ -386,6 +386,10 @@ def get_vehicles_overview(include_destroyed: bool = False, date_from: str = None
     with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
         
+        status_filter = (status_filter or 'active').lower()
+        selected_change_types = set(change_types or [])
+        change_types_active = len(selected_change_types) > 0
+        
         # Verificar colunas disponíveis
         cursor.execute("PRAGMA table_info(vehicles_tracking)")
         columns = [row[1] for row in cursor.fetchall()]
@@ -538,27 +542,47 @@ def get_vehicle_tracking_attachments(tracking_id: int) -> List[Dict]:
         """, (tracking_id,))
         return [dict(row) for row in cursor.fetchall()]
 
-def count_vehicle_changes(vehicle_id: str) -> int:
-    """Conta o número de alterações significativas no histórico de um veículo"""
+def count_vehicle_changes(vehicle_id: str, date_from: str = None, date_to: str = None) -> Tuple[int, Dict[str, bool]]:
+    """Conta o número de alterações significativas no histórico de um veículo e retorna flags por tipo"""
     with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
         
         # Buscar histórico ordenado por timestamp (limitar a últimos 500 registros para performance)
-        cursor.execute("""
+        history_conditions = ["VehicleId = ?"]
+        params = [vehicle_id]
+        
+        if date_from:
+            history_conditions.append("TimeStamp >= ?")
+            params.append(date_from)
+        
+        if date_to:
+            history_conditions.append("TimeStamp <= ?")
+            params.append(date_to)
+        
+        where_clause = " AND ".join(history_conditions)
+        
+        query = f"""
             SELECT IdVehicleTracking, PositionX, PositionY, PositionZ, TimeStamp,
                    IFNULL(IsDestroyed, 0) as IsDestroyed,
-                   EngineHealth, BodyHealth, FuelTankHealth
+                   EngineHealth, BodyHealth, FuelTankHealth, IFNULL(IsPartialUpdate, 0) as IsPartialUpdate
             FROM vehicles_tracking
-            WHERE VehicleId = ?
+            WHERE {where_clause}
             ORDER BY TimeStamp DESC
             LIMIT 500
-        """, (vehicle_id,))
+        """
+        
+        cursor.execute(query, params)
         
         # Reverter para ordem ASC para comparação
         records = list(reversed([dict(row) for row in cursor.fetchall()]))
         
         if len(records) <= 1:
-            return 0
+            return 0, {
+                'position': False,
+                'health': False,
+                'items': False,
+                'attachments': False
+            }
         
         # Carregar todos os items e attachments de uma vez (otimização)
         tracking_ids = [r['IdVehicleTracking'] for r in records]
@@ -613,6 +637,12 @@ def count_vehicle_changes(vehicle_id: str) -> int:
         change_count = 0
         pos_threshold = 0.1
         health_threshold = 0.05
+        change_flags = {
+            'position': False,
+            'health': False,
+            'items': False,
+            'attachments': False
+        }
         
         # Comparar registros consecutivos
         for i in range(1, len(records)):
@@ -694,12 +724,114 @@ def count_vehicle_changes(vehicle_id: str) -> int:
             # Se houve qualquer mudança significativa, incrementar contador
             if pos_changed or status_changed or health_changed or items_changed or attachments_changed:
                 change_count += 1
+                if pos_changed:
+                    change_flags['position'] = True
+                if health_changed or status_changed:
+                    change_flags['health'] = True
+                if items_changed:
+                    change_flags['items'] = True
+                if attachments_changed:
+                    change_flags['attachments'] = True
         
-        return change_count
+        return change_count, change_flags
 
-def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str, 
+def filter_vehicle_history_by_changes(history: List[Dict]) -> List[Dict]:
+    """Filtra histórico mantendo apenas registros com mudanças significativas consecutivas"""
+    if len(history) <= 1:
+        return history
+    
+    # O histórico vem em ordem DESC (mais recente primeiro)
+    # Sempre incluir o primeiro registro (mais recente)
+    filtered = [history[0]]
+    
+    pos_threshold = 0.1
+    health_threshold = 0.05
+    
+    # Comparar registros consecutivos (já vem em ordem DESC)
+    for i in range(1, len(history)):
+        prev = history[i - 1]  # Mais recente
+        curr = history[i]       # Mais antigo
+        
+        # Verificar se são parciais
+        prev_is_partial = prev.get('IsPartialUpdate', 0) == 1
+        curr_is_partial = curr.get('IsPartialUpdate', 0) == 1
+        
+        # Verificar mudança de posição
+        pos_changed = (
+            abs((prev.get('PositionX') or 0) - (curr.get('PositionX') or 0)) > pos_threshold or
+            abs((prev.get('PositionY') or 0) - (curr.get('PositionY') or 0)) > pos_threshold or
+            abs((prev.get('PositionZ') or 0) - (curr.get('PositionZ') or 0)) > pos_threshold
+        )
+        
+        # Verificar mudança de status (destruído/ativo)
+        status_changed = (prev.get('IsDestroyed') or 0) != (curr.get('IsDestroyed') or 0)
+        
+        # Verificar mudança de saúde
+        health_changed = False
+        for health_field in ['EngineHealth', 'BodyHealth', 'FuelTankHealth']:
+            prev_val = prev.get(health_field)
+            curr_val = curr.get(health_field)
+            if prev_val is not None and curr_val is not None:
+                if abs(prev_val - curr_val) > health_threshold:
+                    health_changed = True
+                    break
+            elif prev_val != curr_val:
+                # Mudança de null para valor ou vice-versa
+                health_changed = True
+                break
+        
+        # Verificar mudança em items e attachments (apenas se ambos forem completos)
+        items_changed = False
+        attachments_changed = False
+        
+        if not prev_is_partial and not curr_is_partial:
+            # Comparar items (já carregados no record)
+            prev_items = prev.get('items', [])
+            curr_items = curr.get('items', [])
+            
+            # Criar contadores por tipo (ignorando ordem)
+            prev_items_count = {}
+            for item in prev_items:
+                item_type = item.get('ItemType') or item.get('type')
+                if item_type and item_type.strip() and item_type != 'empty':
+                    prev_items_count[item_type] = prev_items_count.get(item_type, 0) + 1
+            
+            curr_items_count = {}
+            for item in curr_items:
+                item_type = item.get('ItemType') or item.get('type')
+                if item_type and item_type.strip() and item_type != 'empty':
+                    curr_items_count[item_type] = curr_items_count.get(item_type, 0) + 1
+            
+            items_changed = prev_items_count != curr_items_count
+            
+            # Comparar attachments
+            prev_att = prev.get('attachments', [])
+            curr_att = curr.get('attachments', [])
+            
+            prev_att_count = {}
+            for att in prev_att:
+                att_type = att.get('AttachmentType') or att.get('type')
+                if att_type and att_type.strip() and att_type != 'empty':
+                    prev_att_count[att_type] = prev_att_count.get(att_type, 0) + 1
+            
+            curr_att_count = {}
+            for att in curr_att:
+                att_type = att.get('AttachmentType') or att.get('type')
+                if att_type and att_type.strip() and att_type != 'empty':
+                    curr_att_count[att_type] = curr_att_count.get(att_type, 0) + 1
+            
+            attachments_changed = prev_att_count != curr_att_count
+        
+        # Se houve qualquer mudança significativa, incluir o registro atual
+        if pos_changed or status_changed or health_changed or items_changed or attachments_changed:
+            filtered.append(curr)
+        # Caso contrário, não incluir (excluir silenciosamente - sem mudanças consecutivas)
+    
+    return filtered
+
+def get_vehicles_paginated(status_filter: str, change_types: Optional[List[str]], date_from: str, date_to: str, 
                           start: int, length: int, search: str = None, 
-                          order_by: Tuple[str, str] = None, only_with_changes: bool = False,
+                          order_by: Tuple[str, str] = None,
                           order_by_change_count: bool = False, order_by_change_count_dir: str = None) -> Tuple[List[Dict], int]:
     """Retorna dados paginados de veículos com busca e filtros"""
     with DatabaseConnection(config.DB_VEHICLES) as conn:
@@ -722,9 +854,12 @@ def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str
         where_conditions = []
         params = []
         
-        # Aplicar filtro de destruídos apenas se a coluna existir e include_destroyed for False
-        if has_is_destroyed and not include_destroyed:
-            where_conditions.append("(vt.IsDestroyed = 0 OR vt.IsDestroyed IS NULL)")
+        # Aplicar filtro de status conforme seleção
+        if has_is_destroyed:
+            if status_filter == 'active':
+                where_conditions.append("(vt.IsDestroyed = 0 OR vt.IsDestroyed IS NULL)")
+            elif status_filter == 'destroyed':
+                where_conditions.append("(vt.IsDestroyed = 1)")
         
         if date_from:
             where_conditions.append("vt.TimeStamp >= ?")
@@ -765,11 +900,33 @@ def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str
         else:
             total_records = total_all
         
-        # Se ordenação for por ChangeCount, precisamos buscar todos os dados primeiro
-        # para ordenar em memória, depois aplicar paginação
-        if order_by_change_count:
-            # Buscar TODOS os dados (sem paginação) para poder ordenar por ChangeCount
+        # Construir ORDER BY padrão (usado quando não ordenado por ChangeCount)
+        valid_fields = ['VehicleId', 'VehicleName', 'IsDestroyed', 'TimeStamp']
+        if order_by and order_by[0] in valid_fields and not order_by_change_count:
+            order_field, order_direction = order_by
+            order_direction = 'DESC' if order_direction == 'desc' else 'ASC'
+            order_clause = f"ORDER BY vt.{order_field} {order_direction}, vt.VehicleName"
+        else:
             order_clause = "ORDER BY vt.TimeStamp DESC, vt.VehicleName"
+        
+        # Normalizar tipos de alteração selecionados
+        selected_change_types = set(change_types or [])
+        change_types_active = len(selected_change_types) > 0
+        full_scan_required = order_by_change_count or change_types_active
+        
+        def vehicle_matches_change_types(vehicle: Dict) -> bool:
+            if not selected_change_types:
+                return True
+            flags = vehicle.get('ChangeFlags') or {}
+            for change_type in selected_change_types:
+                if flags.get(change_type):
+                    return True
+            return False
+        
+        # Se for necessário escanear todos os registros (ordenar por ChangeCount ou filtrar por tipo)
+        if full_scan_required:
+            # Buscar TODOS os dados (sem paginação) para poder ordenar por ChangeCount
+            order_clause_all = "ORDER BY vt.TimeStamp DESC, vt.VehicleName" if order_by_change_count else order_clause
             data_query_all = f"""
                 SELECT vt.IdVehicleTracking, vt.VehicleId, vt.VehicleName,
                        vt.PositionX, vt.PositionY, vt.PositionZ, vt.TimeStamp,
@@ -781,7 +938,7 @@ def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str
                     GROUP BY VehicleId
                 ) AS latest_vt ON vt.VehicleId = latest_vt.VehicleId AND vt.TimeStamp = latest_vt.MaxTimeStamp
                 {where_clause}
-                {order_clause}
+                {order_clause_all}
             """
             # Usar apenas os parâmetros de WHERE, sem LIMIT e OFFSET
             # Só passar parâmetros se houver WHERE clause
@@ -795,39 +952,36 @@ def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str
             for vehicle in all_data:
                 vehicle_id = vehicle['VehicleId']
                 try:
-                    vehicle['ChangeCount'] = count_vehicle_changes(vehicle_id)
-                except Exception as e:
+                    change_count, change_flags = count_vehicle_changes(vehicle_id, date_from=date_from, date_to=date_to)
+                    vehicle['ChangeCount'] = change_count
+                    vehicle['ChangeFlags'] = change_flags
+                except Exception:
                     vehicle['ChangeCount'] = 0
+                    vehicle['ChangeFlags'] = {
+                        'position': False,
+                        'health': False,
+                        'items': False,
+                        'attachments': False
+                    }
             
-            # Aplicar filtro de apenas veículos com alterações (se necessário)
-            if only_with_changes:
-                all_data = [v for v in all_data if v.get('ChangeCount', 0) > 0]
-                # Atualizar total_records para refletir apenas veículos com alterações
-                total_records = len(all_data)
+            # Aplicar filtro de tipos de alteração, se necessário
+            if change_types_active:
+                all_data = [v for v in all_data if vehicle_matches_change_types(v)]
+            
+            # Atualizar total_records para refletir todos os veículos filtrados
+            total_records = len(all_data)
+            
+            # Ordenar por ChangeCount em memória quando solicitado
+            if order_by_change_count:
+                reverse_order = (order_by_change_count_dir == 'desc')
+                all_data.sort(key=lambda x: x.get('ChangeCount', 0), reverse=reverse_order)
             else:
-                # Atualizar total_records para refletir todos os veículos filtrados
-                total_records = len(all_data)
-            
-            # Ordenar por ChangeCount em memória
-            reverse_order = (order_by_change_count_dir == 'desc')
-            all_data.sort(key=lambda x: x.get('ChangeCount', 0), reverse=reverse_order)
+                # Garantir ordenação consistente (já vem ordenado pela query)
+                pass
             
             # Aplicar paginação após ordenação
             data = all_data[start:start + length]
         else:
-            # Construir ORDER BY normal
-            if order_by:
-                order_field, order_direction = order_by
-                # Validar campo e direção
-                valid_fields = ['VehicleId', 'VehicleName', 'IsDestroyed', 'TimeStamp']
-                if order_field in valid_fields:
-                    order_direction = 'DESC' if order_direction == 'desc' else 'ASC'
-                    order_clause = f"ORDER BY vt.{order_field} {order_direction}, vt.VehicleName"
-                else:
-                    order_clause = "ORDER BY vt.TimeStamp DESC, vt.VehicleName"
-            else:
-                order_clause = "ORDER BY vt.TimeStamp DESC, vt.VehicleName"
-            
             # Query para dados paginados
             data_query = f"""
                 SELECT vt.IdVehicleTracking, vt.VehicleId, vt.VehicleName,
@@ -854,46 +1008,22 @@ def get_vehicles_paginated(include_destroyed: bool, date_from: str, date_to: str
             for vehicle in data:
                 vehicle_id = vehicle['VehicleId']
                 try:
-                    vehicle['ChangeCount'] = count_vehicle_changes(vehicle_id)
-                except Exception as e:
-                    # Em caso de erro, definir como 0
+                    change_count, change_flags = count_vehicle_changes(vehicle_id, date_from=date_from, date_to=date_to)
+                    vehicle['ChangeCount'] = change_count
+                    vehicle['ChangeFlags'] = change_flags
+                except Exception:
                     vehicle['ChangeCount'] = 0
+                    vehicle['ChangeFlags'] = {
+                        'position': False,
+                        'health': False,
+                        'items': False,
+                        'attachments': False
+                    }
         
-        # Aplicar filtro de apenas veículos com alterações (se não foi aplicado na ordenação por ChangeCount)
-        if only_with_changes and not order_by_change_count:
-            # Filtrar dados da página atual
-            data = [v for v in data if v.get('ChangeCount', 0) > 0]
-            
-            # Contar total de veículos com alterações (fazendo query sem paginação)
-            # Buscar todos os veículos que passam pelos filtros iniciais
-            count_query_all = f"""
-                SELECT DISTINCT vt.VehicleId
-                FROM vehicles_tracking vt
-                INNER JOIN (
-                    SELECT VehicleId, MAX(TimeStamp) as MaxTimeStamp
-                    FROM vehicles_tracking
-                    GROUP BY VehicleId
-                ) AS latest_vt ON vt.VehicleId = latest_vt.VehicleId AND vt.TimeStamp = latest_vt.MaxTimeStamp
-                {where_clause}
-            """
-            # Só passar parâmetros se houver WHERE clause (e portanto parâmetros)
-            if where_clause and params:
-                cursor.execute(count_query_all, params)
-            else:
-                cursor.execute(count_query_all)
-            all_vehicle_ids = [row[0] for row in cursor.fetchall()]
-            
-            # Contar quantos têm alterações
-            vehicles_with_changes_count = 0
-            for vehicle_id in all_vehicle_ids:
-                try:
-                    change_count = count_vehicle_changes(vehicle_id)
-                    if change_count > 0:
-                        vehicles_with_changes_count += 1
-                except:
-                    pass
-            
-            total_records = vehicles_with_changes_count
+        # Se filtro de tipos estiver ativo e não for necessário full scan (caso raro), aplicar aqui
+        if change_types_active and not full_scan_required:
+            data = [v for v in data if vehicle_matches_change_types(v)]
+            total_records = len(data)
         
         return data, total_records
 
