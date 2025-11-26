@@ -244,6 +244,85 @@ handle_death_event() {
         # Criar JSON com detalhes
         DetailsJson="{\"cause\": \"$Cause\", \"death_message\": \"$UpdatedContent\"}"
         INSERT_PLAYER_EVENT "$PlayerId" "player_death" "$CoordX" "$CoordY" "$CoordZ" "$DetailsJson" ""
+        
+        # ============================================================================
+        # BAN AUTOMÁTICO AO MORRER (PARAMETRIZADO)
+        # ============================================================================
+        if [[ "$DayzAutoBanOnDeathEnabled" == "1" ]]; then
+            INSERT_CUSTOM_LOG "Ban automático ao morrer está ativado. Verificando condições para banir PlayerId: $PlayerId" "DEBUG" "$ScriptName"
+            
+            # Verificar se variáveis RCON estão configuradas
+            if [[ -z "$DayzRConIP" ]] || [[ -z "$DayzRConPort" ]] || [[ -z "$DayzRConPassword" ]] || [[ -z "$AppRconBinFile" ]]; then
+                INSERT_CUSTOM_LOG "Configurações RCON não estão completas. Não é possível banir automaticamente." "WARNING" "$ScriptName"
+            else
+                # Escapar PlayerId para uso seguro em SQL
+                local EscapedPlayerId
+                EscapedPlayerId=$(echo "$PlayerId" | sed "s/'/''/g")
+                
+                # Buscar RconGuid do jogador
+                local RconGuid
+                RconGuid=$(sqlite3 "$AppFolder/$AppPlayerBecoC1DbFile" "SELECT RconGuid FROM players_database WHERE PlayerID = '$EscapedPlayerId' LIMIT 1;")
+                
+                if [[ -z "$RconGuid" ]]; then
+                    INSERT_CUSTOM_LOG "RconGuid não encontrado para PlayerId: $PlayerId. Não é possível banir automaticamente." "WARNING" "$ScriptName"
+                else
+                    # Validar tempo de ban (deve ser maior que 0)
+                    local BanMinutes
+                    BanMinutes="${DayzAutoBanOnDeathMinutes:-5}"
+                    if ! [[ "$BanMinutes" =~ ^[0-9]+$ ]] || [[ "$BanMinutes" -le 0 ]]; then
+                        INSERT_CUSTOM_LOG "Tempo de ban inválido: $BanMinutes. Usando padrão de 5 minutos." "WARNING" "$ScriptName"
+                        BanMinutes="5"
+                    fi
+                    
+                    # Executar comando addban via RCON
+                    local BanCommand BanMessage RconResponse
+                    if [[ "$BanMinutes" -gt 0 ]]; then
+                        # Calcular data/hora de desban
+                        local UnbanDateTime
+                        UnbanDateTime=$(date -d "+$BanMinutes minutes" "+%d/%m/%Y %H:%M" 2>/dev/null || date -v+${BanMinutes}M "+%d/%m/%Y %H:%M" 2>/dev/null || date "+%d/%m/%Y %H:%M")
+                        BanMessage="Morreu e foi banido por $BanMinutes minutos. Será desbanido em $UnbanDateTime"
+                    else
+                        BanMessage="Morreu e foi banido permanentemente"
+                    fi
+                    BanCommand="addban $RconGuid $BanMinutes $BanMessage"
+                    
+                    INSERT_CUSTOM_LOG "Executando ban automático via RCON para PlayerId: $PlayerId, RconGuid: $RconGuid, Minutos: $BanMinutes" "INFO" "$ScriptName"
+                    
+                    set +e # Desabilitar exit on error para capturar erros do comando RCON
+                    RconResponse=$("$AppFolder/$AppRconBinFile" -i "$DayzRConIP" -p "$DayzRConPort" -P "$DayzRConPassword" -j "$BanCommand" 2>&1)
+                    local RconExitCode=$?
+                    set -e # Reabilitar exit on error
+                    
+                    if [[ $RconExitCode -eq 0 ]]; then
+                        # Verificar se a resposta contém "OK" (formato: { "msg": [ "OK" ] })
+                        if echo "$RconResponse" | grep -q '"OK"'; then
+                            INSERT_CUSTOM_LOG "Comando addban executado com sucesso. Executando loadBans para aplicar o ban..." "INFO" "$ScriptName"
+                            
+                            # Executar loadBans para efetivar o ban
+                            set +e
+                            local LoadBansResponse
+                            LoadBansResponse=$("$AppFolder/$AppRconBinFile" -i "$DayzRConIP" -p "$DayzRConPort" -P "$DayzRConPassword" -j "loadBans" 2>&1)
+                            local LoadBansExitCode=$?
+                            set -e
+                            
+                            if [[ $LoadBansExitCode -eq 0 ]] && echo "$LoadBansResponse" | grep -q '"OK"'; then
+                                INSERT_CUSTOM_LOG "Jogador $PlayerId (RconGuid: $RconGuid) banido automaticamente por $BanMinutes minutos após morrer. Ban aplicado com sucesso." "INFO" "$ScriptName"
+                            else
+                                INSERT_CUSTOM_LOG "addban executado com sucesso, mas loadBans falhou (exit code: $LoadBansExitCode). Resposta: $LoadBansResponse" "WARNING" "$ScriptName"
+                                INSERT_CUSTOM_LOG "Jogador $PlayerId (RconGuid: $RconGuid) banido automaticamente por $BanMinutes minutos após morrer, mas loadBans não foi executado." "INFO" "$ScriptName"
+                            fi
+                        else
+                            INSERT_CUSTOM_LOG "Resposta inesperada do RCON ao banir automaticamente: $RconResponse" "WARNING" "$ScriptName"
+                        fi
+                    else
+                        INSERT_CUSTOM_LOG "Erro ao executar ban automático via RCON (exit code: $RconExitCode). Resposta: $RconResponse" "ERROR" "$ScriptName"
+                    fi
+                fi
+            fi
+        fi
+        # ============================================================================
+        # FIM DA SEÇÃO DE BAN AUTOMÁTICO
+        # ============================================================================
     fi
 
     HANDLER_CONTENT=$(echo "$UpdatedContent" | tr -d '\r\n' | sed "s/   */ /g")

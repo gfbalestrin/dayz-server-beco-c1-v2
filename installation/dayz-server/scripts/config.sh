@@ -59,6 +59,8 @@ export DayzRConIP=$(jq -r '.Dayz.RConIP' "$CONFIG_FILE")
 export DayzRConPassword=$(jq -r '.Dayz.RConPassword' "$CONFIG_FILE")
 export DayzMaxPing=$(jq -r '.Dayz.MaxPing' "$CONFIG_FILE")
 export DayzRestrictRCon=$(jq -r '.Dayz.RestrictRCon' "$CONFIG_FILE")
+export DayzAutoBanOnDeathEnabled=$(jq -r '.Dayz.AutoBanOnDeath.Enabled // 0' "$CONFIG_FILE")
+export DayzAutoBanOnDeathMinutes=$(jq -r '.Dayz.AutoBanOnDeath.BanMinutes // 5' "$CONFIG_FILE")
 
 export AppFolder=$(jq -r '.App.Folder' "$CONFIG_FILE")
 export AppPlayerBecoC1DbFile=$(jq -r '.App.PlayerBecoC1DbFile' "$CONFIG_FILE")
