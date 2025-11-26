@@ -917,9 +917,9 @@ function createVehiclePopup(vehicle) {
                     <button type="button" class="btn btn-sm btn-primary" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="toggleVehicleTrail('${vehicle.vehicle_id}')">
                         <i class="fas fa-route me-1"></i><span id="vehicleTrailBtn_${vehicle.vehicle_id}">${MapState.vehicleTrails[vehicle.vehicle_id] ? 'Ocultar' : 'Trail'}</span>
                     </button>
-                    <button type="button" class="btn btn-sm btn-info" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="showVehicleLootHistory('${vehicle.vehicle_id}')">
+                    <a class="btn btn-sm btn-info" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" href="/vehicles?vehicle_id=${encodeURIComponent(vehicle.vehicle_id)}" target="_blank" rel="noopener noreferrer">
                         <i class="fas fa-history me-1"></i>Histórico
-                    </button>
+                    </a>
                     <button type="button" class="btn btn-sm btn-warning" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="showVehicleTeleportModal('${vehicle.vehicle_id}')">
                         <i class="fas fa-map-marker-alt me-1"></i>Teleportar
                     </button>
@@ -1188,13 +1188,6 @@ function loadVehicleHistory(vehicleId, offset = 0, dateFrom = null, dateTo = nul
         .fail(function(xhr, status, error) {
             console.error('Erro ao carregar histórico de loot do veículo:', vehicleId, status, error, xhr.responseText);
         });
-}
-
-/**
- * Mostrar histórico de loot do veículo
- */
-function showVehicleLootHistory(vehicleId) {
-    loadVehicleHistory(vehicleId, 0, null, null);
 }
 
 /**

@@ -2,6 +2,8 @@ $(document).ready(function() {
     let vehiclesTable;
     let currentVehicleId = null;
     let autoRefreshInterval = null;
+    let listVehicleRefreshStatus = {};
+    let listVehicleRefreshRequests = {};
     const QUICK_FILTERS = {
         last10m: { minutes: 10 },
         last1h: { minutes: 60 },
@@ -93,6 +95,7 @@ $(document).ready(function() {
                 },
                 {
                     data: 'IsDestroyed',
+                    orderable: false,
                     render: function(data) {
                         if (data == 1 || data === true) {
                             return '<span class="badge bg-danger">Destruído</span>';
@@ -158,15 +161,27 @@ $(document).ready(function() {
                     orderable: false,
                     render: function(data) {
                         const vehicleId = escapeHtml(data);
-                        return '<button class="btn btn-sm btn-primary view-history-btn" data-vehicle-id="' + vehicleId + '">' +
-                            '<i class="fas fa-history me-1"></i>Ver Histórico</button>';
+                        const safeId = vehicleId;
+                        return '' +
+                            '<div class="btn-group" role="group">' +
+                                '<button class="btn btn-sm btn-secondary me-1 list-refresh-vehicle-btn" ' +
+                                    'id="vehicleListRefreshBtn_' + safeId + '" ' +
+                                    'data-vehicle-id="' + vehicleId + '">' +
+                                    '<i class="fas fa-sync-alt me-1"></i>Atualizar' +
+                                '</button>' +
+                                '<button class="btn btn-sm btn-primary view-history-btn" data-vehicle-id="' + vehicleId + '">' +
+                                    '<i class="fas fa-history me-1"></i>Ver Histórico' +
+                                '</button>' +
+                            '</div>';
                     }
                 }
             ],
             language: {
                 url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/pt-BR.json'
             },
-            order: [[6, 'desc']], // Ordenar por Última Atualização (coluna 6)
+            // Ordenar por Última Atualização (coluna 6) e,
+            // secundariamente, pela quantidade de tipos de alterações (coluna 3)
+            order: [[6, 'desc'], [3, 'desc']],
             pageLength: 50,
             responsive: true,
             searchDelay: 500,
@@ -233,6 +248,188 @@ $(document).ready(function() {
         }
         
         return badges.join('');
+    }
+    
+    // ==== Funções de atualização completa de veículo (checkvehicle) ====
+    
+    function generateVehicleRefreshRequestId() {
+        return 'veh_req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+    
+    function setListVehicleRefreshState(vehicleId, isRefreshing) {
+        if (!listVehicleRefreshStatus) {
+            listVehicleRefreshStatus = {};
+        }
+        
+        if (isRefreshing) {
+            listVehicleRefreshStatus[vehicleId] = true;
+        } else {
+            delete listVehicleRefreshStatus[vehicleId];
+        }
+        
+        const button = document.getElementById(`vehicleListRefreshBtn_${vehicleId}`);
+        if (button) {
+            if (isRefreshing) {
+                button.disabled = true;
+                button.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Atualizando...';
+            } else {
+                button.disabled = false;
+                button.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Atualizar';
+            }
+        }
+    }
+    
+    function saveVehicleCheckToDatabaseFromList(vehicleId, commandData) {
+        if (!commandData || commandData.status !== 'success') {
+            return;
+        }
+        
+        const saveData = {
+            vehicle_name: commandData.vehicle_name || 'Veículo',
+            position: commandData.position || {},
+            items: commandData.items || [],
+            attachments: commandData.attachments || [],
+            health_parts: commandData.health_parts || {}
+        };
+        
+        $.ajax({
+            url: `/api/vehicles/${vehicleId}/save-check`,
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(saveData),
+            success: function() {
+                // Após salvar no banco, recarregar a tabela (sem resetar página)
+                reloadTable(false);
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON || {};
+                const errorMsg = error.message || error.error || 'Erro ao salvar dados do veículo no banco';
+                if (typeof showToast === 'function') {
+                    showToast('Erro', errorMsg, 'error');
+                } else {
+                    console.warn(errorMsg);
+                }
+            }
+        });
+    }
+    
+    function startListVehicleRefreshPolling(requestId, vehicleId, attempt) {
+        const MAX_ATTEMPTS = 30;
+        const POLL_INTERVAL = 2000;
+        
+        if (!listVehicleRefreshRequests || listVehicleRefreshRequests[vehicleId] !== requestId) {
+            return;
+        }
+        
+        if (attempt >= MAX_ATTEMPTS) {
+            if (typeof showToast === 'function') {
+                showToast('Aviso', 'Tempo limite ao atualizar dados do veículo.', 'warning');
+            }
+            setListVehicleRefreshState(vehicleId, false);
+            delete listVehicleRefreshRequests[vehicleId];
+            return;
+        }
+        
+        $.get(`/api/commands/results/${requestId}`)
+            .done(function(response) {
+                if (!listVehicleRefreshRequests || listVehicleRefreshRequests[vehicleId] !== requestId) {
+                    return;
+                }
+                
+                if (response.status === 'ready') {
+                    const data = response.data || {};
+                    if (data.status === 'success') {
+                        saveVehicleCheckToDatabaseFromList(vehicleId, data);
+                        if (typeof showToast === 'function') {
+                            const vehicleName = data.vehicle_name || vehicleId;
+                            showToast('Sucesso', `Dados do veículo ${vehicleName} atualizados.`, 'success');
+                        }
+                    } else {
+                        const errorMsg = data.message || 'Não foi possível atualizar os dados do veículo.';
+                        if (typeof showToast === 'function') {
+                            showToast('Aviso', errorMsg, 'warning');
+                        }
+                    }
+                    
+                    setListVehicleRefreshState(vehicleId, false);
+                    delete listVehicleRefreshRequests[vehicleId];
+                } else if (response.status === 'not_found' || response.status === 'processing') {
+                    setTimeout(function() {
+                        startListVehicleRefreshPolling(requestId, vehicleId, attempt + 1);
+                    }, POLL_INTERVAL);
+                } else {
+                    const errorMsg = response.message || 'Erro ao consultar resultado do comando.';
+                    if (typeof showToast === 'function') {
+                        showToast('Erro', errorMsg, 'error');
+                    }
+                    setListVehicleRefreshState(vehicleId, false);
+                    delete listVehicleRefreshRequests[vehicleId];
+                }
+            })
+            .fail(function(xhr) {
+                if (!listVehicleRefreshRequests || listVehicleRefreshRequests[vehicleId] !== requestId) {
+                    return;
+                }
+                
+                if (attempt < 5) {
+                    setTimeout(function() {
+                        startListVehicleRefreshPolling(requestId, vehicleId, attempt + 1);
+                    }, POLL_INTERVAL);
+                } else {
+                    const error = xhr.responseJSON || {};
+                    const errorMsg = error.message || error.error || 'Erro ao consultar resultado da atualização do veículo.';
+                    if (typeof showToast === 'function') {
+                        showToast('Erro', errorMsg, 'error');
+                    }
+                    setListVehicleRefreshState(vehicleId, false);
+                    delete listVehicleRefreshRequests[vehicleId];
+                }
+            });
+    }
+    
+    function refreshVehicleFromList(vehicleId) {
+        if (!vehicleId) {
+            return;
+        }
+        
+        if (listVehicleRefreshStatus && listVehicleRefreshStatus[vehicleId]) {
+            if (typeof showToast === 'function') {
+                showToast('Info', 'Atualização já está em andamento para este veículo.', 'info');
+            }
+            return;
+        }
+        
+        const requestId = generateVehicleRefreshRequestId();
+        if (!listVehicleRefreshRequests) {
+            listVehicleRefreshRequests = {};
+        }
+        listVehicleRefreshRequests[vehicleId] = requestId;
+        
+        setListVehicleRefreshState(vehicleId, true);
+        
+        $.ajax({
+            url: `/api/vehicles/${encodeURIComponent(vehicleId)}/refresh`,
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                request_id: requestId
+            }),
+            success: function() {
+                if (typeof showToast === 'function') {
+                    showToast('Info', `Solicitação de atualização enviada para ${vehicleId}.`, 'info');
+                }
+                startListVehicleRefreshPolling(requestId, vehicleId, 0);
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON || {};
+                const errorMsg = error.message || error.error || 'Erro ao solicitar atualização do veículo';
+                if (typeof showToast === 'function') {
+                    showToast('Erro', errorMsg, 'error');
+                }
+                setListVehicleRefreshState(vehicleId, false);
+                delete listVehicleRefreshRequests[vehicleId];
+            }
+        });
     }
     
     let suppressDateInputListeners = false;
@@ -510,10 +707,39 @@ $(document).ready(function() {
     // Inicializar auto refresh
     setupAutoRefresh();
     
+    // Abrir histórico automaticamente se vehicle_id vier na URL
+    (function initVehicleFromUrl() {
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const vehicleIdFromUrl = urlParams.get('vehicle_id');
+            if (vehicleIdFromUrl) {
+                // Esperar DataTable inicializar antes de abrir o histórico
+                const checkReadyInterval = setInterval(function() {
+                    if (vehiclesTable) {
+                        clearInterval(checkReadyInterval);
+                        showVehicleHistory(vehicleIdFromUrl);
+                    }
+                }, 200);
+                // Segurança: limpar intervalo após 10s
+                setTimeout(function() {
+                    clearInterval(checkReadyInterval);
+                }, 10000);
+            }
+        } catch (e) {
+            console.warn('Erro ao processar vehicle_id da URL:', e);
+        }
+    })();
+    
     // Event listener para botão de histórico (usando delegação)
     $(document).on('click', '.view-history-btn', function() {
         const vehicleId = $(this).data('vehicle-id');
         showVehicleHistory(vehicleId);
+    });
+    
+    // Event listener para botão de atualização completa (checkvehicle) na lista
+    $(document).on('click', '.list-refresh-vehicle-btn', function() {
+        const vehicleId = $(this).data('vehicle-id');
+        refreshVehicleFromList(vehicleId);
     });
     
     // Mostrar histórico do veículo
@@ -524,11 +750,17 @@ $(document).ready(function() {
         historyState.currentPage = 1;
         historyState.totalPages = 1;
         historyState.totalRecords = 0;
-        historyState.dateFrom = null;
+        // Filtro padrão: histórico do dia atual (equivalente a \"Hoje\")
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const todayStr = `${year}-${month}-${day}`;
+        historyState.dateFrom = todayStr;
         historyState.dateTo = null;
         
-        // Limpar filtros
-        $('#historyDateFrom').val('');
+        // Aplicar filtros padrão nos campos de data
+        $('#historyDateFrom').val(todayStr);
         $('#historyDateTo').val('');
         
         const modal = new bootstrap.Modal(document.getElementById('historyModal'));

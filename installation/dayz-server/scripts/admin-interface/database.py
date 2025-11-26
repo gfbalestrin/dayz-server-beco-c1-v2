@@ -1002,6 +1002,7 @@ def get_vehicles_paginated(status_filter: str, change_types: Optional[List[str]]
                     change_count, change_flags = count_vehicle_changes(vehicle_id, date_from=date_from, date_to=date_to)
                     vehicle['ChangeCount'] = change_count
                     vehicle['ChangeFlags'] = change_flags
+                    vehicle['ChangeTypesCount'] = sum(1 for v in (change_flags or {}).values() if v)
                 except Exception:
                     vehicle['ChangeCount'] = 0
                     vehicle['ChangeFlags'] = {
@@ -1010,6 +1011,7 @@ def get_vehicles_paginated(status_filter: str, change_types: Optional[List[str]]
                         'items': False,
                         'attachments': False
                     }
+                    vehicle['ChangeTypesCount'] = 0
             
             # Aplicar filtro de tipos de alteração, se necessário
             if change_types_active:
@@ -1058,6 +1060,7 @@ def get_vehicles_paginated(status_filter: str, change_types: Optional[List[str]]
                     change_count, change_flags = count_vehicle_changes(vehicle_id, date_from=date_from, date_to=date_to)
                     vehicle['ChangeCount'] = change_count
                     vehicle['ChangeFlags'] = change_flags
+                    vehicle['ChangeTypesCount'] = sum(1 for v in (change_flags or {}).values() if v)
                 except Exception:
                     vehicle['ChangeCount'] = 0
                     vehicle['ChangeFlags'] = {
@@ -1066,11 +1069,27 @@ def get_vehicles_paginated(status_filter: str, change_types: Optional[List[str]]
                         'items': False,
                         'attachments': False
                     }
+                    vehicle['ChangeTypesCount'] = 0
         
         # Se filtro de tipos estiver ativo e não for necessário full scan (caso raro), aplicar aqui
         if change_types_active and not full_scan_required:
             data = [v for v in data if vehicle_matches_change_types(v)]
             total_records = len(data)
+        
+        # Ordenação extra: garantir que, por padrão, veículos sejam ordenados
+        # por Última Atualização (TimeStamp DESC) e, em seguida,
+        # pela quantidade de tipos de alterações (ChangeTypesCount DESC).
+        # Isso é aplicado na página atual, após cálculo de flags/contagens.
+        try:
+            data.sort(
+                key=lambda v: (
+                    v.get('TimeStamp') or '',
+                    v.get('ChangeTypesCount') or 0
+                ),
+                reverse=True
+            )
+        except Exception:
+            pass
         
         return data, total_records
 
