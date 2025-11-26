@@ -88,6 +88,27 @@ $(document).ready(function() {
     });
     $('#clearAllVehicleFiltersBtn').on('click', clearAllVehicleFilters);
     
+    // Event listeners para filtro de trail de veículos
+    $('#vehicleTrailFilterModal button[data-filter]').on('click', function() {
+        const vehicleId = $('#vehicleTrailFilterVehicleId').val();
+        const filter = $(this).data('filter');
+        if (vehicleId && filter) {
+            applyVehicleTrailFilterShortcut(vehicleId, filter);
+        }
+    });
+    $('#applyVehicleTrailFilterBtn').on('click', function() {
+        const vehicleId = $('#vehicleTrailFilterVehicleId').val();
+        if (vehicleId) {
+            applyVehicleTrailDateFilter(vehicleId);
+        }
+    });
+    $('#hideVehicleTrailBtn').on('click', function() {
+        const vehicleId = $('#vehicleTrailFilterVehicleId').val();
+        if (vehicleId) {
+            hideVehicleTrail(vehicleId);
+        }
+    });
+    
     // Event listener para atalhos de filtro de trails
     $('[data-filter]').on('click', function() {
         const filter = $(this).data('filter');

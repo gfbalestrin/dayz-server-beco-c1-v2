@@ -342,19 +342,31 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
         
         return vehicles
 
-def get_vehicle_trail(vehicle_id: str, limit: int = 100) -> List[Dict]:
+def get_vehicle_trail(vehicle_id: str, limit: int = 100, date_from: str = None, date_to: str = None) -> List[Dict]:
     """Retorna histórico de posições de um veículo, filtrando pontos duplicados"""
     with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
-        # Buscar todos os registros ordenados
-        cursor.execute("""
+        # Construir query com filtros de data opcionais
+        query = """
             SELECT IdVehicleTracking, VehicleId, VehicleName,
                    PositionX, PositionY, PositionZ, TimeStamp
             FROM vehicles_tracking
             WHERE VehicleId = ?
-            ORDER BY TimeStamp DESC
-            LIMIT ?
-        """, (vehicle_id, limit))
+        """
+        params = [vehicle_id]
+        
+        if date_from:
+            query += " AND TimeStamp >= ?"
+            params.append(date_from)
+        
+        if date_to:
+            query += " AND TimeStamp <= ?"
+            params.append(date_to)
+        
+        query += " ORDER BY TimeStamp DESC LIMIT ?"
+        params.append(limit)
+        
+        cursor.execute(query, params)
         all_vehicles = [dict(row) for row in cursor.fetchall()]
         
         # Filtrar eventos duplicados (mesma posição)

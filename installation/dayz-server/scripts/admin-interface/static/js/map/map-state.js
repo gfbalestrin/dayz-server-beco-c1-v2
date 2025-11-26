@@ -75,6 +75,7 @@ const MapState = {
         startDate: null,
         endDate: null
     },
+    vehicleTrailFilters: {}, // Filtros de trail por veículo: { vehicleId: { enabled, startDate, endDate, shortcut } }
     activeTrailShortcut: null,
     hasCustomFilter: false,
     

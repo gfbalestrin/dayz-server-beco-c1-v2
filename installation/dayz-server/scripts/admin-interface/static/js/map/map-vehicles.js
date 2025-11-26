@@ -244,7 +244,7 @@ function updateVehicles(data) {
 /**
  * Carregar trail de um veículo
  */
-function loadVehicleTrail(vehicleId, forceReload = false) {
+function loadVehicleTrail(vehicleId, forceReload = false, dateFrom = null, dateTo = null) {
     if (MapState.vehicleTrails[vehicleId] && !forceReload) {
         return; // Trail já carregado e não é recarregamento forçado
     }
@@ -254,7 +254,22 @@ function loadVehicleTrail(vehicleId, forceReload = false) {
         removeVehicleTrail(vehicleId);
     }
     
-    $.get(`/api/vehicles/${vehicleId}/trail`, { limit: 100 })
+    // Verificar se há filtro ativo para este veículo
+    const filter = MapState.vehicleTrailFilters[vehicleId];
+    if (filter && filter.enabled) {
+        dateFrom = dateFrom || (filter.startDate ? filter.startDate.toISOString() : null);
+        dateTo = dateTo || (filter.endDate ? filter.endDate.toISOString() : null);
+    }
+    
+    const params = { limit: 100 };
+    if (dateFrom) {
+        params.date_from = dateFrom;
+    }
+    if (dateTo) {
+        params.date_to = dateTo;
+    }
+    
+    $.get(`/api/vehicles/${vehicleId}/trail`, params)
         .done(function(data) {
             drawVehicleTrail(vehicleId, data.trail);
         })
@@ -430,16 +445,117 @@ function removeVehicleTrail(vehicleId) {
 }
 
 /**
- * Toggle trail de veículo
+ * Toggle trail de veículo - sempre abre o modal de filtro
  */
 function toggleVehicleTrail(vehicleId) {
-    if (MapState.vehicleTrails[vehicleId]) {
-        removeVehicleTrail(vehicleId);
-        // Atualizar popup para refletir que o trail foi removido
-        updateVehiclePopup(vehicleId);
+    showVehicleTrailFilterModal(vehicleId);
+}
+
+/**
+ * Mostrar modal de filtro de trail de veículo
+ */
+function showVehicleTrailFilterModal(vehicleId) {
+    const vehicle = MapState.vehiclesData[vehicleId];
+    if (!vehicle) {
+        return;
+    }
+    
+    // Preencher informações do veículo no modal
+    $('#vehicleTrailFilterVehicleId').val(vehicleId);
+    $('#vehicleTrailFilterVehicleName').text(vehicle.vehicle_name || vehicleId);
+    
+    // Mostrar/ocultar botão "Ocultar Trail" baseado no estado do trail
+    const hasTrail = MapState.vehicleTrails[vehicleId] && MapState.vehicleTrails[vehicleId].length > 0;
+    if (hasTrail) {
+        $('#hideVehicleTrailBtn').show();
     } else {
-        // O popup será atualizado automaticamente após o trail ser carregado
-        loadVehicleTrail(vehicleId);
+        $('#hideVehicleTrailBtn').hide();
+    }
+    
+    // Verificar se há filtro ativo e preencher campos
+    const filter = MapState.vehicleTrailFilters[vehicleId];
+    if (filter && filter.enabled) {
+        const formatDate = (date) => {
+            if (!date) return '';
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+        
+        const formatTime = (date) => {
+            if (!date) return '';
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            return `${hours}:${minutes}:${seconds}`;
+        };
+        
+        if (filter.startDate) {
+            $('#vehicleTrailStartDate').val(formatDate(filter.startDate));
+            $('#vehicleTrailStartTime').val(formatTime(filter.startDate));
+        }
+        
+        if (filter.endDate) {
+            $('#vehicleTrailEndDate').val(formatDate(filter.endDate));
+            $('#vehicleTrailEndTime').val(formatTime(filter.endDate));
+        }
+        
+        // Destacar botão de atalho se houver
+        if (filter.shortcut) {
+            applyVehicleTrailFilterShortcut(vehicleId, filter.shortcut);
+        }
+    } else {
+        // Limpar campos
+        $('#vehicleTrailStartDate').val('');
+        $('#vehicleTrailStartTime').val('');
+        $('#vehicleTrailEndDate').val('');
+        $('#vehicleTrailEndTime').val('');
+        
+        // Restaurar classes outline de todos os botões
+        $('#vehicleTrailFilterModal button[data-filter]').each(function() {
+            const $btn = $(this);
+            $btn.removeClass('active btn-secondary btn-warning btn-danger');
+            const filterType = $btn.data('filter');
+            if (filterType === '24hours') {
+                $btn.addClass('btn-outline-warning');
+            } else if (filterType === 'clear') {
+                $btn.addClass('btn-outline-danger');
+            } else {
+                $btn.addClass('btn-outline-secondary');
+            }
+        });
+    }
+    
+    // Abrir modal
+    const modal = new bootstrap.Modal(document.getElementById('vehicleTrailFilterModal'));
+    modal.show();
+}
+
+/**
+ * Ocultar trail de veículo
+ */
+function hideVehicleTrail(vehicleId) {
+    if (!vehicleId) {
+        vehicleId = $('#vehicleTrailFilterVehicleId').val();
+    }
+    
+    if (vehicleId) {
+        removeVehicleTrail(vehicleId);
+        // Limpar filtro também
+        if (MapState.vehicleTrailFilters[vehicleId]) {
+            MapState.vehicleTrailFilters[vehicleId].enabled = false;
+            MapState.vehicleTrailFilters[vehicleId].startDate = null;
+            MapState.vehicleTrailFilters[vehicleId].endDate = null;
+            MapState.vehicleTrailFilters[vehicleId].shortcut = null;
+        }
+        updateVehiclePopup(vehicleId);
+        
+        // Fechar modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('vehicleTrailFilterModal'));
+        if (modal) {
+            modal.hide();
+        }
     }
 }
 
@@ -915,7 +1031,7 @@ function createVehiclePopup(vehicle) {
                         ${isRefreshing ? '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Atualizando...' : '<i class="fas fa-sync-alt me-1"></i>Atualizar'}
                     </button>
                     <button type="button" class="btn btn-sm btn-primary" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="toggleVehicleTrail('${vehicle.vehicle_id}')">
-                        <i class="fas fa-route me-1"></i><span id="vehicleTrailBtn_${vehicle.vehicle_id}">${MapState.vehicleTrails[vehicle.vehicle_id] ? 'Ocultar' : 'Trail'}</span>
+                        <i class="fas fa-route me-1"></i>Trail${(MapState.vehicleTrails[vehicle.vehicle_id] && MapState.vehicleTrailFilters[vehicle.vehicle_id] && MapState.vehicleTrailFilters[vehicle.vehicle_id].enabled) ? ' <i class="fas fa-filter" style="font-size: 0.7em;"></i>' : ''}
                     </button>
                     <a class="btn btn-sm btn-info" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" href="/vehicles?vehicle_id=${encodeURIComponent(vehicle.vehicle_id)}" target="_blank" rel="noopener noreferrer">
                         <i class="fas fa-history me-1"></i>Histórico
@@ -1375,5 +1491,280 @@ function showVehicleHistoryModal(vehicleId, history, pagination) {
     // Abrir modal usando Bootstrap 5
     const modal = new bootstrap.Modal(document.getElementById('trailHistoryModal'));
     modal.show();
+}
+
+/**
+ * Aplicar atalho rápido de filtro de trail para veículo
+ */
+function applyVehicleTrailFilterShortcut(vehicleId, shortcut) {
+    if (!vehicleId) {
+        return;
+    }
+    
+    // Inicializar filtro para este veículo se não existir
+    if (!MapState.vehicleTrailFilters[vehicleId]) {
+        MapState.vehicleTrailFilters[vehicleId] = {
+            enabled: false,
+            startDate: null,
+            endDate: null,
+            shortcut: null
+        };
+    }
+    
+    const filter = MapState.vehicleTrailFilters[vehicleId];
+    
+    // Restaurar classes outline de todos os botões de atalho no modal do veículo
+    $('#vehicleTrailFilterModal button[data-filter]').each(function() {
+        const $btn = $(this);
+        $btn.removeClass('active btn-secondary btn-warning btn-danger btn-outline-secondary btn-outline-warning btn-outline-danger');
+        const filterType = $btn.data('filter');
+        if (filterType === '24hours') {
+            $btn.addClass('btn-outline-warning');
+        } else if (filterType === 'clear') {
+            $btn.addClass('btn-outline-danger');
+        } else {
+            $btn.addClass('btn-outline-secondary');
+        }
+        if (!$btn.hasClass('btn')) {
+            $btn.addClass('btn');
+        }
+        if (!$btn.hasClass('btn-sm')) {
+            $btn.addClass('btn-sm');
+        }
+    });
+    
+    // Se não for "clear", destacar o botão selecionado
+    if (shortcut !== 'clear') {
+        const targetButton = $(`#vehicleTrailFilterModal button[data-filter="${shortcut}"]`);
+        if (targetButton.length > 0) {
+            targetButton.removeClass('btn-outline-secondary btn-outline-warning btn-outline-danger btn-secondary btn-warning btn-danger active');
+            const filterType = targetButton.data('filter');
+            if (filterType === '24hours') {
+                targetButton.addClass('btn-warning');
+            } else {
+                targetButton.addClass('btn-secondary');
+            }
+            targetButton.addClass('active');
+            if (!targetButton.hasClass('btn')) {
+                targetButton.addClass('btn');
+            }
+            if (!targetButton.hasClass('btn-sm')) {
+                targetButton.addClass('btn-sm');
+            }
+            filter.shortcut = shortcut;
+        }
+    } else {
+        filter.shortcut = null;
+    }
+    
+    // Usar data atual em São Paulo para cálculos de atalhos
+    const now = getNowInSaoPaulo();
+    let startDate, endDate;
+    
+    switch(shortcut) {
+        case '10seconds':
+            startDate = new Date(now.getTime() - (10 * 1000));
+            endDate = null;
+            break;
+        case '30seconds':
+            startDate = new Date(now.getTime() - (30 * 1000));
+            endDate = null;
+            break;
+        case '1minute':
+            startDate = new Date(now.getTime() - (1 * 60 * 1000));
+            endDate = null;
+            break;
+        case '2minutes':
+            startDate = new Date(now.getTime() - (2 * 60 * 1000));
+            endDate = null;
+            break;
+        case '5minutes':
+            startDate = new Date(now.getTime() - (5 * 60 * 1000));
+            endDate = null;
+            break;
+        case '10minutes':
+            startDate = new Date(now.getTime() - (10 * 60 * 1000));
+            endDate = null;
+            break;
+        case '30minutes':
+            startDate = new Date(now.getTime() - (30 * 60 * 1000));
+            endDate = null;
+            break;
+        case '1hour':
+            startDate = new Date(now.getTime() - (1 * 60 * 60 * 1000));
+            endDate = null;
+            break;
+        case '3hours':
+            startDate = new Date(now.getTime() - (3 * 60 * 60 * 1000));
+            endDate = null;
+            break;
+        case '6hours':
+            startDate = new Date(now.getTime() - (6 * 60 * 60 * 1000));
+            endDate = null;
+            break;
+        case '24hours':
+            startDate = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+            endDate = null;
+            break;
+        case 'today':
+            const todaySP = now.toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' });
+            const todayDate = todaySP.split(',')[0];
+            startDate = convertSaoPauloToUTC(todayDate, '00:00:00');
+            endDate = now;
+            break;
+        case 'yesterday':
+            const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+            const yesterdaySP = yesterday.toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' });
+            const yesterdayDate = yesterdaySP.split(',')[0];
+            startDate = convertSaoPauloToUTC(yesterdayDate, '00:00:00');
+            endDate = convertSaoPauloToUTC(yesterdayDate, '23:59:59');
+            break;
+        case '7days':
+            startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+            endDate = now;
+            break;
+        case 'clear':
+            filter.enabled = false;
+            filter.startDate = null;
+            filter.endDate = null;
+            filter.shortcut = null;
+            $('#vehicleTrailStartDate').val('');
+            $('#vehicleTrailStartTime').val('');
+            $('#vehicleTrailEndDate').val('');
+            $('#vehicleTrailEndTime').val('');
+            // Ocultar trail ao limpar filtro
+            removeVehicleTrail(vehicleId);
+            updateVehiclePopup(vehicleId);
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('vehicleTrailFilterModal'));
+            if (modal) {
+                modal.hide();
+            }
+            return;
+    }
+    
+    // Aplicar filtro
+    filter.enabled = true;
+    filter.startDate = startDate;
+    filter.endDate = endDate;
+    
+    // Formatar e preencher campos do modal
+    const formatDate = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+    
+    const formatTime = (date) => {
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${hours}:${minutes}:${seconds}`;
+    };
+    
+    if (startDate) {
+        $('#vehicleTrailStartDate').val(formatDate(startDate));
+        $('#vehicleTrailStartTime').val(formatTime(startDate));
+    }
+    
+    if (endDate) {
+        $('#vehicleTrailEndDate').val(formatDate(endDate));
+        $('#vehicleTrailEndTime').val(formatTime(endDate));
+    } else {
+        $('#vehicleTrailEndDate').val('');
+        $('#vehicleTrailEndTime').val('');
+    }
+    
+    // Recarregar trail com filtro
+    loadVehicleTrail(vehicleId, true);
+    updateVehiclePopup(vehicleId);
+    
+    // Fechar modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('vehicleTrailFilterModal'));
+    if (modal) {
+        modal.hide();
+    }
+}
+
+/**
+ * Aplicar filtro personalizado de data para trail de veículo
+ */
+function applyVehicleTrailDateFilter(vehicleId) {
+    if (!vehicleId) {
+        return;
+    }
+    
+    // Inicializar filtro para este veículo se não existir
+    if (!MapState.vehicleTrailFilters[vehicleId]) {
+        MapState.vehicleTrailFilters[vehicleId] = {
+            enabled: false,
+            startDate: null,
+            endDate: null,
+            shortcut: null
+        };
+    }
+    
+    const filter = MapState.vehicleTrailFilters[vehicleId];
+    const startDate = $('#vehicleTrailStartDate').val();
+    const startTime = $('#vehicleTrailStartTime').val();
+    const endDate = $('#vehicleTrailEndDate').val();
+    const endTime = $('#vehicleTrailEndTime').val();
+    
+    if (startDate || endDate) {
+        filter.enabled = true;
+        filter.shortcut = null;
+        
+        if (startDate) {
+            const [year, month, day] = startDate.split('-').map(Number);
+            const [hours, minutes, seconds = 0] = (startTime || '00:00:00').split(':').map(Number);
+            filter.startDate = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
+        } else {
+            filter.startDate = null;
+        }
+        
+        if (endDate) {
+            const [year, month, day] = endDate.split('-').map(Number);
+            const [hours, minutes, seconds = 0] = (endTime || '23:59:59').split(':').map(Number);
+            filter.endDate = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
+        } else {
+            if (filter.endDate === null) {
+                filter.endDate = null;
+            } else {
+                const futureDate = new Date();
+                futureDate.setFullYear(futureDate.getFullYear() + 1);
+                filter.endDate = futureDate;
+            }
+        }
+        
+        // Restaurar classes outline de todos os botões de atalho
+        $('#vehicleTrailFilterModal button[data-filter]').each(function() {
+            const $btn = $(this);
+            $btn.removeClass('active');
+            const filterType = $btn.data('filter');
+            if (filterType === '24hours') {
+                $btn.removeClass('btn-warning').addClass('btn-outline-warning');
+            } else if (filterType === 'clear') {
+                $btn.removeClass('btn-danger').addClass('btn-outline-danger');
+            } else {
+                $btn.removeClass('btn-secondary').addClass('btn-outline-secondary');
+            }
+        });
+    } else {
+        filter.enabled = false;
+        filter.startDate = null;
+        filter.endDate = null;
+        filter.shortcut = null;
+    }
+    
+    // Recarregar trail com filtro
+    loadVehicleTrail(vehicleId, true);
+    updateVehiclePopup(vehicleId);
+    
+    // Fechar modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('vehicleTrailFilterModal'));
+    if (modal) {
+        modal.hide();
+    }
 }
 
