@@ -11,7 +11,7 @@ from database import (
     deactivate_user, activate_user, delete_user, validate_password_strength,
     get_user_by_player_id, update_user_player_link, get_all_admins,
     get_admins_with_player_info, add_admin_id, remove_admin_id,
-    get_player_by_id, log_user_action
+    get_player_by_id, log_user_action, insert_player_event
 )
 from blueprints.auth import admin_required, super_admin_required, login_required, audit_action, get_client_ip
 
@@ -382,6 +382,24 @@ def api_admins_add():
             {'player_id': player_id},
             get_client_ip()
         )
+        
+        # Registrar evento na tabela players_events
+        details = {
+            'action_type': 'add_admin',
+            'action_name': 'Adicionar Administrador',
+            'admin_username': session.get('username', 'Unknown')
+        }
+        
+        try:
+            insert_player_event(
+                player_id=player_id,
+                event_type='admin_action',
+                details=details
+            )
+            logger.info(f"Evento registrado para adicionar admin no jogador {player_id}")
+        except Exception as e:
+            logger.warning(f"Erro ao registrar evento para adicionar admin: {str(e)}")
+        
         return jsonify({'success': True, 'message': 'Administrador adicionado com sucesso!'})
     else:
         return jsonify({'success': False, 'message': 'Erro ao adicionar administrador. Player ID já existe ou ocorreu um erro.'}), 400

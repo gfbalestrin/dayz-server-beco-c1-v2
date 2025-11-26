@@ -13,7 +13,7 @@ from database import (
     get_online_players, check_backup_exists_any_player,
     search_players, get_item_details_from_items_db,
     get_all_players_with_status, get_player_by_id, get_player_events,
-    insert_player_event
+    insert_player_event, is_player_online
 )
 from blueprints.auth import admin_required, audit_action
 
@@ -828,6 +828,25 @@ def api_player_kick(player_id):
     # Verificar se o comando foi executado com sucesso
     if isinstance(response, dict) and response.get('msg') == ['OK']:
         logger.info(f"Jogador {player_id} kickado via RCON com mensagem: {message}")
+        
+        # Registrar evento na tabela players_events
+        details = {
+            'action_type': 'kick',
+            'action_name': 'Kickar',
+            'message': message,
+            'rcon_id': rcon_id
+        }
+        
+        try:
+            insert_player_event(
+                player_id=player_id,
+                event_type='admin_action',
+                details=details
+            )
+            logger.info(f"Evento registrado para kick no jogador {player_id}")
+        except Exception as e:
+            logger.warning(f"Erro ao registrar evento para kick: {str(e)}")
+        
         return jsonify({
             'success': True,
             'message': f'Jogador kickado com sucesso!'
@@ -844,15 +863,7 @@ def api_player_kick(player_id):
 @admin_required
 @audit_action('PLAYER_BAN')
 def api_player_ban(player_id):
-    """Banir jogador via RCON com mensagem e tempo"""
-    # Verificar se RCON está configurado
-    if not config.RCON_PASSWORD:
-        logger.error("RCON_PASSWORD não está configurada")
-        return jsonify({
-            'success': False,
-            'message': 'Configuração RCON não encontrada. Verifique o config.json'
-        }), 500
-    
+    """Banir jogador via RCON (online) ou ban.txt (offline) com mensagem e tempo"""
     data = request.get_json()
     message = data.get('message', 'Você foi banido do servidor')
     minutes = data.get('minutes', 0)
@@ -878,6 +889,81 @@ def api_player_ban(player_id):
             'success': False,
             'message': 'Jogador não encontrado no banco de dados'
         }), 404
+    
+    # Verificar se o jogador está online
+    player_is_online = is_player_online(player_id)
+    
+    # Se jogador está offline
+    if not player_is_online:
+        # Para jogadores offline, apenas ban permanente é permitido
+        if minutes != 0:
+            return jsonify({
+                'success': False,
+                'message': 'Ban temporário só funciona para jogadores online. Para jogadores offline, use ban permanente (0 minutos).'
+            }), 400
+        
+        # Verificar se tem SteamID
+        steam_id = player.get('SteamID')
+        if not steam_id:
+            logger.warning(f"SteamID não encontrado para jogador {player_id}")
+            return jsonify({
+                'success': False,
+                'message': 'SteamID não encontrado para este jogador. Não é possível banir jogador offline sem SteamID.'
+            }), 400
+        
+        # Adicionar SteamID ao ban.txt
+        logger.info(f"Jogador offline detectado. Adicionando SteamID {steam_id} ao arquivo ban.txt")
+        if add_steamid_to_ban_file(steam_id):
+            logger.info(f"SteamID {steam_id} adicionado com sucesso ao arquivo ban.txt")
+            
+            # Executar loadBans via RCON se RCON estiver configurado
+            if config.RCON_PASSWORD:
+                if execute_load_bans():
+                    logger.info("Comando loadBans executado com sucesso após adicionar ban permanente no ban.txt")
+                else:
+                    logger.warning("Falha ao executar loadBans, mas o SteamID foi adicionado ao ban.txt")
+            else:
+                logger.warning("RCON não configurado. SteamID adicionado ao ban.txt, mas loadBans não foi executado")
+            
+            # Registrar evento na tabela players_events
+            details = {
+                'action_type': 'ban',
+                'action_name': 'Banir',
+                'ban_type': 'permanente',
+                'source': 'ban.txt',
+                'message': message,
+                'steam_id': steam_id
+            }
+            
+            try:
+                insert_player_event(
+                    player_id=player_id,
+                    event_type='admin_action',
+                    details=details
+                )
+                logger.info(f"Evento registrado para ban (offline) no jogador {player_id}")
+            except Exception as e:
+                logger.warning(f"Erro ao registrar evento para ban (offline): {str(e)}")
+            
+            return jsonify({
+                'success': True,
+                'message': 'Jogador banido permanentemente via ban.txt (offline)'
+            })
+        else:
+            logger.error(f"Falha ao adicionar SteamID {steam_id} ao arquivo ban.txt")
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao adicionar jogador ao arquivo ban.txt. Verifique os logs do servidor.'
+            }), 500
+    
+    # Se jogador está online, usar RCON (comportamento original)
+    # Verificar se RCON está configurado
+    if not config.RCON_PASSWORD:
+        logger.error("RCON_PASSWORD não está configurada")
+        return jsonify({
+            'success': False,
+            'message': 'Configuração RCON não encontrada. Verifique o config.json'
+        }), 500
     
     # Verificar se tem RconGuid
     rcon_guid = player.get('RconGuid')
@@ -905,22 +991,44 @@ def api_player_ban(player_id):
         ban_type = 'permanente' if minutes == 0 else f'{minutes} minuto(s)'
         logger.info(f"Jogador {player_id} banido via RCON por {ban_type} com mensagem: {message[:50]}...")
         
-        # Se o ban for permanente (minutes == 0 ou -1), adicionar SteamID ao ban.txt e executar loadBans
+        # Se o ban for permanente (minutes == 0 ou -1), adicionar SteamID ao ban.txt
         if minutes == 0 or minutes == -1:
             steam_id = player.get('SteamID')
             if steam_id:
                 logger.info(f"Ban permanente detectado. Adicionando SteamID {steam_id} ao arquivo ban.txt")
                 if add_steamid_to_ban_file(steam_id):
                     logger.info(f"SteamID {steam_id} adicionado com sucesso ao arquivo ban.txt")
-                    # Executar loadBans para aplicar o ban do arquivo
-                    if execute_load_bans():
-                        logger.info("Comando loadBans executado com sucesso após adicionar ban permanente")
-                    else:
-                        logger.warning("Falha ao executar loadBans, mas o SteamID foi adicionado ao ban.txt")
                 else:
                     logger.warning(f"Falha ao adicionar SteamID {steam_id} ao arquivo ban.txt, mas o ban via RCON foi aplicado")
             else:
                 logger.warning(f"SteamID não encontrado para jogador {player_id}, não é possível adicionar ao ban.txt")
+        
+        # Executar loadBans para aplicar o ban (temporário ou permanente)
+        if execute_load_bans():
+            logger.info("Comando loadBans executado com sucesso após adicionar ban")
+        else:
+            logger.warning("Falha ao executar loadBans, mas o ban via RCON foi aplicado")
+        
+        # Registrar evento na tabela players_events
+        details = {
+            'action_type': 'ban',
+            'action_name': 'Banir',
+            'ban_type': ban_type,
+            'source': 'rcon',
+            'message': message,
+            'minutes': minutes,
+            'rcon_guid': rcon_guid
+        }
+        
+        try:
+            insert_player_event(
+                player_id=player_id,
+                event_type='admin_action',
+                details=details
+            )
+            logger.info(f"Evento registrado para ban (online) no jogador {player_id}")
+        except Exception as e:
+            logger.warning(f"Erro ao registrar evento para ban (online): {str(e)}")
         
         return jsonify({
             'success': True,
@@ -1000,15 +1108,7 @@ def api_player_chat(player_id):
 @api_players_bp.route('/api/players/<player_id>/bans', methods=['GET'])
 @admin_required
 def api_player_bans(player_id):
-    """Consultar histórico de bans do jogador via RCON"""
-    # Verificar se RCON está configurado
-    if not config.RCON_PASSWORD:
-        logger.error("RCON_PASSWORD não está configurada")
-        return jsonify({
-            'success': False,
-            'message': 'Configuração RCON não encontrada. Verifique o config.json'
-        }), 500
-    
+    """Consultar histórico de bans do jogador via RCON e ban.txt"""
     # Buscar dados do jogador no banco
     player = get_player_by_id(player_id)
     if not player:
@@ -1017,48 +1117,54 @@ def api_player_bans(player_id):
             'message': 'Jogador não encontrado no banco de dados'
         }), 404
     
-    # Verificar se tem RconGuid
-    rcon_guid = player.get('RconGuid')
-    if not rcon_guid:
-        logger.warning(f"RconGuid não encontrado para jogador {player_id}")
-        return jsonify({
-            'success': False,
-            'message': 'RconGuid não encontrado para este jogador'
-        }), 400
-    
-    # Executar comando bans via RCON
-    logger.info(f"Consultando bans para GUID: {rcon_guid}")
-    response = execute_rcon_command('bans')
-    
-    if response is None:
-        logger.error(f"Falha ao consultar bans via RCON")
-        return jsonify({
-            'success': False,
-            'message': 'Erro ao consultar bans via RCON. Verifique os logs do servidor.'
-        }), 500
-    
-    # Filtrar bans por GUID do jogador
-    rcon_guid_lower = rcon_guid.lower()
     player_bans = {
         'guid_bans': [],
-        'ip_bans': []
+        'ip_bans': [],
+        'ban_txt': None
     }
     
-    if isinstance(response, dict):
-        # Filtrar guid_bans
-        guid_bans = response.get('guid_bans', [])
-        if isinstance(guid_bans, list):
-            for ban in guid_bans:
-                if isinstance(ban, dict) and ban.get('guid', '').lower() == rcon_guid_lower:
-                    player_bans['guid_bans'].append(ban)
-        
-        # Filtrar ip_bans (se o jogador tiver IP no banco, podemos filtrar também)
-        ip_bans = response.get('ip_bans', [])
-        if isinstance(ip_bans, list):
-            # Por enquanto, retornar todos os IP bans (pode ser melhorado se tivermos IP do jogador)
-            player_bans['ip_bans'] = ip_bans
+    # Verificar se SteamID está no ban.txt
+    steam_id = player.get('SteamID')
+    if steam_id:
+        is_banned_in_file = steamid_exists_in_ban_file(steam_id)
+        if is_banned_in_file:
+            player_bans['ban_txt'] = {
+                'steam_id': steam_id,
+                'banned': True,
+                'type': 'permanent',
+                'source': 'ban.txt'
+            }
     
-    logger.info(f"Encontrados {len(player_bans['guid_bans'])} ban(s) por GUID e {len(player_bans['ip_bans'])} ban(s) por IP")
+    # Verificar se tem RconGuid para consultar RCON
+    rcon_guid = player.get('RconGuid')
+    if rcon_guid:
+        # Verificar se RCON está configurado
+        if not config.RCON_PASSWORD:
+            logger.warning("RCON_PASSWORD não está configurada, pulando consulta de bans via RCON")
+        else:
+            # Executar comando bans via RCON
+            logger.info(f"Consultando bans para GUID: {rcon_guid}")
+            response = execute_rcon_command('bans')
+            
+            if response is not None:
+                # Filtrar bans por GUID do jogador
+                rcon_guid_lower = rcon_guid.lower()
+                
+                if isinstance(response, dict):
+                    # Filtrar guid_bans
+                    guid_bans = response.get('guid_bans', [])
+                    if isinstance(guid_bans, list):
+                        for ban in guid_bans:
+                            if isinstance(ban, dict) and ban.get('guid', '').lower() == rcon_guid_lower:
+                                player_bans['guid_bans'].append(ban)
+                    
+                    # Filtrar ip_bans (se o jogador tiver IP no banco, podemos filtrar também)
+                    ip_bans = response.get('ip_bans', [])
+                    if isinstance(ip_bans, list):
+                        # Por enquanto, retornar todos os IP bans (pode ser melhorado se tivermos IP do jogador)
+                        player_bans['ip_bans'] = ip_bans
+    
+    logger.info(f"Encontrados {len(player_bans['guid_bans'])} ban(s) por GUID, {len(player_bans['ip_bans'])} ban(s) por IP e ban.txt: {player_bans['ban_txt'] is not None}")
     return jsonify({
         'success': True,
         'bans': player_bans
@@ -1069,7 +1175,63 @@ def api_player_bans(player_id):
 @admin_required
 @audit_action('PLAYER_UNBAN')
 def api_player_unban(player_id):
-    """Desbanir jogador via RCON"""
+    """Desbanir jogador via RCON ou ban.txt"""
+    data = request.get_json()
+    ban_id = data.get('ban_id')
+    source = data.get('source', 'rcon')  # 'rcon' ou 'ban_txt'
+    
+    # Buscar dados do jogador no banco
+    player = get_player_by_id(player_id)
+    if not player:
+        return jsonify({
+            'success': False,
+            'message': 'Jogador não encontrado no banco de dados'
+        }), 404
+    
+    # Se for remoção do ban.txt
+    if source == 'ban_txt':
+        steam_id = player.get('SteamID')
+        if not steam_id:
+            logger.warning(f"SteamID não encontrado para jogador {player_id}")
+            return jsonify({
+                'success': False,
+                'message': 'SteamID não encontrado para este jogador'
+            }), 400
+        
+        # Verificar se está no ban.txt
+        if not steamid_exists_in_ban_file(steam_id):
+            logger.info(f"SteamID {steam_id} não está no ban.txt")
+            return jsonify({
+                'success': False,
+                'message': 'Jogador não está banido no arquivo ban.txt'
+            }), 404
+        
+        # Remover do ban.txt
+        logger.info(f"Removendo SteamID {steam_id} do arquivo ban.txt")
+        if remove_steamid_from_ban_file(steam_id):
+            logger.info(f"SteamID {steam_id} removido com sucesso do arquivo ban.txt")
+            
+            # Executar loadBans via RCON se RCON estiver configurado
+            if config.RCON_PASSWORD:
+                if execute_load_bans():
+                    logger.info("Comando loadBans executado com sucesso após remover ban do ban.txt")
+                else:
+                    logger.warning("Falha ao executar loadBans, mas o SteamID foi removido do ban.txt")
+            else:
+                logger.warning("RCON não configurado. SteamID removido do ban.txt, mas loadBans não foi executado")
+            
+            return jsonify({
+                'success': True,
+                'message': 'Ban removido do ban.txt com sucesso!'
+            })
+        else:
+            logger.error(f"Falha ao remover SteamID {steam_id} do arquivo ban.txt")
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao remover ban do arquivo ban.txt. Verifique os logs do servidor.'
+            }), 500
+    
+    # Se for remoção via RCON (comportamento original)
     # Verificar se RCON está configurado
     if not config.RCON_PASSWORD:
         logger.error("RCON_PASSWORD não está configurada")
@@ -1078,14 +1240,11 @@ def api_player_unban(player_id):
             'message': 'Configuração RCON não encontrada. Verifique o config.json'
         }), 500
     
-    data = request.get_json()
-    ban_id = data.get('ban_id')
-    
     # Validar ban_id
     if ban_id is None:
         return jsonify({
             'success': False,
-            'message': 'ban_id é obrigatório'
+            'message': 'ban_id é obrigatório para remoção via RCON'
         }), 400
     
     try:
@@ -1224,6 +1383,36 @@ def api_player_action(player_id):
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         
         logger.info(f"Comando enviado: {command_line.strip()}")
+        
+        # Registrar evento na tabela players_events
+        action_names = {
+            'heal': 'Curar',
+            'kill': 'Matar',
+            'desbug': 'Corrigir Posição',
+            'godmode': 'Ativar God Mode',
+            'ungodmode': 'Remover God Mode',
+            'ghostmode': 'Ativar Ghost Mode',
+            'unghostmode': 'Remover Ghost Mode',
+            'getposition': 'Obter Posição'
+        }
+        
+        action_name = action_names.get(action, action)
+        details = {
+            'action_type': action,
+            'action_name': action_name,
+            'command': command_line.strip()
+        }
+        
+        try:
+            insert_player_event(
+                player_id=player_id,
+                event_type='admin_action',
+                details=details
+            )
+            logger.info(f"Evento registrado para ação {action} no jogador {player_id}")
+        except Exception as e:
+            logger.warning(f"Erro ao registrar evento para ação {action}: {str(e)}")
+        
         return jsonify({
             'success': True,
             'message': f'Comando {action} enviado com sucesso!'

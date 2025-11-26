@@ -2336,6 +2336,18 @@ def get_online_players() -> List[Dict]:
         """)
         return [dict(row) for row in cursor.fetchall()]
 
+def is_player_online(player_id: str) -> bool:
+    """Verifica se um jogador está online consultando a tabela players_online"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) as count
+            FROM players_online
+            WHERE PlayerID = ?
+        """, (player_id,))
+        row = cursor.fetchone()
+        return row['count'] > 0 if row else False
+
 def get_all_players_with_status() -> List[Dict]:
     """Retorna todos os jogadores com status online e últimas coordenadas"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:

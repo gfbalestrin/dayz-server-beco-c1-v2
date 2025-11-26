@@ -755,7 +755,7 @@ function showPlayerControlPanel(playerId) {
     const onlineButtons = ['#controlPanelHealBtn', '#controlPanelKillBtn', '#controlPanelKickBtn', 
                           '#controlPanelDesbugBtn', '#controlPanelActivateGodModeBtn', 
                           '#controlPanelDeactivateGodModeBtn', '#controlPanelSendMessageBtn',
-                          '#controlPanelBanBtn', '#controlPanelSpawnItemsBtn'];
+                          '#controlPanelSpawnItemsBtn'];
     
     onlineButtons.forEach(btnId => {
         $(btnId).prop('disabled', !isOnline);
@@ -843,11 +843,24 @@ function showPlayerControlPanel(playerId) {
 function showBanPlayerModal(playerId, playerName) {
     const player = playersData.find(p => p.PlayerID === playerId);
     const displayName = player ? (player.PlayerName || 'Jogador desconhecido') : playerName;
+    const isOnline = player ? (player.IsOnline && player.IsOnline !== 0) : false;
     
     $('#banModalPlayerName').text(displayName);
     $('#banModalPlayerId').text(playerId);
     $('#banMinutes').val(0);
     $('#banMessage').val('Você foi banido do servidor');
+    
+    // Mostrar/ocultar aviso de jogador offline e desabilitar campo de minutos
+    if (!isOnline) {
+        $('#banOfflineWarning').show();
+        // Desabilitar campo de minutos para jogadores offline (só permite ban permanente)
+        $('#banMinutes').prop('disabled', true);
+        $('#banMinutes').val(0);
+    } else {
+        $('#banOfflineWarning').hide();
+        // Habilitar campo de minutos para jogadores online
+        $('#banMinutes').prop('disabled', false);
+    }
     
     // Atualizar contador inicial
     updateCharacterCount('#banMessage', '#banMessageCharCount', 50);
@@ -874,6 +887,12 @@ function showBanPlayerModal(playerId, playerName) {
         
         if (minutes < 0) {
             showToast('Aviso', 'Tempo em minutos deve ser maior ou igual a 0', 'warning');
+            return;
+        }
+        
+        // Validação: ban temporário só funciona para jogadores online
+        if (!isOnline && minutes !== 0) {
+            showToast('Aviso', 'Ban temporário só funciona para jogadores online. Para jogadores offline, use ban permanente (0 minutos).', 'warning');
             return;
         }
         
@@ -911,7 +930,17 @@ function executeBanAction(playerId, minutes, message) {
             }
         },
         error: function(xhr) {
-            const errorMessage = xhr.responseJSON?.message || 'Erro ao banir jogador';
+            let errorMessage = 'Erro ao banir jogador';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = xhr.responseJSON.message;
+            } else if (xhr.responseText) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    errorMessage = response.message || errorMessage;
+                } catch (e) {
+                    errorMessage = xhr.responseText || errorMessage;
+                }
+            }
             showToast('Erro', errorMessage, 'error');
         }
     });
@@ -961,56 +990,81 @@ let currentBansPlayerId = null;
 function renderBansHistory(bans) {
     const guidBans = bans.guid_bans || [];
     const ipBans = bans.ip_bans || [];
+    const banTxt = bans.ban_txt || null;
     
     let html = '';
+    let hasAnyBan = false;
     
-    if (guidBans.length === 0 && ipBans.length === 0) {
+    // Mostrar ban do ban.txt primeiro (se existir)
+    if (banTxt && banTxt.banned) {
+        hasAnyBan = true;
+        html += '<h6 class="mb-3">Ban Permanente (ban.txt):</h6>';
+        html += '<div class="table-responsive mb-4">';
+        html += '<table class="table table-sm table-striped">';
+        html += '<thead><tr><th>SteamID</th><th>Tipo</th><th>Fonte</th><th>Status</th><th>Ação</th></tr></thead>';
+        html += '<tbody>';
+        html += `<tr>
+            <td><code>${escapeHtml(banTxt.steam_id || '-')}</code></td>
+            <td>Permanente</td>
+            <td>ban.txt</td>
+            <td><span class="badge bg-success">Ativo</span></td>
+            <td>
+                <button class="btn btn-sm btn-danger" onclick="executeUnbanBanTxtAction('${currentBansPlayerId}')" title="Remover do ban.txt">
+                    <i class="fas fa-unlock me-1"></i>Remover
+                </button>
+            </td>
+        </tr>`;
+        html += '</tbody></table></div>';
+    }
+    
+    if (guidBans.length > 0) {
+        hasAnyBan = true;
+        html += '<h6 class="mb-3">Bans por GUID:</h6>';
+        html += '<div class="table-responsive mb-4">';
+        html += '<table class="table table-sm table-striped">';
+        html += '<thead><tr><th>Razão</th><th>Minutos</th><th>Válido</th><th>Ação</th></tr></thead>';
+        html += '<tbody>';
+        guidBans.forEach(ban => {
+            const minutes = ban.minutes === 0 || ban.minutes === -1 ? 'Permanente' : `${ban.minutes} min`;
+            const validBadge = ban.valid ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Expirado</span>';
+            const banId = ban.id !== undefined ? ban.id : null;
+            const actionButton = ban.valid && banId !== null ? 
+                `<button class="btn btn-sm btn-danger" onclick="executeUnbanAction('${currentBansPlayerId}', ${banId})" title="Desbanir">
+                    <i class="fas fa-unlock me-1"></i>Desbanir
+                </button>` : 
+                '<span class="text-muted">-</span>';
+            html += `<tr>
+                <td>${escapeHtml(ban.reason || '-')}</td>
+                <td>${minutes}</td>
+                <td>${validBadge}</td>
+                <td>${actionButton}</td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+    }
+    
+    if (ipBans.length > 0) {
+        hasAnyBan = true;
+        html += '<h6 class="mb-3">Bans por IP:</h6>';
+        html += '<div class="table-responsive">';
+        html += '<table class="table table-sm table-striped">';
+        html += '<thead><tr><th>IP</th><th>Razão</th><th>Minutos</th><th>Válido</th></tr></thead>';
+        html += '<tbody>';
+        ipBans.forEach(ban => {
+            const minutes = ban.minutes === 0 || ban.minutes === -1 ? 'Permanente' : `${ban.minutes} min`;
+            const validBadge = ban.valid ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Expirado</span>';
+            html += `<tr>
+                <td>${escapeHtml(ban.ip || '-')}</td>
+                <td>${escapeHtml(ban.reason || '-')}</td>
+                <td>${minutes}</td>
+                <td>${validBadge}</td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+    }
+    
+    if (!hasAnyBan) {
         html = '<div class="alert alert-info">Nenhum ban encontrado para este jogador.</div>';
-    } else {
-        if (guidBans.length > 0) {
-            html += '<h6 class="mb-3">Bans por GUID:</h6>';
-            html += '<div class="table-responsive mb-4">';
-            html += '<table class="table table-sm table-striped">';
-            html += '<thead><tr><th>ID</th><th>Razão</th><th>Minutos</th><th>Válido</th><th>Ação</th></tr></thead>';
-            html += '<tbody>';
-            guidBans.forEach(ban => {
-                const minutes = ban.minutes === 0 || ban.minutes === -1 ? 'Permanente' : `${ban.minutes} min`;
-                const validBadge = ban.valid ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Expirado</span>';
-                const banId = ban.id !== undefined ? ban.id : null;
-                const actionButton = ban.valid && banId !== null ? 
-                    `<button class="btn btn-sm btn-danger" onclick="executeUnbanAction('${currentBansPlayerId}', ${banId})" title="Desbanir">
-                        <i class="fas fa-unlock me-1"></i>Desbanir
-                    </button>` : 
-                    '<span class="text-muted">-</span>';
-                html += `<tr>
-                    <td>${escapeHtml(banId !== null ? banId : '-')}</td>
-                    <td>${escapeHtml(ban.reason || '-')}</td>
-                    <td>${minutes}</td>
-                    <td>${validBadge}</td>
-                    <td>${actionButton}</td>
-                </tr>`;
-            });
-            html += '</tbody></table></div>';
-        }
-        
-        if (ipBans.length > 0) {
-            html += '<h6 class="mb-3">Bans por IP:</h6>';
-            html += '<div class="table-responsive">';
-            html += '<table class="table table-sm table-striped">';
-            html += '<thead><tr><th>IP</th><th>Razão</th><th>Minutos</th><th>Válido</th></tr></thead>';
-            html += '<tbody>';
-            ipBans.forEach(ban => {
-                const minutes = ban.minutes === 0 || ban.minutes === -1 ? 'Permanente' : `${ban.minutes} min`;
-                const validBadge = ban.valid ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Expirado</span>';
-                html += `<tr>
-                    <td>${escapeHtml(ban.ip || '-')}</td>
-                    <td>${escapeHtml(ban.reason || '-')}</td>
-                    <td>${minutes}</td>
-                    <td>${validBadge}</td>
-                </tr>`;
-            });
-            html += '</tbody></table></div>';
-        }
     }
     
     $('#bansContent').html(html);
@@ -1052,6 +1106,57 @@ function executeUnbanAction(playerId, banId) {
         },
         error: function(xhr) {
             const errorMessage = xhr.responseJSON?.message || 'Erro ao desbanir jogador';
+            showToast('Erro', errorMessage, 'error');
+        }
+    });
+}
+
+// Função para executar remoção de ban do ban.txt
+function executeUnbanBanTxtAction(playerId) {
+    if (!confirm('Tem certeza que deseja remover este ban do arquivo ban.txt?')) {
+        return;
+    }
+    
+    $.ajax({
+        url: `/api/players/${encodeURIComponent(playerId)}/unban`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            source: 'ban_txt'
+        }),
+        success: function(response) {
+            if (response.success) {
+                showToast('Sucesso', response.message, 'success');
+                // Recarregar histórico de bans
+                setTimeout(function() {
+                    if (currentBansPlayerId) {
+                        $.ajax({
+                            url: `/api/players/${encodeURIComponent(currentBansPlayerId)}/bans`,
+                            method: 'GET',
+                            success: function(response) {
+                                if (response.success) {
+                                    renderBansHistory(response.bans);
+                                }
+                            }
+                        });
+                    }
+                }, 500);
+            } else {
+                showToast('Erro', response.message || 'Erro ao remover ban do ban.txt', 'error');
+            }
+        },
+        error: function(xhr) {
+            let errorMessage = 'Erro ao remover ban do ban.txt';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = xhr.responseJSON.message;
+            } else if (xhr.responseText) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    errorMessage = response.message || errorMessage;
+                } catch (e) {
+                    errorMessage = xhr.responseText || errorMessage;
+                }
+            }
             showToast('Erro', errorMessage, 'error');
         }
     });
@@ -1374,6 +1479,7 @@ $(document).ready(function() {
     window.showBanPlayerModal = showBanPlayerModal;
     window.showPlayerBansModal = showPlayerBansModal;
     window.executeUnbanAction = executeUnbanAction;
+    window.executeUnbanBanTxtAction = executeUnbanBanTxtAction;
     
     // Limpar intervalos ao sair da página
     $(window).on('beforeunload', function() {
