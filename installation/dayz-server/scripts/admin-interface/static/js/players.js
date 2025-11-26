@@ -1229,8 +1229,8 @@ function showToast(title, message, type) {
 // Função para criar link de visualização no mapa
 function createMapViewLink(playerId) {
     return `
-        <a href="/map?player_id=${playerId}" class="btn btn-sm btn-outline-info" title="Ver no mapa">
-            <i class="fas fa-map-marked-alt"></i>
+        <a href="/map?player_id=${playerId}" class="btn btn-link p-0" title="Ver player no mapa">
+            <i class="fas fa-map-marker-alt me-1"></i>Ver no mapa
         </a>
     `;
 }
