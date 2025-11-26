@@ -18,7 +18,7 @@ from database import (
     get_vehicle_trail, get_containers_last_position, get_container_trail,
     get_fences_last_position, get_watchtowers_last_position, get_flags_last_position,
     get_fence_trail, get_watchtower_trail, get_flag_trail,
-    get_item_details_from_items_db, dayz_to_pixel, get_player_events
+    get_item_details_from_items_db, dayz_to_pixel, get_player_events, clear_player_events
 )
 from blueprints.auth import admin_required, audit_action
 from blueprints.helpers import convert_timestamp_to_br
@@ -258,6 +258,31 @@ def api_player_events(player_id):
         result['events'].append(event_data)
     
     return jsonify(result)
+
+@api_map_bp.route('/api/players/<player_id>/events/clear', methods=['DELETE'])
+@admin_required
+@audit_action('clear_player_events')
+def api_clear_player_events(player_id):
+    """API para limpar todos os eventos de um jogador específico"""
+    try:
+        success = clear_player_events(player_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Eventos do jogador foram limpos com sucesso'
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Nenhum evento encontrado para limpar'
+            }), 404
+    except Exception as e:
+        logging.error(f"Erro ao limpar eventos do jogador {player_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao limpar eventos: {str(e)}'
+        }), 500
 
 @api_map_bp.route('/api/players/online/positions')
 @admin_required

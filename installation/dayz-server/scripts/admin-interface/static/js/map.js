@@ -350,6 +350,7 @@ $(document).ready(function() {
     // Event listeners do modal de histórico de eventos
     $('#applyEventsHistoryFilter').on('click', applyEventsHistoryFilters);
     $('#clearEventsHistoryFilter').on('click', clearEventsHistoryFilters);
+    $('#clearPlayerEventsBtn').on('click', clearPlayerEvents);
     $('#eventsHistoryPrevPage').on('click', function() {
         if (EventsHistoryState.currentPage > 1) {
             EventsHistoryState.currentPage--;

@@ -1684,16 +1684,39 @@ function formatEventType(eventType) {
 /**
  * Formatar detalhes JSON de forma legível
  */
-function formatEventDetails(detailsStr) {
+function formatEventDetails(detailsStr, eventType) {
     if (!detailsStr) return 'N/A';
     
     try {
         const details = JSON.parse(detailsStr);
         const parts = [];
         
+        // Para eventos de conexão e desconexão, remover timestamp (já existe coluna na tabela)
+        const isConnectionEvent = eventType === 'player_connected' || eventType === 'player_disconnected';
+        
         for (const [key, value] of Object.entries(details)) {
             if (value !== null && value !== undefined) {
-                parts.push(`${key}: ${value}`);
+                // Pular timestamp para eventos de conexão/desconexão
+                if (isConnectionEvent && key === 'timestamp') {
+                    continue;
+                }
+                
+                // Formatar Country com bandeira (igual à tabela de jogadores online)
+                if (key === 'Country' && value) {
+                    const flag = getCountryFlag(value);
+                    if (flag) {
+                        parts.push(`Country: ${flag} ${escapeHtml(value)}`);
+                    } else {
+                        parts.push(`Country: ${escapeHtml(value)}`);
+                    }
+                }
+                // Formatar IP como link (igual à tabela de jogadores online)
+                else if (key === 'IP' && value) {
+                    const ipUrl = `https://ip-api.com/#${escapeHtml(value)}`;
+                    parts.push(`IP: <a href="${ipUrl}" target="_blank" class="text-decoration-none">${escapeHtml(value)}</a>`);
+                } else {
+                    parts.push(`${key}: ${value}`);
+                }
             }
         }
         
@@ -1838,9 +1861,10 @@ function renderPlayerEvents(events, pagination) {
             second: '2-digit'
         });
         
-        const eventType = formatEventType(event.event_type || event.EventType);
+        const eventTypeName = event.event_type || event.EventType;
+        const eventType = formatEventType(eventTypeName);
         const coords = formatEventCoords(event.coord_x || event.CoordX, event.coord_y || event.CoordY, event.coord_z || event.CoordZ);
-        const details = formatEventDetails(event.details || event.Details);
+        const details = formatEventDetails(event.details || event.Details, eventTypeName);
         const relatedPlayer = (event.related_player_name || event.RelatedPlayerName) || ((event.related_player_id || event.RelatedPlayerID) ? 'ID: ' + (event.related_player_id || event.RelatedPlayerID).substring(0, 8) + '...' : 'N/A');
         
         const row = `
@@ -1848,7 +1872,7 @@ function renderPlayerEvents(events, pagination) {
                 <td>${escapeHtml(formattedDate)}</td>
                 <td><span class="badge bg-info">${escapeHtml(eventType)}</span></td>
                 <td><small>${escapeHtml(coords)}</small></td>
-                <td><small>${escapeHtml(details)}</small></td>
+                <td><small>${details}</small></td>
                 <td><small>${escapeHtml(relatedPlayer)}</small></td>
             </tr>
         `;
@@ -1921,11 +1945,56 @@ function clearEventsHistoryFilters() {
     loadPlayerEvents();
 }
 
+/**
+ * Limpar histórico de eventos do jogador
+ */
+function clearPlayerEvents() {
+    const playerId = EventsHistoryState.currentPlayerId;
+    const playerName = $('#eventsHistoryPlayerName').text();
+    
+    if (!playerId) {
+        alert('Erro: ID do jogador não encontrado');
+        return;
+    }
+    
+    if (!confirm(`Tem certeza que deseja limpar TODOS os eventos do jogador "${playerName}"?\n\nEsta ação não pode ser desfeita!`)) {
+        return;
+    }
+    
+    // Desabilitar botão durante a operação
+    const btn = $('#clearPlayerEventsBtn');
+    const originalHtml = btn.html();
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Limpando...');
+    
+    $.ajax({
+        url: `/api/players/${playerId}/events/clear`,
+        method: 'DELETE',
+        success: function(response) {
+            if (response.success) {
+                alert('Histórico de eventos limpo com sucesso!');
+                // Recarregar eventos (que agora estarão vazios)
+                EventsHistoryState.currentPage = 1;
+                loadPlayerEvents();
+            } else {
+                alert('Erro: ' + (response.message || 'Não foi possível limpar os eventos'));
+            }
+        },
+        error: function(xhr) {
+            const errorMsg = xhr.responseJSON?.message || 'Erro ao limpar eventos';
+            alert('Erro: ' + errorMsg);
+        },
+        complete: function() {
+            btn.prop('disabled', false).html(originalHtml);
+        }
+    });
+}
+
 // Event listeners para histórico de eventos (quando o documento estiver pronto)
 $(document).ready(function() {
     // Filtros
     $('#applyEventsHistoryFilter').off('click').on('click', applyEventsHistoryFilters);
     $('#clearEventsHistoryFilter').off('click').on('click', clearEventsHistoryFilters);
+    $('#clearPlayerEventsBtn').off('click').on('click', clearPlayerEvents);
     
     // Paginação
     $('#eventsHistoryPrevPage').off('click').on('click', function() {

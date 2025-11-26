@@ -5977,6 +5977,29 @@ def get_player_events(player_id: str, limit: int = 50, offset: int = 0, date_fro
         
         return (events, total_count)
 
+def clear_player_events(player_id: str) -> bool:
+    """
+    Remove todos os eventos de um jogador específico
+    
+    Args:
+        player_id: ID do jogador
+        
+    Returns:
+        True se eventos foram deletados, False caso contrário
+    """
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            DELETE FROM players_events
+            WHERE PlayerID = ?
+        """, (player_id,))
+        
+        events_deleted = cursor.rowcount
+        conn.commit()
+        
+        return events_deleted > 0
+
 def insert_player_event(player_id: str, event_type: str, details: dict = None, 
                        coord_x: float = None, coord_y: float = None, coord_z: float = None,
                        related_player_id: str = None) -> Optional[int]:
