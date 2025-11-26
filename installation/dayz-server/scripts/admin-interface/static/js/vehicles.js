@@ -11,7 +11,7 @@ $(document).ready(function() {
         yesterday: { type: 'day', offsetDays: -1 },
         last7d: { days: 7 }
     };
-    let activeQuickFilter = null;
+    let activeQuickFilter = 'last1h';
     
     // Estado de paginação do histórico
     let historyState = {
@@ -321,7 +321,7 @@ $(document).ready(function() {
             start = new Date(now);
         }
         
-        return { from: start, to: end };
+        return { from: start, to: end, config: config };
     }
     
     function getInputDateTime(dateValue, timeValue) {
@@ -345,8 +345,17 @@ $(document).ready(function() {
         if (activeQuickFilter) {
             const range = computeQuickRange(activeQuickFilter);
             if (range) {
+                const cfg = range.config || QUICK_FILTERS[activeQuickFilter] || {};
+                const fromServer = formatDateTimeForServer(range.from);
+                // Para filtros relativos (minutes/days), só usamos o início e deixamos fim em branco
+                if (cfg.minutes || cfg.days) {
+                    return {
+                        from: fromServer,
+                        to: null
+                    };
+                }
                 return {
-                    from: formatDateTimeForServer(range.from),
+                    from: fromServer,
                     to: formatDateTimeForServer(range.to)
                 };
             }
@@ -386,7 +395,12 @@ $(document).ready(function() {
             if (activeQuickFilter) {
                 const range = computeQuickRange(activeQuickFilter);
                 if (range) {
-                    setCustomDateInputs(range.from, range.to);
+                    const cfg = range.config || QUICK_FILTERS[activeQuickFilter] || {};
+                    if (cfg.minutes || cfg.days) {
+                        setCustomDateInputs(range.from, null);
+                    } else {
+                        setCustomDateInputs(range.from, range.to);
+                    }
                 }
             }
             if (resetPage) {
@@ -409,7 +423,12 @@ $(document).ready(function() {
         updateQuickShortcutButtons();
         const range = computeQuickRange(filterKey);
         if (range) {
-            setCustomDateInputs(range.from, range.to);
+            const cfg = range.config || QUICK_FILTERS[filterKey] || {};
+            if (cfg.minutes || cfg.days) {
+                setCustomDateInputs(range.from, null);
+            } else {
+                setCustomDateInputs(range.from, range.to);
+            }
         }
         reloadTable();
     }
@@ -1360,6 +1379,18 @@ $(document).ready(function() {
     }
     
     // Inicializar
+    // Definir filtro padrão: Última hora
+    activeQuickFilter = 'last1h';
+    updateQuickShortcutButtons();
+    const initialRange = computeQuickRange(activeQuickFilter);
+    if (initialRange) {
+        const cfg = initialRange.config || QUICK_FILTERS[activeQuickFilter] || {};
+        if (cfg.minutes || cfg.days) {
+            setCustomDateInputs(initialRange.from, null);
+        } else {
+            setCustomDateInputs(initialRange.from, initialRange.to);
+        }
+    }
     initDataTable();
 });
 

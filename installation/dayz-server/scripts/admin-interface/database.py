@@ -644,10 +644,17 @@ def count_vehicle_changes(vehicle_id: str, date_from: str = None, date_to: str =
             'attachments': False
         }
         
-        # Comparar registros consecutivos
+        # Comparar registros consecutivos para posição/saúde/status
+        # e comparar apenas snapshots COMPLETOS consecutivos para items/attachments
+        last_complete_index = None
+        
         for i in range(1, len(records)):
             prev = records[i - 1]
             curr = records[i]
+            
+            # Verificar se são parciais (updates parciais não alteram items/attachments)
+            prev_is_partial = prev.get('IsPartialUpdate', 0) == 1
+            curr_is_partial = curr.get('IsPartialUpdate', 0) == 1
             
             # Verificar mudança de posição
             pos_changed = (abs((prev.get('PositionX') or 0) - (curr.get('PositionX') or 0)) > pos_threshold or
@@ -677,49 +684,56 @@ def count_vehicle_changes(vehicle_id: str, date_from: str = None, date_to: str =
             elif not health_changed and prev.get('FuelTankHealth') != curr.get('FuelTankHealth'):
                 health_changed = True
             
-            # Verificar mudança em items/attachments (apenas tipos e quantidades, ignorando ordem)
+            # Verificar mudança em items/attachments (apenas entre snapshots COMPLETOS consecutivos)
+            # Regra: items/attachments só são confiáveis em updates completos (IsPartialUpdate = 0)
             items_changed = False
             attachments_changed = False
             
-            # Criar contadores por tipo para items (ignorando ordem)
-            prev_items_list = items_map.get(prev['IdVehicleTracking'], [])
-            curr_items_list = items_map.get(curr['IdVehicleTracking'], [])
-            
-            prev_items_count = {}
-            for item_type in prev_items_list:
-                # Filtrar tipos inválidos (segurança extra)
-                if item_type and item_type.strip() and item_type != 'empty':
-                    prev_items_count[item_type] = prev_items_count.get(item_type, 0) + 1
-            
-            curr_items_count = {}
-            for item_type in curr_items_list:
-                # Filtrar tipos inválidos (segurança extra)
-                if item_type and item_type.strip() and item_type != 'empty':
-                    curr_items_count[item_type] = curr_items_count.get(item_type, 0) + 1
-            
-            # Comparar contadores (ignora ordem, apenas tipos e quantidades)
-            if prev_items_count != curr_items_count:
-                items_changed = True
-            
-            # Criar contadores por tipo para attachments (ignorando ordem)
-            prev_attachments_list = attachments_map.get(prev['IdVehicleTracking'], [])
-            curr_attachments_list = attachments_map.get(curr['IdVehicleTracking'], [])
-            
-            prev_attachments_count = {}
-            for attachment_type in prev_attachments_list:
-                # Filtrar tipos inválidos (segurança extra)
-                if attachment_type and attachment_type.strip() and attachment_type != 'empty':
-                    prev_attachments_count[attachment_type] = prev_attachments_count.get(attachment_type, 0) + 1
-            
-            curr_attachments_count = {}
-            for attachment_type in curr_attachments_list:
-                # Filtrar tipos inválidos (segurança extra)
-                if attachment_type and attachment_type.strip() and attachment_type != 'empty':
-                    curr_attachments_count[attachment_type] = curr_attachments_count.get(attachment_type, 0) + 1
-            
-            # Comparar contadores (ignora ordem, apenas tipos e quantidades)
-            if prev_attachments_count != curr_attachments_count:
-                attachments_changed = True
+            # Para items/attachments, queremos comparar o snapshot completo atual (curr)
+            # com o último snapshot completo anterior na sequência (não necessariamente prev,
+            # pois podem existir vários parciais entre dois completos).
+            if not curr_is_partial and last_complete_index is not None and last_complete_index != i:
+                prev_complete = records[last_complete_index]
+                
+                # Criar contadores por tipo para items (ignorando ordem)
+                prev_items_list = items_map.get(prev_complete['IdVehicleTracking'], [])
+                curr_items_list = items_map.get(curr['IdVehicleTracking'], [])
+                
+                prev_items_count = {}
+                for item_type in prev_items_list:
+                    # Filtrar tipos inválidos (segurança extra)
+                    if item_type and item_type.strip() and item_type != 'empty':
+                        prev_items_count[item_type] = prev_items_count.get(item_type, 0) + 1
+                
+                curr_items_count = {}
+                for item_type in curr_items_list:
+                    # Filtrar tipos inválidos (segurança extra)
+                    if item_type and item_type.strip() and item_type != 'empty':
+                        curr_items_count[item_type] = curr_items_count.get(item_type, 0) + 1
+                
+                # Comparar contadores (ignora ordem, apenas tipos e quantidades)
+                if prev_items_count != curr_items_count:
+                    items_changed = True
+                
+                # Criar contadores por tipo para attachments (ignorando ordem)
+                prev_attachments_list = attachments_map.get(prev_complete['IdVehicleTracking'], [])
+                curr_attachments_list = attachments_map.get(curr['IdVehicleTracking'], [])
+                
+                prev_attachments_count = {}
+                for attachment_type in prev_attachments_list:
+                    # Filtrar tipos inválidos (segurança extra)
+                    if attachment_type and attachment_type.strip() and attachment_type != 'empty':
+                        prev_attachments_count[attachment_type] = prev_attachments_count.get(attachment_type, 0) + 1
+                
+                curr_attachments_count = {}
+                for attachment_type in curr_attachments_list:
+                    # Filtrar tipos inválidos (segurança extra)
+                    if attachment_type and attachment_type.strip() and attachment_type != 'empty':
+                        curr_attachments_count[attachment_type] = curr_attachments_count.get(attachment_type, 0) + 1
+                
+                # Comparar contadores (ignora ordem, apenas tipos e quantidades)
+                if prev_attachments_count != curr_attachments_count:
+                    attachments_changed = True
             
             # Se houve qualquer mudança significativa, incrementar contador
             if pos_changed or status_changed or health_changed or items_changed or attachments_changed:
@@ -732,6 +746,10 @@ def count_vehicle_changes(vehicle_id: str, date_from: str = None, date_to: str =
                     change_flags['items'] = True
                 if attachments_changed:
                     change_flags['attachments'] = True
+            
+            # Atualizar índice do último snapshot completo
+            if not curr_is_partial:
+                last_complete_index = i
         
         return change_count, change_flags
 
