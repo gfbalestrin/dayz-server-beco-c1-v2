@@ -1211,27 +1211,32 @@ $(document).ready(function() {
     
     // Renderizar seção de saúde
     function renderHealthSection(record) {
-        let html = '';
+        let html = '<div class="d-flex gap-3 flex-wrap align-items-center" style="font-size: 0.875rem;">';
+        let hasData = false;
         
         if (record.EngineHealth !== null && record.EngineHealth !== undefined) {
             const engineHealth = parseFloat(record.EngineHealth || 0) * 100;
-            html += '<div class="mb-2"><small>Motor:</small> ' + 
+            html += '<div class="d-flex align-items-center gap-2"><small>Motor:</small> ' + 
                 renderHealthBar(engineHealth) + '</div>';
+            hasData = true;
         }
         
         if (record.BodyHealth !== null && record.BodyHealth !== undefined) {
             const bodyHealth = parseFloat(record.BodyHealth || 0) * 100;
-            html += '<div class="mb-2"><small>Carroceria:</small> ' + 
+            html += '<div class="d-flex align-items-center gap-2"><small>Carroceria:</small> ' + 
                 renderHealthBar(bodyHealth) + '</div>';
+            hasData = true;
         }
         
         if (record.FuelTankHealth !== null && record.FuelTankHealth !== undefined) {
             const fuelHealth = parseFloat(record.FuelTankHealth || 0) * 100;
-            html += '<div><small>Tanque:</small> ' + 
+            html += '<div class="d-flex align-items-center gap-2"><small>Tanque:</small> ' + 
                 renderHealthBar(fuelHealth) + '</div>';
+            hasData = true;
         }
         
-        return html || '<span class="text-muted">N/A</span>';
+        html += '</div>';
+        return hasData ? html : '<span class="text-muted">N/A</span>';
     }
     
     // Renderizar posição com indicadores de mudança
@@ -1258,33 +1263,33 @@ $(document).ready(function() {
         const yChanged = Math.abs(y - currY) > posThreshold;
         const zChanged = Math.abs(z - currZ) > posThreshold;
         
-        let html = '<p class="mb-0">';
+        let html = '<div class="d-flex gap-3 flex-wrap" style="font-size: 0.875rem;">';
         
         if (xChanged) {
             const diff = x - currX; // Diferença do atual (recente) para o próximo (antigo)
             const arrow = diff > 0 ? '→' : '←';
-            html += `X: <span class="change-modified">${x.toFixed(2)}</span> <small class="text-muted">(${arrow} ${Math.abs(diff).toFixed(2)})</small><br>`;
+            html += `<span>X: <span class="change-modified">${x.toFixed(2)}</span> <small class="text-muted">(${arrow} ${Math.abs(diff).toFixed(2)})</small></span>`;
         } else {
-            html += `X: ${x.toFixed(2)}<br>`;
+            html += `<span>X: ${x.toFixed(2)}</span>`;
         }
         
         if (yChanged) {
             const diff = y - currY;
             const arrow = diff > 0 ? '↑' : '↓';
-            html += `Y: <span class="change-modified">${y.toFixed(2)}</span> <small class="text-muted">(${arrow} ${Math.abs(diff).toFixed(2)})</small><br>`;
+            html += `<span>Y: <span class="change-modified">${y.toFixed(2)}</span> <small class="text-muted">(${arrow} ${Math.abs(diff).toFixed(2)})</small></span>`;
         } else {
-            html += `Y: ${y.toFixed(2)}<br>`;
+            html += `<span>Y: ${y.toFixed(2)}</span>`;
         }
         
         if (zChanged) {
             const diff = z - currZ;
             const arrow = diff > 0 ? '↗' : '↘';
-            html += `Z: <span class="change-modified">${z.toFixed(2)}</span> <small class="text-muted">(${arrow} ${Math.abs(diff).toFixed(2)})</small>`;
+            html += `<span>Z: <span class="change-modified">${z.toFixed(2)}</span> <small class="text-muted">(${arrow} ${Math.abs(diff).toFixed(2)})</small></span>`;
         } else {
-            html += `Z: ${z.toFixed(2)}`;
+            html += `<span>Z: ${z.toFixed(2)}</span>`;
         }
         
-        html += '</p>';
+        html += '</div>';
         return html;
     }
     
@@ -1293,7 +1298,7 @@ $(document).ready(function() {
         const x = parseFloat(record.PositionX || 0).toFixed(2);
         const y = parseFloat(record.PositionY || 0).toFixed(2);
         const z = parseFloat(record.PositionZ || 0).toFixed(2);
-        return `<p class="mb-0">X: ${x}<br>Y: ${y}<br>Z: ${z}</p>`;
+        return `<div class="d-flex gap-3 flex-wrap" style="font-size: 0.875rem;"><span>X: ${x}</span><span>Y: ${y}</span><span>Z: ${z}</span></div>`;
     }
     
     // Renderizar seção de saúde com indicadores de mudança
@@ -1305,7 +1310,8 @@ $(document).ready(function() {
             return renderHealthSection(prev);
         }
         
-        let html = '';
+        let html = '<div class="d-flex gap-3 flex-wrap align-items-center" style="font-size: 0.875rem;">';
+        let hasData = false;
         const healthThreshold = 0.05;
         
         // Motor - mostrar valor do registro atual (prev)
@@ -1325,8 +1331,9 @@ $(document).ready(function() {
                 }
             }
             
-            html += '<div class="mb-2"><small>Motor:</small> ' + 
+            html += '<div class="d-flex align-items-center gap-2"><small>Motor:</small> ' + 
                 renderHealthBar(engineHealth) + changeIndicator + '</div>';
+            hasData = true;
         }
         
         // Carroceria - mostrar valor do registro atual (prev)
@@ -1346,8 +1353,9 @@ $(document).ready(function() {
                 }
             }
             
-            html += '<div class="mb-2"><small>Carroceria:</small> ' + 
+            html += '<div class="d-flex align-items-center gap-2"><small>Carroceria:</small> ' + 
                 renderHealthBar(bodyHealth) + changeIndicator + '</div>';
+            hasData = true;
         }
         
         // Tanque - mostrar valor do registro atual (prev)
@@ -1367,11 +1375,13 @@ $(document).ready(function() {
                 }
             }
             
-            html += '<div><small>Tanque:</small> ' + 
+            html += '<div class="d-flex align-items-center gap-2"><small>Tanque:</small> ' + 
                 renderHealthBar(fuelHealth) + changeIndicator + '</div>';
+            hasData = true;
         }
         
-        return html || '<span class="text-muted">N/A</span>';
+        html += '</div>';
+        return hasData ? html : '<span class="text-muted">N/A</span>';
     }
     
     // Gerar placeholder SVG inline (não depende de serviço externo)
