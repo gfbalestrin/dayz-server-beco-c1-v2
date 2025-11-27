@@ -37,6 +37,13 @@ handle_containers_positions() {
     fi
     CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
 
+    # Detectar se é update parcial (apenas coordenadas e health)
+    local is_partial_update=false
+    if echo "$line" | jq -e '.update_type == "position_only"' >/dev/null 2>&1; then
+        is_partial_update=true
+        INSERT_CUSTOM_LOG "Update parcial detectado: apenas coordenadas e health serão atualizados (items não processados)" "INFO" "$ScriptName"
+    fi
+
     if ! echo "$line" | jq -e '.container_data' >/dev/null 2>&1; then
         INSERT_CUSTOM_LOG "DEBUG: JSON de containers vazio ou inválido, retornando" "INFO" "$ScriptName"
         return
@@ -202,8 +209,14 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
     parsing_start_time=$(date +%s.%N 2>/dev/null || date +%s)
 
     local containers container_count processed_count
-    containers=$(echo "$line" | jq -c '.container_data[]')
-    container_count=$(echo "$line" | jq '.container_data | length')
+    # Suportar tanto .container_data (formato antigo) quanto .containers (formato novo simplificado)
+    if echo "$line" | jq -e '.containers' >/dev/null 2>&1; then
+        containers=$(echo "$line" | jq -c '.containers[]')
+        container_count=$(echo "$line" | jq '.containers | length')
+    else
+        containers=$(echo "$line" | jq -c '.container_data[]')
+        container_count=$(echo "$line" | jq '.container_data | length')
+    fi
     INSERT_CUSTOM_LOG "DEBUG: total de containers no JSON para processar: $container_count" "INFO" "$ScriptName"
     processed_count=0
 
@@ -234,9 +247,17 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
         local container_type coord_x coord_z coord_y container_id container_name
         container_id=$(echo "$container_data" | jq -r '.container_id')
         container_type=$(echo "$container_data" | jq -r '.container_type')
-        coord_x=$(echo "$container_data" | jq -r '.position.x')
-        coord_z=$(echo "$container_data" | jq -r '.position.z')
-        coord_y=$(echo "$container_data" | jq -r '.position.y')
+        
+        # Suportar tanto formato antigo (position.x) quanto novo (x diretamente)
+        if echo "$container_data" | jq -e '.position' >/dev/null 2>&1; then
+            coord_x=$(echo "$container_data" | jq -r '.position.x')
+            coord_z=$(echo "$container_data" | jq -r '.position.z')
+            coord_y=$(echo "$container_data" | jq -r '.position.y')
+        else
+            coord_x=$(echo "$container_data" | jq -r '.x')
+            coord_z=$(echo "$container_data" | jq -r '.z')
+            coord_y=$(echo "$container_data" | jq -r '.y')
+        fi
 
         if [[ -z "$container_id" || "$container_id" == "null" ]]; then
             if [[ $containers_processed_in_loop -le 10 ]]; then
@@ -277,22 +298,28 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
         coord_y_cmp="$coord_y_log"
 
         # Processar items de forma otimizada - uma única chamada ao jq
+        # Se for update parcial, pular processamento de items
         local current_items_str item_count
-        current_items_str=$(echo "$container_data" | jq -r '
-          [.items[]? | select(.type != null and .type != "" and .type != "empty")] |
-          if length > 0 then
-            map(.type + ":" + (if .health != null and .health != "" then (.health | tostring) else "" end)) |
-            join(",")
-          else
-            ""
-          end
-        ' 2>/dev/null)
-        
-        # Contar items
-        if [[ -n "$current_items_str" ]]; then
-            item_count=$(echo "$current_items_str" | tr ',' '\n' | grep -c . || echo "0")
-        else
+        if [[ "$is_partial_update" == "true" ]]; then
+            current_items_str=""
             item_count=0
+        else
+            current_items_str=$(echo "$container_data" | jq -r '
+              [.items[]? | select(.type != null and .type != "" and .type != "empty")] |
+              if length > 0 then
+                map(.type + ":" + (if .health != null and .health != "" then (.health | tostring) else "" end)) |
+                join(",")
+              else
+                ""
+              end
+            ' 2>/dev/null)
+            
+            # Contar items
+            if [[ -n "$current_items_str" ]]; then
+                item_count=$(echo "$current_items_str" | tr ',' '\n' | grep -c . || echo "0")
+            else
+                item_count=0
+            fi
         fi
 
         local prev_data
@@ -507,7 +534,8 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
             containers_metadata["$container_id"]="$container_type|$coord_x_log|$coord_z_log|$coord_y_log|$is_shelter_type"
             
             # Armazenar items do container para processamento posterior (já processados acima)
-            if [[ -n "$current_items_str" ]]; then
+            # Se for update parcial, não processar items
+            if [[ "$is_partial_update" != "true" ]] && [[ -n "$current_items_str" ]]; then
                 local items_batch=()
                 
                 # Converter current_items_str (formato "type:health,type:health") para items_batch (formato "type|health")
@@ -640,7 +668,10 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
                 fi
             fi
             # Processar todos os items em um único batch INSERT
-            if [[ ${#all_items_batch[@]} -gt 0 ]]; then
+            # Se for update parcial, pular processamento de items
+            if [[ "$is_partial_update" == "true" ]]; then
+                INSERT_CUSTOM_LOG "Update parcial: items não processados (preservados do último registro completo)" "INFO" "$ScriptName"
+            elif [[ ${#all_items_batch[@]} -gt 0 ]]; then
                 local items_insert_start_time
                 items_insert_start_time=$(date +%s.%N 2>/dev/null || date +%s)
                 

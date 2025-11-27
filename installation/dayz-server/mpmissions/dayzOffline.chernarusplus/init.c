@@ -33,6 +33,8 @@ class CustomMission: MissionServer
 	float m_AdminCheckTimer10 = 0.0;
 	float m_AdminCheckCooldown60 = 60.0;
 	float m_AdminCheckTimer60 = 0.0;
+	float m_AdminCheckCooldown600 = 600.0;
+	float m_AdminCheckTimer600 = 0.0;
 
 	// Deathmatch
 	string regionStr;
@@ -200,6 +202,7 @@ class CustomMission: MissionServer
 		super.OnUpdate(timeslice);
 		m_AdminCheckTimer10 += timeslice;
 		m_AdminCheckTimer60 += timeslice;
+		m_AdminCheckTimer600 += timeslice;
 
 		if (m_AdminCheckTimer10 >= m_AdminCheckCooldown10)
 		{
@@ -305,10 +308,10 @@ class CustomMission: MissionServer
 			//LogVehiclesPositionsSimple(); // Loga coordenadas dos veículos para análise de performance
 			CleanTrackedVehicles(); // Limpa veículos destruídos do array
 			SendVehiclesPositionsSimple(); // Envia apenas coordenadas dos veículos (update parcial)
-			LogFencesStatusSimple(); // Loga informações simples das fences rastreadas
-			LogWatchtowersStatusSimple(); // Loga informações simples das watchtowers rastreadas
-			LogFlagsStatusSimple(); // Loga informações simples das flags rastreadas
-			LogContainersStatusSimple(); // Loga informações básicas dos containers rastreados
+			//LogFencesStatusSimple(); // Loga informações simples das fences rastreadas
+			//LogWatchtowersStatusSimple(); // Loga informações simples das watchtowers rastreadas
+			//LogFlagsStatusSimple(); // Loga informações simples das flags rastreadas
+			//LogContainersStatusSimple(); // Loga informações básicas dos containers rastreados
 			//SendVehiclesPositions(); // Completo (comentado para performance)			
 			//CleanTrackedFences(); // Limpa cercas destruídas do array
 			//SendFencesStatus(); // Envia status de todas as cercas rastreadas
@@ -319,8 +322,26 @@ class CustomMission: MissionServer
 			//CleanTrackedContainers(); // Limpa containers destruídos do array
 			//CheckContainersForLoot(); // Verifica e envia containers que receberam loot
 			
-			ListActivePlayers();
+			//ListActivePlayers();
 			//SendPlayersPositions();		
+		}
+
+		// Timer de 10 minutos para tracking de construções e containers
+		if (m_AdminCheckTimer600 >= m_AdminCheckCooldown600)
+		{
+			m_AdminCheckTimer600 = 0.0;
+			
+			// Limpeza de objetos destruídos/removidos dos arrays
+			CleanTrackedFences(); // Limpa fences destruídas do array
+			CleanTrackedWatchtowers(); // Limpa watchtowers removidas do array
+			CleanTrackedFlags(); // Limpa flags inválidas do array
+			CleanTrackedContainers(); // Limpa containers destruídos do array
+			
+			// Envio de status completo via ExternalAction
+			SendFencesStatus(); // Envia status completo de todas as fences rastreadas
+			SendWatchtowersStatus(); // Envia status completo das watchtowers rastreadas
+			SendFlagsStatus(); // Envia status completo das flags rastreadas
+			SendContainersPositionsSimple(); // Envia posições simplificadas dos containers (sem items)
 		}
 	}
 	

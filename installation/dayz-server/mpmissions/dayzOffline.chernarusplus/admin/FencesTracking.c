@@ -197,6 +197,7 @@ void CleanTrackedFences()
 
 void SendFencesStatus()
 {
+	int startTime = GetGame().GetTime();
     int count = 0;
     string fencesJson = "";
 
@@ -337,7 +338,10 @@ void SendFencesStatus()
 
     string jsonAction = "{\"action\":\"fences_positions\",\"fence_data\":[" + fencesJson + "]}";
     AppendExternalAction(jsonAction, false);
-    WriteToLog("SendFencesStatus(): JSON com " + count.ToString() + " fences enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
+	
+	int endTime = GetGame().GetTime();
+	int elapsedMs = endTime - startTime;
+    WriteToLog("SendFencesStatus(): JSON com " + count.ToString() + " fences enviado via ExternalAction - Tempo=" + elapsedMs.ToString() + "ms", LogFile.INIT, false, LogType.INFO);
 
     string summary = "[FENCE TRACKING] Total de fences enviadas: " + count.ToString();
     Print(summary);
@@ -596,6 +600,7 @@ void CleanTrackedWatchtowers()
 
 void SendWatchtowersStatus()
 {
+	int startTime = GetGame().GetTime();
     int count = 0;
     string watchtowersJson = "";
 
@@ -751,7 +756,10 @@ void SendWatchtowersStatus()
 
     string jsonAction = "{\"action\":\"watchtowers_positions\",\"watchtower_data\":[" + watchtowersJson + "]}";
     AppendExternalAction(jsonAction, false);
-    WriteToLog("SendWatchtowersStatus(): JSON com " + count.ToString() + " watchtowers enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
+	
+	int endTime = GetGame().GetTime();
+	int elapsedMs = endTime - startTime;
+    WriteToLog("SendWatchtowersStatus(): JSON com " + count.ToString() + " watchtowers enviado via ExternalAction - Tempo=" + elapsedMs.ToString() + "ms", LogFile.INIT, false, LogType.INFO);
 }
 
 void InitWatchtowerTracking()
@@ -967,6 +975,7 @@ void CleanTrackedFlags()
 
 void SendFlagsStatus()
 {
+	int startTime = GetGame().GetTime();
     int count = 0;
     string flagsJson = "";
 
@@ -1047,7 +1056,10 @@ void SendFlagsStatus()
 
     string jsonAction = "{\"action\":\"flags_positions\",\"flag_data\":[" + flagsJson + "]}";
     AppendExternalAction(jsonAction, false);
-    WriteToLog("SendFlagsStatus(): JSON com " + count.ToString() + " flags enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
+	
+	int endTime = GetGame().GetTime();
+	int elapsedMs = endTime - startTime;
+    WriteToLog("SendFlagsStatus(): JSON com " + count.ToString() + " flags enviado via ExternalAction - Tempo=" + elapsedMs.ToString() + "ms", LogFile.INIT, false, LogType.INFO);
 }
 
 void LogFencesStatusSimple()

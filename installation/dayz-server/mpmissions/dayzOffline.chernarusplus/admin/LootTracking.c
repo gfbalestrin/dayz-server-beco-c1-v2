@@ -526,3 +526,83 @@ void LogContainersStatusSimple()
 
 	WriteToLog("[CONTAINER_SIMPLE] Total=" + totalContainers.ToString() + " Shelters=" + shelterContainers.ToString() + " Tempo=" + elapsedMs.ToString() + "ms", LogFile.INIT, false, LogType.INFO);
 }
+
+void SendContainersPositionsSimple()
+{
+	int startTime = GetGame().GetTime();
+
+	if (!GetGame() || !GetGame().IsServer())
+		return;
+
+	if (!m_TrackedContainers || m_TrackedContainers.Count() == 0)
+		return;
+
+	string containersJson = "";
+
+	foreach (EntityAI trackedContainer : m_TrackedContainers)
+	{
+		if (!trackedContainer)
+			continue;
+
+		vector position = trackedContainer.GetPosition();
+		string containerType = trackedContainer.GetType();
+
+		bool isShelter = false;
+		if (containerType.Contains("Shelter"))
+		{
+			isShelter = true;
+		}
+
+		float containerHealth = trackedContainer.GetHealth("", "");
+
+		int pidLow1 = 0;
+		int pidLow2 = 0;
+		int pidHigh1 = 0;
+		int pidHigh2 = 0;
+		trackedContainer.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+
+		bool hasPersistent = false;
+		if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+		{
+			hasPersistent = true;
+		}
+
+		string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+		string containerIdentifier = persistentKey;
+		if (!hasPersistent)
+		{
+			containerIdentifier = "pending-" + trackedContainer.GetID().ToString();
+		}
+
+		string safeType = containerType;
+		TStringArray unsafeChars = {"|", ";", "`", "$", "\"", "'", "\\", "<", ">", "&"};
+		foreach (string unsafeChar : unsafeChars)
+		{
+			safeType.Replace(unsafeChar, "-");
+		}
+
+		string posXStr = position[0].ToString();
+		string posZStr = position[1].ToString();
+		string posYStr = position[2].ToString();
+		string healthStr = containerHealth.ToString();
+		string isShelterStr = isShelter.ToString();
+
+		string containerJson = "{\"container_id\":\"" + containerIdentifier + "\",\"container_type\":\"" + safeType + "\",\"x\":" + posXStr + ",\"z\":" + posZStr + ",\"y\":" + posYStr;
+		containerJson += ",\"health\":" + healthStr;
+		containerJson += ",\"is_shelter\":" + isShelterStr;
+		containerJson += ",\"items\":[]";
+		containerJson += ",\"update_type\":\"position_only\"}";
+
+		if (containersJson != "")
+			containersJson += ",";
+		
+		containersJson += containerJson;
+	}
+
+	string jsonAction = "{\"action\":\"containers_positions\",\"containers\":[" + containersJson + "],\"update_type\":\"position_only\"}";
+	AppendExternalAction(jsonAction, false);
+	
+	int endTime = GetGame().GetTime();
+	int elapsedMs = endTime - startTime;
+	WriteToLog("SendContainersPositionsSimple(): Posições simplificadas de " + m_TrackedContainers.Count().ToString() + " containers enviadas via ExternalAction - Tempo=" + elapsedMs.ToString() + "ms", LogFile.INIT, false, LogType.DEBUG);
+}

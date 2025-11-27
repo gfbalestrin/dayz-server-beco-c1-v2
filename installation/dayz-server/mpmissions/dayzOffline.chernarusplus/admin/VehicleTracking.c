@@ -352,6 +352,8 @@ void SendVehiclesPositions()
 
 void SendVehiclesPositionsSimple()
 {
+	int startTime = GetGame().GetTime();
+
     if (!m_TrackedVehicles || m_TrackedVehicles.Count() == 0)
         return;
 
@@ -411,7 +413,9 @@ void SendVehiclesPositionsSimple()
     string jsonAction = "{\"action\":\"vehicles_positions\",\"vehicles\":[" + vehiclesJson + "],\"update_type\":\"position_only\"}";
     AppendExternalAction(jsonAction, false);
     
-    WriteToLog("SendVehiclesPositionsSimple(): Posições simplificadas de " + m_TrackedVehicles.Count().ToString() + " veículos enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
+	int endTime = GetGame().GetTime();
+	int elapsedMs = endTime - startTime;
+    WriteToLog("SendVehiclesPositionsSimple(): Posições simplificadas de " + m_TrackedVehicles.Count().ToString() + " veículos enviadas via ExternalAction - Tempo=" + elapsedMs.ToString() + "ms", LogFile.INIT, false, LogType.DEBUG);
 }
 
 void LogVehiclesPositionsSimple()

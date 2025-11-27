@@ -2008,6 +2008,8 @@ int CountInventoryItems(PlayerBase player)
 // Envia posições de todos os jogadores ativos via ExternalAction
 void SendPlayersPositions(array<Man> players = null)
 {
+	int startTime = GetGame().GetTime();
+
     array<Man> playersToProcess;
     
     if (!players)
@@ -2154,6 +2156,8 @@ void SendPlayersPositions(array<Man> players = null)
     string jsonAction = "{\"action\":\"players_positions\",\"players\":[" + playersJson + "]}";
     AppendExternalAction(jsonAction, false);
     
-    WriteToLog("SendPlayersPositions(): Processamento concluído - " + processedCount.ToString() + " processados de " + playersToProcess.Count().ToString() + " encontrados", LogFile.INIT, false, LogType.DEBUG);
-    WriteToLog("SendPlayersPositions(): Posições de " + processedCount.ToString() + " jogadores enviadas via ExternalAction", LogFile.INIT, false, LogType.DEBUG);
+	int endTime = GetGame().GetTime();
+	int elapsedMs = endTime - startTime;
+    WriteToLog("SendPlayersPositions(): Processamento concluído - " + processedCount.ToString() + " processados de " + playersToProcess.Count().ToString() + " encontrados - Tempo=" + elapsedMs.ToString() + "ms", LogFile.INIT, false, LogType.DEBUG);
+    WriteToLog("SendPlayersPositions(): Posições de " + processedCount.ToString() + " jogadores enviadas via ExternalAction - Tempo=" + elapsedMs.ToString() + "ms", LogFile.INIT, false, LogType.DEBUG);
 }
