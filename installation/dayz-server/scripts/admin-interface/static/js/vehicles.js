@@ -25,6 +25,9 @@ $(document).ready(function() {
         dateTo: null
     };
     
+    // Estado do banner de veículos destruídos
+    let destroyedVehiclesAlertClosed = false;
+    
     // Função para atualizar contador de veículos
     function updateVehiclesCount(recordsTotal, recordsFiltered) {
         const total = parseInt(recordsTotal) || 0;
@@ -46,6 +49,32 @@ $(document).ready(function() {
         }
         
         $('#vehiclesCount').text(countText);
+    }
+    
+    // Função para atualizar contador de veículos destruídos
+    function updateDestroyedVehiclesCount(vehiclesData) {
+        if (!vehiclesData || !Array.isArray(vehiclesData)) {
+            return;
+        }
+        
+        let destroyedCount = 0;
+        vehiclesData.forEach(function(vehicle) {
+            if (vehicle.IsDestroyed == 1 || vehicle.IsDestroyed === true) {
+                destroyedCount++;
+            }
+        });
+        
+        const countElement = $('#destroyedVehiclesCount');
+        const alertElement = $('#destroyedVehiclesAlert');
+        
+        countElement.text(destroyedCount.toLocaleString('pt-BR'));
+        
+        // Mostrar/esconder banner baseado na contagem e estado de fechado
+        if (destroyedCount > 0 && !destroyedVehiclesAlertClosed) {
+            alertElement.show();
+        } else {
+            alertElement.hide();
+        }
     }
     
     // Inicializar DataTable
@@ -76,6 +105,10 @@ $(document).ready(function() {
                     // Atualizar contador quando receber resposta
                     if (json && json.recordsTotal !== undefined) {
                         updateVehiclesCount(json.recordsTotal, json.recordsFiltered);
+                    }
+                    // Atualizar contador de veículos destruídos
+                    if (json && json.data) {
+                        updateDestroyedVehiclesCount(json.data);
                     }
                     return json.data;
                 }
@@ -200,6 +233,10 @@ $(document).ready(function() {
                     const api = this.api();
                     const pageInfo = api.page.info();
                     updateVehiclesCount(pageInfo.recordsTotal, pageInfo.recordsFiltered);
+                    
+                    // Atualizar contador de veículos destruídos (fallback)
+                    const data = api.rows({ page: 'current' }).data().toArray();
+                    updateDestroyedVehiclesCount(data);
                 } catch (e) {
                     console.error('Erro ao atualizar contador de veículos:', e);
                 }
@@ -589,6 +626,9 @@ $(document).ready(function() {
     // Função para recarregar tabela
     function reloadTable(resetPage = true) {
         if (vehiclesTable) {
+            // Resetar estado de fechado do banner ao recarregar tabela
+            destroyedVehiclesAlertClosed = false;
+            
             if (activeQuickFilter) {
                 const range = computeQuickRange(activeQuickFilter);
                 if (range) {
@@ -1871,6 +1911,11 @@ $(document).ready(function() {
         const date = new Date(timestamp);
         return date.toLocaleString('pt-BR');
     }
+    
+    // Event listener para fechar banner de veículos destruídos
+    $('#destroyedVehiclesAlert').on('close.bs.alert', function() {
+        destroyedVehiclesAlertClosed = true;
+    });
     
     // Inicializar
     // Definir filtro padrão: Última hora
