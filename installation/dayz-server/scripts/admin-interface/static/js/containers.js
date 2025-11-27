@@ -52,14 +52,14 @@ $(document).ready(function() {
     }
     
     // Função para atualizar contador de containers destruídos
-    function updateDestroyedContainersCount(vehiclesData) {
-        if (!vehiclesData || !Array.isArray(vehiclesData)) {
+    function updateDestroyedContainersCount(containersData) {
+        if (!containersData || !Array.isArray(containersData)) {
             return;
         }
         
         let destroyedCount = 0;
-        vehiclesData.forEach(function(vehicle) {
-            if (vehicle.IsDestroyed == 1 || vehicle.IsDestroyed === true) {
+        containersData.forEach(function(container) {
+            if (container.IsDestroyed == 1 || container.IsDestroyed === true) {
                 destroyedCount++;
             }
         });
@@ -195,9 +195,9 @@ $(document).ready(function() {
                 // Adicionar classe CSS para destacar containers com muitas alterações
                 const changeCount = parseInt(data.ChangeCount || 0);
                 if (changeCount >= 6) {
-                    $(row).addClass('vehicle-high-changes');
+                    $(row).addClass('container-high-changes');
                 } else if (changeCount >= 3) {
-                    $(row).addClass('vehicle-medium-changes');
+                    $(row).addClass('container-medium-changes');
                 }
             },
             drawCallback: function(settings) {
@@ -270,7 +270,7 @@ $(document).ready(function() {
         }
     }
     
-    function saveContainerCheckToDatabaseFromList(vehicleId, commandData) {
+    function saveContainerCheckToDatabaseFromList(containerId, commandData) {
         if (!commandData || commandData.status !== 'success') {
             return;
         }
@@ -282,7 +282,7 @@ $(document).ready(function() {
         };
         
         $.ajax({
-            url: `/api/containers/${vehicleId}/save-check`,
+            url: `/api/containers/${containerId}/save-check`,
             method: 'POST',
             contentType: 'application/json',
             data: JSON.stringify(saveData),
@@ -302,11 +302,11 @@ $(document).ready(function() {
         });
     }
     
-    function startListContainerRefreshPolling(requestId, vehicleId, attempt) {
+    function startListContainerRefreshPolling(requestId, containerId, attempt) {
         const MAX_ATTEMPTS = 30;
         const POLL_INTERVAL = 2000;
         
-        if (!listVehicleRefreshRequests || listVehicleRefreshRequests[vehicleId] !== requestId) {
+        if (!listContainerRefreshRequests || listContainerRefreshRequests[containerId] !== requestId) {
             return;
         }
         
@@ -314,24 +314,24 @@ $(document).ready(function() {
             if (typeof showToast === 'function') {
                 showToast('Aviso', 'Tempo limite ao atualizar dados do container.', 'warning');
             }
-            setListContainerRefreshState(vehicleId, false);
-            delete listVehicleRefreshRequests[vehicleId];
+            setListContainerRefreshState(containerId, false);
+            delete listContainerRefreshRequests[containerId];
             return;
         }
         
         $.get(`/api/commands/results/${requestId}`)
             .done(function(response) {
-                if (!listVehicleRefreshRequests || listVehicleRefreshRequests[vehicleId] !== requestId) {
+                if (!listContainerRefreshRequests || listContainerRefreshRequests[containerId] !== requestId) {
                     return;
                 }
                 
                 if (response.status === 'ready') {
                     const data = response.data || {};
                     if (data.status === 'success') {
-                        saveContainerCheckToDatabaseFromList(vehicleId, data);
+                        saveContainerCheckToDatabaseFromList(containerId, data);
                         if (typeof showToast === 'function') {
-                            const vehicleName = data.vehicle_name || vehicleId;
-                            showToast('Sucesso', `Dados do container ${vehicleName} atualizados.`, 'success');
+                            const containerName = data.container_name || containerId;
+                            showToast('Sucesso', `Dados do container ${containerName} atualizados.`, 'success');
                         }
                     } else {
                         const errorMsg = data.message || 'Não foi possível atualizar os dados do container.';
@@ -340,29 +340,29 @@ $(document).ready(function() {
                         }
                     }
                     
-                    setListContainerRefreshState(vehicleId, false);
-                    delete listVehicleRefreshRequests[vehicleId];
+                    setListContainerRefreshState(containerId, false);
+                    delete listContainerRefreshRequests[containerId];
                 } else if (response.status === 'not_found' || response.status === 'processing') {
                     setTimeout(function() {
-                        startListContainerRefreshPolling(requestId, vehicleId, attempt + 1);
+                        startListContainerRefreshPolling(requestId, containerId, attempt + 1);
                     }, POLL_INTERVAL);
                 } else {
                     const errorMsg = response.message || 'Erro ao consultar resultado do comando.';
                     if (typeof showToast === 'function') {
                         showToast('Erro', errorMsg, 'error');
                     }
-                    setListContainerRefreshState(vehicleId, false);
-                    delete listVehicleRefreshRequests[vehicleId];
+                    setListContainerRefreshState(containerId, false);
+                    delete listContainerRefreshRequests[containerId];
                 }
             })
             .fail(function(xhr) {
-                if (!listVehicleRefreshRequests || listVehicleRefreshRequests[vehicleId] !== requestId) {
+                if (!listContainerRefreshRequests || listContainerRefreshRequests[containerId] !== requestId) {
                     return;
                 }
                 
                 if (attempt < 5) {
                     setTimeout(function() {
-                        startListContainerRefreshPolling(requestId, vehicleId, attempt + 1);
+                        startListContainerRefreshPolling(requestId, containerId, attempt + 1);
                     }, POLL_INTERVAL);
                 } else {
                     const error = xhr.responseJSON || {};
@@ -370,18 +370,18 @@ $(document).ready(function() {
                     if (typeof showToast === 'function') {
                         showToast('Erro', errorMsg, 'error');
                     }
-                    setListContainerRefreshState(vehicleId, false);
-                    delete listVehicleRefreshRequests[vehicleId];
+                    setListContainerRefreshState(containerId, false);
+                    delete listContainerRefreshRequests[containerId];
                 }
             });
     }
     
-    function refreshContainerFromList(vehicleId) {
-        if (!vehicleId) {
+    function refreshContainerFromList(containerId) {
+        if (!containerId) {
             return;
         }
         
-        if (listVehicleRefreshStatus && listVehicleRefreshStatus[vehicleId]) {
+        if (listContainerRefreshStatus && listContainerRefreshStatus[containerId]) {
             if (typeof showToast === 'function') {
                 showToast('Info', 'Atualização já está em andamento para este container.', 'info');
             }
@@ -389,15 +389,15 @@ $(document).ready(function() {
         }
         
         const requestId = generateContainerRefreshRequestId();
-        if (!listVehicleRefreshRequests) {
-            listVehicleRefreshRequests = {};
+        if (!listContainerRefreshRequests) {
+            listContainerRefreshRequests = {};
         }
-        listVehicleRefreshRequests[vehicleId] = requestId;
+        listContainerRefreshRequests[containerId] = requestId;
         
-        setListContainerRefreshState(vehicleId, true);
+        setListContainerRefreshState(containerId, true);
         
         $.ajax({
-            url: `/api/containers/${encodeURIComponent(vehicleId)}/refresh`,
+            url: `/api/containers/${encodeURIComponent(containerId)}/refresh`,
             method: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({
@@ -405,9 +405,9 @@ $(document).ready(function() {
             }),
             success: function() {
                 if (typeof showToast === 'function') {
-                    showToast('Info', `Solicitação de atualização enviada para ${vehicleId}.`, 'info');
+                    showToast('Info', `Solicitação de atualização enviada para ${containerId}.`, 'info');
                 }
-                startListContainerRefreshPolling(requestId, vehicleId, 0);
+                startListContainerRefreshPolling(requestId, containerId, 0);
             },
             error: function(xhr) {
                 const error = xhr.responseJSON || {};
@@ -415,8 +415,8 @@ $(document).ready(function() {
                 if (typeof showToast === 'function') {
                     showToast('Erro', errorMsg, 'error');
                 }
-                setListContainerRefreshState(vehicleId, false);
-                delete listVehicleRefreshRequests[vehicleId];
+                setListContainerRefreshState(containerId, false);
+                delete listContainerRefreshRequests[containerId];
             }
         });
     }

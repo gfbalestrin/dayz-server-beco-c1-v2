@@ -60,25 +60,31 @@ def api_containers_data():
             else:
                 order_by = (field, order_dir.lower())
         
-        # Log de debug (pode ser removido depois)
+        # Log de debug
         logger = logging.getLogger(__name__)
-        logger.debug(f"API containers/data - status_filter: '{status_filter}', datetime_from: '{datetime_from}', datetime_to: '{datetime_to}', change_types: {change_types}")
+        logger.info(f"API containers/data - status_filter: '{status_filter}', datetime_from: '{datetime_from}', datetime_to: '{datetime_to}', change_types: {change_types}, start: {start}, length: {length}")
         
         # Buscar dados paginados
-        data, total_records = get_containers_paginated(
-            status_filter=status_filter,
-            change_types=change_types,
-            date_from=datetime_from,
-            date_to=datetime_to,
-            start=start,
-            length=length,
-            search=search,
-            order_by=order_by,
-            order_by_change_count=order_by_change_count,
-            order_by_change_count_dir=order_by_change_count_dir if order_by_change_count else None
-        )
-        
-        logger.debug(f"API containers/data - total_records: {total_records}, data length: {len(data)}")
+        try:
+            data, total_records = get_containers_paginated(
+                status_filter=status_filter,
+                change_types=change_types,
+                date_from=datetime_from,
+                date_to=datetime_to,
+                start=start,
+                length=length,
+                search=search,
+                order_by=order_by,
+                order_by_change_count=order_by_change_count,
+                order_by_change_count_dir=order_by_change_count_dir if order_by_change_count else None
+            )
+            
+            logger.info(f"API containers/data - total_records: {total_records}, data length: {len(data)}")
+            if len(data) > 0:
+                logger.info(f"API containers/data - Primeiro container: ContainerId={data[0].get('ContainerId')}, ContainerName={data[0].get('ContainerName')}, ChangeCount={data[0].get('ChangeCount')}, ChangeFlags={data[0].get('ChangeFlags')}")
+        except Exception as e:
+            logger.error(f"Erro em get_containers_paginated: {e}", exc_info=True)
+            raise
         
         return jsonify({
             'data': data,

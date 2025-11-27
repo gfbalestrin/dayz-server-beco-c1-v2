@@ -1206,7 +1206,7 @@ def get_container_tracking_items(tracking_id: int) -> List[Dict]:
     with DatabaseConnection(config.DB_CONTAINERS) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT ItemType, ItemHealth, TimeStamp
+            SELECT IdContainerItemTracking, ItemType, ItemHealth, TimeStamp
             FROM container_items_tracking
             WHERE ContainerTrackingId = ?
             ORDER BY ItemType
@@ -1232,10 +1232,15 @@ def count_container_changes(container_id: str, date_from: str = None, date_to: s
         
         where_clause = " AND ".join(history_conditions)
         
+        # Verificar se coluna IsPartialUpdate existe
+        cursor.execute("PRAGMA table_info(containers_tracking)")
+        columns = [row[1] for row in cursor.fetchall()]
+        has_is_partial_update = 'IsPartialUpdate' in columns
+        partial_column = ", IFNULL(IsPartialUpdate, 0) as IsPartialUpdate" if has_is_partial_update else ", 0 as IsPartialUpdate"
+        
         query = f"""
             SELECT IdContainerTracking, PositionX, PositionY, PositionZ, TimeStamp,
-                   IFNULL(IsDestroyed, 0) as IsDestroyed,
-                   IFNULL(IsPartialUpdate, 0) as IsPartialUpdate
+                   IFNULL(IsDestroyed, 0) as IsDestroyed{partial_column}
             FROM containers_tracking
             WHERE {where_clause}
             ORDER BY TimeStamp DESC
@@ -1247,7 +1252,13 @@ def count_container_changes(container_id: str, date_from: str = None, date_to: s
         # Reverter para ordem ASC para comparação
         records = list(reversed([dict(row) for row in cursor.fetchall()]))
         
+        # Log de debug
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"count_container_changes - ContainerId: {container_id}, records encontrados: {len(records)}, date_from: {date_from}, date_to: {date_to}")
+        
         if len(records) <= 1:
+            logger.debug(f"count_container_changes - ContainerId: {container_id}, retornando 0 (menos de 2 registros)")
             return 0, {
                 'position': False,
                 'items': False
@@ -1350,11 +1361,13 @@ def count_container_changes(container_id: str, date_from: str = None, date_to: s
                     change_flags['position'] = True
                 if items_changed:
                     change_flags['items'] = True
+                logger.debug(f"count_container_changes - ContainerId: {container_id}, mudança detectada no registro {i}: pos_changed={pos_changed}, status_changed={status_changed}, items_changed={items_changed}")
             
             # Atualizar índice do último snapshot completo
             if not curr_is_partial:
                 last_complete_index = i
         
+        logger.debug(f"count_container_changes - ContainerId: {container_id}, change_count final: {change_count}, change_flags: {change_flags}")
         return change_count, change_flags
 
 def filter_container_history_by_changes(history: List[Dict]) -> List[Dict]:
@@ -1538,10 +1551,16 @@ def get_containers_paginated(status_filter: str, change_types: Optional[List[str
         if where_conditions:
             where_clause = "WHERE " + " AND ".join(where_conditions)
         
+        # Log de debug
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"get_containers_paginated - status_filter: {status_filter}, date_from: {date_from}, date_to: {date_to}, where_conditions: {where_conditions}")
+        
         # Query para contar total de registros (sem paginação)
         # Primeiro contar total sem filtros
         cursor.execute("SELECT COUNT(DISTINCT ContainerId) FROM containers_tracking")
         total_all = cursor.fetchone()[0]
+        logger.debug(f"get_containers_paginated - total_all (sem filtros): {total_all}")
         
         # Se há filtros, contar com filtros aplicados
         if where_conditions:
@@ -1557,6 +1576,7 @@ def get_containers_paginated(status_filter: str, change_types: Optional[List[str
             """
             cursor.execute(count_query, params)
             total_records = cursor.fetchone()[0]
+            logger.debug(f"get_containers_paginated - total_records (com filtros): {total_records}")
         else:
             total_records = total_all
         
@@ -1607,6 +1627,7 @@ def get_containers_paginated(status_filter: str, change_types: Optional[List[str
             else:
                 cursor.execute(data_query_all)
             all_data = [dict(row) for row in cursor.fetchall()]
+            logger.debug(f"get_containers_paginated - dados retornados da query (com full_scan): {len(all_data)}")
             
             # Calcular ChangeCount para todos
             for container in all_data:
@@ -1662,6 +1683,7 @@ def get_containers_paginated(status_filter: str, change_types: Optional[List[str
             query_params = list(params) + [length, start]
             cursor.execute(data_query, query_params)
             data = [dict(row) for row in cursor.fetchall()]
+            logger.debug(f"get_containers_paginated - dados retornados da query (sem full_scan): {len(data)}")
             
             # Adicionar contagem de alterações para cada container
             # Otimização: calcular em batch para melhor performance
@@ -1697,8 +1719,12 @@ def get_containers_paginated(status_filter: str, change_types: Optional[List[str
                 ),
                 reverse=True
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"get_containers_paginated - Erro ao ordenar dados: {e}")
+        
+        logger.debug(f"get_containers_paginated - retornando {len(data)} containers, total_records: {total_records}")
+        if len(data) > 0:
+            logger.debug(f"get_containers_paginated - Primeiro container: ContainerId={data[0].get('ContainerId')}, ContainerName={data[0].get('ContainerName')}, ChangeCount={data[0].get('ChangeCount')}")
         
         return data, total_records
 

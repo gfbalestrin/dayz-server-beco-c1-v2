@@ -2473,8 +2473,8 @@ INSERT_CONTAINERS_POSITIONS_BATCH() {
                 timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('now', 'localtime') + $days_fraction)"
             fi
             
-            # Construir valor SQL
-            sql_values+="('$EscapedContainerId', '$EscapedContainerName', '$CoordX', '$CoordZ', '$CoordY', $timestamp_value)"
+            # Construir valor SQL (IsPartialUpdate = 0 para inserts completos)
+            sql_values+="('$EscapedContainerId', '$EscapedContainerName', '$CoordX', '$CoordZ', '$CoordY', $timestamp_value, 0)"
             
             # Incrementar índice para próximo registro
             ((row_index++))
@@ -2511,7 +2511,7 @@ INSERT_CONTAINERS_POSITIONS_BATCH() {
         local sql_result
         sql_result=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" <<EOF 2>"$sql_error_file"
 BEGIN DEFERRED TRANSACTION;
-INSERT INTO containers_tracking (ContainerId, ContainerName, PositionX, PositionZ, PositionY, TimeStamp)
+INSERT INTO containers_tracking (ContainerId, ContainerName, PositionX, PositionZ, PositionY, TimeStamp, IsPartialUpdate)
 VALUES $sql_values;
 SELECT changes();
 SELECT last_insert_rowid();
@@ -2636,6 +2636,135 @@ EOF
     done
 
     echo "INSERT_CONTAINERS_POSITIONS_BATCH: Falhou após $max_retries tentativas"
+    return 1
+}
+
+UPDATE_CONTAINERS_POSITIONS_PARTIAL() {
+    # Primeiro parâmetro é timestamp base
+    # Resto são containers_data no formato: "container_id|container_name|coord_x|coord_z|coord_y"
+    local base_timestamp="$1"
+    shift
+    local containers_data=("$@")
+    
+    if [[ ${#containers_data[@]} -eq 0 ]]; then
+        return 0  # Nada para atualizar, retorna sucesso
+    fi
+    
+    # Validar timestamp
+    if [[ -z "$base_timestamp" ]]; then
+        base_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+    fi
+    
+    # Configurar PRAGMAs
+    configure_sqlite_pragmas "$AppFolder/$AppContainerBecoC1DbFile"
+    
+    local max_retries=5
+    local base_retry_delay=0.5
+    local attempt=1
+    
+    while (( attempt <= max_retries )); do
+        # Construir SQL com múltiplos UPDATEs/INSERTs em transação
+        local sql_statements="BEGIN DEFERRED TRANSACTION;"
+        local update_count=0
+        local insert_count=0
+        
+        for container_entry in "${containers_data[@]}"; do
+            if [[ -z "$container_entry" ]]; then
+                continue
+            fi
+            
+            # Separar campos (formato: "container_id|container_name|coord_x|coord_z|coord_y")
+            IFS='|' read -r ContainerId ContainerName CoordX CoordZ CoordY <<< "$container_entry"
+            
+            # Validar campos obrigatórios
+            if [[ -z "$ContainerId" ]]; then
+                continue
+            fi
+            
+            # Validar coordenadas
+            if [[ -z "$CoordX" ]] || ! [[ "$CoordX" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                CoordX="0"
+            fi
+            if [[ -z "$CoordZ" ]] || ! [[ "$CoordZ" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                CoordZ="0"
+            fi
+            if [[ -z "$CoordY" ]] || ! [[ "$CoordY" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                CoordY="0"
+            fi
+            
+            # Escapar aspas simples
+            local EscapedContainerId
+            EscapedContainerId=$(echo "$ContainerId" | sed "s/'/''/g")
+            local EscapedContainerName
+            EscapedContainerName=$(echo "$ContainerName" | sed "s/'/''/g")
+            
+            # Buscar último IdContainerTracking para este container
+            local last_tracking_id
+            last_tracking_id=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" \
+                "SELECT IdContainerTracking FROM containers_tracking 
+                 WHERE ContainerId = '$EscapedContainerId' 
+                 ORDER BY TimeStamp DESC LIMIT 1" 2>/dev/null)
+            
+            if [[ -n "$last_tracking_id" ]] && [[ "$last_tracking_id" =~ ^[0-9]+$ ]]; then
+                # UPDATE do último registro (posição, timestamp, marcar como parcial)
+                sql_statements="${sql_statements}
+UPDATE containers_tracking 
+SET PositionX = $CoordX, PositionZ = $CoordZ, PositionY = $CoordY, TimeStamp = '$base_timestamp', IsPartialUpdate = 1
+WHERE IdContainerTracking = $last_tracking_id;"
+                ((update_count++))
+            else
+                # Se não existe registro, fazer INSERT básico (sem items, marcar como parcial)
+                sql_statements="${sql_statements}
+INSERT INTO containers_tracking (ContainerId, ContainerName, PositionX, PositionZ, PositionY, TimeStamp, IsDestroyed, IsPartialUpdate)
+VALUES ('$EscapedContainerId', '$EscapedContainerName', $CoordX, $CoordZ, $CoordY, '$base_timestamp', 0, 1);"
+                ((insert_count++))
+            fi
+        done
+        
+        sql_statements="${sql_statements} COMMIT;"
+        
+        # Executar SQL
+        local sql_error_file
+        sql_error_file=$(mktemp)
+        local sql_result
+        sql_result=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" <<EOF 2>"$sql_error_file"
+$sql_statements
+EOF
+)
+        
+        local sql_exit_code=$?
+        local sql_error
+        sql_error=$(cat "$sql_error_file" 2>/dev/null)
+        rm -f "$sql_error_file"
+        
+        # Verificar se foi bem-sucedido
+        if [[ $sql_exit_code -eq 0 ]] && [[ -z "$sql_error" ]]; then
+            # Sucesso
+            return 0
+        else
+            # Erro, tentar novamente se ainda há tentativas
+            if [[ $attempt -lt $max_retries ]]; then
+                # Verificar se é erro de lock
+                if echo "$sql_error" | grep -q "database is locked"; then
+                    # Backoff exponencial: 0.5s, 1s, 2s, 4s
+                    local retry_multiplier=1
+                    local i
+                    for ((i=1; i<attempt; i++)); do
+                        retry_multiplier=$((retry_multiplier * 2))
+                    done
+                    local retry_delay=$((base_retry_delay * retry_multiplier))
+                    sleep "$retry_delay"
+                else
+                    # Erro diferente de lock, não tentar novamente
+                    echo "UPDATE_CONTAINERS_POSITIONS_PARTIAL: Erro SQL: $sql_error" >&2
+                    return 1
+                fi
+            fi
+            attempt=$((attempt + 1))
+        fi
+    done
+    
+    echo "UPDATE_CONTAINERS_POSITIONS_PARTIAL: Falhou após $max_retries tentativas"
     return 1
 }
 

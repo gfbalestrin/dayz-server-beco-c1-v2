@@ -16,12 +16,15 @@ CREATE TABLE IF NOT EXISTS containers_tracking (
     PositionY REAL NOT NULL,
     TimeStamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     IsDestroyed INTEGER DEFAULT 0,
-    DestroyedAt DATETIME
+    DestroyedAt DATETIME,
+    IsPartialUpdate INTEGER DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_containers_tracking_container_id ON containers_tracking(ContainerId);
 CREATE INDEX IF NOT EXISTS idx_containers_tracking_timestamp ON containers_tracking(TimeStamp);
 CREATE INDEX IF NOT EXISTS idx_containers_tracking_destroyed ON containers_tracking(IsDestroyed);
+-- Índice para otimizar busca de último registro completo (IsPartialUpdate = 0)
+CREATE INDEX IF NOT EXISTS idx_containers_tracking_partial ON containers_tracking(ContainerId, IsPartialUpdate, TimeStamp);
 
 CREATE TABLE IF NOT EXISTS container_items_tracking (
     IdContainerItemTracking INTEGER PRIMARY KEY AUTOINCREMENT,

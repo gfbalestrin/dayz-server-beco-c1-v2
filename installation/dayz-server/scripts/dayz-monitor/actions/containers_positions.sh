@@ -587,7 +587,7 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
             parsing_elapsed_ms=$(echo "$parsing_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
         fi
     fi
-    # Batch INSERT de todos os containers
+    # Batch INSERT/UPDATE de todos os containers
     local inserted_ids
     local batch_insert_result
     INSERT_CUSTOM_LOG "DEBUG: batch_containers_data tem ${#batch_containers_data[@]} containers para inserir" "INFO" "$ScriptName"
@@ -595,10 +595,16 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
         local containers_insert_start_time
         containers_insert_start_time=$(date +%s.%N 2>/dev/null || date +%s)
         
+        # Usar função apropriada baseado no tipo de update
         local batch_stderr
         batch_stderr=$(mktemp)
-        inserted_ids=$(INSERT_CONTAINERS_POSITIONS_BATCH "$current_timestamp" "${batch_containers_data[@]}" 2>"$batch_stderr")
-        batch_insert_result=$?
+        if [[ "$is_partial_update" == "true" ]]; then
+            UPDATE_CONTAINERS_POSITIONS_PARTIAL "$current_timestamp" "${batch_containers_data[@]}" 2>"$batch_stderr"
+            batch_insert_result=$?
+        else
+            inserted_ids=$(INSERT_CONTAINERS_POSITIONS_BATCH "$current_timestamp" "${batch_containers_data[@]}" 2>"$batch_stderr")
+            batch_insert_result=$?
+        fi
         local batch_error
         batch_error=$(cat "$batch_stderr" 2>/dev/null)
         rm -f "$batch_stderr"
