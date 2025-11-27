@@ -658,7 +658,12 @@ def count_vehicle_changes(vehicle_id: str, date_from: str = None, date_to: str =
         
         # Comparar registros consecutivos para posição/saúde/status
         # e comparar apenas snapshots COMPLETOS consecutivos para items/attachments
+        # Inicializar last_complete_index com o primeiro registro se ele já for completo
         last_complete_index = None
+        if len(records) > 0:
+            first_record_is_partial = records[0].get('IsPartialUpdate', 0) == 1
+            if not first_record_is_partial:
+                last_complete_index = 0
         
         for i in range(1, len(records)):
             prev = records[i - 1]
@@ -788,7 +793,16 @@ def filter_vehicle_history_by_changes(history: List[Dict]) -> List[Dict]:
     # Flags de quais índices em ASC devem ser mantidos
     keep_asc = [False] * n
 
+    # Inicializar last_complete_idx com o primeiro registro se ele já for completo
     last_complete_idx = None
+    # Tratar o primeiro registro separadamente (i=0 não é processado no loop)
+    if len(asc_history) > 0:
+        first_record = asc_history[0]
+        first_record_is_partial = first_record.get('IsPartialUpdate', 0) == 1
+        if not first_record_is_partial:
+            last_complete_idx = 0
+            # REGRA: Primeiro snapshot completo sempre é mantido (baseline de items/attachments)
+            keep_asc[0] = True
 
     for i in range(1, n):
         prev = asc_history[i - 1]  # mais antigo
@@ -824,57 +838,99 @@ def filter_vehicle_history_by_changes(history: List[Dict]) -> List[Dict]:
         items_changed = False
         attachments_changed = False
 
-        if not curr_is_partial and last_complete_idx is not None and last_complete_idx != i:
-            prev_complete = asc_history[last_complete_idx]
+        # Se o registro atual é completo, comparar items/attachments
+        if not curr_is_partial:
+            # Determinar qual registro completo usar para comparação
+            prev_complete = None
+            
+            # Se ambos prev e curr são completos e consecutivos, comparar diretamente
+            if not prev_is_partial:
+                prev_complete = prev
+            # Caso contrário, usar o último snapshot completo conhecido
+            elif last_complete_idx is not None and last_complete_idx != i:
+                prev_complete = asc_history[last_complete_idx]
+            
+            # Se temos um registro completo anterior para comparar
+            if prev_complete is not None:
+                # Items
+                prev_items = prev_complete.get('items', [])
+                curr_items = curr.get('items', [])
 
-            # Items
-            prev_items = prev_complete.get('items', [])
-            curr_items = curr.get('items', [])
+                prev_items_count = {}
+                for item in prev_items:
+                    item_type = item.get('ItemType') or item.get('type')
+                    if item_type and item_type.strip() and item_type != 'empty':
+                        prev_items_count[item_type] = prev_items_count.get(item_type, 0) + 1
 
-            prev_items_count = {}
-            for item in prev_items:
-                item_type = item.get('ItemType') or item.get('type')
-                if item_type and item_type.strip() and item_type != 'empty':
-                    prev_items_count[item_type] = prev_items_count.get(item_type, 0) + 1
+                curr_items_count = {}
+                for item in curr_items:
+                    item_type = item.get('ItemType') or item.get('type')
+                    if item_type and item_type.strip() and item_type != 'empty':
+                        curr_items_count[item_type] = curr_items_count.get(item_type, 0) + 1
 
-            curr_items_count = {}
-            for item in curr_items:
-                item_type = item.get('ItemType') or item.get('type')
-                if item_type and item_type.strip() and item_type != 'empty':
-                    curr_items_count[item_type] = curr_items_count.get(item_type, 0) + 1
+                if prev_items_count != curr_items_count:
+                    items_changed = True
 
-            if prev_items_count != curr_items_count:
-                items_changed = True
+                # Attachments
+                prev_att = prev_complete.get('attachments', [])
+                curr_att = curr.get('attachments', [])
 
-            # Attachments
-            prev_att = prev_complete.get('attachments', [])
-            curr_att = curr.get('attachments', [])
+                prev_att_count = {}
+                for att in prev_att:
+                    att_type = att.get('AttachmentType') or att.get('type')
+                    if att_type and att_type.strip() and att_type != 'empty':
+                        prev_att_count[att_type] = prev_att_count.get(att_type, 0) + 1
 
-            prev_att_count = {}
-            for att in prev_att:
-                att_type = att.get('AttachmentType') or att.get('type')
-                if att_type and att_type.strip() and att_type != 'empty':
-                    prev_att_count[att_type] = prev_att_count.get(att_type, 0) + 1
+                curr_att_count = {}
+                for att in curr_att:
+                    att_type = att.get('AttachmentType') or att.get('type')
+                    if att_type and att_type.strip() and att_type != 'empty':
+                        curr_att_count[att_type] = curr_att_count.get(att_type, 0) + 1
 
-            curr_att_count = {}
-            for att in curr_att:
-                att_type = att.get('AttachmentType') or att.get('type')
-                if att_type and att_type.strip() and att_type != 'empty':
-                    curr_att_count[att_type] = curr_att_count.get(att_type, 0) + 1
+                if prev_att_count != curr_att_count:
+                    attachments_changed = True
+            # REGRA: Se é o primeiro snapshot completo (sem registro anterior para comparar),
+            # sempre mantê-lo para estabelecer baseline de items/attachments
+            else:
+                items_changed = True  # Marcar como mudado para garantir que seja mantido
 
-            if prev_att_count != curr_att_count:
-                attachments_changed = True
-
-        # Se houve qualquer mudança significativa entre prev→curr, marcar curr para manter
-        if pos_changed or status_changed or health_changed or items_changed or attachments_changed:
-            keep_asc[i] = True
+        # REGRA 2: Parciais são mantidos apenas quando há mudanças de posição/saúde/status
+        # (não têm items/attachments para comparar)
+        if curr_is_partial:
+            if pos_changed or status_changed or health_changed:
+                keep_asc[i] = True
+        # REGRA 3: Completos são mantidos quando há mudanças de items/attachments
+        # (também podem ter mudanças de posição/saúde, mas items/attachments é o critério principal)
+        else:
+            if items_changed or attachments_changed:
+                keep_asc[i] = True
+            # Se não houve mudanças de items/attachments, ainda pode ser mantido por outras razões
+            # (será mantido pelo snapshot mais recente ou último completo se aplicável)
 
         # Atualizar último snapshot completo
         if not curr_is_partial:
             last_complete_idx = i
 
-    # Garantir que o snapshot mais recente (índice ASC n-1 → DESC 0) seja mantido
-    keep_asc[n - 1] = True
+    # REGRA 1: Sempre manter o snapshot mais recente (parcial ou completo)
+    # Conforme cenários: o snapshot mais recente sempre deve aparecer no histórico
+    most_recent_idx = n - 1
+    if most_recent_idx >= 0:
+        keep_asc[most_recent_idx] = True
+    
+    # REGRA 5: Sempre manter o último snapshot completo encontrado,
+    # mesmo que não seja o registro mais recente (pode haver parciais depois dele)
+    # Isso garante que items/attachments do último snapshot completo estejam disponíveis
+    last_complete_snapshot_idx = None
+    # Procurar do mais recente para o mais antigo (ordem ASC reversa)
+    for i in range(n - 1, -1, -1):
+        record = asc_history[i]
+        if record and (record.get('IsPartialUpdate', 0) == 0):
+            last_complete_snapshot_idx = i
+            break
+    
+    # Garantir que o último snapshot completo seja mantido
+    if last_complete_snapshot_idx is not None:
+        keep_asc[last_complete_snapshot_idx] = True
 
     # Opcional: se quiser sempre manter também o mais antigo, descomente:
     # keep_asc[0] = True

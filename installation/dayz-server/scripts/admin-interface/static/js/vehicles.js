@@ -889,6 +889,34 @@ $(document).ready(function() {
         clearHistoryDateFilters();
     });
     
+    // Renderizar badges de tipos de mudança
+    function renderChangeTypeBadges(changeTypes) {
+        if (!changeTypes) {
+            return '';
+        }
+        
+        const badges = [];
+        const badgeConfig = {
+            position: { label: 'Coordenadas', classes: 'bg-info text-dark', icon: 'fa-location-arrow' },
+            health: { label: 'Saúde', classes: 'bg-danger', icon: 'fa-heartbeat' },
+            status: { label: 'Status', classes: 'bg-secondary', icon: 'fa-exclamation-triangle' },
+            items: { label: 'Items', classes: 'bg-primary', icon: 'fa-boxes' },
+            attachments: { label: 'Attachments', classes: 'bg-warning text-dark', icon: 'fa-tools' }
+        };
+        
+        Object.keys(badgeConfig).forEach(function(key) {
+            if (changeTypes[key]) {
+                const config = badgeConfig[key];
+                badges.push(
+                    `<span class="badge ${config.classes} me-1 mb-1">` +
+                    `<i class="fas ${config.icon} me-1"></i>${config.label}</span>`
+                );
+            }
+        });
+        
+        return badges.length > 0 ? '<div class="mt-2">' + badges.join('') + '</div>' : '';
+    }
+    
     // Renderizar timeline do histórico
     function renderHistoryTimeline(history) {
         const timeline = $('#historyTimeline');
@@ -916,6 +944,10 @@ $(document).ready(function() {
             const hasChanges = nextRecord && hasSignificantChanges(record, nextRecord);
             const changeClass = hasChanges ? 'border-warning bg-light' : '';
             
+            // Obter tipos específicos de mudança
+            const changeTypes = nextRecord ? getChangeTypes(record, nextRecord) : null;
+            const changeBadgesHtml = changeTypes ? renderChangeTypeBadges(changeTypes) : '';
+            
             const recordHtml = `
                 <div class="timeline-item mb-4 ${changeClass}" data-timestamp="${record.TimeStamp}">
                     <div class="d-flex">
@@ -938,8 +970,11 @@ $(document).ready(function() {
                                         '<span class="badge bg-success">Ativo</span>'}
                                 </div>
                                 <div class="card-body">
-                                    ${nextRecord && hasSignificantChanges(record, nextRecord) ? 
-                                        '<div class="alert alert-info mb-3"><i class="fas fa-info-circle me-2"></i><strong>Mudanças detectadas neste momento</strong></div>' : 
+                                    ${hasChanges ? 
+                                        '<div class="alert alert-info mb-3">' +
+                                        '<i class="fas fa-info-circle me-2"></i><strong>Mudanças detectadas neste momento</strong>' +
+                                        changeBadgesHtml +
+                                        '</div>' : 
                                         ''}
                                     <div class="row">
                                         <div class="col-md-4">
@@ -954,7 +989,7 @@ $(document).ready(function() {
                                     <div class="row mt-3">
                                         <div class="col-12">
                                             <h6><i class="fas fa-box me-2"></i>Items e Attachments</h6>
-                                            ${renderItemsAndAttachmentsWithChanges(record, nextRecord)}
+                                            ${renderItemsAndAttachmentsWithChanges(record, nextRecord, history, index)}
                                         </div>
                                     </div>
                                 </div>
@@ -1012,6 +1047,68 @@ $(document).ready(function() {
         }
         
         return statusChanged || posChanged || healthChanged || itemsChanged || attachmentsChanged;
+    }
+    
+    // Identificar tipos específicos de mudança entre dois registros
+    function getChangeTypes(prev, curr) {
+        const posThreshold = 0.001;
+        const healthThreshold = 0.05;
+        
+        const prevIsPartial = (prev.IsPartialUpdate || 0) === 1;
+        const currIsPartial = (curr.IsPartialUpdate || 0) === 1;
+        
+        const changes = {
+            position: false,
+            health: false,
+            status: false,
+            items: false,
+            attachments: false
+        };
+        
+        // Mudança de status
+        if ((prev.IsDestroyed || 0) !== (curr.IsDestroyed || 0)) {
+            changes.status = true;
+            changes.health = true; // Status mudou também conta como mudança de saúde
+        }
+        
+        // Mudança de posição
+        if (Math.abs((prev.PositionX || 0) - (curr.PositionX || 0)) > posThreshold ||
+            Math.abs((prev.PositionY || 0) - (curr.PositionY || 0)) > posThreshold ||
+            Math.abs((prev.PositionZ || 0) - (curr.PositionZ || 0)) > posThreshold) {
+            changes.position = true;
+        }
+        
+        // Mudança de saúde
+        if ((prev.EngineHealth !== null && curr.EngineHealth !== null &&
+             Math.abs(prev.EngineHealth - curr.EngineHealth) > healthThreshold) ||
+            (prev.BodyHealth !== null && curr.BodyHealth !== null &&
+             Math.abs(prev.BodyHealth - curr.BodyHealth) > healthThreshold) ||
+            (prev.FuelTankHealth !== null && curr.FuelTankHealth !== null &&
+             Math.abs(prev.FuelTankHealth - curr.FuelTankHealth) > healthThreshold) ||
+            (prev.EngineHealth === null && curr.EngineHealth !== null) ||
+            (prev.EngineHealth !== null && curr.EngineHealth === null) ||
+            (prev.BodyHealth === null && curr.BodyHealth !== null) ||
+            (prev.BodyHealth !== null && curr.BodyHealth === null) ||
+            (prev.FuelTankHealth === null && curr.FuelTankHealth !== null) ||
+            (prev.FuelTankHealth !== null && curr.FuelTankHealth === null)) {
+            changes.health = true;
+        }
+        
+        // Mudança em items (apenas se ambos forem completos)
+        if (!prevIsPartial && !currIsPartial) {
+            if (itemsListChanged(prev.items || [], curr.items || [])) {
+                changes.items = true;
+            }
+        }
+        
+        // Mudança em attachments (apenas se ambos forem completos)
+        if (!prevIsPartial && !currIsPartial) {
+            if (attachmentsListChanged(prev.attachments || [], curr.attachments || [])) {
+                changes.attachments = true;
+            }
+        }
+        
+        return changes;
     }
     
     // Comparar listas de items (apenas tipos e quantidades, ignorando ordem)
@@ -1450,10 +1547,26 @@ $(document).ready(function() {
             '</div>';
     }
     
+    // Encontrar último snapshot completo anterior na lista do histórico
+    function findLastCompleteSnapshotBefore(history, currentIndex) {
+        // O histórico vem em ordem DESC: [mais recente, ..., mais antigo]
+        // Procurar por um snapshot completo (IsPartialUpdate = 0) que seja anterior ao índice atual
+        // (ou seja, com índice maior que currentIndex, pois índices maiores = mais antigo)
+        for (let i = currentIndex + 1; i < history.length; i++) {
+            const record = history[i];
+            if (record && (record.IsPartialUpdate || 0) === 0) {
+                return record;
+            }
+        }
+        return null;
+    }
+    
     // Renderizar items e attachments com indicadores de mudança
     // prev = registro atual sendo renderizado (mais recente na timeline)
     // curr = próximo registro na lista (mais antigo, para comparação, pode ser null se for o último)
-    function renderItemsAndAttachmentsWithChanges(prev, curr) {
+    // history = array completo do histórico (opcional, usado para encontrar snapshot completo anterior)
+    // currentIndex = índice do registro atual no histórico (opcional)
+    function renderItemsAndAttachmentsWithChanges(prev, curr, history, currentIndex) {
         // Se não há próximo registro (curr é null), mostrar apenas o registro atual sem comparação
         if (!curr) {
             return renderItemsAndAttachments(prev);
@@ -1463,13 +1576,45 @@ $(document).ready(function() {
         const prevIsPartial = (prev.IsPartialUpdate || 0) === 1;
         const currIsPartial = (curr.IsPartialUpdate || 0) === 1;
         
+        // Verificar se há mudanças em items/attachments detectadas
+        const changeTypes = getChangeTypes(prev, curr);
+        const itemsChangesDetected = changeTypes && changeTypes.items;
+        const attachmentsChangesDetected = changeTypes && changeTypes.attachments;
+        
         let html = '';
         
-        // Se o registro atual é parcial, mostrar aviso
+        // Se o registro atual é parcial, mostrar aviso com informação sobre origem dos dados
         if (prevIsPartial) {
+            let sourceInfo = '';
+            if (history && currentIndex !== undefined && currentIndex !== null) {
+                const lastComplete = findLastCompleteSnapshotBefore(history, currentIndex);
+                if (lastComplete) {
+                    const sourceTimestamp = formatDateTime(lastComplete.TimeStamp);
+                    sourceInfo = ' Os items e attachments exibidos abaixo são do snapshot completo de <strong>' + sourceTimestamp + '</strong> e foram preservados porque este é um registro parcial.';
+                }
+            }
             html += '<div class="alert alert-info mb-2">' +
                 '<i class="fas fa-info-circle me-2"></i>' +
-                '<small>Update parcial: items/attachments preservados do último registro completo</small>' +
+                '<div><strong>Update parcial:</strong> Este registro contém apenas informações de posição e saúde.<br>' +
+                '<small>' +
+                'Os items e attachments mostrados abaixo são do último snapshot completo anterior e não refletem mudanças neste momento específico.' +
+                sourceInfo +
+                '</small></div>' +
+                '</div>';
+        }
+        
+        // Se há mudanças em items/attachments detectadas mas um registro é parcial, informar
+        if ((itemsChangesDetected || attachmentsChangesDetected) && (prevIsPartial || currIsPartial)) {
+            let messageParts = [];
+            if (itemsChangesDetected) {
+                messageParts.push('items');
+            }
+            if (attachmentsChangesDetected) {
+                messageParts.push('attachments');
+            }
+            html += '<div class="alert alert-warning mb-2">' +
+                '<i class="fas fa-exclamation-triangle me-2"></i>' +
+                '<small>Mudanças em ' + messageParts.join(' e ') + ' foram detectadas, mas não podem ser comparadas porque um dos registros é parcial.</small>' +
                 '</div>';
         }
         
@@ -1618,8 +1763,39 @@ $(document).ready(function() {
                 html += '</div></div>';
             }
         } else if (!prevIsPartial) {
-            // Se apenas prev é completo, reutilizar o mesmo layout simples (grade de ícones) para prev
+            // Se apenas prev é completo, mostrar items/attachments do registro completo
+            // Isso é especialmente importante quando há mudanças detectadas mas curr é parcial
+            if (itemsChangesDetected || attachmentsChangesDetected) {
+                html += '<div class="alert alert-warning mb-2">' +
+                    '<i class="fas fa-info-circle me-2"></i>' +
+                    '<small>Comparação detalhada não disponível (registro anterior é parcial). Exibindo items/attachments do snapshot completo atual.</small>' +
+                    '</div>';
+            }
             html += renderItemsAndAttachments(prev);
+        } else if (prevIsPartial) {
+            // Se o registro atual é parcial, mostrar items/attachments herdados com aviso adicional
+            // Encontrar último snapshot completo se possível
+            let lastCompleteInfo = '';
+            if (history && currentIndex !== undefined && currentIndex !== null) {
+                const lastComplete = findLastCompleteSnapshotBefore(history, currentIndex);
+                if (lastComplete) {
+                    const sourceTimestamp = formatDateTime(lastComplete.TimeStamp);
+                    lastCompleteInfo = ' (herdados do snapshot completo de ' + sourceTimestamp + ')';
+                }
+            }
+            
+            if ((prev.items && prev.items.length > 0) || (prev.attachments && prev.attachments.length > 0)) {
+                html += '<div class="mb-2">' +
+                    '<small class="text-muted"><i class="fas fa-info-circle me-1"></i>Os items e attachments abaixo foram herdados do último snapshot completo anterior' + lastCompleteInfo + '.</small>' +
+                    '</div>';
+            }
+            html += renderItemsAndAttachments(prev);
+        } else if (itemsChangesDetected || attachmentsChangesDetected) {
+            // Se ambos são parciais mas há mudanças detectadas, mostrar aviso adicional
+            html += '<div class="alert alert-warning mb-2">' +
+                '<i class="fas fa-exclamation-triangle me-2"></i>' +
+                '<small>Mudanças em items/attachments foram detectadas, mas ambos os registros são parciais. Não é possível exibir comparação detalhada.</small>' +
+                '</div>';
         }
         
         if (!html) {
