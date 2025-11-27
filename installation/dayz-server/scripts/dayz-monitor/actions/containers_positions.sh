@@ -44,13 +44,19 @@ handle_containers_positions() {
         INSERT_CUSTOM_LOG "Update parcial detectado: apenas coordenadas e health serão atualizados (items não processados)" "INFO" "$ScriptName"
     fi
 
-    if ! echo "$line" | jq -e '.container_data' >/dev/null 2>&1; then
+    # Verificar se existe container_data (formato antigo) ou containers (formato novo simplificado)
+    if ! echo "$line" | jq -e '.container_data // .containers' >/dev/null 2>&1; then
         INSERT_CUSTOM_LOG "DEBUG: JSON de containers vazio ou inválido, retornando" "INFO" "$ScriptName"
         return
     fi
     
     local container_count_check
-    container_count_check=$(echo "$line" | jq '.container_data | length // 0' 2>/dev/null || echo "0")
+    # Suportar tanto .container_data (formato antigo) quanto .containers (formato novo)
+    if echo "$line" | jq -e '.containers' >/dev/null 2>&1; then
+        container_count_check=$(echo "$line" | jq '.containers | length // 0' 2>/dev/null || echo "0")
+    else
+        container_count_check=$(echo "$line" | jq '.container_data | length // 0' 2>/dev/null || echo "0")
+    fi
     INSERT_CUSTOM_LOG "DEBUG: containers encontrados no JSON: $container_count_check" "INFO" "$ScriptName"
 
     declare -A prev_containers=()
@@ -515,12 +521,13 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
         # 2. Foi esvaziado (tinha items antes, agora está vazio) - para atualizar timestamp e evitar logs repetidos
         # 3. É shelter type
         # 4. É container novo (sem prev_data) - sempre salvar containers novos
+        # 5. É update parcial (position_only) - salvar todos para atualizar posição e health
         local is_new_container=false
         if [[ -z "$prev_data" ]]; then
             is_new_container=true
         fi
         
-        if [[ -n "$current_items_str" || "$should_save_empty" == true || "$is_shelter_type" == true || "$is_new_container" == true ]]; then
+        if [[ "$is_partial_update" == "true" || -n "$current_items_str" || "$should_save_empty" == true || "$is_shelter_type" == true || "$is_new_container" == true ]]; then
             # Adicionar ao batch de containers (formato: container_id|container_name|coord_x|coord_z|coord_y)
             batch_containers_data+=("$container_id|$container_name|$coord_x|$coord_z|$coord_y")
             containers_to_process+=("$container_id")
