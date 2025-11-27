@@ -335,6 +335,22 @@ def api_vehicles_positions():
         'vehicles': []
     }
     
+    # Coletar todos os item types para batch lookup
+    all_item_types = []
+    for veh in vehicles:
+        for item in veh.get('items', []):
+            item_type = item.get('type', '')
+            if item_type:
+                all_item_types.append(item_type)
+        for attachment in veh.get('attachments', []):
+            attachment_type = attachment.get('type', '')
+            if attachment_type:
+                all_item_types.append(attachment_type)
+    
+    # Buscar detalhes de todos os items e attachments de uma vez
+    from database import get_items_details_batch
+    items_details_map = get_items_details_batch(all_item_types)
+    
     for veh in vehicles:
         # Para veículos (diferente dos jogadores):
         # PositionX = Leste-Oeste
@@ -347,13 +363,12 @@ def api_vehicles_positions():
         attachments = veh.get('attachments', [])
         health_parts = veh.get('health_parts')
         
-        # Converter items e attachments para formato esperado pelo frontend
+        # Converter items e attachments para formato esperado pelo frontend usando batch lookup
         items_formatted = []
         for item in items:
             item_type = item.get('type', '')
             item_health = item.get('health')
-            # Buscar informações do item no banco de itens
-            item_info = get_item_details_from_items_db(item_type)
+            item_info = items_details_map.get(item_type) if item_type else None
             items_formatted.append({
                 'type': item_type,
                 'name': item_info.get('name', item_type) if item_info else item_type,
@@ -365,8 +380,7 @@ def api_vehicles_positions():
         for attachment in attachments:
             attachment_type = attachment.get('type', '')
             attachment_health = attachment.get('health')
-            # Buscar informações do attachment no banco de itens
-            attachment_info = get_item_details_from_items_db(attachment_type)
+            attachment_info = items_details_map.get(attachment_type) if attachment_type else None
             attachments_formatted.append({
                 'type': attachment_type,
                 'name': attachment_info.get('name', attachment_type) if attachment_info else attachment_type,
@@ -531,20 +545,32 @@ def api_containers_positions():
         'containers': []
     }
     
+    # Coletar todos os item types para batch lookup
+    all_item_types = []
+    for container in containers:
+        for item in container.get('items', []):
+            item_type = item.get('ItemType')
+            if item_type:
+                all_item_types.append(item_type)
+    
+    # Buscar detalhes de todos os items de uma vez
+    from database import get_items_details_batch
+    items_details_map = get_items_details_batch(all_item_types)
+    
     for container in containers:
         # Converter coordenadas para pixel
         pixel_coords = dayz_to_pixel(container['PositionX'], container['PositionY'])
         
-        # Processar items do container
+        # Processar items do container usando batch lookup
         items = []
         for item in container.get('items', []):
-            # Buscar detalhes do item no banco dayz_items.db
-            item_details = get_item_details_from_items_db(item['ItemType'])
+            item_type = item.get('ItemType')
+            item_details = items_details_map.get(item_type) if item_type else None
             
             item_data = {
-                'type': item['ItemType'],
+                'type': item_type,
                 'health': item.get('ItemHealth'),
-                'name': item_details['name'] if item_details else item['ItemType'],
+                'name': item_details['name'] if item_details else item_type,
                 'img': item_details['img'] if item_details else ''
             }
             items.append(item_data)
@@ -644,27 +670,38 @@ def api_fences_positions():
         is_opened = '_Open' in fence_name if fence_name else None
         is_locked = '_Locked' in fence_name if fence_name else None
         
-        result['fences'].append({
+        # Construir objeto fence apenas com campos não-None
+        fence_obj = {
             'fence_id': fence['FenceId'],
             'fence_name': fence_name,
             'coord_x': fence['PositionX'],
-            'coord_y': fence['PositionY'],  # Sul-Norte (Y do mapa)
-            'coord_z': fence['PositionZ'],  # Altitude
+            'coord_y': fence['PositionY'],
+            'coord_z': fence['PositionZ'],
             'pixel_coords': pixel_coords,
             'last_update': fence['TimeStamp'] or '',
-            'has_base': (has_base == 1) if has_base is not None else None,
-            'lower_panel_built': (lower_panel_built == 1) if lower_panel_built is not None else None,
-            'upper_panel_built': (upper_panel_built == 1) if upper_panel_built is not None else None,
-            'has_gate': has_gate,
-            'is_opened': is_opened,
-            'is_locked': is_locked,
-            'is_destroyed': bool(fence.get('IsDestroyed', 0)) if include_destroyed else False,
-            'destroyed_at': fence.get('DestroyedAt') if include_destroyed else None,
-            'has_recent_attack': bool(fence.get('has_recent_attack', False)),
             'structure_type': 'fence',
-            'watchtower_details': None,
-            'orientation': None
-        })
+            'has_recent_attack': bool(fence.get('has_recent_attack', False))
+        }
+        
+        # Adicionar campos opcionais apenas se não forem None
+        if has_base is not None:
+            fence_obj['has_base'] = (has_base == 1)
+        if lower_panel_built is not None:
+            fence_obj['lower_panel_built'] = (lower_panel_built == 1)
+        if upper_panel_built is not None:
+            fence_obj['upper_panel_built'] = (upper_panel_built == 1)
+        if has_gate is not None:
+            fence_obj['has_gate'] = has_gate
+        if is_opened is not None:
+            fence_obj['is_opened'] = is_opened
+        if is_locked is not None:
+            fence_obj['is_locked'] = is_locked
+        if include_destroyed:
+            fence_obj['is_destroyed'] = bool(fence.get('IsDestroyed', 0))
+            if fence.get('DestroyedAt'):
+                fence_obj['destroyed_at'] = fence.get('DestroyedAt')
+        
+        result['fences'].append(fence_obj)
 
     def normalize_watchtower_bool(value):
         if value is None:
@@ -688,35 +725,45 @@ def api_fences_positions():
 
     for watchtower in watchtowers:
         pixel_coords = dayz_to_pixel(watchtower['PositionX'], watchtower['PositionY'])
-        details = {
-            'has_base': normalize_watchtower_bool(watchtower.get('HasBase')),
-            'level_1_base': normalize_watchtower_bool(watchtower.get('Level1BaseBuilt')),
-            'level_2_base': normalize_watchtower_bool(watchtower.get('Level2BaseBuilt')),
-            'level_3_base': normalize_watchtower_bool(watchtower.get('Level3BaseBuilt')),
-            'level_1_stairs': normalize_watchtower_bool(watchtower.get('Level1StairsBuilt')),
-            'level_2_stairs': normalize_watchtower_bool(watchtower.get('Level2StairsBuilt')),
-            'has_roof': normalize_watchtower_bool(watchtower.get('HasRoof')),
-            'level_1_wall_1_lower_built': normalize_watchtower_bool(watchtower.get('Level1Wall1LowerBuilt')),
-            'level_1_wall_1_upper_built': normalize_watchtower_bool(watchtower.get('Level1Wall1UpperBuilt')),
-            'level_1_wall_2_lower_built': normalize_watchtower_bool(watchtower.get('Level1Wall2LowerBuilt')),
-            'level_1_wall_2_upper_built': normalize_watchtower_bool(watchtower.get('Level1Wall2UpperBuilt')),
-            'level_1_wall_3_lower_built': normalize_watchtower_bool(watchtower.get('Level1Wall3LowerBuilt')),
-            'level_1_wall_3_upper_built': normalize_watchtower_bool(watchtower.get('Level1Wall3UpperBuilt')),
-            'level_2_wall_1_lower_built': normalize_watchtower_bool(watchtower.get('Level2Wall1LowerBuilt')),
-            'level_2_wall_1_upper_built': normalize_watchtower_bool(watchtower.get('Level2Wall1UpperBuilt')),
-            'level_2_wall_2_lower_built': normalize_watchtower_bool(watchtower.get('Level2Wall2LowerBuilt')),
-            'level_2_wall_2_upper_built': normalize_watchtower_bool(watchtower.get('Level2Wall2UpperBuilt')),
-            'level_2_wall_3_lower_built': normalize_watchtower_bool(watchtower.get('Level2Wall3LowerBuilt')),
-            'level_2_wall_3_upper_built': normalize_watchtower_bool(watchtower.get('Level2Wall3UpperBuilt')),
-            'level_3_wall_1_lower_built': normalize_watchtower_bool(watchtower.get('Level3Wall1LowerBuilt')),
-            'level_3_wall_1_upper_built': normalize_watchtower_bool(watchtower.get('Level3Wall1UpperBuilt')),
-            'level_3_wall_2_lower_built': normalize_watchtower_bool(watchtower.get('Level3Wall2LowerBuilt')),
-            'level_3_wall_2_upper_built': normalize_watchtower_bool(watchtower.get('Level3Wall2UpperBuilt')),
-            'level_3_wall_3_lower_built': normalize_watchtower_bool(watchtower.get('Level3Wall3LowerBuilt')),
-            'level_3_wall_3_upper_built': normalize_watchtower_bool(watchtower.get('Level3Wall3UpperBuilt')),
+        
+        # Construir details removendo campos None/False para reduzir payload
+        details = {}
+        details_map = {
+            'has_base': watchtower.get('HasBase'),
+            'level_1_base': watchtower.get('Level1BaseBuilt'),
+            'level_2_base': watchtower.get('Level2BaseBuilt'),
+            'level_3_base': watchtower.get('Level3BaseBuilt'),
+            'level_1_stairs': watchtower.get('Level1StairsBuilt'),
+            'level_2_stairs': watchtower.get('Level2StairsBuilt'),
+            'has_roof': watchtower.get('HasRoof'),
+            'level_1_wall_1_lower_built': watchtower.get('Level1Wall1LowerBuilt'),
+            'level_1_wall_1_upper_built': watchtower.get('Level1Wall1UpperBuilt'),
+            'level_1_wall_2_lower_built': watchtower.get('Level1Wall2LowerBuilt'),
+            'level_1_wall_2_upper_built': watchtower.get('Level1Wall2UpperBuilt'),
+            'level_1_wall_3_lower_built': watchtower.get('Level1Wall3LowerBuilt'),
+            'level_1_wall_3_upper_built': watchtower.get('Level1Wall3UpperBuilt'),
+            'level_2_wall_1_lower_built': watchtower.get('Level2Wall1LowerBuilt'),
+            'level_2_wall_1_upper_built': watchtower.get('Level2Wall1UpperBuilt'),
+            'level_2_wall_2_lower_built': watchtower.get('Level2Wall2LowerBuilt'),
+            'level_2_wall_2_upper_built': watchtower.get('Level2Wall2UpperBuilt'),
+            'level_2_wall_3_lower_built': watchtower.get('Level2Wall3LowerBuilt'),
+            'level_2_wall_3_upper_built': watchtower.get('Level2Wall3UpperBuilt'),
+            'level_3_wall_1_lower_built': watchtower.get('Level3Wall1LowerBuilt'),
+            'level_3_wall_1_upper_built': watchtower.get('Level3Wall1UpperBuilt'),
+            'level_3_wall_2_lower_built': watchtower.get('Level3Wall2LowerBuilt'),
+            'level_3_wall_2_upper_built': watchtower.get('Level3Wall2UpperBuilt'),
+            'level_3_wall_3_lower_built': watchtower.get('Level3Wall3LowerBuilt'),
+            'level_3_wall_3_upper_built': watchtower.get('Level3Wall3UpperBuilt'),
         }
-
-        result['fences'].append({
+        
+        # Adicionar apenas campos que não são None (incluindo False para o frontend mostrar "Não construído")
+        for key, value in details_map.items():
+            normalized = normalize_watchtower_bool(value)
+            if normalized is not None:
+                details[key] = normalized
+        
+        # Construir objeto watchtower
+        watchtower_obj = {
             'fence_id': watchtower['WatchtowerId'],
             'fence_name': watchtower.get('WatchtowerName') or 'Watchtower',
             'coord_x': watchtower['PositionX'],
@@ -724,31 +771,63 @@ def api_fences_positions():
             'coord_z': watchtower['PositionZ'],
             'pixel_coords': pixel_coords,
             'last_update': watchtower.get('TimeStamp') or '',
-            'has_base': details['has_base'],
-            'lower_panel_built': details['level_1_base'],
-            'upper_panel_built': details['level_2_base'],
-            'is_destroyed': bool(watchtower.get('IsDestroyed', 0)) if include_destroyed else False,
-            'destroyed_at': watchtower.get('DestroyedAt') if include_destroyed else None,
-            'has_recent_attack': bool(watchtower.get('has_recent_attack', False)),
             'structure_type': 'watchtower',
-            'watchtower_details': details,
-            'orientation': {
-                'x': safe_float(watchtower.get('OrientationX')),
-                'y': safe_float(watchtower.get('OrientationY')),
-                'z': safe_float(watchtower.get('OrientationZ'))
-            }
-        })
+            'has_recent_attack': bool(watchtower.get('has_recent_attack', False))
+        }
+        
+        # Adicionar campos opcionais apenas se não forem None
+        if details:
+            watchtower_obj['watchtower_details'] = details
+            if 'has_base' in details:
+                watchtower_obj['has_base'] = details['has_base']
+            if 'level_1_base' in details:
+                watchtower_obj['lower_panel_built'] = details['level_1_base']
+            if 'level_2_base' in details:
+                watchtower_obj['upper_panel_built'] = details['level_2_base']
+        
+        # Adicionar orientation apenas se tiver valores válidos
+        orientation_x = safe_float(watchtower.get('OrientationX'))
+        orientation_y = safe_float(watchtower.get('OrientationY'))
+        orientation_z = safe_float(watchtower.get('OrientationZ'))
+        if orientation_x is not None or orientation_y is not None or orientation_z is not None:
+            orientation = {}
+            if orientation_x is not None:
+                orientation['x'] = orientation_x
+            if orientation_y is not None:
+                orientation['y'] = orientation_y
+            if orientation_z is not None:
+                orientation['z'] = orientation_z
+            if orientation:
+                watchtower_obj['orientation'] = orientation
+        
+        if include_destroyed:
+            watchtower_obj['is_destroyed'] = bool(watchtower.get('IsDestroyed', 0))
+            if watchtower.get('DestroyedAt'):
+                watchtower_obj['destroyed_at'] = watchtower.get('DestroyedAt')
+        
+        result['fences'].append(watchtower_obj)
 
     for flag in flags:
         pixel_coords = dayz_to_pixel(flag['PositionX'], flag['PositionY'])
-        flag_details = {
-            'has_base': normalize_watchtower_bool(flag.get('HasBase')),
-            'has_flag_base': normalize_watchtower_bool(flag.get('HasFlagBase')),
-            'flag_raised': normalize_watchtower_bool(flag.get('FlagRaised')),
-            'flag_height': safe_float(flag.get('FlagHeight'))
-        }
-
-        result['fences'].append({
+        
+        # Construir flag_details removendo campos None/False
+        flag_details = {}
+        flag_base = normalize_watchtower_bool(flag.get('HasBase'))
+        flag_flag_base = normalize_watchtower_bool(flag.get('HasFlagBase'))
+        flag_raised = normalize_watchtower_bool(flag.get('FlagRaised'))
+        flag_height = safe_float(flag.get('FlagHeight'))
+        
+        if flag_base is not None:
+            flag_details['has_base'] = flag_base
+        if flag_flag_base is not None:
+            flag_details['has_flag_base'] = flag_flag_base
+        if flag_raised is not None:
+            flag_details['flag_raised'] = flag_raised
+        if flag_height is not None:
+            flag_details['flag_height'] = flag_height
+        
+        # Construir objeto flag
+        flag_obj = {
             'fence_id': flag['FlagId'],
             'fence_name': flag.get('FlagName') or 'Flag Pole',
             'coord_x': flag['PositionX'],
@@ -756,21 +835,37 @@ def api_fences_positions():
             'coord_z': flag['PositionZ'],
             'pixel_coords': pixel_coords,
             'last_update': flag.get('TimeStamp') or '',
-            'has_base': flag_details['has_base'],
-            'lower_panel_built': None,
-            'upper_panel_built': None,
-            'is_destroyed': bool(flag.get('IsDestroyed', 0)) if include_destroyed else False,
-            'destroyed_at': flag.get('DestroyedAt') if include_destroyed else None,
-            'has_recent_attack': False,
             'structure_type': 'flag',
-            'watchtower_details': None,
-            'flag_details': flag_details,
-            'orientation': {
-                'x': safe_float(flag.get('OrientationX')),
-                'y': safe_float(flag.get('OrientationY')),
-                'z': safe_float(flag.get('OrientationZ'))
-            }
-        })
+            'has_recent_attack': False
+        }
+        
+        # Adicionar campos opcionais apenas se não forem None
+        if flag_details:
+            flag_obj['flag_details'] = flag_details
+            if 'has_base' in flag_details:
+                flag_obj['has_base'] = flag_details['has_base']
+        
+        # Adicionar orientation apenas se tiver valores válidos
+        orientation_x = safe_float(flag.get('OrientationX'))
+        orientation_y = safe_float(flag.get('OrientationY'))
+        orientation_z = safe_float(flag.get('OrientationZ'))
+        if orientation_x is not None or orientation_y is not None or orientation_z is not None:
+            orientation = {}
+            if orientation_x is not None:
+                orientation['x'] = orientation_x
+            if orientation_y is not None:
+                orientation['y'] = orientation_y
+            if orientation_z is not None:
+                orientation['z'] = orientation_z
+            if orientation:
+                flag_obj['orientation'] = orientation
+        
+        if include_destroyed:
+            flag_obj['is_destroyed'] = bool(flag.get('IsDestroyed', 0))
+            if flag.get('DestroyedAt'):
+                flag_obj['destroyed_at'] = flag.get('DestroyedAt')
+        
+        result['fences'].append(flag_obj)
     
     return jsonify(result)
 

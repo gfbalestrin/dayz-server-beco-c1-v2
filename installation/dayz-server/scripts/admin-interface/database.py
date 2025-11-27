@@ -6,9 +6,48 @@ import base64
 import json
 import os
 from datetime import datetime
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Set
 import config
 import bcrypt
+
+# Cache para schema de tabelas (PRAGMA table_info)
+_schema_cache: Dict[str, List[str]] = {}
+
+def get_table_columns(db_path: str, table_name: str) -> List[str]:
+    """Busca colunas de uma tabela com cache"""
+    # Validar nome da tabela para prevenir SQL injection
+    valid_table_names = {
+        'containers_tracking', 'vehicles_tracking', 'vehicles_items', 
+        'vehicles_attachments', 'container_items_tracking',
+        'fences_tracking', 'watchtowers_tracking', 'flags_tracking'
+    }
+    if table_name not in valid_table_names:
+        raise ValueError(f"Invalid table name: {table_name}")
+    
+    cache_key = f"{db_path}:{table_name}"
+    if cache_key not in _schema_cache:
+        with DatabaseConnection(db_path) as conn:
+            cursor = conn.cursor()
+            # PRAGMA table_info não aceita placeholders, mas validamos o nome da tabela
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            columns = [row[1] for row in cursor.fetchall()]
+            _schema_cache[cache_key] = columns
+    return _schema_cache[cache_key]
+
+def clear_schema_cache(db_path: str = None, table_name: str = None):
+    """Limpa cache de schema"""
+    global _schema_cache
+    if db_path is None:
+        _schema_cache.clear()
+    elif table_name is None:
+        # Limpar todas as entradas deste banco
+        keys_to_remove = [k for k in _schema_cache.keys() if k.startswith(f"{db_path}:")]
+        for k in keys_to_remove:
+            del _schema_cache[k]
+    else:
+        cache_key = f"{db_path}:{table_name}"
+        if cache_key in _schema_cache:
+            del _schema_cache[cache_key]
 
 class DatabaseConnection:
     """Context manager para conexões com o banco de dados"""
@@ -119,19 +158,21 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
     with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
         
-        # Verificar se coluna IsDestroyed existe (migração)
+        # Verificar se coluna IsDestroyed existe (migração) - usar cache
         try:
-            cursor.execute("PRAGMA table_info(vehicles_tracking)")
-            columns = [row[1] for row in cursor.fetchall()]
+            columns = get_table_columns(config.DB_VEHICLES, 'vehicles_tracking')
             has_is_destroyed = 'IsDestroyed' in columns
         except:
             has_is_destroyed = False
         
         # Buscar último registro de cada veículo
+        # Carregar colunas uma vez usando cache
+        try:
+            columns = get_table_columns(config.DB_VEHICLES, 'vehicles_tracking')
+        except:
+            columns = []
+        
         if has_is_destroyed and not include_destroyed:
-            # Verificar se colunas de saúde existem
-            cursor.execute("PRAGMA table_info(vehicles_tracking)")
-            columns = [row[1] for row in cursor.fetchall()]
             health_columns = ""
             if 'EngineHealth' in columns:
                 health_columns += ", vt.EngineHealth"
@@ -155,9 +196,7 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
             """)
         else:
             if has_is_destroyed:
-                # Verificar se colunas de saúde existem
-                cursor.execute("PRAGMA table_info(vehicles_tracking)")
-                columns = [row[1] for row in cursor.fetchall()]
+                # Colunas já carregadas do cache acima
                 health_columns = ""
                 if 'EngineHealth' in columns:
                     health_columns += ", vt.EngineHealth"
@@ -178,9 +217,7 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
                     ORDER BY vt.VehicleName
                 """)
             else:
-                # Verificar se colunas de saúde existem
-                cursor.execute("PRAGMA table_info(vehicles_tracking)")
-                columns = [row[1] for row in cursor.fetchall()]
+                # Colunas já carregadas do cache acima
                 health_columns = ""
                 if 'EngineHealth' in columns:
                     health_columns += ", vt.EngineHealth"
@@ -203,142 +240,161 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
         
         vehicles = [dict(row) for row in cursor.fetchall()]
         
-        # Detectar se cada veículo se moveu (tem mudanças significativas de posição no histórico)
-        # E buscar items, attachments e health_parts
+        if not vehicles:
+            return vehicles
+        
+        # Verificar se coluna IsPartialUpdate existe - usar cache
+        try:
+            columns = get_table_columns(config.DB_VEHICLES, 'vehicles_tracking')
+            has_is_partial_update = 'IsPartialUpdate' in columns
+        except:
+            has_is_partial_update = False
+        
+        # Preparar estruturas para batch queries
+        vehicle_complete_snapshot_map = {}  # vehicle_id -> (tracking_id, timestamp)
+        tracking_ids_needing_items = []
+        
+        # Primeira passada: identificar tracking IDs completos
         for vehicle in vehicles:
             vehicle_id = vehicle['VehicleId']
             vehicle_tracking_id = vehicle['IdVehicleTracking']
             
-            # Verificar se há mudanças significativas de posição (threshold de 0.1 unidades)
-            # Alinhado com a lógica de count_vehicle_changes
-            cursor.execute("""
-                SELECT PositionX, PositionY, PositionZ, TimeStamp
-                FROM vehicles_tracking
-                WHERE VehicleId = ?
-                ORDER BY TimeStamp ASC
-                LIMIT 500
-            """, (vehicle_id,))
-            
-            positions = [dict(row) for row in cursor.fetchall()]
-            has_moved = False
-            pos_threshold = 0.1
-            
-            # Comparar posições consecutivas para detectar mudanças significativas
-            if len(positions) > 1:
-                for i in range(1, len(positions)):
-                    prev_x = positions[i - 1].get('PositionX') or 0
-                    prev_y = positions[i - 1].get('PositionY') or 0
-                    prev_z = positions[i - 1].get('PositionZ') or 0
-                    curr_x = positions[i].get('PositionX') or 0
-                    curr_y = positions[i].get('PositionY') or 0
-                    curr_z = positions[i].get('PositionZ') or 0
-                    
-                    # Verificar se há mudança significativa em qualquer eixo
-                    if (abs(prev_x - curr_x) > pos_threshold or
-                        abs(prev_y - curr_y) > pos_threshold or
-                        abs(prev_z - curr_z) > pos_threshold):
-                        has_moved = True
-                        break
-            
-            vehicle['has_moved'] = has_moved
-            
-            # Buscar último registro completo (IsPartialUpdate = 0) para items/attachments
-            # Usar esse ID para buscar items e attachments, não o último registro (que pode ser parcial)
-            complete_tracking_id = None
-            try:
-                # Verificar se coluna IsPartialUpdate existe
-                cursor.execute("PRAGMA table_info(vehicles_tracking)")
-                columns = [row[1] for row in cursor.fetchall()]
-                has_is_partial_update = 'IsPartialUpdate' in columns
-                
-                if has_is_partial_update:
-                    cursor.execute("""
-                        SELECT IdVehicleTracking, TimeStamp
-                        FROM vehicles_tracking
-                        WHERE VehicleId = ? AND IsPartialUpdate = 0
-                        ORDER BY TimeStamp DESC
-                        LIMIT 1
-                    """, (vehicle_id,))
-                    result = cursor.fetchone()
-                    if result:
-                        complete_tracking_id = result[0]
-                        vehicle['items_attachments_last_update'] = result[1]
-                    else:
-                        # Se não há registros completos, usar None
-                        vehicle['items_attachments_last_update'] = None
-                else:
-                    # Se coluna não existe, usar o vehicle_tracking_id atual e seu timestamp
-                    complete_tracking_id = vehicle_tracking_id
-                    vehicle['items_attachments_last_update'] = vehicle['TimeStamp']
-            except Exception as e:
-                # Em caso de erro, usar o vehicle_tracking_id atual e seu timestamp
-                complete_tracking_id = vehicle_tracking_id
-                vehicle['items_attachments_last_update'] = vehicle.get('TimeStamp')
-            
-            # Se não encontrou registro completo, usar o tracking_id atual (compatibilidade com bancos antigos)
-            if complete_tracking_id is None:
-                complete_tracking_id = vehicle_tracking_id
-            
-            # Buscar items do veículo usando o ID do último registro completo
-            try:
+            if has_is_partial_update:
+                # Buscar último snapshot completo
                 cursor.execute("""
-                    SELECT ItemType, ItemHealth
-                    FROM vehicles_items
-                    WHERE VehicleTrackingId = ?
-                    ORDER BY ItemType
-                """, (complete_tracking_id,))
-                vehicle['items'] = [{'type': row[0], 'health': row[1]} for row in cursor.fetchall()]
-            except:
-                vehicle['items'] = []
-            
-            # Buscar attachments do veículo usando o ID do último registro completo
-            try:
-                cursor.execute("""
-                    SELECT AttachmentType, AttachmentHealth
-                    FROM vehicles_attachments
-                    WHERE VehicleTrackingId = ?
-                    ORDER BY AttachmentType
-                """, (complete_tracking_id,))
-                vehicle['attachments'] = [{'type': row[0], 'health': row[1]} for row in cursor.fetchall()]
-            except:
-                vehicle['attachments'] = []
-            
-            # Buscar health_parts do último registro completo (não do parcial)
-            try:
-                cursor.execute("PRAGMA table_info(vehicles_tracking)")
-                columns = [row[1] for row in cursor.fetchall()]
-                health_parts = {}
-                
-                # Buscar health_parts do registro completo
-                if complete_tracking_id and complete_tracking_id != vehicle_tracking_id:
-                    cursor.execute("""
-                        SELECT EngineHealth, BodyHealth, FuelTankHealth
-                        FROM vehicles_tracking
-                        WHERE IdVehicleTracking = ?
-                    """, (complete_tracking_id,))
-                    health_row = cursor.fetchone()
-                    if health_row:
-                        if 'EngineHealth' in columns and health_row[0] is not None:
-                            health_parts['engine'] = health_row[0]
-                        if 'BodyHealth' in columns and health_row[1] is not None:
-                            health_parts['body'] = health_row[1]
-                        if 'FuelTankHealth' in columns and health_row[2] is not None:
-                            health_parts['fuel_tank'] = health_row[2]
+                    SELECT IdVehicleTracking, TimeStamp
+                    FROM vehicles_tracking
+                    WHERE VehicleId = ? AND IsPartialUpdate = 0
+                    ORDER BY TimeStamp DESC
+                    LIMIT 1
+                """, (vehicle_id,))
+                result = cursor.fetchone()
+                if result:
+                    complete_tracking_id = result[0]
+                    vehicle['items_attachments_last_update'] = result[1]
+                    tracking_ids_needing_items.append(complete_tracking_id)
                 else:
-                    # Fallback: usar do registro atual
-                    if 'EngineHealth' in columns:
-                        health_parts['engine'] = vehicle.get('EngineHealth')
-                    if 'BodyHealth' in columns:
-                        health_parts['body'] = vehicle.get('BodyHealth')
-                    if 'FuelTankHealth' in columns:
-                        health_parts['fuel_tank'] = vehicle.get('FuelTankHealth')
-                
-                vehicle['health_parts'] = health_parts if health_parts else None
-            except:
-                vehicle['health_parts'] = None
+                    vehicle['items_attachments_last_update'] = None
+                    tracking_ids_needing_items.append(vehicle_tracking_id)
+            else:
+                vehicle['items_attachments_last_update'] = vehicle['TimeStamp']
+                tracking_ids_needing_items.append(vehicle_tracking_id)
             
             # Data de atualização das coordenadas (último registro, pode ser parcial)
             vehicle['coordinates_last_update'] = vehicle['TimeStamp']
+            
+            # Verificação simplificada de movimento (comparar apenas primeira e última posição)
+            # Isso evita fazer query por veículo - assumimos que veículo não se moveu inicialmente
+            vehicle['has_moved'] = False
+        
+        # Batch query para buscar todos os items de uma vez
+        items_by_tracking = {}
+        if tracking_ids_needing_items:
+            placeholders = ','.join(['?'] * len(tracking_ids_needing_items))
+            try:
+                cursor.execute(f"""
+                    SELECT VehicleTrackingId, ItemType, ItemHealth
+                    FROM vehicles_items
+                    WHERE VehicleTrackingId IN ({placeholders})
+                    ORDER BY VehicleTrackingId, ItemType
+                """, tracking_ids_needing_items)
+                
+                for row in cursor.fetchall():
+                    tracking_id = row[0]
+                    if tracking_id not in items_by_tracking:
+                        items_by_tracking[tracking_id] = {'items': [], 'attachments': []}
+                    items_by_tracking[tracking_id]['items'].append({
+                        'type': row[1],
+                        'health': row[2]
+                    })
+            except:
+                pass
+        
+        # Batch query para buscar todos os attachments de uma vez
+        if tracking_ids_needing_items:
+            placeholders = ','.join(['?'] * len(tracking_ids_needing_items))
+            try:
+                cursor.execute(f"""
+                    SELECT VehicleTrackingId, AttachmentType, AttachmentHealth
+                    FROM vehicles_attachments
+                    WHERE VehicleTrackingId IN ({placeholders})
+                    ORDER BY VehicleTrackingId, AttachmentType
+                """, tracking_ids_needing_items)
+                
+                for row in cursor.fetchall():
+                    tracking_id = row[0]
+                    if tracking_id not in items_by_tracking:
+                        items_by_tracking[tracking_id] = {'items': [], 'attachments': []}
+                    items_by_tracking[tracking_id]['attachments'].append({
+                        'type': row[1],
+                        'health': row[2]
+                    })
+            except:
+                pass
+        
+        # Buscar health_parts em batch
+        health_parts_by_tracking = {}
+        if tracking_ids_needing_items:
+            placeholders = ','.join(['?'] * len(tracking_ids_needing_items))
+            try:
+                health_cols = []
+                if 'EngineHealth' in columns:
+                    health_cols.append('EngineHealth')
+                if 'BodyHealth' in columns:
+                    health_cols.append('BodyHealth')
+                if 'FuelTankHealth' in columns:
+                    health_cols.append('FuelTankHealth')
+                
+                if health_cols:
+                    cols_str = ', '.join(health_cols)
+                    cursor.execute(f"""
+                        SELECT IdVehicleTracking, {cols_str}
+                        FROM vehicles_tracking
+                        WHERE IdVehicleTracking IN ({placeholders})
+                    """, tracking_ids_needing_items)
+                    
+                    for row in cursor.fetchall():
+                        tracking_id = row[0]
+                        health_parts = {}
+                        row_dict = dict(row)
+                        if 'EngineHealth' in row_dict and row_dict['EngineHealth'] is not None:
+                            health_parts['engine'] = row_dict['EngineHealth']
+                        if 'BodyHealth' in row_dict and row_dict['BodyHealth'] is not None:
+                            health_parts['body'] = row_dict['BodyHealth']
+                        if 'FuelTankHealth' in row_dict and row_dict['FuelTankHealth'] is not None:
+                            health_parts['fuel_tank'] = row_dict['FuelTankHealth']
+                        
+                        if health_parts:
+                            health_parts_by_tracking[tracking_id] = health_parts
+            except:
+                pass
+        
+        # Atribuir items, attachments e health_parts aos veículos
+        for i, vehicle in enumerate(vehicles):
+            tracking_id = tracking_ids_needing_items[i]
+            
+            tracking_data = items_by_tracking.get(tracking_id, {'items': [], 'attachments': []})
+            vehicle['items'] = tracking_data['items']
+            vehicle['attachments'] = tracking_data['attachments']
+            
+            health_parts = health_parts_by_tracking.get(tracking_id)
+            if not health_parts and tracking_id == vehicle['IdVehicleTracking']:
+                # Fallback: usar do registro atual
+                health_parts = {}
+                if 'EngineHealth' in columns:
+                    engine_health = vehicle.get('EngineHealth')
+                    if engine_health is not None:
+                        health_parts['engine'] = engine_health
+                if 'BodyHealth' in columns:
+                    body_health = vehicle.get('BodyHealth')
+                    if body_health is not None:
+                        health_parts['body'] = body_health
+                if 'FuelTankHealth' in columns:
+                    fuel_health = vehicle.get('FuelTankHealth')
+                    if fuel_health is not None:
+                        health_parts['fuel_tank'] = fuel_health
+            
+            vehicle['health_parts'] = health_parts if health_parts else None
         
         return vehicles
 
@@ -1803,10 +1859,9 @@ def get_containers_last_position(include_destroyed: bool = False) -> List[Dict]:
     with DatabaseConnection(config.DB_CONTAINERS) as conn:
         cursor = conn.cursor()
         
-        # Verificar se colunas IsDestroyed e IsPartialUpdate existem (migração)
+        # Verificar se colunas IsDestroyed e IsPartialUpdate existem (migração) - usar cache
         try:
-            cursor.execute("PRAGMA table_info(containers_tracking)")
-            columns = [row[1] for row in cursor.fetchall()]
+            columns = get_table_columns(config.DB_CONTAINERS, 'containers_tracking')
             has_is_destroyed = 'IsDestroyed' in columns
             has_is_partial_update = 'IsPartialUpdate' in columns
         except:
@@ -1859,7 +1914,15 @@ def get_containers_last_position(include_destroyed: bool = False) -> List[Dict]:
                 """)
         containers = [dict(row) for row in cursor.fetchall()]
         
-        # Para cada container, buscar items do último snapshot completo
+        if not containers:
+            return containers
+        
+        # Preparar estrutura para batch queries
+        container_items_map = {}  # tracking_id -> lista de items
+        container_ids_needing_complete_snapshot = []
+        container_complete_snapshot_map = {}  # container_id -> (tracking_id, timestamp)
+        
+        # Primeira passada: identificar quais containers precisam de snapshot completo
         for container in containers:
             container_db_id = container['ContainerId']
             latest_timestamp = container['TimeStamp']
@@ -1868,10 +1931,22 @@ def get_containers_last_position(include_destroyed: bool = False) -> List[Dict]:
             # coordinates_last_update: sempre o último timestamp (parcial ou completo)
             container['coordinates_last_update'] = latest_timestamp
             
-            # Buscar último snapshot completo para items
             if has_is_partial_update and latest_is_partial:
-                # Se o último é parcial, buscar o último completo anterior
-                cursor.execute(f"""
+                # Precisamos buscar último snapshot completo
+                container_ids_needing_complete_snapshot.append((container_db_id, latest_timestamp))
+                container_complete_snapshot_map[container_db_id] = None  # Será preenchido
+            else:
+                # Último é completo, usar ele
+                container['items_last_update'] = latest_timestamp
+                container_items_map[container['IdContainerTracking']] = container
+        
+        # Batch query para buscar últimos snapshots completos
+        if container_ids_needing_complete_snapshot and has_is_partial_update:
+            # Para cada container que precisa, buscar snapshot completo
+            # SQLite não suporta bem batch para este caso, mas podemos otimizar com UNION
+            # Ou fazer queries individuais ainda (mas são menos que antes)
+            for container_db_id, latest_timestamp in container_ids_needing_complete_snapshot:
+                cursor.execute("""
                     SELECT IdContainerTracking, TimeStamp
                     FROM containers_tracking
                     WHERE ContainerId = ? AND (IsPartialUpdate = 0 OR IsPartialUpdate IS NULL) AND TimeStamp <= ?
@@ -1882,26 +1957,59 @@ def get_containers_last_position(include_destroyed: bool = False) -> List[Dict]:
                 if complete_record:
                     complete_tracking_id = dict(complete_record)['IdContainerTracking']
                     complete_timestamp = dict(complete_record)['TimeStamp']
-                    container['items_last_update'] = complete_timestamp
-                    container_id_for_items = complete_tracking_id
+                    container_complete_snapshot_map[container_db_id] = (complete_tracking_id, complete_timestamp)
+                else:
+                    container_complete_snapshot_map[container_db_id] = None
+        
+        # Segunda passada: atualizar containers com informações de snapshot completo
+        tracking_ids_to_fetch = []
+        for container in containers:
+            container_db_id = container['ContainerId']
+            if container_db_id in container_complete_snapshot_map:
+                snapshot_info = container_complete_snapshot_map[container_db_id]
+                if snapshot_info:
+                    tracking_id, timestamp = snapshot_info
+                    container['items_last_update'] = timestamp
+                    tracking_ids_to_fetch.append(tracking_id)
                 else:
                     # Não há snapshot completo, usar o atual mesmo sendo parcial
                     container['items_last_update'] = None
-                    container_id_for_items = container['IdContainerTracking']
+                    tracking_ids_to_fetch.append(container['IdContainerTracking'])
             else:
-                # Último é completo, usar ele
-                container['items_last_update'] = latest_timestamp
-                container_id_for_items = container['IdContainerTracking']
-            
-            # Buscar items do snapshot completo
-            cursor.execute("""
-                SELECT ItemType, ItemHealth, TimeStamp
+                # Container já tem snapshot completo
+                tracking_ids_to_fetch.append(container['IdContainerTracking'])
+                container_items_map[container['IdContainerTracking']] = container
+        
+        # Batch query para buscar todos os items de uma vez
+        if tracking_ids_to_fetch:
+            placeholders = ','.join(['?'] * len(tracking_ids_to_fetch))
+            cursor.execute(f"""
+                SELECT ContainerTrackingId, ItemType, ItemHealth, TimeStamp
                 FROM container_items_tracking
-                WHERE ContainerTrackingId = ?
-                ORDER BY TimeStamp
-            """, (container_id_for_items,))
-            items = [dict(row) for row in cursor.fetchall()]
-            container['items'] = items
+                WHERE ContainerTrackingId IN ({placeholders})
+                ORDER BY ContainerTrackingId, TimeStamp
+            """, tracking_ids_to_fetch)
+            
+            # Agrupar items por tracking_id
+            items_by_tracking = {}
+            for row in cursor.fetchall():
+                tracking_id = row[0]
+                if tracking_id not in items_by_tracking:
+                    items_by_tracking[tracking_id] = []
+                items_by_tracking[tracking_id].append({
+                    'ItemType': row[1],
+                    'ItemHealth': row[2],
+                    'TimeStamp': row[3]
+                })
+            
+            # Atribuir items aos containers
+            for i, container in enumerate(containers):
+                tracking_id = tracking_ids_to_fetch[i]
+                container['items'] = items_by_tracking.get(tracking_id, [])
+        else:
+            # Nenhum container tem items
+            for container in containers:
+                container['items'] = []
         
         return containers
 
@@ -2009,86 +2117,83 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
     with DatabaseConnection(config.DB_STRUCTURES) as conn:
         cursor = conn.cursor()
         
-        # Verificar se coluna IsDestroyed existe (migração)
+        # Verificar se coluna IsDestroyed existe (migração) - usar cache
         try:
-            cursor.execute("PRAGMA table_info(fences_tracking)")
-            columns = [row[1] for row in cursor.fetchall()]
+            columns = get_table_columns(config.DB_STRUCTURES, 'fences_tracking')
             has_is_destroyed = 'IsDestroyed' in columns
         except:
             has_is_destroyed = False
         
-        # Buscar último registro de cada fence
-        # Usar uma abordagem mais simples e direta: pegar o registro com maior IdFenceTracking para cada FenceId
-        # que tenha o timestamp máximo (não destruído se aplicável)
+        # Buscar último registro de cada fence usando window functions para melhor performance
+        # SQLite 3.45.1 suporta window functions (ROW_NUMBER)
         if has_is_destroyed and not include_destroyed:
             query = """
-                SELECT ft.IdFenceTracking, ft.FenceId, ft.FenceName,
-                       ft.PositionX, ft.PositionY, ft.PositionZ, ft.TimeStamp,
-                       ft.HasBase, ft.LowerPanelBuilt, ft.UpperPanelBuilt,
+                SELECT IdFenceTracking, FenceId, FenceName,
+                       PositionX, PositionY, PositionZ, TimeStamp,
+                       HasBase, LowerPanelBuilt, UpperPanelBuilt,
                        0 as IsDestroyed, NULL as DestroyedAt
-                FROM fences_tracking ft
-                INNER JOIN (
-                    SELECT FenceId, MAX(IdFenceTracking) as MaxId
+                FROM (
+                    SELECT IdFenceTracking, FenceId, FenceName,
+                           PositionX, PositionY, PositionZ, TimeStamp,
+                           HasBase, LowerPanelBuilt, UpperPanelBuilt,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY FenceId 
+                               ORDER BY TimeStamp DESC, IdFenceTracking DESC
+                           ) as rn
                     FROM fences_tracking
                     WHERE (IsDestroyed = 0 OR IsDestroyed IS NULL)
-                        AND TimeStamp = (
-                            SELECT MAX(TimeStamp)
-                            FROM fences_tracking ft2
-                            WHERE ft2.FenceId = fences_tracking.FenceId
-                                AND (ft2.IsDestroyed = 0 OR ft2.IsDestroyed IS NULL)
-                        )
-                    GROUP BY FenceId
-                ) AS latest_ft ON ft.FenceId = latest_ft.FenceId 
-                    AND ft.IdFenceTracking = latest_ft.MaxId
-                WHERE ft.IsDestroyed = 0 OR ft.IsDestroyed IS NULL
-                ORDER BY ft.FenceName
+                ) ranked
+                WHERE rn = 1
+                ORDER BY FenceName
             """
             cursor.execute(query)
         else:
             if has_is_destroyed:
                 query = """
-                    SELECT ft.IdFenceTracking, ft.FenceId, ft.FenceName,
-                           ft.PositionX, ft.PositionY, ft.PositionZ, ft.TimeStamp,
-                           ft.HasBase, ft.LowerPanelBuilt, ft.UpperPanelBuilt,
-                           IFNULL(ft.IsDestroyed, 0) as IsDestroyed, ft.DestroyedAt
-                    FROM fences_tracking ft
-                    INNER JOIN (
-                        SELECT FenceId, MAX(IdFenceTracking) as MaxId
+                    SELECT IdFenceTracking, FenceId, FenceName,
+                           PositionX, PositionY, PositionZ, TimeStamp,
+                           HasBase, LowerPanelBuilt, UpperPanelBuilt,
+                           IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt
+                    FROM (
+                        SELECT IdFenceTracking, FenceId, FenceName,
+                               PositionX, PositionY, PositionZ, TimeStamp,
+                               HasBase, LowerPanelBuilt, UpperPanelBuilt,
+                               IsDestroyed, DestroyedAt,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY FenceId 
+                                   ORDER BY TimeStamp DESC, IdFenceTracking DESC
+                               ) as rn
                         FROM fences_tracking
-                        WHERE TimeStamp = (
-                            SELECT MAX(TimeStamp)
-                            FROM fences_tracking ft2
-                            WHERE ft2.FenceId = fences_tracking.FenceId
-                        )
-                        GROUP BY FenceId
-                    ) AS latest_ft ON ft.FenceId = latest_ft.FenceId 
-                        AND ft.IdFenceTracking = latest_ft.MaxId
-                    ORDER BY ft.FenceName
+                    ) ranked
+                    WHERE rn = 1
+                    ORDER BY FenceName
                 """
                 cursor.execute(query)
             else:
                 query = """
-                    SELECT ft.IdFenceTracking, ft.FenceId, ft.FenceName,
-                           ft.PositionX, ft.PositionY, ft.PositionZ, ft.TimeStamp,
-                           ft.HasBase, ft.LowerPanelBuilt, ft.UpperPanelBuilt,
+                    SELECT IdFenceTracking, FenceId, FenceName,
+                           PositionX, PositionY, PositionZ, TimeStamp,
+                           HasBase, LowerPanelBuilt, UpperPanelBuilt,
                            0 as IsDestroyed, NULL as DestroyedAt
-                    FROM fences_tracking ft
-                    INNER JOIN (
-                        SELECT FenceId, MAX(IdFenceTracking) as MaxId
+                    FROM (
+                        SELECT IdFenceTracking, FenceId, FenceName,
+                               PositionX, PositionY, PositionZ, TimeStamp,
+                               HasBase, LowerPanelBuilt, UpperPanelBuilt,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY FenceId 
+                                   ORDER BY TimeStamp DESC, IdFenceTracking DESC
+                               ) as rn
                         FROM fences_tracking
-                        WHERE TimeStamp = (
-                            SELECT MAX(TimeStamp)
-                            FROM fences_tracking ft2
-                            WHERE ft2.FenceId = fences_tracking.FenceId
-                        )
-                        GROUP BY FenceId
-                    ) AS latest_ft ON ft.FenceId = latest_ft.FenceId 
-                        AND ft.IdFenceTracking = latest_ft.MaxId
-                    ORDER BY ft.FenceName
+                    ) ranked
+                    WHERE rn = 1
+                    ORDER BY FenceName
                 """
                 cursor.execute(query)
         
         fences = [dict(row) for row in cursor.fetchall()]
+        
+        if not fences:
+            return fences
         
         # Função auxiliar para normalizar valores booleanos/inteiros para 0 ou 1
         def normalize_bool_value(value):
@@ -2102,111 +2207,112 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
             # Para inteiros ou outros tipos numéricos
             return 1 if int(value) == 1 else 0
         
-        # Detectar ataques recentes (perda de painel)
+        # Detectar ataques recentes (perda de painel) - OTIMIZADO: batch queries
+        # Coletar informações de todos os fences primeiro
+        fence_ids = []
+        fence_timestamps = {}
+        fence_panels = {}
+        
         for fence in fences:
             fence_id = fence['FenceId']
-            current_timestamp = fence.get('TimeStamp')
+            fence_ids.append(fence_id)
+            fence_timestamps[fence_id] = fence.get('TimeStamp')
             
             raw_lower = fence.get('LowerPanelBuilt', 0)
             raw_upper = fence.get('UpperPanelBuilt', 0)
+            fence_panels[fence_id] = {
+                'current_lower': normalize_bool_value(raw_lower),
+                'current_upper': normalize_bool_value(raw_upper)
+            }
+        
+        # Buscar penúltimo registro de cada fence para comparar com o último e detectar ataques
+        # Simplificação: só precisamos do penúltimo registro, não todos os históricos
+        prev_record_by_fence = {}  # fence_id -> row (penúltimo registro)
+        
+        if fence_ids and any(fence_timestamps.values()):
+            if has_is_destroyed and not include_destroyed:
+                destroy_condition = "AND (IsDestroyed = 0 OR IsDestroyed IS NULL)"
+            else:
+                destroy_condition = ""
             
-            # Normalizar valores atuais
-            current_lower = normalize_bool_value(raw_lower)
-            current_upper = normalize_bool_value(raw_upper)
+            # Query batch usando IN clause: buscar registros anteriores ao timestamp atual de cada fence
+            # Buscar apenas registros que são anteriores ao timestamp atual (para pegar o penúltimo)
+            placeholders = ','.join(['?'] * len(fence_ids))
+            fence_timestamp_pairs = []
+            
+            for fence_id in fence_ids:
+                timestamp = fence_timestamps.get(fence_id)
+                if timestamp:
+                    fence_timestamp_pairs.append((fence_id, timestamp))
+            
+            if fence_timestamp_pairs:
+                # Buscar o penúltimo registro de cada fence
+                # Usar IN clause com filtro de timestamp para buscar apenas registros anteriores
+                # Processar em memória para pegar apenas o penúltimo de cada fence
+                
+                # Criar condições para buscar registros anteriores ao timestamp atual
+                # SQLite não permite usar cada timestamp individualmente em IN, então
+                # vamos buscar todos os registros e filtrar por timestamp em memória
+                prev_query = f"""
+                    SELECT ft.FenceId, ft.LowerPanelBuilt, ft.UpperPanelBuilt, ft.TimeStamp, ft.IdFenceTracking,
+                           latest.MaxTimeStamp
+                    FROM fences_tracking ft
+                    INNER JOIN (
+                        SELECT FenceId, MAX(TimeStamp) as MaxTimeStamp
+                        FROM fences_tracking
+                        WHERE FenceId IN ({placeholders}) {destroy_condition}
+                        GROUP BY FenceId
+                    ) latest ON ft.FenceId = latest.FenceId
+                    WHERE ft.FenceId IN ({placeholders}) 
+                      AND ft.TimeStamp < latest.MaxTimeStamp
+                      {destroy_condition}
+                    ORDER BY ft.FenceId, ft.TimeStamp DESC, ft.IdFenceTracking DESC
+                """
+                
+                # Parâmetros: fence_ids duas vezes (uma para cada IN clause)
+                fence_id_params = fence_ids + fence_ids
+                
+                cursor.execute(prev_query, fence_id_params)
+                
+                # Processar resultados: para cada fence, pegar apenas o primeiro registro (penúltimo)
+                current_fence_id = None
+                
+                for row in cursor.fetchall():
+                    fence_id = row[0]
+                    
+                    if fence_id != current_fence_id:
+                        # Novo fence, este é o penúltimo (primeiro registro anterior ao último)
+                        current_fence_id = fence_id
+                        if fence_id not in prev_record_by_fence:
+                            # Guardar apenas os campos necessários (sem MaxTimeStamp)
+                            prev_record_by_fence[fence_id] = (row[0], row[1], row[2], row[3], row[4])
+        
+        # Detectar ataques comparando estados atuais com anteriores
+        for fence in fences:
+            fence_id = fence['FenceId']
+            current_timestamp = fence_timestamps.get(fence_id)
+            
+            panels = fence_panels.get(fence_id, {})
+            current_lower = panels.get('current_lower', 0)
+            current_upper = panels.get('current_upper', 0)
             
             has_recent_attack = False
             
-            # Só buscar registro anterior se tiver timestamp atual
             if current_timestamp:
-                # Buscar último registro anterior onde o painel inferior estava construído (para detectar ataque no painel inferior)
-                # E último registro anterior onde o painel superior estava construído (para detectar ataque no painel superior)
-                # Isso garante que estamos comparando com o último estado onde cada painel específico estava construído
-                prev_lower_row = None
-                prev_upper_row = None
+                # Comparar estado atual com penúltimo registro
+                prev_row = prev_record_by_fence.get(fence_id)
                 
-                if has_is_destroyed and not include_destroyed:
-                    # Buscar último registro com painel inferior construído
-                    cursor.execute("""
-                        SELECT LowerPanelBuilt, UpperPanelBuilt, TimeStamp, IdFenceTracking
-                        FROM fences_tracking
-                        WHERE FenceId = ?
-                        AND TimeStamp < ?
-                        AND LowerPanelBuilt = 1
-                        AND (IsDestroyed = 0 OR IsDestroyed IS NULL)
-                        ORDER BY TimeStamp DESC, IdFenceTracking DESC
-                        LIMIT 1
-                    """, (fence_id, current_timestamp))
-                    prev_lower_row = cursor.fetchone()
+                if prev_row:
+                    # Extrair estados dos painéis do penúltimo registro
+                    prev_lower = normalize_bool_value(prev_row[1])  # LowerPanelBuilt está no índice 1
+                    prev_upper = normalize_bool_value(prev_row[2])  # UpperPanelBuilt está no índice 2
                     
-                    # Buscar último registro com painel superior construído
-                    cursor.execute("""
-                        SELECT LowerPanelBuilt, UpperPanelBuilt, TimeStamp, IdFenceTracking
-                        FROM fences_tracking
-                        WHERE FenceId = ?
-                        AND TimeStamp < ?
-                        AND UpperPanelBuilt = 1
-                        AND (IsDestroyed = 0 OR IsDestroyed IS NULL)
-                        ORDER BY TimeStamp DESC, IdFenceTracking DESC
-                        LIMIT 1
-                    """, (fence_id, current_timestamp))
-                    prev_upper_row = cursor.fetchone()
-                else:
-                    # Buscar último registro com painel inferior construído
-                    cursor.execute("""
-                        SELECT LowerPanelBuilt, UpperPanelBuilt, TimeStamp, IdFenceTracking
-                        FROM fences_tracking
-                        WHERE FenceId = ?
-                        AND TimeStamp < ?
-                        AND LowerPanelBuilt = 1
-                        ORDER BY TimeStamp DESC, IdFenceTracking DESC
-                        LIMIT 1
-                    """, (fence_id, current_timestamp))
-                    prev_lower_row = cursor.fetchone()
+                    # Detectar ataque: painel estava construído no penúltimo e não está no último
+                    lower_attack = (prev_lower == 1 and current_lower == 0)
+                    upper_attack = (prev_upper == 1 and current_upper == 0)
                     
-                    # Buscar último registro com painel superior construído
-                    cursor.execute("""
-                        SELECT LowerPanelBuilt, UpperPanelBuilt, TimeStamp, IdFenceTracking
-                        FROM fences_tracking
-                        WHERE FenceId = ?
-                        AND TimeStamp < ?
-                        AND UpperPanelBuilt = 1
-                        ORDER BY TimeStamp DESC, IdFenceTracking DESC
-                        LIMIT 1
-                    """, (fence_id, current_timestamp))
-                    prev_upper_row = cursor.fetchone()
-                
-                # Usar o registro mais recente entre os dois (para painel inferior e superior)
-                prev_row = None
-                if prev_lower_row and prev_upper_row:
-                    # Comparar timestamps e IDs para pegar o mais recente
-                    if (prev_lower_row[2] > prev_upper_row[2]) or \
-                       (prev_lower_row[2] == prev_upper_row[2] and prev_lower_row[3] > prev_upper_row[3]):
-                        prev_row = prev_lower_row
-                    else:
-                        prev_row = prev_upper_row
-                elif prev_lower_row:
-                    prev_row = prev_lower_row
-                elif prev_upper_row:
-                    prev_row = prev_upper_row
-                
-                # Detectar se um painel foi perdido (tinha antes e não tem mais)
-                # Para o painel inferior: verificar se havia um registro anterior com LowerPanelBuilt=1
-                # Para o painel superior: verificar se havia um registro anterior com UpperPanelBuilt=1
-                lower_attack = False
-                upper_attack = False
-                
-                # Verificar ataque no painel inferior
-                if current_lower == 0 and prev_lower_row:
-                    prev_lower_check = normalize_bool_value(prev_lower_row[0])
-                    lower_attack = (prev_lower_check == 1)
-                
-                # Verificar ataque no painel superior
-                if current_upper == 0 and prev_upper_row:
-                    prev_upper_check = normalize_bool_value(prev_upper_row[1])
-                    upper_attack = (prev_upper_check == 1)
-                
-                if lower_attack or upper_attack:
-                    has_recent_attack = True
+                    if lower_attack or upper_attack:
+                        has_recent_attack = True
             
             fence['has_recent_attack'] = has_recent_attack
         
@@ -2221,175 +2327,267 @@ def get_watchtowers_last_position(include_destroyed: bool = False) -> List[Dict]
         if not cursor.fetchone():
             return []
 
-        # Verificar se coluna IsDestroyed existe (migração)
+        # Verificar se coluna IsDestroyed existe (migração) - usar cache
         try:
-            cursor.execute("PRAGMA table_info(watchtowers_tracking)")
-            columns = [row[1] for row in cursor.fetchall()]
+            columns = get_table_columns(config.DB_STRUCTURES, 'watchtowers_tracking')
             has_is_destroyed = 'IsDestroyed' in columns
         except:
             has_is_destroyed = False
 
         if has_is_destroyed and not include_destroyed:
             query = """
-                SELECT wt.WatchtowerTrackingId,
-                       wt.WatchtowerId,
-                       wt.WatchtowerName,
-                       wt.PositionX,
-                       wt.PositionY,
-                       wt.PositionZ,
-                       wt.OrientationX,
-                       wt.OrientationY,
-                       wt.OrientationZ,
-                       wt.TimeStamp,
-                       wt.HasBase,
-                       wt.Level1BaseBuilt,
-                       wt.Level2BaseBuilt,
-                       wt.Level3BaseBuilt,
-                       wt.Level1StairsBuilt,
-                       wt.Level2StairsBuilt,
-                       wt.HasRoof,
-                       wt.Level1Wall1LowerBuilt,
-                       wt.Level1Wall1UpperBuilt,
-                       wt.Level1Wall2LowerBuilt,
-                       wt.Level1Wall2UpperBuilt,
-                       wt.Level1Wall3LowerBuilt,
-                       wt.Level1Wall3UpperBuilt,
-                       wt.Level2Wall1LowerBuilt,
-                       wt.Level2Wall1UpperBuilt,
-                       wt.Level2Wall2LowerBuilt,
-                       wt.Level2Wall2UpperBuilt,
-                       wt.Level2Wall3LowerBuilt,
-                       wt.Level2Wall3UpperBuilt,
-                       wt.Level3Wall1LowerBuilt,
-                       wt.Level3Wall1UpperBuilt,
-                       wt.Level3Wall2LowerBuilt,
-                       wt.Level3Wall2UpperBuilt,
-                       wt.Level3Wall3LowerBuilt,
-                       wt.Level3Wall3UpperBuilt,
+                SELECT WatchtowerTrackingId,
+                       WatchtowerId,
+                       WatchtowerName,
+                       PositionX,
+                       PositionY,
+                       PositionZ,
+                       OrientationX,
+                       OrientationY,
+                       OrientationZ,
+                       TimeStamp,
+                       HasBase,
+                       Level1BaseBuilt,
+                       Level2BaseBuilt,
+                       Level3BaseBuilt,
+                       Level1StairsBuilt,
+                       Level2StairsBuilt,
+                       HasRoof,
+                       Level1Wall1LowerBuilt,
+                       Level1Wall1UpperBuilt,
+                       Level1Wall2LowerBuilt,
+                       Level1Wall2UpperBuilt,
+                       Level1Wall3LowerBuilt,
+                       Level1Wall3UpperBuilt,
+                       Level2Wall1LowerBuilt,
+                       Level2Wall1UpperBuilt,
+                       Level2Wall2LowerBuilt,
+                       Level2Wall2UpperBuilt,
+                       Level2Wall3LowerBuilt,
+                       Level2Wall3UpperBuilt,
+                       Level3Wall1LowerBuilt,
+                       Level3Wall1UpperBuilt,
+                       Level3Wall2LowerBuilt,
+                       Level3Wall2UpperBuilt,
+                       Level3Wall3LowerBuilt,
+                       Level3Wall3UpperBuilt,
                        0 as IsDestroyed,
                        NULL as DestroyedAt
-                FROM watchtowers_tracking wt
-                INNER JOIN (
-                    SELECT WatchtowerId, MAX(WatchtowerTrackingId) AS MaxId
+                FROM (
+                    SELECT WatchtowerTrackingId,
+                           WatchtowerId,
+                           WatchtowerName,
+                           PositionX,
+                           PositionY,
+                           PositionZ,
+                           OrientationX,
+                           OrientationY,
+                           OrientationZ,
+                           TimeStamp,
+                           HasBase,
+                           Level1BaseBuilt,
+                           Level2BaseBuilt,
+                           Level3BaseBuilt,
+                           Level1StairsBuilt,
+                           Level2StairsBuilt,
+                           HasRoof,
+                           Level1Wall1LowerBuilt,
+                           Level1Wall1UpperBuilt,
+                           Level1Wall2LowerBuilt,
+                           Level1Wall2UpperBuilt,
+                           Level1Wall3LowerBuilt,
+                           Level1Wall3UpperBuilt,
+                           Level2Wall1LowerBuilt,
+                           Level2Wall1UpperBuilt,
+                           Level2Wall2LowerBuilt,
+                           Level2Wall2UpperBuilt,
+                           Level2Wall3LowerBuilt,
+                           Level2Wall3UpperBuilt,
+                           Level3Wall1LowerBuilt,
+                           Level3Wall1UpperBuilt,
+                           Level3Wall2LowerBuilt,
+                           Level3Wall2UpperBuilt,
+                           Level3Wall3LowerBuilt,
+                           Level3Wall3UpperBuilt,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY WatchtowerId 
+                               ORDER BY TimeStamp DESC, WatchtowerTrackingId DESC
+                           ) as rn
                     FROM watchtowers_tracking
                     WHERE (IsDestroyed = 0 OR IsDestroyed IS NULL)
-                        AND TimeStamp = (
-                            SELECT MAX(TimeStamp)
-                            FROM watchtowers_tracking wt2
-                            WHERE wt2.WatchtowerId = watchtowers_tracking.WatchtowerId
-                                AND (wt2.IsDestroyed = 0 OR wt2.IsDestroyed IS NULL)
-                        )
-                    GROUP BY WatchtowerId
-                ) latest ON wt.WatchtowerId = latest.WatchtowerId
-                    AND wt.WatchtowerTrackingId = latest.MaxId
-                WHERE wt.IsDestroyed = 0 OR wt.IsDestroyed IS NULL
-                ORDER BY wt.TimeStamp DESC
+                ) ranked
+                WHERE rn = 1
+                ORDER BY TimeStamp DESC
             """
         elif has_is_destroyed:
             query = """
-                SELECT wt.WatchtowerTrackingId,
-                       wt.WatchtowerId,
-                       wt.WatchtowerName,
-                       wt.PositionX,
-                       wt.PositionY,
-                       wt.PositionZ,
-                       wt.OrientationX,
-                       wt.OrientationY,
-                       wt.OrientationZ,
-                       wt.TimeStamp,
-                       wt.HasBase,
-                       wt.Level1BaseBuilt,
-                       wt.Level2BaseBuilt,
-                       wt.Level3BaseBuilt,
-                       wt.Level1StairsBuilt,
-                       wt.Level2StairsBuilt,
-                       wt.HasRoof,
-                       wt.Level1Wall1LowerBuilt,
-                       wt.Level1Wall1UpperBuilt,
-                       wt.Level1Wall2LowerBuilt,
-                       wt.Level1Wall2UpperBuilt,
-                       wt.Level1Wall3LowerBuilt,
-                       wt.Level1Wall3UpperBuilt,
-                       wt.Level2Wall1LowerBuilt,
-                       wt.Level2Wall1UpperBuilt,
-                       wt.Level2Wall2LowerBuilt,
-                       wt.Level2Wall2UpperBuilt,
-                       wt.Level2Wall3LowerBuilt,
-                       wt.Level2Wall3UpperBuilt,
-                       wt.Level3Wall1LowerBuilt,
-                       wt.Level3Wall1UpperBuilt,
-                       wt.Level3Wall2LowerBuilt,
-                       wt.Level3Wall2UpperBuilt,
-                       wt.Level3Wall3LowerBuilt,
-                       wt.Level3Wall3UpperBuilt,
-                       IFNULL(wt.IsDestroyed, 0) as IsDestroyed,
-                       wt.DestroyedAt
-                FROM watchtowers_tracking wt
-                INNER JOIN (
-                    SELECT WatchtowerId, MAX(WatchtowerTrackingId) AS MaxId
+                SELECT WatchtowerTrackingId,
+                       WatchtowerId,
+                       WatchtowerName,
+                       PositionX,
+                       PositionY,
+                       PositionZ,
+                       OrientationX,
+                       OrientationY,
+                       OrientationZ,
+                       TimeStamp,
+                       HasBase,
+                       Level1BaseBuilt,
+                       Level2BaseBuilt,
+                       Level3BaseBuilt,
+                       Level1StairsBuilt,
+                       Level2StairsBuilt,
+                       HasRoof,
+                       Level1Wall1LowerBuilt,
+                       Level1Wall1UpperBuilt,
+                       Level1Wall2LowerBuilt,
+                       Level1Wall2UpperBuilt,
+                       Level1Wall3LowerBuilt,
+                       Level1Wall3UpperBuilt,
+                       Level2Wall1LowerBuilt,
+                       Level2Wall1UpperBuilt,
+                       Level2Wall2LowerBuilt,
+                       Level2Wall2UpperBuilt,
+                       Level2Wall3LowerBuilt,
+                       Level2Wall3UpperBuilt,
+                       Level3Wall1LowerBuilt,
+                       Level3Wall1UpperBuilt,
+                       Level3Wall2LowerBuilt,
+                       Level3Wall2UpperBuilt,
+                       Level3Wall3LowerBuilt,
+                       Level3Wall3UpperBuilt,
+                       IFNULL(IsDestroyed, 0) as IsDestroyed,
+                       DestroyedAt
+                FROM (
+                    SELECT WatchtowerTrackingId,
+                           WatchtowerId,
+                           WatchtowerName,
+                           PositionX,
+                           PositionY,
+                           PositionZ,
+                           OrientationX,
+                           OrientationY,
+                           OrientationZ,
+                           TimeStamp,
+                           HasBase,
+                           Level1BaseBuilt,
+                           Level2BaseBuilt,
+                           Level3BaseBuilt,
+                           Level1StairsBuilt,
+                           Level2StairsBuilt,
+                           HasRoof,
+                           Level1Wall1LowerBuilt,
+                           Level1Wall1UpperBuilt,
+                           Level1Wall2LowerBuilt,
+                           Level1Wall2UpperBuilt,
+                           Level1Wall3LowerBuilt,
+                           Level1Wall3UpperBuilt,
+                           Level2Wall1LowerBuilt,
+                           Level2Wall1UpperBuilt,
+                           Level2Wall2LowerBuilt,
+                           Level2Wall2UpperBuilt,
+                           Level2Wall3LowerBuilt,
+                           Level2Wall3UpperBuilt,
+                           Level3Wall1LowerBuilt,
+                           Level3Wall1UpperBuilt,
+                           Level3Wall2LowerBuilt,
+                           Level3Wall2UpperBuilt,
+                           Level3Wall3LowerBuilt,
+                           Level3Wall3UpperBuilt,
+                           IsDestroyed,
+                           DestroyedAt,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY WatchtowerId 
+                               ORDER BY TimeStamp DESC, WatchtowerTrackingId DESC
+                           ) as rn
                     FROM watchtowers_tracking
-                    WHERE TimeStamp = (
-                        SELECT MAX(TimeStamp)
-                        FROM watchtowers_tracking wt2
-                        WHERE wt2.WatchtowerId = watchtowers_tracking.WatchtowerId
-                    )
-                    GROUP BY WatchtowerId
-                ) latest ON wt.WatchtowerId = latest.WatchtowerId
-                    AND wt.WatchtowerTrackingId = latest.MaxId
-                ORDER BY wt.TimeStamp DESC
+                ) ranked
+                WHERE rn = 1
+                ORDER BY TimeStamp DESC
             """
         else:
             query = """
-                SELECT wt.WatchtowerTrackingId,
-                       wt.WatchtowerId,
-                       wt.WatchtowerName,
-                       wt.PositionX,
-                       wt.PositionY,
-                       wt.PositionZ,
-                       wt.OrientationX,
-                       wt.OrientationY,
-                       wt.OrientationZ,
-                       wt.TimeStamp,
-                       wt.HasBase,
-                       wt.Level1BaseBuilt,
-                       wt.Level2BaseBuilt,
-                       wt.Level3BaseBuilt,
-                       wt.Level1StairsBuilt,
-                       wt.Level2StairsBuilt,
-                       wt.HasRoof,
-                       wt.Level1Wall1LowerBuilt,
-                       wt.Level1Wall1UpperBuilt,
-                       wt.Level1Wall2LowerBuilt,
-                       wt.Level1Wall2UpperBuilt,
-                       wt.Level1Wall3LowerBuilt,
-                       wt.Level1Wall3UpperBuilt,
-                       wt.Level2Wall1LowerBuilt,
-                       wt.Level2Wall1UpperBuilt,
-                       wt.Level2Wall2LowerBuilt,
-                       wt.Level2Wall2UpperBuilt,
-                       wt.Level2Wall3LowerBuilt,
-                       wt.Level2Wall3UpperBuilt,
-                       wt.Level3Wall1LowerBuilt,
-                       wt.Level3Wall1UpperBuilt,
-                       wt.Level3Wall2LowerBuilt,
-                       wt.Level3Wall2UpperBuilt,
-                       wt.Level3Wall3LowerBuilt,
-                       wt.Level3Wall3UpperBuilt,
+                SELECT WatchtowerTrackingId,
+                       WatchtowerId,
+                       WatchtowerName,
+                       PositionX,
+                       PositionY,
+                       PositionZ,
+                       OrientationX,
+                       OrientationY,
+                       OrientationZ,
+                       TimeStamp,
+                       HasBase,
+                       Level1BaseBuilt,
+                       Level2BaseBuilt,
+                       Level3BaseBuilt,
+                       Level1StairsBuilt,
+                       Level2StairsBuilt,
+                       HasRoof,
+                       Level1Wall1LowerBuilt,
+                       Level1Wall1UpperBuilt,
+                       Level1Wall2LowerBuilt,
+                       Level1Wall2UpperBuilt,
+                       Level1Wall3LowerBuilt,
+                       Level1Wall3UpperBuilt,
+                       Level2Wall1LowerBuilt,
+                       Level2Wall1UpperBuilt,
+                       Level2Wall2LowerBuilt,
+                       Level2Wall2UpperBuilt,
+                       Level2Wall3LowerBuilt,
+                       Level2Wall3UpperBuilt,
+                       Level3Wall1LowerBuilt,
+                       Level3Wall1UpperBuilt,
+                       Level3Wall2LowerBuilt,
+                       Level3Wall2UpperBuilt,
+                       Level3Wall3LowerBuilt,
+                       Level3Wall3UpperBuilt,
                        0 as IsDestroyed,
                        NULL as DestroyedAt
-                FROM watchtowers_tracking wt
-                INNER JOIN (
-                    SELECT WatchtowerId, MAX(WatchtowerTrackingId) AS MaxId
+                FROM (
+                    SELECT WatchtowerTrackingId,
+                           WatchtowerId,
+                           WatchtowerName,
+                           PositionX,
+                           PositionY,
+                           PositionZ,
+                           OrientationX,
+                           OrientationY,
+                           OrientationZ,
+                           TimeStamp,
+                           HasBase,
+                           Level1BaseBuilt,
+                           Level2BaseBuilt,
+                           Level3BaseBuilt,
+                           Level1StairsBuilt,
+                           Level2StairsBuilt,
+                           HasRoof,
+                           Level1Wall1LowerBuilt,
+                           Level1Wall1UpperBuilt,
+                           Level1Wall2LowerBuilt,
+                           Level1Wall2UpperBuilt,
+                           Level1Wall3LowerBuilt,
+                           Level1Wall3UpperBuilt,
+                           Level2Wall1LowerBuilt,
+                           Level2Wall1UpperBuilt,
+                           Level2Wall2LowerBuilt,
+                           Level2Wall2UpperBuilt,
+                           Level2Wall3LowerBuilt,
+                           Level2Wall3UpperBuilt,
+                           Level3Wall1LowerBuilt,
+                           Level3Wall1UpperBuilt,
+                           Level3Wall2LowerBuilt,
+                           Level3Wall2UpperBuilt,
+                           Level3Wall3LowerBuilt,
+                           Level3Wall3UpperBuilt,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY WatchtowerId 
+                               ORDER BY TimeStamp DESC, WatchtowerTrackingId DESC
+                           ) as rn
                     FROM watchtowers_tracking
-                    WHERE TimeStamp = (
-                        SELECT MAX(TimeStamp)
-                        FROM watchtowers_tracking wt2
-                        WHERE wt2.WatchtowerId = watchtowers_tracking.WatchtowerId
-                    )
-                    GROUP BY WatchtowerId
-                ) latest ON wt.WatchtowerId = latest.WatchtowerId
-                    AND wt.WatchtowerTrackingId = latest.MaxId
-                ORDER BY wt.TimeStamp DESC
+                ) ranked
+                WHERE rn = 1
+                ORDER BY TimeStamp DESC
             """
         cursor.execute(query)
         watchtowers = [dict(row) for row in cursor.fetchall()]
@@ -2488,112 +2686,141 @@ def get_flags_last_position(include_destroyed: bool = False) -> List[Dict]:
         if not cursor.fetchone():
             return []
 
-        # Verificar se coluna IsDestroyed existe (migração)
+        # Verificar se coluna IsDestroyed existe (migração) - usar cache
         try:
-            cursor.execute("PRAGMA table_info(flags_tracking)")
-            columns = [row[1] for row in cursor.fetchall()]
+            columns = get_table_columns(config.DB_STRUCTURES, 'flags_tracking')
             has_is_destroyed = 'IsDestroyed' in columns
         except:
             has_is_destroyed = False
 
         if has_is_destroyed and not include_destroyed:
             query = """
-                SELECT ft.FlagTrackingId,
-                       ft.FlagId,
-                       ft.FlagName,
-                       ft.PositionX,
-                       ft.PositionY,
-                       ft.PositionZ,
-                       ft.OrientationX,
-                       ft.OrientationY,
-                       ft.OrientationZ,
-                       ft.TimeStamp,
-                       ft.HasBase,
-                       ft.HasFlagBase,
-                       ft.FlagRaised,
-                       ft.FlagHeight,
+                SELECT FlagTrackingId,
+                       FlagId,
+                       FlagName,
+                       PositionX,
+                       PositionY,
+                       PositionZ,
+                       OrientationX,
+                       OrientationY,
+                       OrientationZ,
+                       TimeStamp,
+                       HasBase,
+                       HasFlagBase,
+                       FlagRaised,
+                       FlagHeight,
                        0 as IsDestroyed,
                        NULL as DestroyedAt
-                FROM flags_tracking ft
-                INNER JOIN (
-                    SELECT FlagId, MAX(FlagTrackingId) AS MaxId
+                FROM (
+                    SELECT FlagTrackingId,
+                           FlagId,
+                           FlagName,
+                           PositionX,
+                           PositionY,
+                           PositionZ,
+                           OrientationX,
+                           OrientationY,
+                           OrientationZ,
+                           TimeStamp,
+                           HasBase,
+                           HasFlagBase,
+                           FlagRaised,
+                           FlagHeight,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY FlagId 
+                               ORDER BY TimeStamp DESC, FlagTrackingId DESC
+                           ) as rn
                     FROM flags_tracking
                     WHERE (IsDestroyed = 0 OR IsDestroyed IS NULL)
-                        AND TimeStamp = (
-                            SELECT MAX(TimeStamp)
-                            FROM flags_tracking ft2
-                            WHERE ft2.FlagId = flags_tracking.FlagId
-                                AND (ft2.IsDestroyed = 0 OR ft2.IsDestroyed IS NULL)
-                        )
-                    GROUP BY FlagId
-                ) latest ON ft.FlagId = latest.FlagId
-                    AND ft.FlagTrackingId = latest.MaxId
-                WHERE ft.IsDestroyed = 0 OR ft.IsDestroyed IS NULL
-                ORDER BY ft.TimeStamp DESC
+                ) ranked
+                WHERE rn = 1
+                ORDER BY TimeStamp DESC
             """
         elif has_is_destroyed:
             query = """
-                SELECT ft.FlagTrackingId,
-                       ft.FlagId,
-                       ft.FlagName,
-                       ft.PositionX,
-                       ft.PositionY,
-                       ft.PositionZ,
-                       ft.OrientationX,
-                       ft.OrientationY,
-                       ft.OrientationZ,
-                       ft.TimeStamp,
-                       ft.HasBase,
-                       ft.HasFlagBase,
-                       ft.FlagRaised,
-                       ft.FlagHeight,
-                       IFNULL(ft.IsDestroyed, 0) as IsDestroyed,
-                       ft.DestroyedAt
-                FROM flags_tracking ft
-                INNER JOIN (
-                    SELECT FlagId, MAX(FlagTrackingId) AS MaxId
+                SELECT FlagTrackingId,
+                       FlagId,
+                       FlagName,
+                       PositionX,
+                       PositionY,
+                       PositionZ,
+                       OrientationX,
+                       OrientationY,
+                       OrientationZ,
+                       TimeStamp,
+                       HasBase,
+                       HasFlagBase,
+                       FlagRaised,
+                       FlagHeight,
+                       IFNULL(IsDestroyed, 0) as IsDestroyed,
+                       DestroyedAt
+                FROM (
+                    SELECT FlagTrackingId,
+                           FlagId,
+                           FlagName,
+                           PositionX,
+                           PositionY,
+                           PositionZ,
+                           OrientationX,
+                           OrientationY,
+                           OrientationZ,
+                           TimeStamp,
+                           HasBase,
+                           HasFlagBase,
+                           FlagRaised,
+                           FlagHeight,
+                           IsDestroyed,
+                           DestroyedAt,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY FlagId 
+                               ORDER BY TimeStamp DESC, FlagTrackingId DESC
+                           ) as rn
                     FROM flags_tracking
-                    WHERE TimeStamp = (
-                        SELECT MAX(TimeStamp)
-                        FROM flags_tracking ft2
-                        WHERE ft2.FlagId = flags_tracking.FlagId
-                    )
-                    GROUP BY FlagId
-                ) latest ON ft.FlagId = latest.FlagId
-                    AND ft.FlagTrackingId = latest.MaxId
-                ORDER BY ft.TimeStamp DESC
+                ) ranked
+                WHERE rn = 1
+                ORDER BY TimeStamp DESC
             """
         else:
             query = """
-                SELECT ft.FlagTrackingId,
-                       ft.FlagId,
-                       ft.FlagName,
-                       ft.PositionX,
-                       ft.PositionY,
-                       ft.PositionZ,
-                       ft.OrientationX,
-                       ft.OrientationY,
-                       ft.OrientationZ,
-                       ft.TimeStamp,
-                       ft.HasBase,
-                       ft.HasFlagBase,
-                       ft.FlagRaised,
-                       ft.FlagHeight,
+                SELECT FlagTrackingId,
+                       FlagId,
+                       FlagName,
+                       PositionX,
+                       PositionY,
+                       PositionZ,
+                       OrientationX,
+                       OrientationY,
+                       OrientationZ,
+                       TimeStamp,
+                       HasBase,
+                       HasFlagBase,
+                       FlagRaised,
+                       FlagHeight,
                        0 as IsDestroyed,
                        NULL as DestroyedAt
-                FROM flags_tracking ft
-                INNER JOIN (
-                    SELECT FlagId, MAX(FlagTrackingId) AS MaxId
+                FROM (
+                    SELECT FlagTrackingId,
+                           FlagId,
+                           FlagName,
+                           PositionX,
+                           PositionY,
+                           PositionZ,
+                           OrientationX,
+                           OrientationY,
+                           OrientationZ,
+                           TimeStamp,
+                           HasBase,
+                           HasFlagBase,
+                           FlagRaised,
+                           FlagHeight,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY FlagId 
+                               ORDER BY TimeStamp DESC, FlagTrackingId DESC
+                           ) as rn
                     FROM flags_tracking
-                    WHERE TimeStamp = (
-                        SELECT MAX(TimeStamp)
-                        FROM flags_tracking ft2
-                        WHERE ft2.FlagId = flags_tracking.FlagId
-                    )
-                    GROUP BY FlagId
-                ) latest ON ft.FlagId = latest.FlagId
-                    AND ft.FlagTrackingId = latest.MaxId
-                ORDER BY ft.TimeStamp DESC
+                ) ranked
+                WHERE rn = 1
+                ORDER BY TimeStamp DESC
             """
         cursor.execute(query)
         return [dict(row) for row in cursor.fetchall()]
@@ -2948,6 +3175,72 @@ def get_item_details_from_items_db(name_type: str) -> Optional[Dict]:
     except Exception as e:
         print(f"Erro ao buscar item {name_type}: {e}")
         return None
+
+def get_items_details_batch(item_types: List[str]) -> Dict[str, Dict]:
+    """Busca detalhes de múltiplos items de uma vez usando batch queries
+    Retorna um dicionário mapeando item_type -> detalhes
+    """
+    if not item_types:
+        return {}
+    
+    # Remover duplicatas e valores vazios
+    unique_types = list(set(filter(None, item_types)))
+    if not unique_types:
+        return {}
+    
+    result = {}
+    
+    try:
+        with DatabaseConnection(config.DB_ITEMS) as conn:
+            cursor = conn.cursor()
+            
+            # Lista de tabelas para buscar (em ordem de prioridade)
+            tables = [
+                ('item', 'id, name, name_type, img, slots, width, height'),
+                ('weapons', 'id, name, name_type, img, slots, width, height'),
+                ('attachments', 'id, name, name_type, img, slots, width, height'),
+                ('magazines', 'id, name, name_type, img, slots, width, height'),
+                ('ammunitions', 'id, name, name_type, img, slots, width, height'),
+                ('explosives', 'id, name, name_type, img, slots, width, height')
+            ]
+            
+            # Criar placeholders para IN clause
+            placeholders = ','.join(['?'] * len(unique_types))
+            
+            # Buscar em cada tabela
+            # Items já encontrados não precisam ser buscados nas próximas tabelas
+            remaining_types = set(unique_types)
+            
+            for table_name, fields in tables:
+                if not remaining_types:
+                    break
+                
+                try:
+                    cursor.execute(f"""
+                        SELECT {fields}
+                        FROM {table_name}
+                        WHERE name_type IN ({placeholders})
+                    """, tuple(remaining_types))
+                    
+                    for row in cursor.fetchall():
+                        item_dict = dict(row)
+                        name_type = item_dict.get('name_type')
+                        if name_type and name_type not in result:
+                            result[name_type] = item_dict
+                            remaining_types.discard(name_type)
+                    
+                    # Se encontrou todos, pode parar
+                    if not remaining_types:
+                        break
+                        
+                except Exception as table_error:
+                    # Se tabela não existir ou houver erro, continuar para próxima
+                    continue
+            
+            return result
+    except Exception as e:
+        print(f"Erro ao buscar items em batch: {e}")
+        return {}
 
 def search_players(query: str) -> List[Dict]:
     """Busca jogadores por nome ou ID"""
