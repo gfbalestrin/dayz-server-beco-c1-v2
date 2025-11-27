@@ -559,6 +559,8 @@ def api_containers_positions():
             'pixel_coords': pixel_coords,
             'items': items,
             'last_update': container['TimeStamp'] or '',
+            'coordinates_last_update': container.get('coordinates_last_update') or container['TimeStamp'] or '',
+            'items_last_update': container.get('items_last_update') or '',
             'is_destroyed': bool(container.get('IsDestroyed', 0)) if include_destroyed else False,
             'destroyed_at': container.get('DestroyedAt') if include_destroyed else None
         })

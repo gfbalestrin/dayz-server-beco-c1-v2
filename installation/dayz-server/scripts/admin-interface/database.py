@@ -1803,19 +1803,23 @@ def get_containers_last_position(include_destroyed: bool = False) -> List[Dict]:
     with DatabaseConnection(config.DB_CONTAINERS) as conn:
         cursor = conn.cursor()
         
-        # Verificar se coluna IsDestroyed existe (migração)
+        # Verificar se colunas IsDestroyed e IsPartialUpdate existem (migração)
         try:
             cursor.execute("PRAGMA table_info(containers_tracking)")
             columns = [row[1] for row in cursor.fetchall()]
             has_is_destroyed = 'IsDestroyed' in columns
+            has_is_partial_update = 'IsPartialUpdate' in columns
         except:
             has_is_destroyed = False
+            has_is_partial_update = False
+        
+        partial_column = ", IFNULL(ct.IsPartialUpdate, 0) as IsPartialUpdate" if has_is_partial_update else ", 0 as IsPartialUpdate"
         
         if has_is_destroyed and not include_destroyed:
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT ct.IdContainerTracking, ct.ContainerId, ct.ContainerName, 
                        ct.PositionX, ct.PositionY, ct.PositionZ, ct.TimeStamp,
-                       0 as IsDestroyed, NULL as DestroyedAt
+                       0 as IsDestroyed, NULL as DestroyedAt{partial_column}
                 FROM containers_tracking ct
                 INNER JOIN (
                     SELECT ContainerId, MAX(TimeStamp) as MaxTimeStamp
@@ -1828,10 +1832,10 @@ def get_containers_last_position(include_destroyed: bool = False) -> List[Dict]:
             """)
         else:
             if has_is_destroyed:
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT ct.IdContainerTracking, ct.ContainerId, ct.ContainerName, 
                            ct.PositionX, ct.PositionY, ct.PositionZ, ct.TimeStamp,
-                           IFNULL(ct.IsDestroyed, 0) as IsDestroyed, ct.DestroyedAt
+                           IFNULL(ct.IsDestroyed, 0) as IsDestroyed, ct.DestroyedAt{partial_column}
                     FROM containers_tracking ct
                     INNER JOIN (
                         SELECT ContainerId, MAX(TimeStamp) as MaxTimeStamp
@@ -1841,10 +1845,10 @@ def get_containers_last_position(include_destroyed: bool = False) -> List[Dict]:
                     ORDER BY ct.ContainerName
                 """)
             else:
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT ct.IdContainerTracking, ct.ContainerId, ct.ContainerName, 
                            ct.PositionX, ct.PositionY, ct.PositionZ, ct.TimeStamp,
-                           0 as IsDestroyed, NULL as DestroyedAt
+                           0 as IsDestroyed, NULL as DestroyedAt{partial_column}
                     FROM containers_tracking ct
                     INNER JOIN (
                         SELECT ContainerId, MAX(TimeStamp) as MaxTimeStamp
@@ -1855,15 +1859,47 @@ def get_containers_last_position(include_destroyed: bool = False) -> List[Dict]:
                 """)
         containers = [dict(row) for row in cursor.fetchall()]
         
-        # Para cada container, buscar seus items
+        # Para cada container, buscar items do último snapshot completo
         for container in containers:
-            container_id = container['IdContainerTracking']
+            container_db_id = container['ContainerId']
+            latest_timestamp = container['TimeStamp']
+            latest_is_partial = container.get('IsPartialUpdate', 0) == 1
+            
+            # coordinates_last_update: sempre o último timestamp (parcial ou completo)
+            container['coordinates_last_update'] = latest_timestamp
+            
+            # Buscar último snapshot completo para items
+            if has_is_partial_update and latest_is_partial:
+                # Se o último é parcial, buscar o último completo anterior
+                cursor.execute(f"""
+                    SELECT IdContainerTracking, TimeStamp
+                    FROM containers_tracking
+                    WHERE ContainerId = ? AND (IsPartialUpdate = 0 OR IsPartialUpdate IS NULL) AND TimeStamp <= ?
+                    ORDER BY TimeStamp DESC
+                    LIMIT 1
+                """, (container_db_id, latest_timestamp))
+                complete_record = cursor.fetchone()
+                if complete_record:
+                    complete_tracking_id = dict(complete_record)['IdContainerTracking']
+                    complete_timestamp = dict(complete_record)['TimeStamp']
+                    container['items_last_update'] = complete_timestamp
+                    container_id_for_items = complete_tracking_id
+                else:
+                    # Não há snapshot completo, usar o atual mesmo sendo parcial
+                    container['items_last_update'] = None
+                    container_id_for_items = container['IdContainerTracking']
+            else:
+                # Último é completo, usar ele
+                container['items_last_update'] = latest_timestamp
+                container_id_for_items = container['IdContainerTracking']
+            
+            # Buscar items do snapshot completo
             cursor.execute("""
                 SELECT ItemType, ItemHealth, TimeStamp
                 FROM container_items_tracking
                 WHERE ContainerTrackingId = ?
                 ORDER BY TimeStamp
-            """, (container_id,))
+            """, (container_id_for_items,))
             items = [dict(row) for row in cursor.fetchall()]
             container['items'] = items
         

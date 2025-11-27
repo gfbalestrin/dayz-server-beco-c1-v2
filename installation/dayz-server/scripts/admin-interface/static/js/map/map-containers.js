@@ -244,9 +244,8 @@ function updateContainers(data) {
 /**
  * Carregar trail de um container
  */
-function loadContainerTrail(containerId, forceReload = false) {
+function loadContainerTrail(containerId, forceReload = false, dateFrom = null, dateTo = null) {
     if (MapState.containerTrails[containerId] && !forceReload) {
-        console.log('Container trail já carregado:', containerId);
         return; // Trail já carregado e não é recarregamento forçado
     }
     
@@ -255,15 +254,27 @@ function loadContainerTrail(containerId, forceReload = false) {
         removeContainerTrail(containerId);
     }
     
-    console.log('Carregando trail do container:', containerId, forceReload ? '(recarregamento forçado)' : '');
-    // Para o trail no mapa, não filtrar apenas por itens (mostrar todas as posições)
-    $.get(`/api/containers/${containerId}/trail`, { limit: 100, filter_by_items_only: false })
+    // Verificar se há filtro ativo para este container
+    const filter = MapState.containerTrailFilters[containerId];
+    if (filter && filter.enabled) {
+        dateFrom = dateFrom || (filter.startDate ? filter.startDate.toISOString() : null);
+        dateTo = dateTo || (filter.endDate ? filter.endDate.toISOString() : null);
+    }
+    
+    const params = { limit: 100, filter_by_items_only: false };
+    if (dateFrom) {
+        params.date_from = dateFrom;
+    }
+    if (dateTo) {
+        params.date_to = dateTo;
+    }
+    
+    $.get(`/api/containers/${containerId}/trail`, params)
         .done(function(data) {
-            console.log('Trail do container recebido:', containerId, data);
             drawContainerTrail(containerId, data.trail);
         })
-        .fail(function(xhr, status, error) {
-            console.error('Erro ao carregar trail do container:', containerId, status, error, xhr.responseText);
+        .fail(function() {
+            console.error('Erro ao carregar trail do container');
             // Atualizar popup mesmo em caso de erro para refletir o estado correto
             updateContainerPopup(containerId);
         });
@@ -438,16 +449,396 @@ function removeContainerTrail(containerId) {
 }
 
 /**
- * Toggle trail de container
+ * Toggle trail de container - sempre abre o modal de filtro
  */
 function toggleContainerTrail(containerId) {
-    if (MapState.containerTrails[containerId]) {
-        removeContainerTrail(containerId);
-        // Atualizar popup para refletir que o trail foi removido
-        updateContainerPopup(containerId);
+    showContainerTrailFilterModal(containerId);
+}
+
+/**
+ * Mostrar modal de filtro de trail de container
+ */
+function showContainerTrailFilterModal(containerId) {
+    const container = MapState.containersData[containerId];
+    if (!container) {
+        return;
+    }
+    
+    // Preencher informações do container no modal
+    $('#containerTrailFilterContainerId').val(containerId);
+    $('#containerTrailFilterContainerName').text(container.container_type || containerId);
+    
+    // Mostrar/ocultar botão "Ocultar Trail" baseado no estado do trail
+    const hasTrail = MapState.containerTrails[containerId] && MapState.containerTrails[containerId].length > 0;
+    if (hasTrail) {
+        $('#hideContainerTrailBtn').show();
     } else {
-        // O popup será atualizado automaticamente após o trail ser carregado
-        loadContainerTrail(containerId);
+        $('#hideContainerTrailBtn').hide();
+    }
+    
+    // Verificar se há filtro ativo e preencher campos
+    const filter = MapState.containerTrailFilters[containerId];
+    if (filter && filter.enabled) {
+        const formatDate = (date) => {
+            if (!date) return '';
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+        
+        const formatTime = (date) => {
+            if (!date) return '';
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            return `${hours}:${minutes}:${seconds}`;
+        };
+        
+        if (filter.startDate) {
+            $('#containerTrailStartDate').val(formatDate(filter.startDate));
+            $('#containerTrailStartTime').val(formatTime(filter.startDate));
+        }
+        
+        if (filter.endDate) {
+            $('#containerTrailEndDate').val(formatDate(filter.endDate));
+            $('#containerTrailEndTime').val(formatTime(filter.endDate));
+        }
+        
+        // Destacar botão de atalho se houver
+        if (filter.shortcut) {
+            applyContainerTrailFilterShortcut(containerId, filter.shortcut);
+        }
+    } else {
+        // Limpar campos
+        $('#containerTrailStartDate').val('');
+        $('#containerTrailStartTime').val('');
+        $('#containerTrailEndDate').val('');
+        $('#containerTrailEndTime').val('');
+        
+        // Restaurar classes outline de todos os botões
+        $('#containerTrailFilterModal button[data-filter]').each(function() {
+            const $btn = $(this);
+            $btn.removeClass('active btn-secondary btn-warning btn-danger');
+            const filterType = $btn.data('filter');
+            if (filterType === '24hours') {
+                $btn.addClass('btn-outline-warning');
+            } else if (filterType === 'clear') {
+                $btn.addClass('btn-outline-danger');
+            } else {
+                $btn.addClass('btn-outline-secondary');
+            }
+        });
+    }
+    
+    // Abrir modal
+    const modal = new bootstrap.Modal(document.getElementById('containerTrailFilterModal'));
+    modal.show();
+}
+
+/**
+ * Ocultar trail de container
+ */
+function hideContainerTrail(containerId) {
+    if (!containerId) {
+        containerId = $('#containerTrailFilterContainerId').val();
+    }
+    
+    if (containerId) {
+        removeContainerTrail(containerId);
+        // Limpar filtro também
+        if (MapState.containerTrailFilters[containerId]) {
+            MapState.containerTrailFilters[containerId].enabled = false;
+            MapState.containerTrailFilters[containerId].startDate = null;
+            MapState.containerTrailFilters[containerId].endDate = null;
+            MapState.containerTrailFilters[containerId].shortcut = null;
+        }
+        updateContainerPopup(containerId);
+        
+        // Fechar modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('containerTrailFilterModal'));
+        if (modal) {
+            modal.hide();
+        }
+    }
+}
+
+/**
+ * Aplicar atalho rápido de filtro de trail para container
+ */
+function applyContainerTrailFilterShortcut(containerId, shortcut) {
+    if (!containerId) {
+        return;
+    }
+    
+    // Inicializar filtro para este container se não existir
+    if (!MapState.containerTrailFilters[containerId]) {
+        MapState.containerTrailFilters[containerId] = {
+            enabled: false,
+            startDate: null,
+            endDate: null,
+            shortcut: null
+        };
+    }
+    
+    const filter = MapState.containerTrailFilters[containerId];
+    
+    // Restaurar classes outline de todos os botões de atalho no modal do container
+    $('#containerTrailFilterModal button[data-filter]').each(function() {
+        const $btn = $(this);
+        $btn.removeClass('active btn-secondary btn-warning btn-danger btn-outline-secondary btn-outline-warning btn-outline-danger');
+        const filterType = $btn.data('filter');
+        if (filterType === '24hours') {
+            $btn.addClass('btn-outline-warning');
+        } else if (filterType === 'clear') {
+            $btn.addClass('btn-outline-danger');
+        } else {
+            $btn.addClass('btn-outline-secondary');
+        }
+    });
+    
+    // Se não for "clear", destacar o botão selecionado
+    if (shortcut !== 'clear') {
+        const targetButton = $(`#containerTrailFilterModal button[data-filter="${shortcut}"]`);
+        if (targetButton.length > 0) {
+            targetButton.removeClass('btn-outline-secondary btn-outline-warning btn-outline-danger btn-secondary btn-warning btn-danger active');
+            const filterType = targetButton.data('filter');
+            if (filterType === '24hours') {
+                targetButton.addClass('btn-warning');
+            } else {
+                targetButton.addClass('btn-secondary');
+            }
+            targetButton.addClass('active');
+            filter.shortcut = shortcut;
+        }
+    } else {
+        filter.shortcut = null;
+    }
+    
+    // Usar data atual em São Paulo para cálculos de atalhos
+    const now = getNowInSaoPaulo();
+    let startDate, endDate;
+    
+    switch(shortcut) {
+        case '10seconds':
+            startDate = new Date(now.getTime() - (10 * 1000));
+            endDate = null;
+            break;
+        case '30seconds':
+            startDate = new Date(now.getTime() - (30 * 1000));
+            endDate = null;
+            break;
+        case '1minute':
+            startDate = new Date(now.getTime() - (1 * 60 * 1000));
+            endDate = null;
+            break;
+        case '2minutes':
+            startDate = new Date(now.getTime() - (2 * 60 * 1000));
+            endDate = null;
+            break;
+        case '5minutes':
+            startDate = new Date(now.getTime() - (5 * 60 * 1000));
+            endDate = null;
+            break;
+        case '10minutes':
+            startDate = new Date(now.getTime() - (10 * 60 * 1000));
+            endDate = null;
+            break;
+        case '30minutes':
+            startDate = new Date(now.getTime() - (30 * 60 * 1000));
+            endDate = null;
+            break;
+        case '1hour':
+            startDate = new Date(now.getTime() - (1 * 60 * 60 * 1000));
+            endDate = null;
+            break;
+        case '3hours':
+            startDate = new Date(now.getTime() - (3 * 60 * 60 * 1000));
+            endDate = null;
+            break;
+        case '6hours':
+            startDate = new Date(now.getTime() - (6 * 60 * 60 * 1000));
+            endDate = null;
+            break;
+        case '24hours':
+            startDate = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+            endDate = null;
+            break;
+        case 'today':
+            const todaySP = now.toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' });
+            const todayDate = todaySP.split(',')[0];
+            startDate = convertSaoPauloToUTC(todayDate, '00:00:00');
+            endDate = now;
+            break;
+        case 'yesterday':
+            const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+            const yesterdaySP = yesterday.toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' });
+            const yesterdayDate = yesterdaySP.split(',')[0];
+            startDate = convertSaoPauloToUTC(yesterdayDate, '00:00:00');
+            endDate = convertSaoPauloToUTC(yesterdayDate, '23:59:59');
+            break;
+        case '7days':
+            startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+            endDate = now;
+            break;
+        case 'clear':
+            filter.enabled = false;
+            filter.startDate = null;
+            filter.endDate = null;
+            filter.shortcut = null;
+            $('#containerTrailStartDate').val('');
+            $('#containerTrailStartTime').val('');
+            $('#containerTrailEndDate').val('');
+            $('#containerTrailEndTime').val('');
+            // Ocultar trail ao limpar filtro
+            removeContainerTrail(containerId);
+            updateContainerPopup(containerId);
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('containerTrailFilterModal'));
+            if (modal) {
+                modal.hide();
+            }
+            return;
+    }
+    
+    // Aplicar filtro
+    filter.enabled = true;
+    filter.startDate = startDate;
+    filter.endDate = endDate;
+    
+    // Formatar e preencher campos do modal
+    const formatDate = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+    
+    const formatTime = (date) => {
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${hours}:${minutes}:${seconds}`;
+    };
+    
+    if (startDate) {
+        $('#containerTrailStartDate').val(formatDate(startDate));
+        $('#containerTrailStartTime').val(formatTime(startDate));
+    }
+    
+    if (endDate) {
+        $('#containerTrailEndDate').val(formatDate(endDate));
+        $('#containerTrailEndTime').val(formatTime(endDate));
+    } else {
+        $('#containerTrailEndDate').val('');
+        $('#containerTrailEndTime').val('');
+    }
+    
+    // Recarregar trail com filtro
+    loadContainerTrail(containerId, true);
+    updateContainerPopup(containerId);
+    
+    // Fechar modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('containerTrailFilterModal'));
+    if (modal) {
+        modal.hide();
+    }
+}
+
+/**
+ * Aplicar filtro personalizado de data para trail de container
+ */
+function applyContainerTrailDateFilter(containerId) {
+    if (!containerId) {
+        return;
+    }
+    
+    // Inicializar filtro para este container se não existir
+    if (!MapState.containerTrailFilters[containerId]) {
+        MapState.containerTrailFilters[containerId] = {
+            enabled: false,
+            startDate: null,
+            endDate: null,
+            shortcut: null
+        };
+    }
+    
+    const filter = MapState.containerTrailFilters[containerId];
+    const startDate = $('#containerTrailStartDate').val();
+    const startTime = $('#containerTrailStartTime').val();
+    const endDate = $('#containerTrailEndDate').val();
+    const endTime = $('#containerTrailEndTime').val();
+    
+    if (startDate || endDate) {
+        filter.enabled = true;
+        filter.shortcut = null;
+        
+        if (startDate) {
+            const [year, month, day] = startDate.split('-').map(Number);
+            const [hours, minutes, seconds = 0] = (startTime || '00:00:00').split(':').map(Number);
+            filter.startDate = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
+        } else {
+            filter.startDate = null;
+        }
+        
+        if (endDate) {
+            const [year, month, day] = endDate.split('-').map(Number);
+            const [hours, minutes, seconds = 0] = (endTime || '23:59:59').split(':').map(Number);
+            filter.endDate = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
+        } else {
+            if (filter.endDate === null) {
+                filter.endDate = null;
+            } else {
+                const futureDate = new Date();
+                futureDate.setFullYear(futureDate.getFullYear() + 1);
+                filter.endDate = futureDate;
+            }
+        }
+        
+        // Restaurar classes outline de todos os botões de atalho
+        $('#containerTrailFilterModal button[data-filter]').each(function() {
+            const $btn = $(this);
+            $btn.removeClass('active');
+            const filterType = $btn.data('filter');
+            if (filterType === '24hours') {
+                $btn.removeClass('btn-warning').addClass('btn-outline-warning');
+            } else if (filterType === 'clear') {
+                $btn.removeClass('btn-danger').addClass('btn-outline-danger');
+            } else {
+                $btn.removeClass('btn-secondary').addClass('btn-outline-secondary');
+            }
+        });
+    } else {
+        filter.enabled = false;
+        filter.startDate = null;
+        filter.endDate = null;
+        filter.shortcut = null;
+    }
+    
+    // Recarregar trail com filtro
+    loadContainerTrail(containerId, true);
+    updateContainerPopup(containerId);
+    
+    // Fechar modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('containerTrailFilterModal'));
+    if (modal) {
+        modal.hide();
+    }
+}
+
+/**
+ * Formatar data para exibição no popup
+ */
+function formatContainerDate(dateStr) {
+    if (!dateStr) return 'Desconhecido';
+    try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) {
+            return dateStr;
+        }
+        return date.toLocaleString('pt-BR');
+    } catch (e) {
+        return dateStr;
     }
 }
 
@@ -457,25 +848,21 @@ function toggleContainerTrail(containerId) {
 function createContainerPopup(container) {
     let itemsHtml = '';
     const items = container.items || [];
+    const isRefreshing = MapState.containerRefreshStatus && MapState.containerRefreshStatus[container.container_id];
     
-    // Debug: log para WoodenCrate
-    if (container.container_type === 'WoodenCrate' || (container.container_type && container.container_type.includes('WoodenCrate'))) {
-        console.log('DEBUG WoodenCrate popup:', container.container_id, 'items:', items);
-        items.forEach(function(item) {
-            console.log('  - Item:', item.type, 'img:', item.img, 'name:', item.name);
-        });
-    }
+    const itemsUpdateDate = container.items_last_update ? formatContainerDate(container.items_last_update) : null;
+    const itemsUpdateText = itemsUpdateDate ? ` <small class="text-muted">(atualizado: ${itemsUpdateDate})</small>` : '';
     
     if (items.length > 0) {
-        itemsHtml += '<div class="mt-2"><strong>Items:</strong><div class="mt-1" style="max-height: 200px; overflow-y: auto;">';
+        itemsHtml += `<div class="mt-2"><strong>📦 Items:${itemsUpdateText}</strong><div class="mt-1" style="max-height: 150px; overflow-y: auto; padding-right: 4px;">`;
         items.forEach(function(item) {
             const imgTag = item.img ? `<img src="${item.img}" onerror="this.style.display='none'" style="width: 24px; height: 24px; margin-right: 4px; vertical-align: middle;">` : '';
-            const healthText = item.health ? ` (HP: ${item.health})` : '';
+            const healthText = item.health ? ` (HP: ${item.health.toFixed(2)})` : '';
             itemsHtml += `<div class="item-display">${imgTag}<span>${item.name || item.type}${healthText}</span></div>`;
         });
         itemsHtml += '</div></div>';
     } else {
-        itemsHtml = '<div class="text-muted mt-2">Container vazio</div>';
+        itemsHtml = `<div class="text-muted mt-2">Container vazio${itemsUpdateText}</div>`;
     }
     
     const isDestroyed = container.is_destroyed || false;
@@ -490,8 +877,6 @@ function createContainerPopup(container) {
         </div>
     ` : '';
     
-    const isRefreshing = MapState.containerRefreshStatus && MapState.containerRefreshStatus[container.container_id];
-    
     return `
         <div class="player-popup" style="display: flex; flex-direction: column; max-height: 580px;">
             <div style="flex: 1; overflow-y: auto; padding-right: 4px; min-height: 0;">
@@ -504,11 +889,11 @@ function createContainerPopup(container) {
                     <span class="info-label">Coords:</span>
                     <span class="info-value">X: ${container.coord_x.toFixed(2)}, Y: ${container.coord_y.toFixed(2)} (altura: ${container.coord_z ? container.coord_z.toFixed(2) : 'N/A'})</span>
                 </div>
-                ${itemsHtml}
-                <div class="info-row mt-2">
-                    <span class="info-label">Atualizado:</span>
-                    <span class="info-value">${container.last_update || 'Desconhecido'}</span>
+                <div class="info-row">
+                    <span class="info-label">📍 Coordenadas atualizadas:</span>
+                    <span class="info-value">${formatContainerDate(container.coordinates_last_update || container.TimeStamp || container.last_update)}</span>
                 </div>
+                ${itemsHtml}
                 ${destroyedInfo}
             </div>
             <div style="flex-shrink: 0; border-top: 1px solid #dee2e6; padding-top: 8px; margin-top: 8px; background-color: #fff;">
@@ -517,11 +902,11 @@ function createContainerPopup(container) {
                         ${isRefreshing ? '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Atualizando...' : '<i class="fas fa-sync-alt me-1"></i>Atualizar'}
                     </button>
                     <button type="button" class="btn btn-sm btn-primary" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="toggleContainerTrail('${container.container_id}')">
-                        <i class="fas fa-route me-1"></i><span id="containerTrailBtn_${container.container_id}">${MapState.containerTrails[container.container_id] ? 'Ocultar' : 'Trail'}</span>
+                        <i class="fas fa-route me-1"></i>Trail${(MapState.containerTrails[container.container_id] && MapState.containerTrailFilters && MapState.containerTrailFilters[container.container_id] && MapState.containerTrailFilters[container.container_id].enabled) ? ' <i class="fas fa-filter" style="font-size: 0.7em;"></i>' : ''}
                     </button>
-                    <button type="button" class="btn btn-sm btn-info" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="showContainerLootHistory('${container.container_id}')">
+                    <a class="btn btn-sm btn-info" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" href="/containers?container_id=${encodeURIComponent(container.container_id)}" target="_blank" rel="noopener noreferrer">
                         <i class="fas fa-history me-1"></i>Histórico
-                    </button>
+                    </a>
                     <button type="button" class="btn btn-sm btn-warning" style="flex: 1 1 calc(50% - 3px); min-width: 120px; font-size: 0.75rem; padding: 0.35rem 0.5rem;" onclick="showContainerTeleportModal('${container.container_id}')">
                         <i class="fas fa-map-marker-alt me-1"></i>Teleportar
                     </button>

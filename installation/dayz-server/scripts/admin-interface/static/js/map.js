@@ -109,6 +109,27 @@ $(document).ready(function() {
         }
     });
     
+    // Event listeners para filtro de trail de containers
+    $('#containerTrailFilterModal button[data-filter]').on('click', function() {
+        const containerId = $('#containerTrailFilterContainerId').val();
+        const filter = $(this).data('filter');
+        if (containerId && filter) {
+            applyContainerTrailFilterShortcut(containerId, filter);
+        }
+    });
+    $('#applyContainerTrailFilterBtn').on('click', function() {
+        const containerId = $('#containerTrailFilterContainerId').val();
+        if (containerId) {
+            applyContainerTrailDateFilter(containerId);
+        }
+    });
+    $('#hideContainerTrailBtn').on('click', function() {
+        const containerId = $('#containerTrailFilterContainerId').val();
+        if (containerId) {
+            hideContainerTrail(containerId);
+        }
+    });
+    
     // Event listener para atalhos de filtro de trails
     $('[data-filter]').on('click', function() {
         const filter = $(this).data('filter');

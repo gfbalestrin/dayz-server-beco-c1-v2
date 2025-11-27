@@ -1246,6 +1246,119 @@
         </div>
     </div>
 </div>
+
+<!-- Modal de Filtro de Trail de Container -->
+<div class="modal fade" id="containerTrailFilterModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-filter me-2"></i>Filtro de Trail - <span id="containerTrailFilterContainerName">--</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="containerTrailFilterContainerId">
+                
+                <!-- Atalhos Rápidos -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">
+                        <i class="fas fa-bolt me-1 text-warning"></i>Atalhos Rápidos:
+                    </label>
+                    <div class="row g-1">
+                        <div class="col-6">
+                            <div class="d-grid gap-1">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="10seconds">
+                                    <i class="fas fa-stopwatch me-1"></i>Últimos 10s
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="30seconds">
+                                    <i class="fas fa-stopwatch me-1"></i>Últimos 30s
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="1minute">
+                                    <i class="fas fa-stopwatch me-1"></i>Último minuto
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="2minutes">
+                                    <i class="fas fa-stopwatch me-1"></i>Últimos 2 min
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="5minutes">
+                                    <i class="fas fa-stopwatch me-1"></i>Últimos 5 min
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="10minutes">
+                                    <i class="fas fa-stopwatch me-1"></i>Últimos 10 min
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="30minutes">
+                                    <i class="fas fa-stopwatch me-1"></i>Últimos 30 min
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="1hour">
+                                    <i class="fas fa-hourglass-half me-1"></i>Última Hora
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="d-grid gap-1">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="3hours">
+                                    <i class="fas fa-clock me-1"></i>Últimas 3h
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="6hours">
+                                    <i class="fas fa-clock me-1"></i>Últimas 6h
+                                </button>
+                                <button type="button" class="btn btn-outline-warning btn-sm" data-filter="24hours">
+                                    <i class="fas fa-calendar-day me-1"></i>Últimas 24h
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="today">
+                                    <i class="fas fa-sun me-1"></i>Hoje
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="yesterday">
+                                    <i class="fas fa-calendar-minus me-1"></i>Ontem
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="7days">
+                                    <i class="fas fa-calendar-week me-1"></i>Últimos 7 Dias
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" data-filter="clear">
+                                    <i class="fas fa-times me-1"></i>Limpar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Filtro Personalizado -->
+                <div class="border-top pt-3 mt-3">
+                    <label class="form-label small fw-bold">
+                        <i class="fas fa-calendar-alt me-1 text-info"></i>Filtro Personalizado:
+                    </label>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label small">Data Início:</label>
+                            <input type="date" id="containerTrailStartDate" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Hora:</label>
+                            <input type="time" id="containerTrailStartTime" class="form-control form-control-sm" step="1" lang="pt-BR" data-format="24h">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Data Fim:</label>
+                            <input type="date" id="containerTrailEndDate" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Hora:</label>
+                            <input type="time" id="containerTrailEndTime" class="form-control form-control-sm" step="1" lang="pt-BR" data-format="24h">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="hideContainerTrailBtn" style="display: none;">
+                    <i class="fas fa-eye-slash me-2"></i>Ocultar Trail
+                </button>
+                <button type="button" class="btn btn-primary" id="applyContainerTrailFilterBtn">
+                    <i class="fas fa-filter me-2"></i>Aplicar Filtro
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
