@@ -149,8 +149,16 @@ function updateContainers(data) {
         });
     }
     
+    // Aplicar filtros de containers selecionados
+    let containersToShow = data.containers;
+    if (MapState.selectedContainerFilters.length > 0) {
+        containersToShow = data.containers.filter(function(container) {
+            return MapState.selectedContainerFilters.includes(container.container_id);
+        });
+    }
+    
     // Adicionar containers ao cluster group
-    data.containers.forEach(function(container) {
+    containersToShow.forEach(function(container) {
         const containerId = container.container_id;
         const coords = convertToMapCoords(container.pixel_coords);
         

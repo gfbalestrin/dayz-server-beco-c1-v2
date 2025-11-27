@@ -1238,19 +1238,26 @@ def count_container_changes(container_id: str, date_from: str = None, date_to: s
         has_is_partial_update = 'IsPartialUpdate' in columns
         partial_column = ", IFNULL(IsPartialUpdate, 0) as IsPartialUpdate" if has_is_partial_update else ", 0 as IsPartialUpdate"
         
-        query = f"""
+        base_query = f"""
             SELECT IdContainerTracking, PositionX, PositionY, PositionZ, TimeStamp,
                    IFNULL(IsDestroyed, 0) as IsDestroyed{partial_column}
             FROM containers_tracking
             WHERE {where_clause}
             ORDER BY TimeStamp DESC
-            LIMIT 500
+            LIMIT {{limit}}
         """
         
-        cursor.execute(query, params)
-        
-        # Reverter para ordem ASC para comparação
-        records = list(reversed([dict(row) for row in cursor.fetchall()]))
+        # Buscar mais registros caso haja poucos snapshots completos devido a muitos updates parciais
+        records = []
+        limit = 500
+        max_limit = 5000
+        while True:
+            cursor.execute(base_query.format(limit=limit), params)
+            records = list(reversed([dict(row) for row in cursor.fetchall()]))
+            complete_count = sum(1 for r in records if r.get('IsPartialUpdate', 0) == 0)
+            if complete_count >= 2 or len(records) < limit or limit >= max_limit:
+                break
+            limit = min(limit * 2, max_limit)
         
         # Log de debug
         import logging

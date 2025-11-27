@@ -2645,43 +2645,37 @@ UPDATE_CONTAINERS_POSITIONS_PARTIAL() {
     local base_timestamp="$1"
     shift
     local containers_data=("$@")
-    
+
     if [[ ${#containers_data[@]} -eq 0 ]]; then
-        return 0  # Nada para atualizar, retorna sucesso
+        return 0
     fi
-    
-    # Validar timestamp
+
     if [[ -z "$base_timestamp" ]]; then
         base_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
     fi
-    
-    # Configurar PRAGMAs
+
     configure_sqlite_pragmas "$AppFolder/$AppContainerBecoC1DbFile"
-    
+
     local max_retries=5
     local base_retry_delay=0.5
     local attempt=1
-    
+
     while (( attempt <= max_retries )); do
-        # Construir SQL com múltiplos UPDATEs/INSERTs em transação
-        local sql_statements="BEGIN DEFERRED TRANSACTION;"
-        local update_count=0
-        local insert_count=0
-        
+        local sql_values=""
+        local first_value=1
+        local row_index=0
+
         for container_entry in "${containers_data[@]}"; do
             if [[ -z "$container_entry" ]]; then
                 continue
             fi
-            
-            # Separar campos (formato: "container_id|container_name|coord_x|coord_z|coord_y")
+
             IFS='|' read -r ContainerId ContainerName CoordX CoordZ CoordY <<< "$container_entry"
-            
-            # Validar campos obrigatórios
+
             if [[ -z "$ContainerId" ]]; then
                 continue
             fi
-            
-            # Validar coordenadas
+
             if [[ -z "$CoordX" ]] || ! [[ "$CoordX" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
                 CoordX="0"
             fi
@@ -2691,82 +2685,73 @@ UPDATE_CONTAINERS_POSITIONS_PARTIAL() {
             if [[ -z "$CoordY" ]] || ! [[ "$CoordY" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
                 CoordY="0"
             fi
-            
-            # Escapar aspas simples
+
             local EscapedContainerId
             EscapedContainerId=$(echo "$ContainerId" | sed "s/'/''/g")
             local EscapedContainerName
             EscapedContainerName=$(echo "$ContainerName" | sed "s/'/''/g")
-            
-            # Buscar último IdContainerTracking para este container
-            local last_tracking_id
-            last_tracking_id=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" \
-                "SELECT IdContainerTracking FROM containers_tracking 
-                 WHERE ContainerId = '$EscapedContainerId' 
-                 ORDER BY TimeStamp DESC LIMIT 1" 2>/dev/null)
-            
-            if [[ -n "$last_tracking_id" ]] && [[ "$last_tracking_id" =~ ^[0-9]+$ ]]; then
-                # UPDATE do último registro (posição, timestamp, marcar como parcial)
-                sql_statements="${sql_statements}
-UPDATE containers_tracking 
-SET PositionX = $CoordX, PositionZ = $CoordZ, PositionY = $CoordY, TimeStamp = '$base_timestamp', IsPartialUpdate = 1
-WHERE IdContainerTracking = $last_tracking_id;"
-                ((update_count++))
+
+            local timestamp_value
+            local days_fraction
+            days_fraction=$(awk "BEGIN {printf \"%.10f\", $row_index * 0.001 / 86400.0}")
+            if [[ -n "$base_timestamp" ]]; then
+                timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('$base_timestamp') + $days_fraction)"
             else
-                # Se não existe registro, fazer INSERT básico (sem items, marcar como parcial)
-                sql_statements="${sql_statements}
-INSERT INTO containers_tracking (ContainerId, ContainerName, PositionX, PositionZ, PositionY, TimeStamp, IsDestroyed, IsPartialUpdate)
-VALUES ('$EscapedContainerId', '$EscapedContainerName', $CoordX, $CoordZ, $CoordY, '$base_timestamp', 0, 1);"
-                ((insert_count++))
+                timestamp_value="strftime('%Y-%m-%d %H:%M:%f', julianday('now', 'localtime') + $days_fraction)"
             fi
+
+            if [[ $first_value -eq 0 ]]; then
+                sql_values+=", "
+            fi
+            first_value=0
+
+            sql_values+="('$EscapedContainerId', '$EscapedContainerName', $CoordX, $CoordZ, $CoordY, $timestamp_value, 1, 0)"
+            ((row_index++))
         done
-        
-        sql_statements="${sql_statements} COMMIT;"
-        
-        # Executar SQL
+
+        if [[ -z "$sql_values" ]]; then
+            return 0
+        fi
+
         local sql_error_file
         sql_error_file=$(mktemp)
-        local sql_result
-        sql_result=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" <<EOF 2>"$sql_error_file"
-$sql_statements
+        sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" <<EOF 2>"$sql_error_file"
+BEGIN IMMEDIATE TRANSACTION;
+INSERT INTO containers_tracking (ContainerId, ContainerName, PositionX, PositionZ, PositionY, TimeStamp, IsPartialUpdate, IsDestroyed)
+VALUES $sql_values;
+COMMIT;
 EOF
-)
-        
+
         local sql_exit_code=$?
         local sql_error
         sql_error=$(cat "$sql_error_file" 2>/dev/null)
         rm -f "$sql_error_file"
-        
-        # Verificar se foi bem-sucedido
+
         if [[ $sql_exit_code -eq 0 ]] && [[ -z "$sql_error" ]]; then
-            # Sucesso
             return 0
-        else
-            # Erro, tentar novamente se ainda há tentativas
-            if [[ $attempt -lt $max_retries ]]; then
-                # Verificar se é erro de lock
-                if echo "$sql_error" | grep -q "database is locked"; then
-                    # Backoff exponencial: 0.5s, 1s, 2s, 4s
-                    local retry_multiplier=1
-                    local i
-                    for ((i=1; i<attempt; i++)); do
-                        retry_multiplier=$((retry_multiplier * 2))
-                    done
-                    local retry_delay=$((base_retry_delay * retry_multiplier))
-                    sleep "$retry_delay"
-                else
-                    # Erro diferente de lock, não tentar novamente
-                    echo "UPDATE_CONTAINERS_POSITIONS_PARTIAL: Erro SQL: $sql_error" >&2
-                    return 1
-                fi
-            fi
-            attempt=$((attempt + 1))
         fi
+
+        if [[ $attempt -lt $max_retries ]]; then
+            if echo "$sql_error" | grep -q "database is locked"; then
+                local retry_multiplier=1
+                local i
+                for ((i=1; i<attempt; i++)); do
+                    retry_multiplier=$((retry_multiplier * 2))
+                done
+                local retry_delay=$((base_retry_delay * retry_multiplier))
+                sleep "$retry_delay"
+            else
+                echo "UPDATE_CONTAINERS_POSITIONS_PARTIAL: Erro SQL: $sql_error" >&2
+                return 1
+            fi
+        fi
+        attempt=$((attempt + 1))
     done
-    
+
     echo "UPDATE_CONTAINERS_POSITIONS_PARTIAL: Falhou após $max_retries tentativas"
     return 1
 }
+
 
 INSERT_CONTAINER_ITEM() {
     local ContainerTrackingId="$1"

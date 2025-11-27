@@ -204,6 +204,43 @@ $(document).ready(function() {
         setTimeout(tryZoom, 1000);
     }
     
+    // Função para fazer zoom no container
+    function zoomToContainer(containerId) {
+        // Aguardar marcador ser criado (com retry)
+        const maxAttempts = 10;
+        let attempts = 0;
+        
+        const tryZoom = function() {
+            attempts++;
+            const marker = MapState.containerMarkers[containerId];
+            const containerData = MapState.containersData[containerId];
+            
+            if (marker) {
+                // Marcador existe, fazer zoom
+                const latLng = marker.getLatLng();
+                MapState.map.flyTo(latLng, 3, {
+                    animate: true,
+                    duration: 1.0
+                });
+            } else if (containerData && containerData.pixel_coords) {
+                // Marcador ainda não existe, mas temos dados do container
+                const mapCoords = convertToMapCoords(containerData.pixel_coords);
+                if (mapCoords) {
+                    MapState.map.flyTo(mapCoords, 3, {
+                        animate: true,
+                        duration: 1.0
+                    });
+                }
+            } else if (attempts < maxAttempts) {
+                // Aguardar mais um pouco e tentar novamente
+                setTimeout(tryZoom, 500);
+            }
+        };
+        
+        // Primeira tentativa após um delay inicial
+        setTimeout(tryZoom, 1000);
+    }
+    
     // Verificar se há filtro de player_id na URL e aplicar
     const urlParams = new URLSearchParams(window.location.search);
     const playerIdFilter = urlParams.get('player_id');
@@ -297,6 +334,49 @@ $(document).ready(function() {
         // Carregar veículos (que aplicará o filtro automaticamente)
         setTimeout(function() {
             loadVehicles();
+        }, 500);
+    }
+    
+    // Verificar se há filtro de container_id na URL e aplicar
+    const containerIdFilter = urlParams.get('container_id');
+    if (containerIdFilter) {
+        setTimeout(function() {
+            // Garantir que containers estão sendo exibidos
+            if (!MapState.showContainers) {
+                MapState.showContainers = true;
+                $('#toggleContainersBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar Containers');
+            }
+            // Adicionar ao array de filtros
+            MapState.selectedContainerFilters.push(containerIdFilter);
+        }, 500); // Aguardar carga completa do mapa
+        
+        // Fazer zoom no container após carregar containers
+        // Usar um listener único para fazer zoom após o primeiro carregamento
+        let zoomExecuted = false;
+        const originalLoadContainers = window.loadContainers;
+        const wrappedLoadContainers = function() {
+            const result = originalLoadContainers.apply(this, arguments);
+            
+            if (!zoomExecuted) {
+                zoomExecuted = true;
+                // Aguardar um pouco para marcadores serem criados
+                setTimeout(function() {
+                    zoomToContainer(containerIdFilter);
+                }, 1500);
+                
+                // Restaurar função original após primeira execução
+                window.loadContainers = originalLoadContainers;
+            }
+            
+            return result;
+        };
+        
+        // Interceptar apenas uma vez
+        window.loadContainers = wrappedLoadContainers;
+        
+        // Carregar containers (que aplicará o filtro automaticamente)
+        setTimeout(function() {
+            loadContainers();
         }, 500);
     }
     
