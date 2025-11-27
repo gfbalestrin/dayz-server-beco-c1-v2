@@ -185,6 +185,13 @@ def vehicles():
     return render_template('vehicles.html')
 
 
+@views_bp.route('/containers')
+@admin_required
+def containers():
+    """Tracking de containers"""
+    return render_template('containers.html')
+
+
 @views_bp.route('/map')
 @admin_required
 def map_view():

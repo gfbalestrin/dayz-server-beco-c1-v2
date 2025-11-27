@@ -1161,6 +1161,547 @@ def get_vehicles_paginated(status_filter: str, change_types: Optional[List[str]]
         
         return data, total_records
 
+def get_container_history(container_id: str, limit: int = 100, offset: int = 0, 
+                         date_from: str = None, date_to: str = None) -> List[Dict]:
+    """Retorna histórico de um container com suporte a filtros de data e paginação"""
+    with DatabaseConnection(config.DB_CONTAINERS) as conn:
+        cursor = conn.cursor()
+        
+        # Construir WHERE clause com filtros de data
+        where_conditions = ["ContainerId = ?"]
+        params = [container_id]
+        
+        if date_from:
+            where_conditions.append("TimeStamp >= ?")
+            params.append(date_from)
+        
+        if date_to:
+            where_conditions.append("TimeStamp <= ?")
+            params.append(date_to)
+        
+        where_clause = "WHERE " + " AND ".join(where_conditions)
+        
+        # Verificar se coluna IsPartialUpdate existe
+        cursor.execute("PRAGMA table_info(containers_tracking)")
+        columns = [row[1] for row in cursor.fetchall()]
+        has_is_partial_update = 'IsPartialUpdate' in columns
+        partial_column = ", IFNULL(IsPartialUpdate, 0) as IsPartialUpdate" if has_is_partial_update else ", 0 as IsPartialUpdate"
+        
+        query = f"""
+            SELECT IdContainerTracking, ContainerId, ContainerName,
+                   PositionX, PositionY, PositionZ, TimeStamp,
+                   IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt{partial_column}
+            FROM containers_tracking
+            {where_clause}
+            ORDER BY TimeStamp DESC
+            LIMIT ? OFFSET ?
+        """
+        
+        params.extend([limit, offset])
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_container_tracking_items(tracking_id: int) -> List[Dict]:
+    """Retorna items de um registro específico de tracking de container"""
+    with DatabaseConnection(config.DB_CONTAINERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT ItemType, ItemHealth, TimeStamp
+            FROM container_items_tracking
+            WHERE ContainerTrackingId = ?
+            ORDER BY ItemType
+        """, (tracking_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+def count_container_changes(container_id: str, date_from: str = None, date_to: str = None) -> Tuple[int, Dict[str, bool]]:
+    """Conta o número de alterações significativas no histórico de um container e retorna flags por tipo"""
+    with DatabaseConnection(config.DB_CONTAINERS) as conn:
+        cursor = conn.cursor()
+        
+        # Buscar histórico ordenado por timestamp (limitar a últimos 500 registros para performance)
+        history_conditions = ["ContainerId = ?"]
+        params = [container_id]
+        
+        if date_from:
+            history_conditions.append("TimeStamp >= ?")
+            params.append(date_from)
+        
+        if date_to:
+            history_conditions.append("TimeStamp <= ?")
+            params.append(date_to)
+        
+        where_clause = " AND ".join(history_conditions)
+        
+        query = f"""
+            SELECT IdContainerTracking, PositionX, PositionY, PositionZ, TimeStamp,
+                   IFNULL(IsDestroyed, 0) as IsDestroyed,
+                   IFNULL(IsPartialUpdate, 0) as IsPartialUpdate
+            FROM containers_tracking
+            WHERE {where_clause}
+            ORDER BY TimeStamp DESC
+            LIMIT 500
+        """
+        
+        cursor.execute(query, params)
+        
+        # Reverter para ordem ASC para comparação
+        records = list(reversed([dict(row) for row in cursor.fetchall()]))
+        
+        if len(records) <= 1:
+            return 0, {
+                'position': False,
+                'items': False
+            }
+        
+        # Carregar todos os items de uma vez (otimização)
+        tracking_ids = [r['IdContainerTracking'] for r in records]
+        items_map = {}
+        
+        if tracking_ids:
+            placeholders = ','.join(['?'] * len(tracking_ids))
+            
+            # Carregar items (filtrar apenas tipos válidos, não nulos e não vazios)
+            try:
+                cursor.execute(f"""
+                    SELECT ContainerTrackingId, ItemType
+                    FROM container_items_tracking
+                    WHERE ContainerTrackingId IN ({placeholders})
+                    AND ItemType IS NOT NULL
+                    AND ItemType != ''
+                    AND ItemType != 'empty'
+                """, tracking_ids)
+                for row in cursor.fetchall():
+                    tracking_id = row[0]
+                    item_type = row[1]
+                    # Validar novamente no código (segurança extra)
+                    if item_type and item_type.strip() and item_type != 'empty':
+                        if tracking_id not in items_map:
+                            items_map[tracking_id] = []
+                        items_map[tracking_id].append(item_type)
+            except:
+                pass
+        
+        change_count = 0
+        pos_threshold = 0.1
+        change_flags = {
+            'position': False,
+            'items': False
+        }
+        
+        # Comparar registros consecutivos para posição/status
+        # e comparar apenas snapshots COMPLETOS consecutivos para items
+        # Inicializar last_complete_index com o primeiro registro se ele já for completo
+        last_complete_index = None
+        if len(records) > 0:
+            first_record_is_partial = records[0].get('IsPartialUpdate', 0) == 1
+            if not first_record_is_partial:
+                last_complete_index = 0
+        
+        for i in range(1, len(records)):
+            prev = records[i - 1]
+            curr = records[i]
+            
+            # Verificar se são parciais (updates parciais não alteram items)
+            prev_is_partial = prev.get('IsPartialUpdate', 0) == 1
+            curr_is_partial = curr.get('IsPartialUpdate', 0) == 1
+            
+            # Verificar mudança de posição
+            pos_changed = (abs((prev.get('PositionX') or 0) - (curr.get('PositionX') or 0)) > pos_threshold or
+                          abs((prev.get('PositionY') or 0) - (curr.get('PositionY') or 0)) > pos_threshold or
+                          abs((prev.get('PositionZ') or 0) - (curr.get('PositionZ') or 0)) > pos_threshold)
+            
+            # Verificar mudança de status
+            status_changed = (prev.get('IsDestroyed') or 0) != (curr.get('IsDestroyed') or 0)
+            
+            # Verificar mudança em items (apenas entre snapshots COMPLETOS consecutivos)
+            # Regra: items só são confiáveis em updates completos (IsPartialUpdate = 0)
+            items_changed = False
+            
+            # Para items, queremos comparar o snapshot completo atual (curr)
+            # com o último snapshot completo anterior na sequência (não necessariamente prev,
+            # pois podem existir vários parciais entre dois completos).
+            if not curr_is_partial and last_complete_index is not None and last_complete_index != i:
+                prev_complete = records[last_complete_index]
+                
+                # Criar contadores por tipo para items (ignorando ordem)
+                prev_items_list = items_map.get(prev_complete['IdContainerTracking'], [])
+                curr_items_list = items_map.get(curr['IdContainerTracking'], [])
+                
+                prev_items_count = {}
+                for item_type in prev_items_list:
+                    # Filtrar tipos inválidos (segurança extra)
+                    if item_type and item_type.strip() and item_type != 'empty':
+                        prev_items_count[item_type] = prev_items_count.get(item_type, 0) + 1
+                
+                curr_items_count = {}
+                for item_type in curr_items_list:
+                    # Filtrar tipos inválidos (segurança extra)
+                    if item_type and item_type.strip() and item_type != 'empty':
+                        curr_items_count[item_type] = curr_items_count.get(item_type, 0) + 1
+                
+                # Comparar contadores (ignora ordem, apenas tipos e quantidades)
+                if prev_items_count != curr_items_count:
+                    items_changed = True
+            
+            # Se houve qualquer mudança significativa, incrementar contador
+            if pos_changed or status_changed or items_changed:
+                change_count += 1
+                if pos_changed:
+                    change_flags['position'] = True
+                if items_changed:
+                    change_flags['items'] = True
+            
+            # Atualizar índice do último snapshot completo
+            if not curr_is_partial:
+                last_complete_index = i
+        
+        return change_count, change_flags
+
+def filter_container_history_by_changes(history: List[Dict]) -> List[Dict]:
+    """
+    Filtra histórico mantendo apenas registros com mudanças significativas.
+    
+    Regras:
+    - Histórico vem em ordem DESC (mais recente primeiro) na entrada.
+    - Posição/status: analisados entre registros consecutivos (ao longo do tempo).
+    - Items: analisados apenas entre snapshots COMPLETOS consecutivos
+      (ignorando updates parciais entre eles).
+    - Sempre mantém o snapshot mais recente.
+    """
+    if len(history) <= 1:
+        return history
+
+    pos_threshold = 0.1
+
+    n = len(history)
+    # Trabalhar em ordem ASC (do mais antigo para o mais recente)
+    asc_history = list(reversed(history))
+    # Flags de quais índices em ASC devem ser mantidos
+    keep_asc = [False] * n
+
+    # Inicializar last_complete_idx com o primeiro registro se ele já for completo
+    last_complete_idx = None
+    # Tratar o primeiro registro separadamente (i=0 não é processado no loop)
+    if len(asc_history) > 0:
+        first_record = asc_history[0]
+        first_record_is_partial = first_record.get('IsPartialUpdate', 0) == 1
+        if not first_record_is_partial:
+            last_complete_idx = 0
+            # REGRA: Primeiro snapshot completo sempre é mantido (baseline de items)
+            keep_asc[0] = True
+
+    for i in range(1, n):
+        prev = asc_history[i - 1]  # mais antigo
+        curr = asc_history[i]      # mais recente
+
+        prev_is_partial = prev.get('IsPartialUpdate', 0) == 1
+        curr_is_partial = curr.get('IsPartialUpdate', 0) == 1
+
+        # Mudança de posição
+        pos_changed = (
+            abs((prev.get('PositionX') or 0) - (curr.get('PositionX') or 0)) > pos_threshold or
+            abs((prev.get('PositionY') or 0) - (curr.get('PositionY') or 0)) > pos_threshold or
+            abs((prev.get('PositionZ') or 0) - (curr.get('PositionZ') or 0)) > pos_threshold
+        )
+
+        # Mudança de status
+        status_changed = (prev.get('IsDestroyed') or 0) != (curr.get('IsDestroyed') or 0)
+
+        # Mudanças em items: apenas entre snapshots COMPLETOS consecutivos
+        items_changed = False
+
+        # Se o registro atual é completo, comparar items
+        if not curr_is_partial:
+            # Determinar qual registro completo usar para comparação
+            prev_complete = None
+            
+            # Se ambos prev e curr são completos e consecutivos, comparar diretamente
+            if not prev_is_partial:
+                prev_complete = prev
+            # Caso contrário, usar o último snapshot completo conhecido
+            elif last_complete_idx is not None and last_complete_idx != i:
+                prev_complete = asc_history[last_complete_idx]
+            
+            # Se temos um registro completo anterior para comparar
+            if prev_complete is not None:
+                # Items
+                prev_items = prev_complete.get('items', [])
+                curr_items = curr.get('items', [])
+
+                prev_items_count = {}
+                for item in prev_items:
+                    item_type = item.get('ItemType') or item.get('type')
+                    if item_type and item_type.strip() and item_type != 'empty':
+                        prev_items_count[item_type] = prev_items_count.get(item_type, 0) + 1
+
+                curr_items_count = {}
+                for item in curr_items:
+                    item_type = item.get('ItemType') or item.get('type')
+                    if item_type and item_type.strip() and item_type != 'empty':
+                        curr_items_count[item_type] = curr_items_count.get(item_type, 0) + 1
+
+                if prev_items_count != curr_items_count:
+                    items_changed = True
+            # REGRA: Se é o primeiro snapshot completo (sem registro anterior para comparar),
+            # sempre mantê-lo para estabelecer baseline de items
+            else:
+                items_changed = True  # Marcar como mudado para garantir que seja mantido
+
+        # REGRA 2: Parciais são mantidos apenas quando há mudanças de posição/status
+        # (não têm items para comparar)
+        if curr_is_partial:
+            if pos_changed or status_changed:
+                keep_asc[i] = True
+        # REGRA 3: Completos são mantidos quando há mudanças de items
+        # (também podem ter mudanças de posição, mas items é o critério principal)
+        else:
+            if items_changed:
+                keep_asc[i] = True
+            # Se não houve mudanças de items, ainda pode ser mantido por outras razões
+            # (será mantido pelo snapshot mais recente ou último completo se aplicável)
+
+        # Atualizar último snapshot completo
+        if not curr_is_partial:
+            last_complete_idx = i
+
+    # REGRA 1: Sempre manter o snapshot mais recente (parcial ou completo)
+    # Conforme cenários: o snapshot mais recente sempre deve aparecer no histórico
+    most_recent_idx = n - 1
+    if most_recent_idx >= 0:
+        keep_asc[most_recent_idx] = True
+    
+    # REGRA 5: Sempre manter o último snapshot completo encontrado,
+    # mesmo que não seja o registro mais recente (pode haver parciais depois dele)
+    # Isso garante que items do último snapshot completo estejam disponíveis
+    last_complete_snapshot_idx = None
+    # Procurar do mais recente para o mais antigo (ordem ASC reversa)
+    for i in range(n - 1, -1, -1):
+        record = asc_history[i]
+        if record and (record.get('IsPartialUpdate', 0) == 0):
+            last_complete_snapshot_idx = i
+            break
+    
+    # Garantir que o último snapshot completo seja mantido
+    if last_complete_snapshot_idx is not None:
+        keep_asc[last_complete_snapshot_idx] = True
+
+    # Opcional: se quiser sempre manter também o mais antigo, descomente:
+    # keep_asc[0] = True
+
+    # Reconstruir lista filtrada em ordem DESC original
+    filtered = []
+    for desc_idx in range(n):
+        asc_idx = n - 1 - desc_idx
+        if keep_asc[asc_idx]:
+            filtered.append(history[desc_idx])
+
+    return filtered
+
+def get_containers_paginated(status_filter: str, change_types: Optional[List[str]], date_from: str, date_to: str, 
+                             start: int, length: int, search: str = None, 
+                             order_by: Tuple[str, str] = None,
+                             order_by_change_count: bool = False, order_by_change_count_dir: str = None) -> Tuple[List[Dict], int]:
+    """Retorna dados paginados de containers com busca e filtros"""
+    with DatabaseConnection(config.DB_CONTAINERS) as conn:
+        cursor = conn.cursor()
+        
+        # Verificar colunas disponíveis
+        cursor.execute("PRAGMA table_info(containers_tracking)")
+        columns = [row[1] for row in cursor.fetchall()]
+        has_is_destroyed = 'IsDestroyed' in columns
+        
+        # Construir condições WHERE
+        where_conditions = []
+        params = []
+        
+        # Aplicar filtro de status conforme seleção
+        if has_is_destroyed:
+            if status_filter == 'active':
+                where_conditions.append("(ct.IsDestroyed = 0 OR ct.IsDestroyed IS NULL)")
+            elif status_filter == 'destroyed':
+                where_conditions.append("(ct.IsDestroyed = 1)")
+        
+        if date_from:
+            where_conditions.append("ct.TimeStamp >= ?")
+            params.append(date_from)
+        
+        if date_to:
+            where_conditions.append("ct.TimeStamp <= ?")
+            params.append(date_to)
+        
+        if search:
+            where_conditions.append("(ct.ContainerId LIKE ? OR ct.ContainerName LIKE ?)")
+            search_param = f"%{search}%"
+            params.extend([search_param, search_param])
+        
+        where_clause = ""
+        if where_conditions:
+            where_clause = "WHERE " + " AND ".join(where_conditions)
+        
+        # Query para contar total de registros (sem paginação)
+        # Primeiro contar total sem filtros
+        cursor.execute("SELECT COUNT(DISTINCT ContainerId) FROM containers_tracking")
+        total_all = cursor.fetchone()[0]
+        
+        # Se há filtros, contar com filtros aplicados
+        if where_conditions:
+            count_query = f"""
+                SELECT COUNT(DISTINCT ct.ContainerId)
+                FROM containers_tracking ct
+                INNER JOIN (
+                    SELECT ContainerId, MAX(TimeStamp) as MaxTimeStamp
+                    FROM containers_tracking
+                    GROUP BY ContainerId
+                ) AS latest_ct ON ct.ContainerId = latest_ct.ContainerId AND ct.TimeStamp = latest_ct.MaxTimeStamp
+                {where_clause}
+            """
+            cursor.execute(count_query, params)
+            total_records = cursor.fetchone()[0]
+        else:
+            total_records = total_all
+        
+        # Construir ORDER BY padrão (usado quando não ordenado por ChangeCount)
+        valid_fields = ['ContainerId', 'ContainerName', 'IsDestroyed', 'TimeStamp']
+        if order_by and order_by[0] in valid_fields and not order_by_change_count:
+            order_field, order_direction = order_by
+            order_direction = 'DESC' if order_direction == 'desc' else 'ASC'
+            order_clause = f"ORDER BY ct.{order_field} {order_direction}, ct.ContainerName"
+        else:
+            order_clause = "ORDER BY ct.TimeStamp DESC, ct.ContainerName"
+        
+        # Normalizar tipos de alteração selecionados
+        selected_change_types = set(change_types or [])
+        change_types_active = len(selected_change_types) > 0
+        full_scan_required = order_by_change_count or change_types_active
+        
+        def container_matches_change_types(container: Dict) -> bool:
+            if not selected_change_types:
+                return True
+            flags = container.get('ChangeFlags') or {}
+            for change_type in selected_change_types:
+                if flags.get(change_type):
+                    return True
+            return False
+        
+        # Se for necessário escanear todos os registros (ordenar por ChangeCount ou filtrar por tipo)
+        if full_scan_required:
+            # Buscar TODOS os dados (sem paginação) para poder ordenar por ChangeCount
+            order_clause_all = "ORDER BY ct.TimeStamp DESC, ct.ContainerName" if order_by_change_count else order_clause
+            data_query_all = f"""
+                SELECT ct.IdContainerTracking, ct.ContainerId, ct.ContainerName,
+                       ct.PositionX, ct.PositionY, ct.PositionZ, ct.TimeStamp,
+                       IFNULL(ct.IsDestroyed, 0) as IsDestroyed, ct.DestroyedAt
+                FROM containers_tracking ct
+                INNER JOIN (
+                    SELECT ContainerId, MAX(TimeStamp) as MaxTimeStamp
+                    FROM containers_tracking
+                    GROUP BY ContainerId
+                ) AS latest_ct ON ct.ContainerId = latest_ct.ContainerId AND ct.TimeStamp = latest_ct.MaxTimeStamp
+                {where_clause}
+                {order_clause_all}
+            """
+            # Usar apenas os parâmetros de WHERE, sem LIMIT e OFFSET
+            # Só passar parâmetros se houver WHERE clause
+            if where_clause and params:
+                cursor.execute(data_query_all, params)
+            else:
+                cursor.execute(data_query_all)
+            all_data = [dict(row) for row in cursor.fetchall()]
+            
+            # Calcular ChangeCount para todos
+            for container in all_data:
+                container_id = container['ContainerId']
+                try:
+                    change_count, change_flags = count_container_changes(container_id, date_from=date_from, date_to=date_to)
+                    container['ChangeCount'] = change_count
+                    container['ChangeFlags'] = change_flags
+                    container['ChangeTypesCount'] = sum(1 for v in (change_flags or {}).values() if v)
+                except Exception:
+                    container['ChangeCount'] = 0
+                    container['ChangeFlags'] = {
+                        'position': False,
+                        'items': False
+                    }
+                    container['ChangeTypesCount'] = 0
+            
+            # Aplicar filtro de tipos de alteração, se necessário
+            if change_types_active:
+                all_data = [c for c in all_data if container_matches_change_types(c)]
+            
+            # Atualizar total_records para refletir todos os containers filtrados
+            total_records = len(all_data)
+            
+            # Ordenar por ChangeCount em memória quando solicitado
+            if order_by_change_count:
+                reverse_order = (order_by_change_count_dir == 'desc')
+                all_data.sort(key=lambda x: x.get('ChangeCount', 0), reverse=reverse_order)
+            else:
+                # Garantir ordenação consistente (já vem ordenado pela query)
+                pass
+            
+            # Aplicar paginação após ordenação
+            data = all_data[start:start + length]
+        else:
+            # Query para dados paginados
+            data_query = f"""
+                SELECT ct.IdContainerTracking, ct.ContainerId, ct.ContainerName,
+                       ct.PositionX, ct.PositionY, ct.PositionZ, ct.TimeStamp,
+                       IFNULL(ct.IsDestroyed, 0) as IsDestroyed, ct.DestroyedAt
+                FROM containers_tracking ct
+                INNER JOIN (
+                    SELECT ContainerId, MAX(TimeStamp) as MaxTimeStamp
+                    FROM containers_tracking
+                    GROUP BY ContainerId
+                ) AS latest_ct ON ct.ContainerId = latest_ct.ContainerId AND ct.TimeStamp = latest_ct.MaxTimeStamp
+                {where_clause}
+                {order_clause}
+                LIMIT ? OFFSET ?
+            """
+            
+            # Adicionar LIMIT e OFFSET aos parâmetros
+            query_params = list(params) + [length, start]
+            cursor.execute(data_query, query_params)
+            data = [dict(row) for row in cursor.fetchall()]
+            
+            # Adicionar contagem de alterações para cada container
+            # Otimização: calcular em batch para melhor performance
+            for container in data:
+                container_id = container['ContainerId']
+                try:
+                    change_count, change_flags = count_container_changes(container_id, date_from=date_from, date_to=date_to)
+                    container['ChangeCount'] = change_count
+                    container['ChangeFlags'] = change_flags
+                    container['ChangeTypesCount'] = sum(1 for v in (change_flags or {}).values() if v)
+                except Exception:
+                    container['ChangeCount'] = 0
+                    container['ChangeFlags'] = {
+                        'position': False,
+                        'items': False
+                    }
+                    container['ChangeTypesCount'] = 0
+        
+        # Se filtro de tipos estiver ativo e não for necessário full scan (caso raro), aplicar aqui
+        if change_types_active and not full_scan_required:
+            data = [c for c in data if container_matches_change_types(c)]
+            total_records = len(data)
+        
+        # Ordenação extra: garantir que, por padrão, containers sejam ordenados
+        # por Última Atualização (TimeStamp DESC) e, em seguida,
+        # pela quantidade de tipos de alterações (ChangeTypesCount DESC).
+        # Isso é aplicado na página atual, após cálculo de flags/contagens.
+        try:
+            data.sort(
+                key=lambda c: (
+                    c.get('TimeStamp') or '',
+                    c.get('ChangeTypesCount') or 0
+                ),
+                reverse=True
+            )
+        except Exception:
+            pass
+        
+        return data, total_records
+
 
 def get_active_vehicle_name_counts() -> Dict[str, int]:
     """Agrupa veículos ativos (não destruídos) por nome exibido"""

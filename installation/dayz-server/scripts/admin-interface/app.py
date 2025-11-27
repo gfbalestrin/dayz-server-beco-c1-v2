@@ -8,7 +8,7 @@ from database import ensure_protected_loadouts_exist
 
 # Importar todos os blueprints
 from blueprints import auth, views
-from blueprints import api_map, api_players, api_vehicles, api_events
+from blueprints import api_map, api_players, api_vehicles, api_containers, api_events
 from blueprints import api_cheat_detection, api_deathmatch, api_spawning
 from blueprints import api_items_manage, api_kits, api_users
 from blueprints import api_loadouts, api_loadout_rules, api_commands
@@ -22,6 +22,7 @@ app.register_blueprint(views.views_bp)
 app.register_blueprint(api_map.api_map_bp)
 app.register_blueprint(api_players.api_players_bp)
 app.register_blueprint(api_vehicles.api_vehicles_bp)
+app.register_blueprint(api_containers.api_containers_bp)
 app.register_blueprint(api_events.api_events_bp)
 app.register_blueprint(api_cheat_detection.api_cheat_detection_bp)
 app.register_blueprint(api_deathmatch.api_deathmatch_bp)
