@@ -221,6 +221,7 @@ $(document).ready(function() {
         const flags = changeFlags || {};
         const badgeConfig = [
             { key: 'position', label: 'Coordenadas', classes: 'bg-info text-dark', icon: 'fa-location-arrow' },
+            { key: 'status', label: 'Status', classes: 'bg-secondary', icon: 'fa-exclamation-triangle' },
             { key: 'items', label: 'Items', classes: 'bg-primary', icon: 'fa-boxes' }
         ];
         const badges = [];

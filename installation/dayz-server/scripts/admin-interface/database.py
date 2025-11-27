@@ -1097,7 +1097,7 @@ def get_vehicles_paginated(status_filter: str, change_types: Optional[List[str]]
                 pass
             
             # Aplicar paginação após ordenação
-            data = all_data[start:start + length]
+            data = all_data
         else:
             # Query para dados paginados
             data_query = f"""
@@ -1238,6 +1238,22 @@ def count_container_changes(container_id: str, date_from: str = None, date_to: s
         has_is_partial_update = 'IsPartialUpdate' in columns
         partial_column = ", IFNULL(IsPartialUpdate, 0) as IsPartialUpdate" if has_is_partial_update else ", 0 as IsPartialUpdate"
         
+        baseline_record = None
+        if date_from:
+            baseline_query = f"""
+                SELECT IdContainerTracking, PositionX, PositionY, PositionZ, TimeStamp,
+                       IFNULL(IsDestroyed, 0) as IsDestroyed{partial_column}
+                FROM containers_tracking
+                WHERE ContainerId = ?
+                  AND TimeStamp < ?
+                ORDER BY TimeStamp DESC
+                LIMIT 1
+            """
+            cursor.execute(baseline_query, (container_id, date_from))
+            baseline_row = cursor.fetchone()
+            if baseline_row:
+                baseline_record = dict(baseline_row)
+        
         base_query = f"""
             SELECT IdContainerTracking, PositionX, PositionY, PositionZ, TimeStamp,
                    IFNULL(IsDestroyed, 0) as IsDestroyed{partial_column}
@@ -1253,7 +1269,14 @@ def count_container_changes(container_id: str, date_from: str = None, date_to: s
         max_limit = 5000
         while True:
             cursor.execute(base_query.format(limit=limit), params)
-            records = list(reversed([dict(row) for row in cursor.fetchall()]))
+            fetched_rows = [dict(row) for row in cursor.fetchall()]
+            records = list(reversed(fetched_rows))
+            
+            if baseline_record:
+                # Inserir snapshot imediatamente anterior à janela para garantir comparação correta
+                if not records or records[0]['IdContainerTracking'] != baseline_record['IdContainerTracking']:
+                    records.insert(0, baseline_record)
+            
             complete_count = sum(1 for r in records if r.get('IsPartialUpdate', 0) == 0)
             if complete_count >= 2 or len(records) < limit or limit >= max_limit:
                 break
@@ -1268,7 +1291,8 @@ def count_container_changes(container_id: str, date_from: str = None, date_to: s
             logger.debug(f"count_container_changes - ContainerId: {container_id}, retornando 0 (menos de 2 registros)")
             return 0, {
                 'position': False,
-                'items': False
+                'items': False,
+                'status': False
             }
         
         # Carregar todos os items de uma vez (otimização)
@@ -1303,7 +1327,8 @@ def count_container_changes(container_id: str, date_from: str = None, date_to: s
         pos_threshold = 0.1
         change_flags = {
             'position': False,
-            'items': False
+            'items': False,
+            'status': False
         }
         
         # Comparar registros consecutivos para posição/status
@@ -1366,6 +1391,8 @@ def count_container_changes(container_id: str, date_from: str = None, date_to: s
                 change_count += 1
                 if pos_changed:
                     change_flags['position'] = True
+                if status_changed:
+                    change_flags['status'] = True
                 if items_changed:
                     change_flags['items'] = True
                 logger.debug(f"count_container_changes - ContainerId: {container_id}, mudança detectada no registro {i}: pos_changed={pos_changed}, status_changed={status_changed}, items_changed={items_changed}")
@@ -1599,7 +1626,8 @@ def get_containers_paginated(status_filter: str, change_types: Optional[List[str
         # Normalizar tipos de alteração selecionados
         selected_change_types = set(change_types or [])
         change_types_active = len(selected_change_types) > 0
-        full_scan_required = order_by_change_count or change_types_active
+        # Sempre fazer full scan quando há filtro de data para garantir ordenação correta
+        full_scan_required = order_by_change_count or change_types_active or (date_from is not None or date_to is not None)
         
         def container_matches_change_types(container: Dict) -> bool:
             if not selected_change_types:
@@ -1611,6 +1639,19 @@ def get_containers_paginated(status_filter: str, change_types: Optional[List[str
             return False
         
         # Se for necessário escanear todos os registros (ordenar por ChangeCount ou filtrar por tipo)
+        def sort_by_timestamp_and_changes(items):
+            try:
+                # Priorizar ChangeTypesCount primeiro, depois TimeStamp
+                items.sort(
+                    key=lambda c: (
+                        c.get('ChangeTypesCount') or 0,
+                        c.get('TimeStamp') or ''
+                    ),
+                    reverse=True
+                )
+            except Exception as e:
+                logger.warning(f"get_containers_paginated - Erro ao ordenar lista padrão: {e}")
+
         if full_scan_required:
             # Buscar TODOS os dados (sem paginação) para poder ordenar por ChangeCount
             order_clause_all = "ORDER BY ct.TimeStamp DESC, ct.ContainerName" if order_by_change_count else order_clause
@@ -1648,7 +1689,8 @@ def get_containers_paginated(status_filter: str, change_types: Optional[List[str
                     container['ChangeCount'] = 0
                     container['ChangeFlags'] = {
                         'position': False,
-                        'items': False
+                        'items': False,
+                        'status': False
                     }
                     container['ChangeTypesCount'] = 0
             
@@ -1664,8 +1706,7 @@ def get_containers_paginated(status_filter: str, change_types: Optional[List[str
                 reverse_order = (order_by_change_count_dir == 'desc')
                 all_data.sort(key=lambda x: x.get('ChangeCount', 0), reverse=reverse_order)
             else:
-                # Garantir ordenação consistente (já vem ordenado pela query)
-                pass
+                sort_by_timestamp_and_changes(all_data)
             
             # Aplicar paginação após ordenação
             data = all_data[start:start + length]
@@ -1705,7 +1746,8 @@ def get_containers_paginated(status_filter: str, change_types: Optional[List[str
                     container['ChangeCount'] = 0
                     container['ChangeFlags'] = {
                         'position': False,
-                        'items': False
+                        'items': False,
+                        'status': False
                     }
                     container['ChangeTypesCount'] = 0
         
@@ -1715,19 +1757,11 @@ def get_containers_paginated(status_filter: str, change_types: Optional[List[str
             total_records = len(data)
         
         # Ordenação extra: garantir que, por padrão, containers sejam ordenados
-        # por Última Atualização (TimeStamp DESC) e, em seguida,
-        # pela quantidade de tipos de alterações (ChangeTypesCount DESC).
+        # primeiro pela quantidade de tipos de alterações (ChangeTypesCount DESC) e, em seguida,
+        # por Última Atualização (TimeStamp DESC).
         # Isso é aplicado na página atual, após cálculo de flags/contagens.
-        try:
-            data.sort(
-                key=lambda c: (
-                    c.get('TimeStamp') or '',
-                    c.get('ChangeTypesCount') or 0
-                ),
-                reverse=True
-            )
-        except Exception as e:
-            logger.warning(f"get_containers_paginated - Erro ao ordenar dados: {e}")
+            sort_by_timestamp_and_changes(data)
+            data = data[start:start + length]
         
         logger.debug(f"get_containers_paginated - retornando {len(data)} containers, total_records: {total_records}")
         if len(data) > 0:
