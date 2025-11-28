@@ -191,6 +191,11 @@ def containers():
     """Tracking de containers"""
     return render_template('containers.html')
 
+@views_bp.route('/structures')
+@admin_required
+def structures():
+    """Tracking de construções (fences, watchtowers, flags)"""
+    return render_template('structures.html')
 
 @views_bp.route('/map')
 @admin_required

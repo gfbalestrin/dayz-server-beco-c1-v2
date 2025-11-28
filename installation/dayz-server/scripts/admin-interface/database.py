@@ -7596,3 +7596,866 @@ def save_fence_check_data(fence_id: str, structure_type: str, position: dict, or
         import logging
         logging.getLogger(__name__).error(f"Erro ao salvar dados da construção {fence_id} (tipo: {structure_type}): {e}", exc_info=True)
         return None
+
+def count_structure_changes(structure_id: str, structure_type: str, date_from: str = None, date_to: str = None) -> Tuple[int, Dict[str, bool]]:
+    """Conta o número de alterações significativas no histórico de uma estrutura e retorna flags por tipo"""
+    with DatabaseConnection(config.DB_STRUCTURES) as conn:
+        cursor = conn.cursor()
+        
+        # Determinar tabela e campos baseado no tipo
+        if structure_type == 'fence':
+            table_name = 'fences_tracking'
+            id_field = 'FenceId'
+            tracking_id_field = 'IdFenceTracking'
+            name_field = 'FenceName'
+        elif structure_type == 'watchtower':
+            table_name = 'watchtowers_tracking'
+            id_field = 'WatchtowerId'
+            tracking_id_field = 'WatchtowerTrackingId'
+            name_field = 'WatchtowerName'
+        elif structure_type == 'flag':
+            table_name = 'flags_tracking'
+            id_field = 'FlagId'
+            tracking_id_field = 'FlagTrackingId'
+            name_field = 'FlagName'
+        else:
+            return 0, {'position': False, 'status': False, 'structure': False}
+        
+        # Buscar histórico ordenado por timestamp
+        history_conditions = [f"{id_field} = ?"]
+        params = [structure_id]
+        
+        if date_from:
+            history_conditions.append("TimeStamp >= ?")
+            params.append(date_from)
+        
+        if date_to:
+            history_conditions.append("TimeStamp <= ?")
+            params.append(date_to)
+        
+        where_clause = " AND ".join(history_conditions)
+        
+        # Verificar se coluna IsDestroyed existe
+        columns = get_table_columns(config.DB_STRUCTURES, table_name)
+        has_is_destroyed = 'IsDestroyed' in columns
+        
+        baseline_record = None
+        if date_from:
+            baseline_query = f"""
+                SELECT {tracking_id_field}, {name_field}, PositionX, PositionY, PositionZ, TimeStamp,
+                       IFNULL(IsDestroyed, 0) as IsDestroyed
+                FROM {table_name}
+                WHERE {id_field} = ?
+                  AND TimeStamp < ?
+                ORDER BY TimeStamp DESC
+                LIMIT 1
+            """
+            cursor.execute(baseline_query, (structure_id, date_from))
+            baseline_row = cursor.fetchone()
+            if baseline_row:
+                baseline_record = dict(baseline_row)
+        
+        base_query = f"""
+            SELECT {tracking_id_field}, {name_field}, PositionX, PositionY, PositionZ, TimeStamp,
+                   IFNULL(IsDestroyed, 0) as IsDestroyed
+            FROM {table_name}
+            WHERE {where_clause}
+            ORDER BY TimeStamp DESC
+            LIMIT 500
+        """
+        
+        cursor.execute(base_query, params)
+        fetched_rows = [dict(row) for row in cursor.fetchall()]
+        records = list(reversed(fetched_rows))
+        
+        if baseline_record:
+            if not records or records[0][tracking_id_field] != baseline_record[tracking_id_field]:
+                records.insert(0, baseline_record)
+        
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"count_structure_changes - {structure_type} {structure_id}, records encontrados: {len(records)}")
+        
+        if len(records) <= 1:
+            return 0, {
+                'position': False,
+                'status': False,
+                'structure': False,
+                'attack': False
+            }
+        
+        # Buscar todos os registros completos para comparar componentes estruturais
+        all_tracking_ids = [r[tracking_id_field] for r in records]
+        structure_components_map = {}
+        
+        if all_tracking_ids:
+            placeholders = ','.join(['?'] * len(all_tracking_ids))
+            
+            # Buscar componentes estruturais baseado no tipo
+            if structure_type == 'fence':
+                try:
+                    cursor.execute(f"""
+                        SELECT {tracking_id_field}, HasBase, LowerPanelBuilt, UpperPanelBuilt
+                        FROM {table_name}
+                        WHERE {tracking_id_field} IN ({placeholders})
+                    """, all_tracking_ids)
+                    for row in cursor.fetchall():
+                        tracking_id = row[0]
+                        structure_components_map[tracking_id] = {
+                            'HasBase': row[1],
+                            'LowerPanelBuilt': row[2],
+                            'UpperPanelBuilt': row[3]
+                        }
+                except:
+                    pass
+            elif structure_type == 'watchtower':
+                try:
+                    cursor.execute(f"""
+                        SELECT {tracking_id_field}, HasBase, Level1BaseBuilt, Level2BaseBuilt, Level3BaseBuilt,
+                               Level1StairsBuilt, Level2StairsBuilt, HasRoof,
+                               Level1Wall1LowerBuilt, Level1Wall1UpperBuilt, Level1Wall2LowerBuilt, Level1Wall2UpperBuilt,
+                               Level1Wall3LowerBuilt, Level1Wall3UpperBuilt,
+                               Level2Wall1LowerBuilt, Level2Wall1UpperBuilt, Level2Wall2LowerBuilt, Level2Wall2UpperBuilt,
+                               Level2Wall3LowerBuilt, Level2Wall3UpperBuilt,
+                               Level3Wall1LowerBuilt, Level3Wall1UpperBuilt, Level3Wall2LowerBuilt, Level3Wall2UpperBuilt,
+                               Level3Wall3LowerBuilt, Level3Wall3UpperBuilt
+                        FROM {table_name}
+                        WHERE {tracking_id_field} IN ({placeholders})
+                    """, all_tracking_ids)
+                    for row in cursor.fetchall():
+                        tracking_id = row[0]
+                        structure_components_map[tracking_id] = {
+                            'HasBase': row[1],
+                            'Level1BaseBuilt': row[2],
+                            'Level2BaseBuilt': row[3],
+                            'Level3BaseBuilt': row[4],
+                            'Level1StairsBuilt': row[5],
+                            'Level2StairsBuilt': row[6],
+                            'HasRoof': row[7],
+                            'Level1Wall1LowerBuilt': row[8],
+                            'Level1Wall1UpperBuilt': row[9],
+                            'Level1Wall2LowerBuilt': row[10],
+                            'Level1Wall2UpperBuilt': row[11],
+                            'Level1Wall3LowerBuilt': row[12],
+                            'Level1Wall3UpperBuilt': row[13],
+                            'Level2Wall1LowerBuilt': row[14],
+                            'Level2Wall1UpperBuilt': row[15],
+                            'Level2Wall2LowerBuilt': row[16],
+                            'Level2Wall2UpperBuilt': row[17],
+                            'Level2Wall3LowerBuilt': row[18],
+                            'Level2Wall3UpperBuilt': row[19],
+                            'Level3Wall1LowerBuilt': row[20],
+                            'Level3Wall1UpperBuilt': row[21],
+                            'Level3Wall2LowerBuilt': row[22],
+                            'Level3Wall2UpperBuilt': row[23],
+                            'Level3Wall3LowerBuilt': row[24],
+                            'Level3Wall3UpperBuilt': row[25]
+                        }
+                except:
+                    pass
+            elif structure_type == 'flag':
+                try:
+                    cursor.execute(f"""
+                        SELECT {tracking_id_field}, HasBase, HasFlagBase, FlagRaised, FlagHeight
+                        FROM {table_name}
+                        WHERE {tracking_id_field} IN ({placeholders})
+                    """, all_tracking_ids)
+                    for row in cursor.fetchall():
+                        tracking_id = row[0]
+                        structure_components_map[tracking_id] = {
+                            'HasBase': row[1],
+                            'HasFlagBase': row[2],
+                            'FlagRaised': row[3],
+                            'FlagHeight': row[4]
+                        }
+                except:
+                    pass
+        
+        change_count = 0
+        pos_threshold = 0.1
+        change_flags = {
+            'position': False,
+            'status': False,
+            'structure': False,
+            'attack': False
+        }
+        
+        # Função auxiliar para normalizar valores booleanos
+        def normalize_bool_value(value):
+            if value is None:
+                return 0
+            if isinstance(value, bool):
+                return 1 if value else 0
+            try:
+                int_val = int(value)
+                return 1 if int_val != 0 else 0
+            except:
+                return 0
+        
+        # Comparar registros consecutivos
+        for i in range(1, len(records)):
+            prev = records[i - 1]
+            curr = records[i]
+            
+            # Verificar mudança de posição
+            pos_changed = (abs((prev.get('PositionX') or 0) - (curr.get('PositionX') or 0)) > pos_threshold or
+                          abs((prev.get('PositionY') or 0) - (curr.get('PositionY') or 0)) > pos_threshold or
+                          abs((prev.get('PositionZ') or 0) - (curr.get('PositionZ') or 0)) > pos_threshold)
+            
+            # Verificar mudança de status
+            status_changed = (prev.get('IsDestroyed') or 0) != (curr.get('IsDestroyed') or 0)
+            
+            # Verificar mudança de nome (reflete mudanças de estado importantes)
+            name_changed = False
+            if name_field in prev and name_field in curr:
+                prev_name = prev.get(name_field)
+                curr_name = curr.get(name_field)
+                if prev_name != curr_name:
+                    name_changed = True
+            
+            # Verificar mudança em componentes estruturais
+            structure_changed = False
+            prev_components = structure_components_map.get(prev[tracking_id_field], {})
+            curr_components = structure_components_map.get(curr[tracking_id_field], {})
+            
+            if prev_components != curr_components:
+                structure_changed = True
+            
+            # Detectar ataque: componente estava construído e agora está destruído
+            attack_detected = False
+            if structure_type == 'fence':
+                prev_lower = normalize_bool_value(prev_components.get('LowerPanelBuilt', 0))
+                prev_upper = normalize_bool_value(prev_components.get('UpperPanelBuilt', 0))
+                curr_lower = normalize_bool_value(curr_components.get('LowerPanelBuilt', 0))
+                curr_upper = normalize_bool_value(curr_components.get('UpperPanelBuilt', 0))
+                
+                # Ataque: painel estava construído (1) e agora está destruído (0)
+                if (prev_lower == 1 and curr_lower == 0) or (prev_upper == 1 and curr_upper == 0):
+                    attack_detected = True
+            elif structure_type == 'watchtower':
+                # Lista de todas as paredes para verificar
+                wall_fields = [
+                    'Level1Wall1LowerBuilt', 'Level1Wall1UpperBuilt',
+                    'Level1Wall2LowerBuilt', 'Level1Wall2UpperBuilt',
+                    'Level1Wall3LowerBuilt', 'Level1Wall3UpperBuilt',
+                    'Level2Wall1LowerBuilt', 'Level2Wall1UpperBuilt',
+                    'Level2Wall2LowerBuilt', 'Level2Wall2UpperBuilt',
+                    'Level2Wall3LowerBuilt', 'Level2Wall3UpperBuilt',
+                    'Level3Wall1LowerBuilt', 'Level3Wall1UpperBuilt',
+                    'Level3Wall2LowerBuilt', 'Level3Wall2UpperBuilt',
+                    'Level3Wall3LowerBuilt', 'Level3Wall3UpperBuilt'
+                ]
+                
+                # Verificar cada parede
+                for wall_field in wall_fields:
+                    prev_wall = normalize_bool_value(prev_components.get(wall_field, 0))
+                    curr_wall = normalize_bool_value(curr_components.get(wall_field, 0))
+                    
+                    # Ataque: parede estava construída (1) e agora está destruída (0)
+                    if prev_wall == 1 and curr_wall == 0:
+                        attack_detected = True
+                        break  # Basta uma parede destruída para marcar como ataque
+            
+            # Se houve qualquer mudança significativa, incrementar contador
+            # Mudança de nome é considerada uma mudança estrutural
+            if pos_changed or status_changed or name_changed or structure_changed or attack_detected:
+                change_count += 1
+                if pos_changed:
+                    change_flags['position'] = True
+                if status_changed:
+                    change_flags['status'] = True
+                if name_changed or structure_changed:
+                    change_flags['structure'] = True
+                if attack_detected:
+                    change_flags['attack'] = True
+        
+        logger.debug(f"count_structure_changes - {structure_type} {structure_id}, change_count final: {change_count}, change_flags: {change_flags}")
+        return change_count, change_flags
+
+def get_structures_paginated(status_filter: str, change_types: Optional[List[str]], date_from: str, date_to: str,
+                             start: int, length: int, search: str = None,
+                             order_by: Tuple[str, str] = None,
+                             order_by_change_count: bool = False, order_by_change_count_dir: str = None) -> Tuple[List[Dict], int]:
+    """Retorna dados paginados de estruturas (fences, watchtowers, flags) com busca e filtros"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    all_structures = []
+    
+    # Buscar fences
+    with DatabaseConnection(config.DB_STRUCTURES) as conn:
+        cursor = conn.cursor()
+        columns = get_table_columns(config.DB_STRUCTURES, 'fences_tracking')
+        has_is_destroyed = 'IsDestroyed' in columns
+        
+        where_conditions = []
+        params = []
+        
+        if has_is_destroyed:
+            if status_filter == 'active':
+                where_conditions.append("(IsDestroyed = 0 OR IsDestroyed IS NULL)")
+            elif status_filter == 'destroyed':
+                where_conditions.append("(IsDestroyed = 1)")
+        
+        if date_from:
+            where_conditions.append("TimeStamp >= ?")
+            params.append(date_from)
+        
+        if date_to:
+            where_conditions.append("TimeStamp <= ?")
+            params.append(date_to)
+        
+        if search:
+            where_conditions.append("(FenceId LIKE ? OR FenceName LIKE ?)")
+            search_param = f"%{search}%"
+            params.extend([search_param, search_param])
+        
+        where_clause = ""
+        if where_conditions:
+            where_clause = "WHERE " + " AND ".join(where_conditions)
+        
+        query = f"""
+            SELECT IdFenceTracking, FenceId, FenceName,
+                   PositionX, PositionY, PositionZ, TimeStamp,
+                   IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt
+            FROM (
+                SELECT IdFenceTracking, FenceId, FenceName,
+                       PositionX, PositionY, PositionZ, TimeStamp,
+                       IsDestroyed, DestroyedAt,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY FenceId 
+                           ORDER BY TimeStamp DESC, IdFenceTracking DESC
+                       ) as rn
+                FROM fences_tracking
+                {where_clause}
+            ) ranked
+            WHERE rn = 1
+        """
+        
+        if where_clause and params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
+        
+        for row in cursor.fetchall():
+            structure = dict(row)
+            structure['StructureId'] = structure['FenceId']
+            structure['StructureName'] = structure['FenceName']
+            structure['StructureType'] = 'fence'
+            all_structures.append(structure)
+    
+    # Buscar watchtowers
+    with DatabaseConnection(config.DB_STRUCTURES) as conn:
+        cursor = conn.cursor()
+        columns = get_table_columns(config.DB_STRUCTURES, 'watchtowers_tracking')
+        has_is_destroyed = 'IsDestroyed' in columns
+        
+        where_conditions = []
+        params = []
+        
+        if has_is_destroyed:
+            if status_filter == 'active':
+                where_conditions.append("(IsDestroyed = 0 OR IsDestroyed IS NULL)")
+            elif status_filter == 'destroyed':
+                where_conditions.append("(IsDestroyed = 1)")
+        
+        if date_from:
+            where_conditions.append("TimeStamp >= ?")
+            params.append(date_from)
+        
+        if date_to:
+            where_conditions.append("TimeStamp <= ?")
+            params.append(date_to)
+        
+        if search:
+            where_conditions.append("(WatchtowerId LIKE ? OR WatchtowerName LIKE ?)")
+            search_param = f"%{search}%"
+            params.extend([search_param, search_param])
+        
+        where_clause = ""
+        if where_conditions:
+            where_clause = "WHERE " + " AND ".join(where_conditions)
+        
+        query = f"""
+            SELECT WatchtowerTrackingId, WatchtowerId, WatchtowerName,
+                   PositionX, PositionY, PositionZ, TimeStamp,
+                   IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt
+            FROM (
+                SELECT WatchtowerTrackingId, WatchtowerId, WatchtowerName,
+                       PositionX, PositionY, PositionZ, TimeStamp,
+                       IsDestroyed, DestroyedAt,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY WatchtowerId 
+                           ORDER BY TimeStamp DESC, WatchtowerTrackingId DESC
+                       ) as rn
+                FROM watchtowers_tracking
+                {where_clause}
+            ) ranked
+            WHERE rn = 1
+        """
+        
+        if where_clause and params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
+        
+        for row in cursor.fetchall():
+            structure = dict(row)
+            structure['StructureId'] = structure['WatchtowerId']
+            structure['StructureName'] = structure['WatchtowerName']
+            structure['StructureType'] = 'watchtower'
+            all_structures.append(structure)
+    
+    # Buscar flags
+    with DatabaseConnection(config.DB_STRUCTURES) as conn:
+        cursor = conn.cursor()
+        columns = get_table_columns(config.DB_STRUCTURES, 'flags_tracking')
+        has_is_destroyed = 'IsDestroyed' in columns
+        
+        where_conditions = []
+        params = []
+        
+        if has_is_destroyed:
+            if status_filter == 'active':
+                where_conditions.append("(IsDestroyed = 0 OR IsDestroyed IS NULL)")
+            elif status_filter == 'destroyed':
+                where_conditions.append("(IsDestroyed = 1)")
+        
+        if date_from:
+            where_conditions.append("TimeStamp >= ?")
+            params.append(date_from)
+        
+        if date_to:
+            where_conditions.append("TimeStamp <= ?")
+            params.append(date_to)
+        
+        if search:
+            where_conditions.append("(FlagId LIKE ? OR FlagName LIKE ?)")
+            search_param = f"%{search}%"
+            params.extend([search_param, search_param])
+        
+        where_clause = ""
+        if where_conditions:
+            where_clause = "WHERE " + " AND ".join(where_conditions)
+        
+        query = f"""
+            SELECT FlagTrackingId, FlagId, FlagName,
+                   PositionX, PositionY, PositionZ, TimeStamp,
+                   IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt
+            FROM (
+                SELECT FlagTrackingId, FlagId, FlagName,
+                       PositionX, PositionY, PositionZ, TimeStamp,
+                       IsDestroyed, DestroyedAt,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY FlagId 
+                           ORDER BY TimeStamp DESC, FlagTrackingId DESC
+                       ) as rn
+                FROM flags_tracking
+                {where_clause}
+            ) ranked
+            WHERE rn = 1
+        """
+        
+        if where_clause and params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
+        
+        for row in cursor.fetchall():
+            structure = dict(row)
+            structure['StructureId'] = structure['FlagId']
+            structure['StructureName'] = structure['FlagName']
+            structure['StructureType'] = 'flag'
+            all_structures.append(structure)
+    
+    # Calcular ChangeCount para todas as estruturas
+    selected_change_types = set(change_types or [])
+    change_types_active = len(selected_change_types) > 0
+    full_scan_required = order_by_change_count or change_types_active or (date_from is not None or date_to is not None)
+    
+    def structure_matches_change_types(structure: Dict) -> bool:
+        if not selected_change_types:
+            return True
+        flags = structure.get('ChangeFlags') or {}
+        for change_type in selected_change_types:
+            if flags.get(change_type):
+                return True
+        return False
+    
+    if full_scan_required:
+        for structure in all_structures:
+            structure_id = structure['StructureId']
+            structure_type = structure['StructureType']
+            try:
+                change_count, change_flags = count_structure_changes(structure_id, structure_type, date_from=date_from, date_to=date_to)
+                structure['ChangeCount'] = change_count
+                structure['ChangeFlags'] = change_flags
+                structure['ChangeTypesCount'] = sum(1 for v in (change_flags or {}).values() if v)
+            except Exception:
+                structure['ChangeCount'] = 0
+                structure['ChangeFlags'] = {
+                    'position': False,
+                    'status': False,
+                    'structure': False
+                }
+                structure['ChangeTypesCount'] = 0
+        
+        # Aplicar filtro de tipos de alteração
+        if change_types_active:
+            all_structures = [s for s in all_structures if structure_matches_change_types(s)]
+        
+        total_records = len(all_structures)
+        
+        # Ordenar
+        if order_by_change_count:
+            reverse_order = (order_by_change_count_dir == 'desc')
+            all_structures.sort(key=lambda x: x.get('ChangeCount', 0), reverse=reverse_order)
+        else:
+            valid_fields = ['StructureId', 'StructureName', 'StructureType', 'IsDestroyed', 'TimeStamp']
+            # Sempre priorizar ChangeTypesCount primeiro, mesmo com ordenação explícita
+            # Usar chave composta que inclui todos os critérios
+            if order_by and order_by[0] in valid_fields:
+                order_field, order_direction = order_by
+                reverse_order = (order_direction == 'desc')
+                # Chave composta: (has_changes invertido, ChangeTypesCount invertido, ordenação explícita)
+                # Quando reverse_order=True (DESC), usar valores normais nos dois primeiros e reverse=True
+                # Quando reverse_order=False (ASC), usar valores invertidos nos dois primeiros e reverse=False
+                if reverse_order:
+                    # Para DESC: usar valores normais e reverse=True
+                    def sort_key(x):
+                        change_types_count = x.get('ChangeTypesCount') or 0
+                        has_changes = 1 if change_types_count > 0 else 0  # 1=tem alterações
+                        order_value = x.get(order_field, '')
+                        return (has_changes, change_types_count, order_value)
+                    all_structures.sort(key=sort_key, reverse=True)
+                else:
+                    # Para ASC: usar valores invertidos e reverse=False
+                    def sort_key(x):
+                        change_types_count = x.get('ChangeTypesCount') or 0
+                        has_changes_inverted = 1 - (1 if change_types_count > 0 else 0)  # 0=tem alterações
+                        change_types_count_inverted = -(change_types_count)
+                        order_value = x.get(order_field, '')
+                        return (has_changes_inverted, change_types_count_inverted, order_value)
+                    all_structures.sort(key=sort_key, reverse=False)
+            else:
+                # Sem ordenação explícita: usar TimeStamp DESC como terceiro critério
+                def sort_key(x):
+                    change_types_count = x.get('ChangeTypesCount') or 0
+                    has_changes_inverted = 1 - (1 if change_types_count > 0 else 0)
+                    change_types_count_inverted = -(change_types_count)
+                    timestamp = x.get('TimeStamp', '')
+                    return (has_changes_inverted, change_types_count_inverted, timestamp)
+                all_structures.sort(key=sort_key, reverse=False)
+        
+        # Aplicar paginação
+        data = all_structures[start:start + length]
+    else:
+        # Calcular ChangeCount para todas as estruturas antes de ordenar
+        # Isso é necessário para a ordenação padrão por TimeStamp e ChangeTypesCount
+        for structure in all_structures:
+            structure_id = structure['StructureId']
+            structure_type = structure['StructureType']
+            try:
+                change_count, change_flags = count_structure_changes(structure_id, structure_type, date_from=date_from, date_to=date_to)
+                structure['ChangeCount'] = change_count
+                structure['ChangeFlags'] = change_flags
+                structure['ChangeTypesCount'] = sum(1 for v in (change_flags or {}).values() if v)
+            except Exception:
+                structure['ChangeCount'] = 0
+                structure['ChangeFlags'] = {
+                    'position': False,
+                    'status': False,
+                    'structure': False
+                }
+                structure['ChangeTypesCount'] = 0
+        
+        # Ordenar antes de paginar
+        valid_fields = ['StructureId', 'StructureName', 'StructureType', 'IsDestroyed', 'TimeStamp']
+        # Sempre priorizar ChangeTypesCount primeiro, mesmo com ordenação explícita
+        if order_by and order_by[0] in valid_fields:
+            order_field, order_direction = order_by
+            reverse_order = (order_direction == 'desc')
+            # Quando reverse_order=True (DESC), usar valores normais e reverse=True
+            # Quando reverse_order=False (ASC), usar valores invertidos e reverse=False
+            if reverse_order:
+                # Para DESC: usar valores normais e reverse=True
+                def sort_key(x):
+                    change_types_count = x.get('ChangeTypesCount') or 0
+                    has_changes = 1 if change_types_count > 0 else 0  # 1=tem alterações
+                    order_value = x.get(order_field, '')
+                    return (has_changes, change_types_count, order_value)
+                all_structures.sort(key=sort_key, reverse=True)
+            else:
+                # Para ASC: usar valores invertidos e reverse=False
+                def sort_key(x):
+                    change_types_count = x.get('ChangeTypesCount') or 0
+                    has_changes_inverted = 1 - (1 if change_types_count > 0 else 0)  # 0=tem alterações
+                    change_types_count_inverted = -(change_types_count)
+                    order_value = x.get(order_field, '')
+                    return (has_changes_inverted, change_types_count_inverted, order_value)
+                all_structures.sort(key=sort_key, reverse=False)
+        else:
+            # Sem ordenação explícita: usar TimeStamp DESC como terceiro critério
+            def sort_key(x):
+                change_types_count = x.get('ChangeTypesCount') or 0
+                has_changes = 1 if change_types_count > 0 else 0  # 1=tem alterações
+                timestamp = x.get('TimeStamp', '')
+                return (has_changes, change_types_count, timestamp)
+            all_structures.sort(key=sort_key, reverse=True)
+        
+        total_records = len(all_structures)
+        data = all_structures[start:start + length]
+    
+    return data, total_records
+
+def get_structure_history(structure_id: str, structure_type: str, limit: int = 5000, offset: int = 0,
+                          date_from: str = None, date_to: str = None) -> List[Dict]:
+    """Retorna histórico de uma estrutura com suporte a filtros de data"""
+    with DatabaseConnection(config.DB_STRUCTURES) as conn:
+        cursor = conn.cursor()
+        
+        # Determinar tabela e campos baseado no tipo
+        if structure_type == 'fence':
+            table_name = 'fences_tracking'
+            id_field = 'FenceId'
+            tracking_id_field = 'IdFenceTracking'
+            name_field = 'FenceName'
+        elif structure_type == 'watchtower':
+            table_name = 'watchtowers_tracking'
+            id_field = 'WatchtowerId'
+            tracking_id_field = 'WatchtowerTrackingId'
+            name_field = 'WatchtowerName'
+        elif structure_type == 'flag':
+            table_name = 'flags_tracking'
+            id_field = 'FlagId'
+            tracking_id_field = 'FlagTrackingId'
+            name_field = 'FlagName'
+        else:
+            return []
+        
+        # Construir WHERE clause
+        where_conditions = [f"{id_field} = ?"]
+        params = [structure_id]
+        
+        if date_from:
+            where_conditions.append("TimeStamp >= ?")
+            params.append(date_from)
+        
+        if date_to:
+            where_conditions.append("TimeStamp <= ?")
+            params.append(date_to)
+        
+        where_clause = "WHERE " + " AND ".join(where_conditions)
+        
+        # Buscar histórico completo com componentes estruturais incluídos
+        if structure_type == 'fence':
+            query = f"""
+                SELECT {tracking_id_field}, {id_field}, {name_field},
+                       PositionX, PositionY, PositionZ, TimeStamp,
+                       IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt,
+                       HasBase, LowerPanelBuilt, UpperPanelBuilt
+                FROM {table_name}
+                {where_clause}
+                ORDER BY TimeStamp DESC
+                LIMIT ? OFFSET ?
+            """
+        elif structure_type == 'watchtower':
+            query = f"""
+                SELECT {tracking_id_field}, {id_field}, {name_field},
+                       PositionX, PositionY, PositionZ, TimeStamp,
+                       IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt,
+                       HasBase, Level1BaseBuilt, Level2BaseBuilt, Level3BaseBuilt,
+                       Level1StairsBuilt, Level2StairsBuilt, HasRoof,
+                       Level1Wall1LowerBuilt, Level1Wall1UpperBuilt, Level1Wall2LowerBuilt, Level1Wall2UpperBuilt,
+                       Level1Wall3LowerBuilt, Level1Wall3UpperBuilt,
+                       Level2Wall1LowerBuilt, Level2Wall1UpperBuilt, Level2Wall2LowerBuilt, Level2Wall2UpperBuilt,
+                       Level2Wall3LowerBuilt, Level2Wall3UpperBuilt,
+                       Level3Wall1LowerBuilt, Level3Wall1UpperBuilt, Level3Wall2LowerBuilt, Level3Wall2UpperBuilt,
+                       Level3Wall3LowerBuilt, Level3Wall3UpperBuilt
+                FROM {table_name}
+                {where_clause}
+                ORDER BY TimeStamp DESC
+                LIMIT ? OFFSET ?
+            """
+        elif structure_type == 'flag':
+            query = f"""
+                SELECT {tracking_id_field}, {id_field}, {name_field},
+                       PositionX, PositionY, PositionZ, TimeStamp,
+                       IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt,
+                       HasBase, HasFlagBase, FlagRaised, FlagHeight
+                FROM {table_name}
+                {where_clause}
+                ORDER BY TimeStamp DESC
+                LIMIT ? OFFSET ?
+            """
+        else:
+            query = f"""
+                SELECT {tracking_id_field}, {id_field}, {name_field},
+                       PositionX, PositionY, PositionZ, TimeStamp,
+                       IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt
+                FROM {table_name}
+                {where_clause}
+                ORDER BY TimeStamp DESC
+                LIMIT ? OFFSET ?
+            """
+        
+        params.extend([limit, offset])
+        cursor.execute(query, params)
+        history = [dict(row) for row in cursor.fetchall()]
+        
+        return history
+
+def filter_structure_history_by_changes(history: List[Dict], structure_type: str = 'fence') -> List[Dict]:
+    """Filtra histórico mantendo apenas registros com mudanças significativas"""
+    if len(history) <= 1:
+        return history
+    
+    pos_threshold = 0.1
+    
+    # Campos a serem excluídos das comparações
+    exclude_fields = ['PositionX', 'PositionY', 'PositionZ', 'TimeStamp', 'IsDestroyed', 'DestroyedAt',
+                     'FenceName', 'WatchtowerName', 'FlagName',
+                     'IdFenceTracking', 'WatchtowerTrackingId', 'FlagTrackingId',
+                     'FenceId', 'WatchtowerId', 'FlagId']
+    name_fields = ['FenceName', 'WatchtowerName', 'FlagName']
+    
+    # Função auxiliar para normalizar valores booleanos
+    def normalize_bool_value(value):
+        if value is None:
+            return 0
+        if isinstance(value, bool):
+            return 1 if value else 0
+        try:
+            int_val = int(value)
+            return 1 if int_val != 0 else 0
+        except:
+            return 0
+    
+    # Função auxiliar para verificar se dois registros têm mudanças significativas
+    def has_changes(r1, r2):
+        pos_ch = (
+            abs((r1.get('PositionX') or 0) - (r2.get('PositionX') or 0)) > pos_threshold or
+            abs((r1.get('PositionY') or 0) - (r2.get('PositionY') or 0)) > pos_threshold or
+            abs((r1.get('PositionZ') or 0) - (r2.get('PositionZ') or 0)) > pos_threshold
+        )
+        status_ch = (r1.get('IsDestroyed') or 0) != (r2.get('IsDestroyed') or 0)
+        
+        name_ch = False
+        for name_field in name_fields:
+            if name_field in r1 and name_field in r2:
+                if r1.get(name_field) != r2.get(name_field):
+                    name_ch = True
+                    break
+        
+        structure_ch = False
+        r1_keys = set(k for k in r1.keys() if k not in exclude_fields and not k.endswith('TrackingId') and not k.endswith('Id'))
+        r2_keys = set(k for k in r2.keys() if k not in exclude_fields and not k.endswith('TrackingId') and not k.endswith('Id'))
+        common_keys = r1_keys & r2_keys
+        for key in common_keys:
+            if r1.get(key) != r2.get(key):
+                structure_ch = True
+                break
+        
+        # Detectar ataque: componente estava construído e agora está destruído
+        attack_ch = False
+        if structure_type == 'fence':
+            prev_lower = normalize_bool_value(r1.get('LowerPanelBuilt', 0))
+            prev_upper = normalize_bool_value(r1.get('UpperPanelBuilt', 0))
+            curr_lower = normalize_bool_value(r2.get('LowerPanelBuilt', 0))
+            curr_upper = normalize_bool_value(r2.get('UpperPanelBuilt', 0))
+            
+            # Ataque: painel estava construído (1) e agora está destruído (0)
+            if (prev_lower == 1 and curr_lower == 0) or (prev_upper == 1 and curr_upper == 0):
+                attack_ch = True
+        elif structure_type == 'watchtower':
+            # Lista de todas as paredes para verificar
+            wall_fields = [
+                'Level1Wall1LowerBuilt', 'Level1Wall1UpperBuilt',
+                'Level1Wall2LowerBuilt', 'Level1Wall2UpperBuilt',
+                'Level1Wall3LowerBuilt', 'Level1Wall3UpperBuilt',
+                'Level2Wall1LowerBuilt', 'Level2Wall1UpperBuilt',
+                'Level2Wall2LowerBuilt', 'Level2Wall2UpperBuilt',
+                'Level2Wall3LowerBuilt', 'Level2Wall3UpperBuilt',
+                'Level3Wall1LowerBuilt', 'Level3Wall1UpperBuilt',
+                'Level3Wall2LowerBuilt', 'Level3Wall2UpperBuilt',
+                'Level3Wall3LowerBuilt', 'Level3Wall3UpperBuilt'
+            ]
+            
+            for wall_field in wall_fields:
+                prev_wall = normalize_bool_value(r1.get(wall_field, 0))
+                curr_wall = normalize_bool_value(r2.get(wall_field, 0))
+                
+                # Ataque: parede estava construída (1) e agora está destruída (0)
+                if prev_wall == 1 and curr_wall == 0:
+                    attack_ch = True
+                    break
+        
+        return pos_ch or status_ch or name_ch or structure_ch or attack_ch
+    
+    # Trabalhar em ordem ASC (do mais antigo para o mais recente)
+    # History vem em DESC, então revertemos para ASC
+    asc_history = list(reversed(history))
+    n = len(asc_history)
+    
+    # Lista para rastrear quais registros manter
+    keep_asc = [False] * n
+    
+    # Comparar registros consecutivos (do mais antigo para o mais recente)
+    # Marcar registros apenas quando há mudanças significativas
+    for i in range(1, n):
+        prev = asc_history[i - 1]
+        curr = asc_history[i]
+        
+        if has_changes(prev, curr):
+            # Há mudanças significativas: manter ambos os registros
+            keep_asc[i - 1] = True
+            keep_asc[i] = True
+    
+    # Processar grupos de registros consecutivos sem mudanças
+    # Estratégia: Para cada grupo sem mudanças, manter apenas o último registro do grupo
+    i = 0
+    while i < n:
+        if keep_asc[i]:
+            # Registro já marcado (houve mudanças), pular para o próximo
+            i += 1
+            continue
+        
+        # Encontrar grupo de registros consecutivos não marcados (sem mudanças)
+        group_start = i
+        group_end = i
+        
+        # Avançar até encontrar um registro marcado ou o fim da lista
+        while group_end < n and not keep_asc[group_end]:
+            group_end += 1
+        
+        # Se o grupo vai até o final da lista
+        if group_end >= n:
+            # Manter apenas o último registro do grupo (mais recente)
+            # Desmarcar todos os anteriores do grupo (incluindo o primeiro se foi marcado por outro motivo)
+            for j in range(group_start, n - 1):
+                keep_asc[j] = False
+            # Garantir que o último registro seja mantido
+            keep_asc[n - 1] = True
+            break
+        
+        # Se há um registro marcado após o grupo
+        if group_end > group_start:
+            # Desmarcar todos os registros do grupo exceto o último (antes do marcado)
+            for j in range(group_start, group_end - 1):
+                keep_asc[j] = False
+            # Manter apenas o último registro do grupo
+            keep_asc[group_end - 1] = True
+        
+        i = group_end
+    
+    # Sempre garantir que o último registro (mais recente) seja mantido
+    # Isso é importante para garantir que sempre temos pelo menos um registro
+    keep_asc[n - 1] = True
+    
+    # Se nenhum registro foi marcado (todos são idênticos), manter apenas o último
+    if not any(keep_asc):
+        keep_asc[n - 1] = True
+    
+    # Filtrar e reverter para ordem DESC (mais recente primeiro)
+    filtered = [asc_history[i] for i in range(n) if keep_asc[i]]
+    return list(reversed(filtered))
