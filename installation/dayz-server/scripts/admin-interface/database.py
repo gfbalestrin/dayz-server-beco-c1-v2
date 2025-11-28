@@ -5,6 +5,7 @@ import sqlite3
 import base64
 import json
 import os
+import logging
 from datetime import datetime
 from typing import List, Dict, Optional, Tuple, Set
 import config
@@ -1410,7 +1411,16 @@ def count_container_changes(container_id: str, date_from: str = None, date_to: s
                           abs((prev.get('PositionZ') or 0) - (curr.get('PositionZ') or 0)) > pos_threshold)
             
             # Verificar mudança de status
-            status_changed = (prev.get('IsDestroyed') or 0) != (curr.get('IsDestroyed') or 0)
+            # Validar transições: ignorar mudanças inválidas (destruído → ativo)
+            # Containers destruídos não podem ser restaurados
+            prev_destroyed = (prev.get('IsDestroyed') or 0)
+            curr_destroyed = (curr.get('IsDestroyed') or 0)
+            if prev_destroyed == 1 and curr_destroyed == 0:
+                # Transição inválida: destruído → ativo (ignorar)
+                status_changed = False
+            else:
+                # Transição válida ou sem mudança
+                status_changed = prev_destroyed != curr_destroyed
             
             # Verificar mudança em items (apenas entre snapshots COMPLETOS consecutivos)
             # Regra: items só são confiáveis em updates completos (IsPartialUpdate = 0)
@@ -1508,7 +1518,16 @@ def filter_container_history_by_changes(history: List[Dict]) -> List[Dict]:
         )
 
         # Mudança de status
-        status_changed = (prev.get('IsDestroyed') or 0) != (curr.get('IsDestroyed') or 0)
+        # Validar transições: ignorar mudanças inválidas (destruído → ativo)
+        # Containers destruídos não podem ser restaurados
+        prev_destroyed = (prev.get('IsDestroyed') or 0)
+        curr_destroyed = (curr.get('IsDestroyed') or 0)
+        if prev_destroyed == 1 and curr_destroyed == 0:
+            # Transição inválida: destruído → ativo (ignorar)
+            status_changed = False
+        else:
+            # Transição válida ou sem mudança
+            status_changed = prev_destroyed != curr_destroyed
 
         # Mudanças em items: apenas entre snapshots COMPLETOS consecutivos
         items_changed = False
@@ -2225,9 +2244,9 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
                 'current_upper': normalize_bool_value(raw_upper)
             }
         
-        # Buscar penúltimo registro de cada fence para comparar com o último e detectar ataques
-        # Simplificação: só precisamos do penúltimo registro, não todos os históricos
-        prev_record_by_fence = {}  # fence_id -> row (penúltimo registro)
+        # Buscar último registro onde painéis eram construídos (LowerPanelBuilt=1 OU UpperPanelBuilt=1)
+        # para comparar com o estado atual e detectar ataques
+        prev_record_by_fence = {}  # fence_id -> row (último registro com painéis construídos)
         
         if fence_ids and any(fence_timestamps.values()):
             if has_is_destroyed and not include_destroyed:
@@ -2235,59 +2254,56 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
             else:
                 destroy_condition = ""
             
-            # Query batch usando IN clause: buscar registros anteriores ao timestamp atual de cada fence
-            # Buscar apenas registros que são anteriores ao timestamp atual (para pegar o penúltimo)
+            # Query batch usando IN clause: buscar último registro onde painéis eram 1
+            # para cada fence onde o estado atual tem painéis em 0
             placeholders = ','.join(['?'] * len(fence_ids))
-            fence_timestamp_pairs = []
             
-            for fence_id in fence_ids:
-                timestamp = fence_timestamps.get(fence_id)
-                if timestamp:
-                    fence_timestamp_pairs.append((fence_id, timestamp))
+            # Buscar o último registro onde LowerPanelBuilt=1 OU UpperPanelBuilt=1 para cada fence
+            # Isso detecta ataques mesmo se houver múltiplos registros com painéis em 0 após o ataque
+            prev_query = f"""
+                SELECT ft.FenceId, ft.LowerPanelBuilt, ft.UpperPanelBuilt, ft.TimeStamp, ft.IdFenceTracking,
+                       latest.MaxTimeStamp
+                FROM fences_tracking ft
+                INNER JOIN (
+                    SELECT FenceId, MAX(TimeStamp) as MaxTimeStamp
+                    FROM fences_tracking
+                    WHERE FenceId IN ({placeholders}) {destroy_condition}
+                    GROUP BY FenceId
+                ) latest ON ft.FenceId = latest.FenceId
+                WHERE ft.FenceId IN ({placeholders}) 
+                  AND ft.TimeStamp < latest.MaxTimeStamp
+                  AND (ft.LowerPanelBuilt = 1 OR ft.UpperPanelBuilt = 1)
+                  {destroy_condition}
+                ORDER BY ft.FenceId, ft.TimeStamp DESC, ft.IdFenceTracking DESC
+            """
             
-            if fence_timestamp_pairs:
-                # Buscar o penúltimo registro de cada fence
-                # Usar IN clause com filtro de timestamp para buscar apenas registros anteriores
-                # Processar em memória para pegar apenas o penúltimo de cada fence
+            # Parâmetros: fence_ids duas vezes (uma para cada IN clause)
+            fence_id_params = fence_ids + fence_ids
+            
+            cursor.execute(prev_query, fence_id_params)
+            
+            # Processar resultados: para cada fence, pegar apenas o primeiro registro (último com painéis construídos)
+            current_fence_id = None
+            logger = logging.getLogger(__name__)
+            
+            all_prev_rows = cursor.fetchall()
+            logger.debug(f"Total de registros com painéis construídos encontrados: {len(all_prev_rows)}")
+            
+            for row in all_prev_rows:
+                fence_id = row[0]
                 
-                # Criar condições para buscar registros anteriores ao timestamp atual
-                # SQLite não permite usar cada timestamp individualmente em IN, então
-                # vamos buscar todos os registros e filtrar por timestamp em memória
-                prev_query = f"""
-                    SELECT ft.FenceId, ft.LowerPanelBuilt, ft.UpperPanelBuilt, ft.TimeStamp, ft.IdFenceTracking,
-                           latest.MaxTimeStamp
-                    FROM fences_tracking ft
-                    INNER JOIN (
-                        SELECT FenceId, MAX(TimeStamp) as MaxTimeStamp
-                        FROM fences_tracking
-                        WHERE FenceId IN ({placeholders}) {destroy_condition}
-                        GROUP BY FenceId
-                    ) latest ON ft.FenceId = latest.FenceId
-                    WHERE ft.FenceId IN ({placeholders}) 
-                      AND ft.TimeStamp < latest.MaxTimeStamp
-                      {destroy_condition}
-                    ORDER BY ft.FenceId, ft.TimeStamp DESC, ft.IdFenceTracking DESC
-                """
-                
-                # Parâmetros: fence_ids duas vezes (uma para cada IN clause)
-                fence_id_params = fence_ids + fence_ids
-                
-                cursor.execute(prev_query, fence_id_params)
-                
-                # Processar resultados: para cada fence, pegar apenas o primeiro registro (penúltimo)
-                current_fence_id = None
-                
-                for row in cursor.fetchall():
-                    fence_id = row[0]
-                    
-                    if fence_id != current_fence_id:
-                        # Novo fence, este é o penúltimo (primeiro registro anterior ao último)
-                        current_fence_id = fence_id
-                        if fence_id not in prev_record_by_fence:
-                            # Guardar apenas os campos necessários (sem MaxTimeStamp)
-                            prev_record_by_fence[fence_id] = (row[0], row[1], row[2], row[3], row[4])
+                if fence_id != current_fence_id:
+                    # Novo fence, este é o último registro onde os painéis eram construídos
+                    current_fence_id = fence_id
+                    if fence_id not in prev_record_by_fence:
+                        # Guardar apenas os campos necessários (sem MaxTimeStamp)
+                        prev_record_by_fence[fence_id] = (row[0], row[1], row[2], row[3], row[4])
+                        logger.debug(f"Fence {fence_id}: Último registro com painéis construídos encontrado - LowerPanelBuilt={row[1]}, UpperPanelBuilt={row[2]}, TimeStamp={row[3]}")
+            
+            logger.debug(f"Total de fences com registro anterior com painéis construídos: {len(prev_record_by_fence)}")
         
         # Detectar ataques comparando estados atuais com anteriores
+        logger = logging.getLogger(__name__)
         for fence in fences:
             fence_id = fence['FenceId']
             current_timestamp = fence_timestamps.get(fence_id)
@@ -2299,22 +2315,39 @@ def get_fences_last_position(include_destroyed: bool = False) -> List[Dict]:
             has_recent_attack = False
             
             if current_timestamp:
-                # Comparar estado atual com penúltimo registro
+                # Comparar estado atual com último registro onde painéis eram construídos
                 prev_row = prev_record_by_fence.get(fence_id)
                 
                 if prev_row:
-                    # Extrair estados dos painéis do penúltimo registro
-                    prev_lower = normalize_bool_value(prev_row[1])  # LowerPanelBuilt está no índice 1
-                    prev_upper = normalize_bool_value(prev_row[2])  # UpperPanelBuilt está no índice 2
+                    # Extrair estados dos painéis do último registro onde eram construídos
+                    prev_lower_raw = prev_row[1]  # LowerPanelBuilt está no índice 1
+                    prev_upper_raw = prev_row[2]  # UpperPanelBuilt está no índice 2
+                    prev_lower = normalize_bool_value(prev_lower_raw)
+                    prev_upper = normalize_bool_value(prev_upper_raw)
                     
-                    # Detectar ataque: painel estava construído no penúltimo e não está no último
+                    # Detectar ataque: se o estado atual tem painéis em 0 e encontramos um registro anterior
+                    # onde os painéis eram 1, então houve ataque
+                    # Verificar se houve perda de painéis (estava construído antes e não está mais)
                     lower_attack = (prev_lower == 1 and current_lower == 0)
                     upper_attack = (prev_upper == 1 and current_upper == 0)
                     
+                    # Debug: log detalhado para verificar cálculo
+                    logger.debug(f"Fence {fence_id}: Comparação - prev_lower_raw={prev_lower_raw} (normalized={prev_lower}), current_lower={current_lower}, prev_upper_raw={prev_upper_raw} (normalized={prev_upper}), current_upper={current_upper}")
+                    logger.debug(f"Fence {fence_id}: lower_attack={lower_attack}, upper_attack={upper_attack}")
+                    
                     if lower_attack or upper_attack:
                         has_recent_attack = True
+                        logger.info(f"Fence {fence_id}: ATAQUE DETECTADO - has_recent_attack=True (painéis foram de 1 para 0)")
+                else:
+                    # Se não há registro anterior com painéis construídos, não houve ataque recente
+                    # (a fence pode nunca ter tido painéis construídos, ou os painéis foram construídos e depois destruídos há muito tempo)
+                    logger.debug(f"Fence {fence_id}: Não há registro anterior com painéis construídos para comparação (prev_row is None). Total de registros anteriores: {len(prev_record_by_fence)}")
+            else:
+                # Debug: log quando não há timestamp atual
+                logger.debug(f"Fence {fence_id}: Não há timestamp atual para comparação")
             
             fence['has_recent_attack'] = has_recent_attack
+            logger.debug(f"Fence {fence_id}: has_recent_attack final = {has_recent_attack}")
         
         return fences
 

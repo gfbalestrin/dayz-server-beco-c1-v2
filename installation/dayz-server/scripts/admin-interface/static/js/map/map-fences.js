@@ -188,8 +188,16 @@ function updateFences(data) {
         return;
     }
     
+    // Aplicar filtros de estruturas selecionadas
+    let fencesToShow = data.fences;
+    if (MapState.selectedStructureFilters.length > 0) {
+        fencesToShow = data.fences.filter(function(fence) {
+            return MapState.selectedStructureFilters.includes(fence.fence_id);
+        });
+    }
+    
     // Adicionar fences
-    data.fences.forEach(function(fence) {
+    fencesToShow.forEach(function(fence) {
         const fenceId = fence.fence_id;
         const coords = convertToMapCoords(fence.pixel_coords);
         
@@ -200,7 +208,13 @@ function updateFences(data) {
         MapState.fencesData[fenceId] = fence;
         
         const isDestroyed = fence.is_destroyed || false;
-        const hasRecentAttack = fence.has_recent_attack || false;
+        // Verificar has_recent_attack explicitamente (pode ser false, true, 1, 0, ou undefined)
+        // Aceitar true, 1, ou string "true"
+        const hasRecentAttack = fence.has_recent_attack === true || 
+                                fence.has_recent_attack === 1 || 
+                                fence.has_recent_attack === 'true' ||
+                                (typeof fence.has_recent_attack === 'string' && fence.has_recent_attack.toLowerCase() === 'true');
+        
         const marker = L.marker(coords, {
             icon: createFenceIcon(fence, hasRecentAttack),
             opacity: isDestroyed ? 0.5 : 1.0,
@@ -1341,6 +1355,19 @@ function applyFenceRefreshData(fenceId, commandData) {
         watchtower_details: fence.watchtower_details || {},
         flag_details: fence.flag_details || {}
     };
+    
+    // Atualizar ícone do marcador se has_recent_attack mudou
+    if (marker) {
+        const isDestroyed = fence.is_destroyed || false;
+        const hasRecentAttack = fence.has_recent_attack === true || 
+                                fence.has_recent_attack === 1 || 
+                                fence.has_recent_attack === 'true' ||
+                                (typeof fence.has_recent_attack === 'string' && fence.has_recent_attack.toLowerCase() === 'true');
+        const newIcon = createFenceIcon(fence, hasRecentAttack);
+        marker.setIcon(newIcon);
+        marker.setOpacity(isDestroyed ? 0.5 : 1.0);
+        marker.setZIndexOffset(hasRecentAttack ? 1000 : 0);
+    }
     
     // Atualizar popup se estava aberto antes (preservar estado)
     if (marker && wasPopupOpen) {

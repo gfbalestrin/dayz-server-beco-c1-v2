@@ -71,6 +71,7 @@ const MapState = {
     selectedPlayerFilters: [],
     selectedVehicleFilters: [],
     selectedContainerFilters: [],
+    selectedStructureFilters: [],
     trailDateFilter: {
         enabled: false,
         startDate: null,

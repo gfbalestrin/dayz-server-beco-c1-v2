@@ -262,6 +262,44 @@ $(document).ready(function() {
         setTimeout(tryZoom, 1000);
     }
     
+    // Função para fazer zoom na estrutura
+    function zoomToStructure(structureId) {
+        // Aguardar marcador ser criado (com retry)
+        const maxAttempts = 10;
+        let attempts = 0;
+        
+        const tryZoom = function() {
+            attempts++;
+            const marker = MapState.fenceMarkers[structureId];
+            const fenceData = MapState.fencesData[structureId];
+            
+            if (marker) {
+                // Marcador existe, fazer zoom
+                const latLng = marker.getLatLng();
+                MapState.map.flyTo(latLng, 3, {
+                    animate: true,
+                    duration: 1.0
+                });
+            } else if (fenceData && fenceData.coord_x !== undefined && fenceData.coord_y !== undefined) {
+                // Marcador ainda não existe, mas temos dados da estrutura
+                const pixelCoords = [fenceData.coord_x, fenceData.coord_y];
+                const mapCoords = convertToMapCoords(pixelCoords);
+                if (mapCoords) {
+                    MapState.map.flyTo(mapCoords, 3, {
+                        animate: true,
+                        duration: 1.0
+                    });
+                }
+            } else if (attempts < maxAttempts) {
+                // Aguardar mais um pouco e tentar novamente
+                setTimeout(tryZoom, 500);
+            }
+        };
+        
+        // Primeira tentativa após um delay inicial
+        setTimeout(tryZoom, 1000);
+    }
+    
     // Verificar se há filtro de player_id na URL e aplicar
     const urlParams = new URLSearchParams(window.location.search);
     const playerIdFilter = urlParams.get('player_id');
@@ -398,6 +436,49 @@ $(document).ready(function() {
         // Carregar containers (que aplicará o filtro automaticamente)
         setTimeout(function() {
             loadContainers();
+        }, 500);
+    }
+    
+    // Verificar se há filtro de structure_id na URL e aplicar
+    const structureIdFilter = urlParams.get('structure_id');
+    if (structureIdFilter) {
+        setTimeout(function() {
+            // Garantir que estruturas estão sendo exibidas
+            if (!MapState.showFences) {
+                MapState.showFences = true;
+                $('#toggleFencesBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar Construções');
+            }
+            // Adicionar ao array de filtros
+            MapState.selectedStructureFilters.push(structureIdFilter);
+        }, 500); // Aguardar carga completa do mapa
+        
+        // Fazer zoom na estrutura após carregar estruturas
+        // Usar um listener único para fazer zoom após o primeiro carregamento
+        let zoomExecuted = false;
+        const originalLoadFences = window.loadFences;
+        const wrappedLoadFences = function() {
+            const result = originalLoadFences.apply(this, arguments);
+            
+            if (!zoomExecuted) {
+                zoomExecuted = true;
+                // Aguardar um pouco para marcadores serem criados
+                setTimeout(function() {
+                    zoomToStructure(structureIdFilter);
+                }, 1500);
+                
+                // Restaurar função original após primeira execução
+                window.loadFences = originalLoadFences;
+            }
+            
+            return result;
+        };
+        
+        // Interceptar apenas uma vez
+        window.loadFences = wrappedLoadFences;
+        
+        // Carregar estruturas (que aplicará o filtro automaticamente)
+        setTimeout(function() {
+            loadFences();
         }, 500);
     }
     
