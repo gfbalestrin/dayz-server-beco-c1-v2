@@ -68,6 +68,12 @@ ADMIN_IDS_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.che
 # Arquivo de configuração do deathmatch
 DEATHMATCH_CONFIG_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/deathmatch_config.json'
 
+# Arquivo de configuração de gameplay do servidor
+CFGGAMEPLAY_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/cfggameplay.json'
+
+# Arquivo de configuração principal do servidor DayZ
+SERVERDZ_CFG_FILE = '/home/dayzadmin/servers/dayz-server/serverDZ.cfg'
+
 # Arquivo de ban permanente do servidor DayZ
 BAN_FILE_PATH = '/home/dayzadmin/servers/dayz-server/ban.txt'
 

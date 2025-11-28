@@ -248,6 +248,13 @@ def users_manage():
     return render_template('users_manage.html')
 
 
+@views_bp.route('/server-config')
+@admin_required
+def server_config():
+    """Página de configurações do servidor"""
+    return render_template('server_config.html')
+
+
 @views_bp.route('/loadouts')
 @admin_required
 def loadouts():

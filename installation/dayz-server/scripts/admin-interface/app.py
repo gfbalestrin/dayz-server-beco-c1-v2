@@ -12,6 +12,7 @@ from blueprints import api_map, api_players, api_vehicles, api_containers, api_s
 from blueprints import api_cheat_detection, api_deathmatch, api_spawning
 from blueprints import api_items_manage, api_kits, api_users
 from blueprints import api_loadouts, api_loadout_rules, api_commands
+from blueprints import api_server_config
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
@@ -34,6 +35,7 @@ app.register_blueprint(api_users.api_users_bp)
 app.register_blueprint(api_loadouts.api_loadouts_bp)
 app.register_blueprint(api_loadout_rules.api_loadout_rules_bp)
 app.register_blueprint(api_commands.api_commands_bp)
+app.register_blueprint(api_server_config.api_server_config_bp)
 
 # Error handlers
 @app.errorhandler(404)
