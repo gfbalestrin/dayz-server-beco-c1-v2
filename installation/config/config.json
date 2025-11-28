@@ -28,6 +28,11 @@
             "Enabled": 0,
             "BanMinutes": 5
         },
+        "RaidRules": {
+            "Enable": 1,
+            "DaysAllowed": "SAT,SUN",
+            "HoursAllowed": "09:00-23:59"
+        },
         "ServerFolder": "__DAYZ_FOLDER__",
         "LogAdmFile": "profiles/DayZServer.ADM",
         "LogRPTFile": "profiles/DayZServer_current.RPT",

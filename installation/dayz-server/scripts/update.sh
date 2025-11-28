@@ -27,6 +27,55 @@ cd __DAYZ_FOLDER__/scripts
 source __DAYZ_FOLDER__/scripts/config.sh
 CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
 ScriptName=$(basename "$0")
+
+# Função para converter dia da semana de português para inglês
+CONVERT_DAY_PT_TO_EN() {
+    local day_pt=$(echo "$1" | tr '[:lower:]' '[:upper:]' | tr -d ' ')
+    case "$day_pt" in
+        "DOM") echo "SUN" ;;
+        "SEG") echo "MON" ;;
+        "TER") echo "TUE" ;;
+        "QUA") echo "WED" ;;
+        "QUI") echo "THU" ;;
+        "SEX") echo "FRI" ;;
+        "SAB") echo "SAT" ;;
+        *) echo "$day_pt" ;;
+    esac
+}
+
+# Função para verificar se o dia atual está na lista de dias permitidos
+CHECK_RAID_DAY_ALLOWED() {
+    local days_allowed="$1"
+    local current_day=$(date +%a | tr '[:lower:]' '[:upper:]')
+    
+    IFS=',' read -ra DAYS_ARRAY <<< "$days_allowed"
+    for day in "${DAYS_ARRAY[@]}"; do
+        day=$(echo "$day" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+        day_en=$(CONVERT_DAY_PT_TO_EN "$day")
+        if [[ "$current_day" == "$day_en" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Função para verificar se o horário atual está dentro do intervalo permitido
+CHECK_RAID_HOUR_ALLOWED() {
+    local hours_allowed="$1"
+    local current_time=$(date +%H:%M)
+    
+    local start_time=$(echo "$hours_allowed" | cut -d'-' -f1)
+    local end_time=$(echo "$hours_allowed" | cut -d'-' -f2)
+    
+    local current_minutes=$((10#$(echo "$current_time" | cut -d':' -f1) * 60 + 10#$(echo "$current_time" | cut -d':' -f2)))
+    local start_minutes=$((10#$(echo "$start_time" | cut -d':' -f1) * 60 + 10#$(echo "$start_time" | cut -d':' -f2)))
+    local end_minutes=$((10#$(echo "$end_time" | cut -d':' -f1) * 60 + 10#$(echo "$end_time" | cut -d':' -f2)))
+    
+    if [[ $current_minutes -ge $start_minutes ]] && [[ $current_minutes -le $end_minutes ]]; then
+        return 0
+    fi
+    return 1
+}
 SEND_DISCORD_WEBHOOK "⚠️ Servidor reiniciando e atualizando... Todos os jogadores foram desconectados!" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
 INSERT_CUSTOM_LOG "⚠️ Servidor reiniciando e atualizando... Todos os jogadores foram desconectados!" "INFO" "$ScriptName"
 
@@ -273,6 +322,35 @@ DAY_ACCEL="__DAY_ACCEL__"
 NIGHT_ACCEL="__NIGHT_ACCEL__"
 sed -i "s/^\s*serverTimeAcceleration=.*/serverTimeAcceleration=${DAY_ACCEL};/" "$CFG_FILE"
 sed -i "s/^\s*serverNightTimeAcceleration=.*/serverNightTimeAcceleration=${NIGHT_ACCEL};/" "$CFG_FILE"
+
+if [[ "$DayzRaidRulesEnable" == "1" ]]; then
+    DAY_ALLOWED=false
+    HOUR_ALLOWED=false
+    
+    if CHECK_RAID_DAY_ALLOWED "$DayzRaidRulesDaysAllowed"; then
+        DAY_ALLOWED=true
+        INSERT_CUSTOM_LOG "Dia permitido para raid: $(date +%a)" "INFO" "$ScriptName"
+    else
+        INSERT_CUSTOM_LOG "Dia NÃO permitido para raid: $(date +%a). Dias permitidos: $DayzRaidRulesDaysAllowed" "INFO" "$ScriptName"
+    fi
+    
+    if CHECK_RAID_HOUR_ALLOWED "$DayzRaidRulesHoursAllowed"; then
+        HOUR_ALLOWED=true
+        INSERT_CUSTOM_LOG "Horário permitido para raid: $(date +%H:%M). Intervalo: $DayzRaidRulesHoursAllowed" "INFO" "$ScriptName"
+    else
+        INSERT_CUSTOM_LOG "Horário NÃO permitido para raid: $(date +%H:%M). Intervalo permitido: $DayzRaidRulesHoursAllowed" "INFO" "$ScriptName"
+    fi
+    CFG_GAMEPLAY_FILE="__DAYZ_FOLDER__/mpmissions/__DAYZ_MPMISSION__/cfggameplay.json"
+    if [[ "$DAY_ALLOWED" == "true" ]] && [[ "$HOUR_ALLOWED" == "true" ]]; then
+        INSERT_CUSTOM_LOG "Ativando regras de raid (dia e horário permitidos)..." "INFO" "$ScriptName"
+        SEND_DISCORD_WEBHOOK "Raid permitido (dia e horário permitidos)!" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+        sed -i "s/\"disableBaseDamage\": true,/\"disableBaseDamage\": false,/g" "$CFG_GAMEPLAY_FILE"
+    else
+        INSERT_CUSTOM_LOG "Regras de raid NÃO ativadas: condições de dia/horário não atendidas" "INFO" "$ScriptName"
+        SEND_DISCORD_WEBHOOK "Raid NÃO Permitido: condições de dia/horário não atendidas!" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+        sed -i "s/\"disableBaseDamage\": false,/\"disableBaseDamage\": true,/g" "$CFG_GAMEPLAY_FILE"
+    fi
+fi
 
 chown -R "__LINUX_USER_NAME__:__LINUX_USER_NAME__" __DAYZ_FOLDER__/mpmissions/__DAYZ_MPMISSION__/db/messages.xml 2>/dev/null || echo "Aviso: Não foi possível alterar permissões da pasta admin"
 

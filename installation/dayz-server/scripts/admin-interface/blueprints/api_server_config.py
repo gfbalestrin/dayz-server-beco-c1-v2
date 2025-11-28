@@ -466,8 +466,6 @@ def _write_serverdz_config(data):
     
     output_lines = []
     i = 0
-    in_motd_array = False
-    in_missions_block = False
     
     while i < len(original_lines):
         line = original_lines[i]
@@ -508,34 +506,60 @@ def _write_serverdz_config(data):
         if stripped.startswith('class Missions'):
             output_lines.append(line)
             i += 1
-            # Adicionar linha de abertura se não existir
+            # Adicionar linha de abertura se não existir na mesma linha
             if '{' not in stripped:
-                output_lines.append('{\n')
+                # Verificar se a próxima linha é apenas a chave de abertura
+                if i < len(original_lines):
+                    next_stripped = original_lines[i].strip()
+                    if next_stripped == '{' or next_stripped.startswith('{'):
+                        output_lines.append(original_lines[i])
+                        i += 1
+                    else:
+                        output_lines.append('{\n')
             
-            # Processar linhas dentro do bloco
-            while i < len(original_lines) and '}' not in original_lines[i]:
+            # Processar linhas dentro do bloco até encontrar o fechamento
+            while i < len(original_lines):
                 inner_line = original_lines[i]
+                inner_stripped = inner_line.strip()
+                
+                # Verificar se chegamos ao fim do bloco
+                # Procurar por '}' que fecha o bloco (não inline em comentários)
+                if inner_stripped == '}' or (inner_stripped.startswith('}') and not inner_stripped.startswith('}//')):
+                    output_lines.append(inner_line)
+                    i += 1
+                    break
+                
+                # Processar linha com template
                 if 'template=' in inner_line:
                     template = data.get('missionTemplate', 'dayzOffline.chernarusplus')
-                    output_lines.append(f'        template="{template}"; // Mission to load on server startup. <MissionName>.<TerrainName>\n')
+                    # Manter indentação original
+                    indent = len(inner_line) - len(inner_line.lstrip())
+                    output_lines.append(' ' * indent + f'template="{template}"; // Mission to load on server startup. <MissionName>.<TerrainName>\n')
                     output_lines.append('                                      // Vanilla mission: dayzOffline.chernarusplus\n')
                     output_lines.append('                                      // DLC mission: dayzOffline.enoch\n')
                     i += 1
-                    # Pular comentários relacionados
-                    while i < len(original_lines) and (original_lines[i].strip().startswith('//') or not original_lines[i].strip()):
-                        i += 1
+                    # Pular comentários relacionados que podem estar nas próximas linhas
+                    while i < len(original_lines):
+                        next_line_stripped = original_lines[i].strip()
+                        if next_line_stripped.startswith('//') or not next_line_stripped:
+                            i += 1
+                        else:
+                            break
                     continue
                 else:
+                    # Manter outras linhas do bloco como estão
                     output_lines.append(inner_line)
-                i += 1
+                    i += 1
             
-            # Adicionar fechamento do bloco
-            if i < len(original_lines):
-                output_lines.append(original_lines[i])
-            i += 1
             continue
         
         # Processar linhas de configuração normais
+        # Ignorar linhas que começam com '/' (comentários ou referências)
+        if stripped.startswith('/'):
+            output_lines.append(line)
+            i += 1
+            continue
+        
         if '=' in stripped:
             # Remover comentário inline para processar
             comment = ''
@@ -550,6 +574,12 @@ def _write_serverdz_config(data):
             parts = stripped.split('=', 1)
             if len(parts) == 2:
                 key = parts[0].strip()
+                # Verificar se a chave não contém caracteres inválidos (como '/')
+                if '/' in key:
+                    output_lines.append(line)
+                    i += 1
+                    continue
+                
                 if key in data:
                     value = data[key]
                     # Formatar valor
