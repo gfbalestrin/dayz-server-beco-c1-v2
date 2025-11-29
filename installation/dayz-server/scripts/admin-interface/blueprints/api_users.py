@@ -4,6 +4,8 @@ Rotas de API relacionadas
 """
 from flask import Blueprint, request, jsonify, session
 import logging
+import re
+import config
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from database import (

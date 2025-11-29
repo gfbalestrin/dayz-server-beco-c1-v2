@@ -1336,7 +1336,8 @@ function renderPlayersTable() {
     tbody.empty();
     
     if (filteredData.length === 0) {
-        tbody.append('<tr><td colspan="10" class="text-center">Nenhum jogador encontrado</td></tr>');
+        // Criar linha com 10 células separadas (sem colspan) para evitar erro do DataTables
+        tbody.append('<tr><td class="text-center">Nenhum jogador encontrado</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>');
     } else {
         // Renderizar cada jogador
         filteredData.forEach(player => {
@@ -1356,6 +1357,22 @@ function renderPlayersTable() {
             `;
             tbody.append(row);
         });
+    }
+    
+    // Validar estrutura da tabela antes de inicializar DataTable
+    const firstRow = tbody.find('tr:first');
+    if (firstRow.length > 0) {
+        const cellCount = firstRow.find('td').length;
+        const expectedColumns = 10;
+        
+        if (cellCount !== expectedColumns) {
+            console.error(`[renderPlayersTable] Erro: linha tem ${cellCount} células, esperado ${expectedColumns}`);
+            // Corrigir estrutura se necessário
+            if (filteredData.length === 0 && cellCount === 1) {
+                // Se for linha vazia com apenas 1 célula, corrigir
+                firstRow.html('<td class="text-center">Nenhum jogador encontrado</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>');
+            }
+        }
     }
     
     // Recriar DataTable imediatamente (sem setTimeout)
