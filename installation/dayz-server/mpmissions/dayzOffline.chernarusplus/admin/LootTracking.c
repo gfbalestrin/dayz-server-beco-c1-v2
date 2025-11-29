@@ -32,6 +32,78 @@ bool IsContainerType(string objectType)
 	return false;
 }
 
+EntityAI GetContainerFromUndergroundStash(EntityAI undergroundStash)
+{
+	if (!undergroundStash)
+		return null;
+	
+	string stashType = undergroundStash.GetType();
+	if (stashType != "UndergroundStash")
+		return null;
+	
+	if (!undergroundStash.GetInventory())
+		return null;
+	
+	vector stashPosition = undergroundStash.GetPosition();
+	
+	CargoBase stashCargo = undergroundStash.GetInventory().GetCargo();
+	if (stashCargo)
+	{
+		for (int cargoIndex = 0; cargoIndex < stashCargo.GetItemCount(); cargoIndex++)
+		{
+			EntityAI cargoItem = stashCargo.GetItem(cargoIndex);
+			if (!cargoItem)
+				continue;
+			
+			string cargoType = cargoItem.GetType();
+			if (IsContainerType(cargoType))
+			{
+				WriteToLog("GetContainerFromUndergroundStash(): Container encontrado dentro do UndergroundStash - Tipo: " + cargoType + " em " + stashPosition.ToString(), LogFile.INIT, false, LogType.INFO);
+				return cargoItem;
+			}
+		}
+	}
+	
+	int attachmentCount = undergroundStash.GetInventory().AttachmentCount();
+	for (int attachmentIndex = 0; attachmentIndex < attachmentCount; attachmentIndex++)
+	{
+		EntityAI attachmentItem = undergroundStash.GetInventory().GetAttachmentFromIndex(attachmentIndex);
+		if (!attachmentItem)
+			continue;
+		
+		string attachmentType = attachmentItem.GetType();
+		if (IsContainerType(attachmentType))
+		{
+			WriteToLog("GetContainerFromUndergroundStash(): Container encontrado como attachment no UndergroundStash - Tipo: " + attachmentType + " em " + stashPosition.ToString(), LogFile.INIT, false, LogType.INFO);
+			return attachmentItem;
+		}
+	}
+	
+	WriteToLog("GetContainerFromUndergroundStash(): Nenhum container encontrado dentro do UndergroundStash em " + stashPosition.ToString(), LogFile.INIT, false, LogType.WARNING);
+	return null;
+}
+
+bool IsContainerBuried(EntityAI container)
+{
+	if (!container)
+		return false;
+
+	string containerType = container.GetType();
+	if (containerType == "UndergroundStash")
+	{
+		EntityAI innerContainer = GetContainerFromUndergroundStash(container);
+		if (innerContainer)
+		{
+			vector containerPosition = container.GetPosition();
+			WriteToLog("IsContainerBuried(): Container enterrado detectado (UndergroundStash contém container) em " + containerPosition.ToString(), LogFile.INIT, false, LogType.INFO);
+			return true;
+		}
+		return false;
+	}
+	
+	return false;
+}
+
 bool RegisterContainer(EntityAI newContainer)
 {
 	if (!GetGame() || !GetGame().IsServer())
@@ -89,13 +161,43 @@ void BuildContainersData(array<Object> worldObjects, out string containersJson, 
 
 		string objectType = candidateObject.GetType();
 
-		if (!IsContainerType(objectType))
+		EntityAI containerEntity = null;
+		bool isBuried = false;
+
+		if (objectType == "UndergroundStash")
+		{
+			EntityAI stashEntity = EntityAI.Cast(candidateObject);
+			if (stashEntity)
+			{
+				containerEntity = GetContainerFromUndergroundStash(stashEntity);
+				if (!containerEntity)
+				{
+					WriteToLog("BuildContainersData(): UndergroundStash sem container interno encontrado, ignorando", LogFile.INIT, false, LogType.WARNING);
+					continue;
+				}
+				objectType = containerEntity.GetType();
+				isBuried = true;
+			}
+			else
+			{
+				continue;
+			}
+		}
+		else if (IsContainerType(objectType))
+		{
+			containerEntity = EntityAI.Cast(candidateObject);
+			if (!containerEntity)
+				continue;
+		}
+		else
+		{
 			continue;
+		}
 
 		totalContainers++;
 
-		vector containerPosition = candidateObject.GetPosition();
-		vector containerOrientation = candidateObject.GetOrientation();
+		vector containerPosition = containerEntity.GetPosition();
+		vector containerOrientation = containerEntity.GetOrientation();
 
 		//WriteToLog("Loot container found: " + objectType + " at " + containerPosition.ToString() + " with orientation " + containerOrientation.ToString(), LogFile.INIT, false, LogType.INFO);
 
@@ -103,7 +205,6 @@ void BuildContainersData(array<Object> worldObjects, out string containersJson, 
 		bool containerHasItems = false;
 		string containerIdentifier = "";
 
-		EntityAI containerEntity = EntityAI.Cast(candidateObject);
 		if (containerEntity)
 		{
 			int pidLow1 = 0;
@@ -124,49 +225,73 @@ void BuildContainersData(array<Object> worldObjects, out string containersJson, 
 			{
 				containerIdentifier = "pending-" + containerEntity.GetID().ToString();
 			}
-			CargoBase containerCargo = containerEntity.GetInventory().GetCargo();
-			if (containerCargo)
+			
+			if (!isBuried)
 			{
-				for (int cargoIndex = 0; cargoIndex < containerCargo.GetItemCount(); cargoIndex++)
+				isBuried = IsContainerBuried(containerEntity);
+			}
+			
+			if (!containerEntity.GetInventory())
+			{
+				if (isBuried)
 				{
-					EntityAI cargoItem = containerCargo.GetItem(cargoIndex);
-					if (!cargoItem)
+					WriteToLog("BuildContainersData(): Container enterrado sem inventário acessível - Tipo: " + objectType + " em " + containerPosition.ToString(), LogFile.INIT, false, LogType.DEBUG);
+				}
+			}
+			else
+			{
+				CargoBase containerCargo = containerEntity.GetInventory().GetCargo();
+				if (!containerCargo)
+				{
+					if (isBuried)
+					{
+						WriteToLog("BuildContainersData(): Container enterrado sem Cargo acessível - Tipo: " + objectType + " em " + containerPosition.ToString(), LogFile.INIT, false, LogType.DEBUG);
+					}
+				}
+				else
+				{
+					for (int cargoIndex = 0; cargoIndex < containerCargo.GetItemCount(); cargoIndex++)
+					{
+						EntityAI cargoItem = containerCargo.GetItem(cargoIndex);
+						if (!cargoItem)
+							continue;
+
+						string cargoType = cargoItem.GetType();
+						float cargoHealth = cargoItem.GetHealth("", "");
+						totalItems++;
+						containerHasItems = true;
+
+						//WriteToLog("Item found: " + cargoType + " with health " + cargoHealth.ToString(), LogFile.INIT, false, LogType.INFO);
+
+						if (itemsJson != "")
+							itemsJson += ",";
+						itemsJson += "{\"type\":\"" + cargoType + "\",\"health\":" + cargoHealth.ToString() + "}";
+					}
+				}
+
+				for (int attachmentIndex = 0; attachmentIndex < containerEntity.GetInventory().AttachmentCount(); attachmentIndex++)
+				{
+					EntityAI attachmentItem = containerEntity.GetInventory().GetAttachmentFromIndex(attachmentIndex);
+					if (!attachmentItem)
 						continue;
 
-					string cargoType = cargoItem.GetType();
-					float cargoHealth = cargoItem.GetHealth("", "");
+					string attachmentType = attachmentItem.GetType();
+					float attachmentHealth = attachmentItem.GetHealth("", "");
 					totalItems++;
 					containerHasItems = true;
 
-					//WriteToLog("Item found: " + cargoType + " with health " + cargoHealth.ToString(), LogFile.INIT, false, LogType.INFO);
+					//WriteToLog("Attachment found: " + attachmentType + " with health " + attachmentHealth.ToString(), LogFile.INIT, false, LogType.INFO);
 
 					if (itemsJson != "")
 						itemsJson += ",";
-					itemsJson += "{\"type\":\"" + cargoType + "\",\"health\":" + cargoHealth.ToString() + "}";
+					itemsJson += "{\"type\":\"" + attachmentType + "\",\"health\":" + attachmentHealth.ToString() + "}";
 				}
-			} 
-
-			for (int attachmentIndex = 0; attachmentIndex < containerEntity.GetInventory().AttachmentCount(); attachmentIndex++)
-			{
-				EntityAI attachmentItem = containerEntity.GetInventory().GetAttachmentFromIndex(attachmentIndex);
-				if (!attachmentItem)
-					continue;
-
-				string attachmentType = attachmentItem.GetType();
-				float attachmentHealth = attachmentItem.GetHealth("", "");
-				totalItems++;
-				containerHasItems = true;
-
-				//WriteToLog("Attachment found: " + attachmentType + " with health " + attachmentHealth.ToString(), LogFile.INIT, false, LogType.INFO);
-
-				if (itemsJson != "")
-					itemsJson += ",";
-				itemsJson += "{\"type\":\"" + attachmentType + "\",\"health\":" + attachmentHealth.ToString() + "}";
 			}
 		}
 
 		bool isShelterType = objectType.Contains("Shelter");
-		if (containerHasItems || isShelterType)
+		
+		if (containerHasItems || isShelterType || isBuried)
 		{
 			if (containerHasItems)
 			{
@@ -179,7 +304,8 @@ void BuildContainersData(array<Object> worldObjects, out string containersJson, 
 
 			string positionJson = "{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "}";
 			string orientationJson = "{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "}";
-			string containerJson = "{\"container_id\":\"" + containerIdentifier + "\",\"container_type\":\"" + objectType + "\",\"position\":" + positionJson + ",\"orientation\":" + orientationJson + ",\"items\":[" + itemsJson + "]}";
+			string isBuriedStr = isBuried.ToString();
+			string containerJson = "{\"container_id\":\"" + containerIdentifier + "\",\"container_type\":\"" + objectType + "\",\"position\":" + positionJson + ",\"orientation\":" + orientationJson + ",\"items\":[" + itemsJson + "],\"is_buried\":" + isBuriedStr + "}";
 			if (containersJson != "")
 				containersJson += ",";
 			containersJson += containerJson;
@@ -248,12 +374,35 @@ void PopulateTrackedContainers(array<Object> worldObjects)
 
 		string objectType = candidateObject.GetType();
 
-		if (!IsContainerType(objectType))
-			continue;
+		EntityAI candidateContainer = null;
 
-		EntityAI candidateContainer = EntityAI.Cast(candidateObject);
-		if (!candidateContainer)
+		if (objectType == "UndergroundStash")
+		{
+			EntityAI stashEntity = EntityAI.Cast(candidateObject);
+			if (stashEntity)
+			{
+				candidateContainer = GetContainerFromUndergroundStash(stashEntity);
+				if (!candidateContainer)
+				{
+					WriteToLog("PopulateTrackedContainers(): UndergroundStash sem container interno encontrado, ignorando", LogFile.INIT, false, LogType.WARNING);
+					continue;
+				}
+			}
+			else
+			{
+				continue;
+			}
+		}
+		else if (IsContainerType(objectType))
+		{
+			candidateContainer = EntityAI.Cast(candidateObject);
+			if (!candidateContainer)
+				continue;
+		}
+		else
+		{
 			continue;
+		}
 
 		m_TrackedContainers.Insert(candidateContainer);
 	}
@@ -268,6 +417,7 @@ void CleanTrackedContainers()
 
 	int cleanedNull = 0;
 	int cleanedDestroyed = 0;
+	int preservedBuried = 0;
 	for (int i = m_TrackedContainers.Count() - 1; i >= 0; i--)
 	{
 		EntityAI container = m_TrackedContainers.Get(i);
@@ -281,8 +431,17 @@ void CleanTrackedContainers()
 		float containerHealth = container.GetHealth("", "");
 		if (containerHealth <= 0.0)
 		{
+			bool isBuried = IsContainerBuried(container);
 			string containerType = container.GetType();
 			vector containerPosition = container.GetPosition();
+			
+			if (isBuried)
+			{
+				preservedBuried++;
+				WriteToLog("CleanTrackedContainers(): Container enterrado preservado - Tipo: " + containerType + " em " + containerPosition.ToString() + " (health: " + containerHealth.ToString() + ")", LogFile.INIT, false, LogType.INFO);
+				continue;
+			}
+			
 			m_TrackedContainers.Remove(i);
 			cleanedDestroyed++;
 			WriteToLog("CleanTrackedContainers(): Container destruído removido - Tipo: " + containerType + " em " + containerPosition.ToString() + " (health: " + containerHealth.ToString() + ")", LogFile.INIT, false, LogType.INFO);
@@ -297,6 +456,11 @@ void CleanTrackedContainers()
 	if (cleanedDestroyed > 0)
 	{
 		WriteToLog("CleanTrackedContainers(): " + cleanedDestroyed.ToString() + " containers destruídos removidos", LogFile.INIT, false, LogType.INFO);
+	}
+
+	if (preservedBuried > 0)
+	{
+		WriteToLog("CleanTrackedContainers(): " + preservedBuried.ToString() + " containers enterrados preservados (health <= 0 mas ainda válidos)", LogFile.INIT, false, LogType.INFO);
 	}
 }
 
@@ -327,12 +491,32 @@ bool RegisterContainerAtPosition(vector targetPosition, float searchRadius = 3.0
 			continue;
 
 		string objectType = candidateObject.GetType();
-		if (!IsContainerType(objectType))
-			continue;
+		EntityAI candidateContainer = null;
 
-		EntityAI candidateContainer = EntityAI.Cast(candidateObject);
-		if (!candidateContainer)
+		if (objectType == "UndergroundStash")
+		{
+			EntityAI stashEntity = EntityAI.Cast(candidateObject);
+			if (stashEntity)
+			{
+				candidateContainer = GetContainerFromUndergroundStash(stashEntity);
+				if (!candidateContainer)
+					continue;
+			}
+			else
+			{
+				continue;
+			}
+		}
+		else if (IsContainerType(objectType))
+		{
+			candidateContainer = EntityAI.Cast(candidateObject);
+			if (!candidateContainer)
+				continue;
+		}
+		else
+		{
 			continue;
+		}
 
 		vector candidatePosition = candidateContainer.GetPosition();
 		float candidateDistance = vector.Distance(candidatePosition, targetPosition);
@@ -428,44 +612,62 @@ void CheckContainersForLoot()
 
 		vector containerPosition = container.GetPosition();
 		vector containerOrientation = container.GetOrientation();
+		bool isBuried = IsContainerBuried(container);
 
 		string itemsJson = "";
 		bool containerHasItems = false;
 
-		CargoBase containerCargo = container.GetInventory().GetCargo();
-		if (containerCargo)
+		if (!container.GetInventory())
 		{
-			for (int cargoIndex = 0; cargoIndex < containerCargo.GetItemCount(); cargoIndex++)
+			if (isBuried)
 			{
-				EntityAI cargoItem = containerCargo.GetItem(cargoIndex);
-				if (!cargoItem)
+				WriteToLog("CheckContainersForLoot(): Container enterrado sem inventário acessível - Container ID: " + containerIdentifier + " em " + containerPosition.ToString(), LogFile.INIT, false, LogType.DEBUG);
+			}
+		}
+		else
+		{
+			CargoBase containerCargo = container.GetInventory().GetCargo();
+			if (!containerCargo)
+			{
+				if (isBuried)
+				{
+					WriteToLog("CheckContainersForLoot(): Container enterrado sem Cargo acessível - Container ID: " + containerIdentifier + " em " + containerPosition.ToString(), LogFile.INIT, false, LogType.DEBUG);
+				}
+			}
+			else
+			{
+				for (int cargoIndex = 0; cargoIndex < containerCargo.GetItemCount(); cargoIndex++)
+				{
+					EntityAI cargoItem = containerCargo.GetItem(cargoIndex);
+					if (!cargoItem)
+						continue;
+
+					string cargoType = cargoItem.GetType();
+					float cargoHealth = cargoItem.GetHealth("", "");
+					totalItems++;
+					containerHasItems = true;
+
+					if (itemsJson != "")
+						itemsJson += ",";
+					itemsJson += "{\"type\":\"" + cargoType + "\",\"health\":" + cargoHealth.ToString() + "}";
+				}
+			}
+
+			for (int attachmentIndex = 0; attachmentIndex < container.GetInventory().AttachmentCount(); attachmentIndex++)
+			{
+				EntityAI attachmentItem = container.GetInventory().GetAttachmentFromIndex(attachmentIndex);
+				if (!attachmentItem)
 					continue;
 
-				string cargoType = cargoItem.GetType();
-				float cargoHealth = cargoItem.GetHealth("", "");
+				string attachmentType = attachmentItem.GetType();
+				float attachmentHealth = attachmentItem.GetHealth("", "");
 				totalItems++;
 				containerHasItems = true;
 
 				if (itemsJson != "")
 					itemsJson += ",";
-				itemsJson += "{\"type\":\"" + cargoType + "\",\"health\":" + cargoHealth.ToString() + "}";
+				itemsJson += "{\"type\":\"" + attachmentType + "\",\"health\":" + attachmentHealth.ToString() + "}";
 			}
-		}
-
-		for (int attachmentIndex = 0; attachmentIndex < container.GetInventory().AttachmentCount(); attachmentIndex++)
-		{
-			EntityAI attachmentItem = container.GetInventory().GetAttachmentFromIndex(attachmentIndex);
-			if (!attachmentItem)
-				continue;
-
-			string attachmentType = attachmentItem.GetType();
-			float attachmentHealth = attachmentItem.GetHealth("", "");
-			totalItems++;
-			containerHasItems = true;
-
-			if (itemsJson != "")
-				itemsJson += ",";
-			itemsJson += "{\"type\":\"" + attachmentType + "\",\"health\":" + attachmentHealth.ToString() + "}";
 		}
 
 		if (containerHasItems)
@@ -475,7 +677,8 @@ void CheckContainersForLoot()
 
 		string positionJson = "{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "}";
 		string orientationJson = "{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "}";
-		string containerJson = "{\"container_id\":\"" + containerIdentifier + "\",\"container_type\":\"" + containerType + "\",\"position\":" + positionJson + ",\"orientation\":" + orientationJson + ",\"items\":[" + itemsJson + "]}";
+		string isBuriedStr = isBuried.ToString();
+		string containerJson = "{\"container_id\":\"" + containerIdentifier + "\",\"container_type\":\"" + containerType + "\",\"position\":" + positionJson + ",\"orientation\":" + orientationJson + ",\"items\":[" + itemsJson + "],\"is_buried\":" + isBuriedStr + "}";
 		if (containersJson != "")
 			containersJson += ",";
 		containersJson += containerJson;
@@ -554,6 +757,7 @@ void SendContainersPositionsSimple()
 		}
 
 		float containerHealth = trackedContainer.GetHealth("", "");
+		bool isBuried = IsContainerBuried(trackedContainer);
 
 		int pidLow1 = 0;
 		int pidLow2 = 0;
@@ -586,10 +790,12 @@ void SendContainersPositionsSimple()
 		string posYStr = position[2].ToString();
 		string healthStr = containerHealth.ToString();
 		string isShelterStr = isShelter.ToString();
+		string isBuriedStr = isBuried.ToString();
 
 		string containerJson = "{\"container_id\":\"" + containerIdentifier + "\",\"container_type\":\"" + safeType + "\",\"x\":" + posXStr + ",\"z\":" + posZStr + ",\"y\":" + posYStr;
 		containerJson += ",\"health\":" + healthStr;
 		containerJson += ",\"is_shelter\":" + isShelterStr;
+		containerJson += ",\"is_buried\":" + isBuriedStr;
 		containerJson += ",\"items\":[]";
 		containerJson += ",\"update_type\":\"position_only\"}";
 

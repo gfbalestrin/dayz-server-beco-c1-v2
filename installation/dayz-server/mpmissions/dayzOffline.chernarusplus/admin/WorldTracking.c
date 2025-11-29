@@ -14,13 +14,14 @@ void GatherWorldObjects(array<Object> destination)
 	GetGame().GetObjectsAtPosition(trackingCenter, trackingRadius, destination, null);
 }
 
-void ProcessAllWorldObjectsOptimized(array<Object> worldObjects, out string containersJson, out int totalContainers, out int totalContainersWithItems, out int totalContainersEmpty, out int totalItems)
+void ProcessAllWorldObjectsOptimized(array<Object> worldObjects, out string containersJson, out int totalContainers, out int totalContainersWithItems, out int totalContainersEmpty, out int totalItems, out int totalContainersBuried)
 {
 	containersJson = "";
 	totalContainers = 0;
 	totalContainersWithItems = 0;
 	totalContainersEmpty = 0;
 	totalItems = 0;
+	totalContainersBuried = 0;
 
 	if (!GetGame() || !GetGame().IsServer())
 		return;
@@ -105,47 +106,110 @@ void ProcessAllWorldObjectsOptimized(array<Object> worldObjects, out string cont
 		}
 
 		// Processar Containers (mais complexo, precisa processar items também)
-		if (IsContainerType(objectType))
-		{
-			totalContainers++;
+		EntityAI containerEntity = null;
+		bool isBuried = false;
 
-			EntityAI containerEntity = EntityAI.Cast(candidateObject);
+		if (objectType == "UndergroundStash")
+		{
+			EntityAI stashEntity = EntityAI.Cast(candidateObject);
+			if (stashEntity)
+			{
+				containerEntity = GetContainerFromUndergroundStash(stashEntity);
+				if (!containerEntity)
+				{
+					WriteToLog("ProcessAllWorldObjectsOptimized(): UndergroundStash sem container interno encontrado, ignorando", LogFile.INIT, false, LogType.WARNING);
+					continue;
+				}
+				objectType = containerEntity.GetType();
+				isBuried = true;
+				totalContainersBuried++;
+			}
+			else
+			{
+				continue;
+			}
+		}
+		else if (IsContainerType(objectType))
+		{
+			containerEntity = EntityAI.Cast(candidateObject);
 			if (!containerEntity)
 				continue;
+		}
+		else
+		{
+			continue;
+		}
 
-			m_TrackedContainers.Insert(containerEntity);
+		totalContainers++;
 
-			vector containerPosition = containerEntity.GetPosition();
-			vector containerOrientation = containerEntity.GetOrientation();
+		m_TrackedContainers.Insert(containerEntity);
 
-			string itemsJson = "";
-			bool containerHasItems = false;
-			string containerIdentifier = "";
+		vector containerPosition = containerEntity.GetPosition();
+		vector containerOrientation = containerEntity.GetOrientation();
 
-			int pidLow1 = 0;
-			int pidLow2 = 0;
-			int pidHigh1 = 0;
-			int pidHigh2 = 0;
-			containerEntity.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+		string itemsJson = "";
+		bool containerHasItems = false;
+		string containerIdentifier = "";
 
-			bool hasPersistent = false;
-			if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+		int pidLow1 = 0;
+		int pidLow2 = 0;
+		int pidHigh1 = 0;
+		int pidHigh2 = 0;
+		containerEntity.GetPersistentID(pidLow1, pidLow2, pidHigh1, pidHigh2);
+
+		bool hasPersistent = false;
+		if (pidLow1 != 0 || pidLow2 != 0 || pidHigh1 != 0 || pidHigh2 != 0)
+		{
+			hasPersistent = true;
+		}
+
+		string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
+		containerIdentifier = persistentKey;
+		if (!hasPersistent)
+		{
+			containerIdentifier = "pending-" + containerEntity.GetID().ToString();
+		}
+
+		// Processar items do container
+		if (!isBuried)
+		{
+			isBuried = IsContainerBuried(containerEntity);
+			if (isBuried)
 			{
-				hasPersistent = true;
+				totalContainersBuried++;
 			}
-
-			string persistentKey = pidLow1.ToString() + "-" + pidLow2.ToString() + "-" + pidHigh1.ToString() + "-" + pidHigh2.ToString();
-			containerIdentifier = persistentKey;
-			if (!hasPersistent)
+		}
+		
+		if (!containerEntity.GetInventory())
+		{
+			if (isBuried)
 			{
-				containerIdentifier = "pending-" + containerEntity.GetID().ToString();
+				WriteToLog("ProcessAllWorldObjectsOptimized(): Container enterrado sem inventário acessível - Tipo: " + objectType + " em " + containerPosition.ToString(), LogFile.INIT, false, LogType.DEBUG);
 			}
-
-			// Processar items do container
+			else
+			{
+				WriteToLog("ProcessAllWorldObjectsOptimized(): Container sem inventário acessível - Tipo: " + objectType + " em " + containerPosition.ToString(), LogFile.INIT, false, LogType.WARNING);
+			}
+		}
+		else
+		{
 			CargoBase containerCargo = containerEntity.GetInventory().GetCargo();
-			if (containerCargo)
+			if (!containerCargo)
 			{
-				for (int cargoIndex = 0; cargoIndex < containerCargo.GetItemCount(); cargoIndex++)
+				if (isBuried)
+				{
+					WriteToLog("ProcessAllWorldObjectsOptimized(): Container enterrado sem Cargo acessível - Tipo: " + objectType + " em " + containerPosition.ToString(), LogFile.INIT, false, LogType.DEBUG);
+				}
+			}
+			else
+			{
+				int cargoItemCount = containerCargo.GetItemCount();
+				if (isBuried && cargoItemCount > 0)
+				{
+					WriteToLog("ProcessAllWorldObjectsOptimized(): Container enterrado com " + cargoItemCount.ToString() + " itens no cargo - Tipo: " + objectType + " em " + containerPosition.ToString(), LogFile.INIT, false, LogType.INFO);
+				}
+				
+				for (int cargoIndex = 0; cargoIndex < cargoItemCount; cargoIndex++)
 				{
 					EntityAI cargoItem = containerCargo.GetItem(cargoIndex);
 					if (!cargoItem)
@@ -163,7 +227,13 @@ void ProcessAllWorldObjectsOptimized(array<Object> worldObjects, out string cont
 			}
 
 			// Processar attachments do container
-			for (int attachmentIndex = 0; attachmentIndex < containerEntity.GetInventory().AttachmentCount(); attachmentIndex++)
+			int attachmentCount = containerEntity.GetInventory().AttachmentCount();
+			if (isBuried && attachmentCount > 0)
+			{
+				WriteToLog("ProcessAllWorldObjectsOptimized(): Container enterrado com " + attachmentCount.ToString() + " attachments - Tipo: " + objectType + " em " + containerPosition.ToString(), LogFile.INIT, false, LogType.INFO);
+			}
+			
+			for (int attachmentIndex = 0; attachmentIndex < attachmentCount; attachmentIndex++)
 			{
 				EntityAI attachmentItem = containerEntity.GetInventory().GetAttachmentFromIndex(attachmentIndex);
 				if (!attachmentItem)
@@ -178,28 +248,30 @@ void ProcessAllWorldObjectsOptimized(array<Object> worldObjects, out string cont
 					itemsJson += ",";
 				itemsJson += "{\"type\":\"" + attachmentType + "\",\"health\":" + attachmentHealth.ToString() + "}";
 			}
+		}
 
-			bool isShelterType = objectType.Contains("Shelter");
-			if (containerHasItems || isShelterType)
+		bool isShelterType = objectType.Contains("Shelter");
+		
+		if (containerHasItems || isShelterType || isBuried)
+		{
+			if (containerHasItems)
 			{
-				if (containerHasItems)
-				{
-					totalContainersWithItems++;
-				}
-				else
-				{
-					totalContainersEmpty++;
-				}
-
-				string positionJson = "{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "}";
-				string orientationJson = "{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "}";
-				string containerJsonItem = "{\"container_id\":\"" + containerIdentifier + "\",\"container_type\":\"" + objectType + "\",\"position\":" + positionJson + ",\"orientation\":" + orientationJson + ",\"items\":[" + itemsJson + "]}";
-				containersJsonArray.Insert(containerJsonItem);
+				totalContainersWithItems++;
 			}
 			else
 			{
 				totalContainersEmpty++;
 			}
+
+			string positionJson = "{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "}";
+			string orientationJson = "{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "}";
+			string isBuriedStr = isBuried.ToString();
+			string containerJsonItem = "{\"container_id\":\"" + containerIdentifier + "\",\"container_type\":\"" + objectType + "\",\"position\":" + positionJson + ",\"orientation\":" + orientationJson + ",\"items\":[" + itemsJson + "],\"is_buried\":" + isBuriedStr + "}";
+			containersJsonArray.Insert(containerJsonItem);
+		}
+		else
+		{
+			totalContainersEmpty++;
 		}
 	}
 
@@ -209,7 +281,7 @@ void ProcessAllWorldObjectsOptimized(array<Object> worldObjects, out string cont
 		containersJson = string.Join(",", containersJsonArray);
 	}
 
-	WriteToLog("ProcessAllWorldObjectsOptimized(): Fences: " + m_TrackedFences.Count().ToString() + ", Watchtowers: " + m_TrackedWatchtowers.Count().ToString() + ", Flags: " + m_TrackedFlags.Count().ToString() + ", Vehicles: " + m_TrackedVehicles.Count().ToString() + ", Containers: " + m_TrackedContainers.Count().ToString(), LogFile.INIT, false, LogType.INFO);
+	WriteToLog("ProcessAllWorldObjectsOptimized(): Fences: " + m_TrackedFences.Count().ToString() + ", Watchtowers: " + m_TrackedWatchtowers.Count().ToString() + ", Flags: " + m_TrackedFlags.Count().ToString() + ", Vehicles: " + m_TrackedVehicles.Count().ToString() + ", Containers: " + m_TrackedContainers.Count().ToString() + " (enterrados: " + totalContainersBuried.ToString() + ")", LogFile.INIT, false, LogType.INFO);
 }
 
 void InitWorldTracking()
@@ -234,7 +306,8 @@ void InitWorldTracking()
 	int totalContainersWithItems;
 	int totalContainersEmpty;
 	int totalItems;
-	ProcessAllWorldObjectsOptimized(worldObjects, containersJson, totalContainers, totalContainersWithItems, totalContainersEmpty, totalItems);
+	int totalContainersBuried;
+	ProcessAllWorldObjectsOptimized(worldObjects, containersJson, totalContainers, totalContainersWithItems, totalContainersEmpty, totalItems, totalContainersBuried);
 
 	CleanTrackedFences();
 	CleanTrackedWatchtowers();
@@ -254,7 +327,7 @@ void InitWorldTracking()
 	AppendExternalAction(containersAction, false);
 	WriteToLog("InitWorldTracking(): JSON com " + totalContainersWithItems.ToString() + " containers com itens e " + totalItems.ToString() + " itens enviado via ExternalAction", LogFile.INIT, false, LogType.INFO);
 
-	string summary = string.Format("InitWorldTracking(): Containers totais: %1 (com itens: %2, vazios: %3, itens: %4)", totalContainers, totalContainersWithItems, totalContainersEmpty, totalItems);
+	string summary = string.Format("InitWorldTracking(): Containers totais: %1 (com itens: %2, vazios: %3, enterrados: %4, itens: %5)", totalContainers, totalContainersWithItems, totalContainersEmpty, totalContainersBuried, totalItems);
 	WriteToLog(summary, LogFile.INIT, false, LogType.INFO);
 }
 
