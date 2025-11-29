@@ -122,8 +122,8 @@ configure_sqlite_pragmas() {
         return 1
     fi
     # Configurar PRAGMAs para melhorar concorrência e evitar locks
-    # busy_timeout aumentado para 10000ms (10 segundos) para suportar queries longas
-    sqlite3 "$db_file" "PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 10000;" >/dev/null 2>&1
+    # busy_timeout aumentado para 30000ms (30 segundos) para suportar queries longas e múltiplos acessos concorrentes
+    sqlite3 "$db_file" "PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 30000;" >/dev/null 2>&1
 }
 
 INSERT_ADM_LOG() {
@@ -3035,6 +3035,9 @@ INSERT_FENCE_POSITION() {
         return 1
     fi
 
+    # Configurar PRAGMAs do SQLite para melhorar concorrência
+    configure_sqlite_pragmas "$AppFolder/$AppStructureBecoC1DbFile"
+
     local EscapedFenceId
     local EscapedFenceName
     local TimestampValue
@@ -3072,7 +3075,8 @@ INSERT_FENCE_POSITION() {
     fi
 
     while (( attempt <= max_retries )); do
-        local FenceTrackingId=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" <<EOF
+        local FenceTrackingId
+        FenceTrackingId=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" 2>&1 <<EOF
 INSERT INTO fences_tracking (FenceId, FenceName, PositionX, PositionZ, PositionY, TimeStamp, HasBase, LowerPanelBuilt, UpperPanelBuilt)
 VALUES (
     '$EscapedFenceId',
@@ -3088,13 +3092,25 @@ VALUES (
 SELECT last_insert_rowid();
 EOF
 )
+        local sql_exit_code=$?
 
-        if [[ $? -eq 0 ]]; then
+        # Verificar se a inserção foi bem-sucedida
+        # sqlite3 retorna 0 em sucesso e o ID, ou erro e mensagem
+        if [[ $sql_exit_code -eq 0 && -n "$FenceTrackingId" && "$FenceTrackingId" =~ ^[0-9]+$ ]]; then
             echo "$FenceTrackingId"
             return 0
         else
-            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
-            sleep "$retry_delay"
+            # Se for database locked, aumentar delay progressivamente
+            if [[ "$FenceTrackingId" == *"database is locked"* ]] || [[ "$FenceTrackingId" == *"locked"* ]]; then
+                local progressive_delay=$((retry_delay * attempt))
+                # Limitar delay máximo a 2 segundos
+                if [[ $progressive_delay -gt 2 ]]; then
+                    progressive_delay=2
+                fi
+                sleep "$progressive_delay"
+            else
+                sleep "$retry_delay"
+            fi
             attempt=$((attempt + 1))
         fi
     done
@@ -3148,6 +3164,9 @@ INSERT_WATCHTOWER_POSITION() {
         echo ""
         return 1
     fi
+
+    # Configurar PRAGMAs do SQLite para melhorar concorrência
+    configure_sqlite_pragmas "$AppFolder/$AppStructureBecoC1DbFile"
 
     sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" <<'EOF'
 CREATE TABLE IF NOT EXISTS watchtowers_tracking (
@@ -3241,7 +3260,9 @@ EOF
     if [[ -n "$Level3Wall3Upper" ]]; then Level3Wall3UpperValue="$Level3Wall3Upper"; else Level3Wall3UpperValue="NULL"; fi
 
     while (( attempt <= max_retries )); do
-        local WatchtowerTrackingId=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" <<EOF
+        local WatchtowerTrackingId
+        local sql_error
+        WatchtowerTrackingId=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" 2>&1 <<EOF
 INSERT INTO watchtowers_tracking (
     WatchtowerId,
     WatchtowerName,
@@ -3317,13 +3338,25 @@ VALUES (
 SELECT last_insert_rowid();
 EOF
 )
+        local sql_exit_code=$?
 
-        if [[ $? -eq 0 ]]; then
+        # Verificar se a inserção foi bem-sucedida
+        # sqlite3 retorna 0 em sucesso e o ID, ou erro e mensagem
+        if [[ $sql_exit_code -eq 0 && -n "$WatchtowerTrackingId" && "$WatchtowerTrackingId" =~ ^[0-9]+$ ]]; then
             echo "$WatchtowerTrackingId"
             return 0
         else
-            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
-            sleep "$retry_delay"
+            # Se for database locked, aumentar delay progressivamente
+            if [[ "$WatchtowerTrackingId" == *"database is locked"* ]] || [[ "$WatchtowerTrackingId" == *"locked"* ]]; then
+                local progressive_delay=$((retry_delay * attempt))
+                # Limitar delay máximo a 2 segundos
+                if [[ $progressive_delay -gt 2 ]]; then
+                    progressive_delay=2
+                fi
+                sleep "$progressive_delay"
+            else
+                sleep "$retry_delay"
+            fi
             attempt=$((attempt + 1))
         fi
     done
@@ -3356,6 +3389,9 @@ INSERT_FLAG_POSITION() {
         echo ""
         return 1
     fi
+
+    # Configurar PRAGMAs do SQLite para melhorar concorrência
+    configure_sqlite_pragmas "$AppFolder/$AppStructureBecoC1DbFile"
 
     sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" <<'EOF'
 CREATE TABLE IF NOT EXISTS flags_tracking (
@@ -3404,7 +3440,8 @@ EOF
     if [[ -n "$FlagHeight" ]]; then FlagHeightValue="$FlagHeight"; else FlagHeightValue="NULL"; fi
 
     while (( attempt <= max_retries )); do
-        local FlagTrackingId=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" <<EOF
+        local FlagTrackingId
+        FlagTrackingId=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" 2>&1 <<EOF
 INSERT INTO flags_tracking (
     FlagId,
     FlagName,
@@ -3438,13 +3475,25 @@ VALUES (
 SELECT last_insert_rowid();
 EOF
 )
+        local sql_exit_code=$?
 
-        if [[ $? -eq 0 ]]; then
+        # Verificar se a inserção foi bem-sucedida
+        # sqlite3 retorna 0 em sucesso e o ID, ou erro e mensagem
+        if [[ $sql_exit_code -eq 0 && -n "$FlagTrackingId" && "$FlagTrackingId" =~ ^[0-9]+$ ]]; then
             echo "$FlagTrackingId"
             return 0
         else
-            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
-            sleep "$retry_delay"
+            # Se for database locked, aumentar delay progressivamente
+            if [[ "$FlagTrackingId" == *"database is locked"* ]] || [[ "$FlagTrackingId" == *"locked"* ]]; then
+                local progressive_delay=$((retry_delay * attempt))
+                # Limitar delay máximo a 2 segundos
+                if [[ $progressive_delay -gt 2 ]]; then
+                    progressive_delay=2
+                fi
+                sleep "$progressive_delay"
+            else
+                sleep "$retry_delay"
+            fi
             attempt=$((attempt + 1))
         fi
     done

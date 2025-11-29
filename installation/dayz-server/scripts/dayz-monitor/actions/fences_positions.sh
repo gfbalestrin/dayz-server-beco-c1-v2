@@ -15,6 +15,9 @@ handle_fences_positions() {
     fi
     CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
 
+    # Configurar PRAGMAs do SQLite para melhorar concorrência
+    configure_sqlite_pragmas "$AppFolder/$AppStructureBecoC1DbFile"
+
     if ! echo "$line" | jq -e '.fence_data' >/dev/null 2>&1; then
         echo ">> Nenhum fence encontrado no JSON"
         INSERT_CUSTOM_LOG "JSON de fences vazio ou inválido" "INFO" "$ScriptName"
@@ -158,11 +161,21 @@ handle_fences_positions() {
             unset "prev_fences[$fence_id]"
         fi
 
-        local FenceTrackingId
+        local FenceTrackingId insert_exit_code
         FenceTrackingId=$(INSERT_FENCE_POSITION "$fence_id" "$fence_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp" "$has_base" "$lower_panel_built" "$upper_panel_built")
+        insert_exit_code=$?
 
-        if [[ $? -eq 0 ]]; then
+        if [[ $insert_exit_code -eq 0 && -n "$FenceTrackingId" && "$FenceTrackingId" =~ ^[0-9]+$ ]]; then
             processed_count=$((processed_count + 1))
+        else
+            local error_msg="Erro ao salvar posição da fence em ($coord_x,$coord_z,$coord_y)"
+            if [[ -n "$FenceTrackingId" ]]; then
+                error_msg="$error_msg - Resposta: $FenceTrackingId"
+            fi
+            if [[ $insert_exit_code -ne 0 ]]; then
+                error_msg="$error_msg - Exit code: $insert_exit_code"
+            fi
+            INSERT_CUSTOM_LOG "$error_msg" "ERROR" "$ScriptName"
         fi
 
     done <<< "$fences"

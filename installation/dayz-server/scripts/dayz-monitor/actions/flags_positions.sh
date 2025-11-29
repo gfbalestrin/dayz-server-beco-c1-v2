@@ -26,6 +26,9 @@ handle_flags_positions() {
     fi
     CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
 
+    # Configurar PRAGMAs do SQLite para melhorar concorrência
+    configure_sqlite_pragmas "$AppFolder/$AppStructureBecoC1DbFile"
+
     if ! echo "$line" | jq -e '.flag_data' >/dev/null 2>&1; then
         INSERT_CUSTOM_LOG "JSON de flags vazio ou inválido" "INFO" "$ScriptName"
         return
@@ -116,13 +119,21 @@ handle_flags_positions() {
             unset "prev_flags[$flag_id]"
         fi
 
-        local FlagTrackingId
+        local FlagTrackingId insert_exit_code
         FlagTrackingId=$(INSERT_FLAG_POSITION "$flag_id" "Flag" "$coord_x" "$coord_z" "$coord_y" "$ori_x" "$ori_y" "$ori_z" "$current_timestamp" "$has_base" "$has_flag_base" "$flag_raised" "$flag_height")
+        insert_exit_code=$?
 
-        if [[ $? -eq 0 && -n "$FlagTrackingId" ]]; then
+        if [[ $insert_exit_code -eq 0 && -n "$FlagTrackingId" && "$FlagTrackingId" =~ ^[0-9]+$ ]]; then
             processed_count=$((processed_count + 1))
         else
-            INSERT_CUSTOM_LOG "Erro ao salvar posição da bandeira em ($coord_x,$coord_z,$coord_y)" "ERROR" "$ScriptName"
+            local error_msg="Erro ao salvar posição da bandeira em ($coord_x,$coord_z,$coord_y)"
+            if [[ -n "$FlagTrackingId" ]]; then
+                error_msg="$error_msg - Resposta: $FlagTrackingId"
+            fi
+            if [[ $insert_exit_code -ne 0 ]]; then
+                error_msg="$error_msg - Exit code: $insert_exit_code"
+            fi
+            INSERT_CUSTOM_LOG "$error_msg" "ERROR" "$ScriptName"
         fi
     done <<< "$flags"
 

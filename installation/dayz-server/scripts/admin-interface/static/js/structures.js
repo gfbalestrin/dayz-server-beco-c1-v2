@@ -12,7 +12,7 @@ $(document).ready(function() {
         yesterday: { type: 'day', offsetDays: -1 },
         last7d: { days: 7 }
     };
-    let activeQuickFilter = 'last1h';
+    let activeQuickFilter = 'last7d'; // Mudado de 'last1h' para 'last7d' para incluir watchtowers e flags mais antigos
     
     // Estado de paginação do histórico
     let historyState = {
@@ -48,6 +48,35 @@ $(document).ready(function() {
         }
         
         $('#structuresCount').text(countText);
+    }
+    
+    // Função para atualizar contador detalhado por tipo (opcional, para debug)
+    function updateStructuresCountByType(structuresData) {
+        if (!structuresData || !Array.isArray(structuresData)) {
+            return;
+        }
+        
+        const typeCounts = {
+            fence: 0,
+            watchtower: 0,
+            flag: 0
+        };
+        
+        structuresData.forEach(function(structure) {
+            const type = structure.StructureType || 'unknown';
+            if (typeCounts.hasOwnProperty(type)) {
+                typeCounts[type]++;
+            }
+        });
+        
+        // Log para debug (pode ser removido depois)
+        if (typeCounts.fence > 0 || typeCounts.watchtower > 0 || typeCounts.flag > 0) {
+            console.log('Contagem por tipo:', {
+                fences: typeCounts.fence,
+                watchtowers: typeCounts.watchtower,
+                flags: typeCounts.flag
+            });
+        }
     }
     
     // Função para atualizar contador de estruturas destruídas
@@ -101,6 +130,27 @@ $(document).ready(function() {
                     }
                 },
                 dataSrc: function(json) {
+                    // Debug: verificar tipos de estruturas retornadas
+                    if (json && json.data) {
+                        const typeCounts = {
+                            fence: 0,
+                            watchtower: 0,
+                            flag: 0
+                        };
+                        json.data.forEach(function(structure) {
+                            const type = structure.StructureType || 'unknown';
+                            if (typeCounts.hasOwnProperty(type)) {
+                                typeCounts[type]++;
+                            }
+                        });
+                        console.log('Estruturas recebidas:', {
+                            total: json.data.length,
+                            fences: typeCounts.fence,
+                            watchtowers: typeCounts.watchtower,
+                            flags: typeCounts.flag
+                        });
+                    }
+                    
                     // Atualizar contador quando receber resposta
                     if (json && json.recordsTotal !== undefined) {
                         updateStructuresCount(json.recordsTotal, json.recordsFiltered);
@@ -108,6 +158,8 @@ $(document).ready(function() {
                     // Atualizar contador de estruturas destruídas
                     if (json && json.data) {
                         updateDestroyedStructuresCount(json.data);
+                        // Atualizar contador por tipo (para debug)
+                        updateStructuresCountByType(json.data);
                     }
                     return json.data;
                 }
@@ -127,19 +179,29 @@ $(document).ready(function() {
                 },
                 {
                     data: 'StructureType',
-                    render: function(data) {
+                    render: function(data, type, row) {
+                        // Normalizar o tipo (pode vir como string ou lowercase)
+                        const normalizedType = (data || '').toLowerCase();
+                        
                         const typeNames = {
                             'fence': 'Fence',
                             'watchtower': 'Watchtower',
                             'flag': 'Flag'
                         };
-                        const name = typeNames[data] || data;
+                        const name = typeNames[normalizedType] || (data || 'Desconhecido');
+                        
                         const badges = {
                             'fence': 'bg-info',
                             'watchtower': 'bg-primary',
                             'flag': 'bg-warning'
                         };
-                        const badgeClass = badges[data] || 'bg-secondary';
+                        const badgeClass = badges[normalizedType] || 'bg-secondary';
+                        
+                        // Log para debug se tipo não reconhecido
+                        if (!badges[normalizedType] && data) {
+                            console.warn('Tipo de estrutura não reconhecido:', data, 'Row:', row);
+                        }
+                        
                         return '<span class="badge ' + badgeClass + '">' + escapeHtml(name) + '</span>';
                     }
                 },
@@ -1208,8 +1270,8 @@ $(document).ready(function() {
     });
     
     // Inicializar
-    // Definir filtro padrão: Última hora
-    activeQuickFilter = 'last1h';
+    // Definir filtro padrão: Últimos 7 dias (para incluir watchtowers e flags mais antigos)
+    activeQuickFilter = 'last7d';
     updateQuickShortcutButtons();
     const initialRange = computeQuickRange(activeQuickFilter);
     if (initialRange) {

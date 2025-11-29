@@ -26,6 +26,9 @@ handle_watchtowers_positions() {
     fi
     CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
 
+    # Configurar PRAGMAs do SQLite para melhorar concorrência
+    configure_sqlite_pragmas "$AppFolder/$AppStructureBecoC1DbFile"
+
     if ! echo "$line" | jq -e '.watchtower_data' >/dev/null 2>&1; then
         INSERT_CUSTOM_LOG "JSON de watchtowers vazio ou inválido" "INFO" "$ScriptName"
         return
@@ -362,13 +365,21 @@ handle_watchtowers_positions() {
             unset "prev_watchtowers[$watchtower_id]"
         fi
 
-        local WatchtowerTrackingId
+        local WatchtowerTrackingId insert_exit_code
         WatchtowerTrackingId=$(INSERT_WATCHTOWER_POSITION "$watchtower_id" "Watchtower" "$coord_x" "$coord_z" "$coord_y" "$ori_x" "$ori_y" "$ori_z" "$current_timestamp" "$has_base" "$level_1_base" "$level_2_base" "$level_3_base" "$level_1_stairs" "$level_2_stairs" "$has_roof" "$level_1_wall_1_lower" "$level_1_wall_1_upper" "$level_1_wall_2_lower" "$level_1_wall_2_upper" "$level_1_wall_3_lower" "$level_1_wall_3_upper" "$level_2_wall_1_lower" "$level_2_wall_1_upper" "$level_2_wall_2_lower" "$level_2_wall_2_upper" "$level_2_wall_3_lower" "$level_2_wall_3_upper" "$level_3_wall_1_lower" "$level_3_wall_1_upper" "$level_3_wall_2_lower" "$level_3_wall_2_upper" "$level_3_wall_3_lower" "$level_3_wall_3_upper")
+        insert_exit_code=$?
 
-        if [[ $? -eq 0 && -n "$WatchtowerTrackingId" ]]; then
+        if [[ $insert_exit_code -eq 0 && -n "$WatchtowerTrackingId" && "$WatchtowerTrackingId" =~ ^[0-9]+$ ]]; then
             processed_count=$((processed_count + 1))
         else
-            INSERT_CUSTOM_LOG "Erro ao salvar posição da watchtower em ($coord_x,$coord_z,$coord_y)" "ERROR" "$ScriptName"
+            local error_msg="Erro ao salvar posição da watchtower em ($coord_x,$coord_z,$coord_y)"
+            if [[ -n "$WatchtowerTrackingId" ]]; then
+                error_msg="$error_msg - Resposta: $WatchtowerTrackingId"
+            fi
+            if [[ $insert_exit_code -ne 0 ]]; then
+                error_msg="$error_msg - Exit code: $insert_exit_code"
+            fi
+            INSERT_CUSTOM_LOG "$error_msg" "ERROR" "$ScriptName"
         fi
     done <<< "$watchtowers"
 

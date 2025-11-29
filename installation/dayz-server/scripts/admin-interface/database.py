@@ -7915,191 +7915,260 @@ def get_structures_paginated(status_filter: str, change_types: Optional[List[str
     
     all_structures = []
     
+    # Função auxiliar para verificar se uma tabela existe
+    def table_exists(table_name: str) -> bool:
+        """Verifica se uma tabela existe no banco de dados"""
+        try:
+            with DatabaseConnection(config.DB_STRUCTURES) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table_name,))
+                return cursor.fetchone() is not None
+        except Exception as e:
+            logger.warning(f"Erro ao verificar existência da tabela {table_name}: {e}")
+            return False
+    
     # Buscar fences
-    with DatabaseConnection(config.DB_STRUCTURES) as conn:
-        cursor = conn.cursor()
-        columns = get_table_columns(config.DB_STRUCTURES, 'fences_tracking')
-        has_is_destroyed = 'IsDestroyed' in columns
-        
-        where_conditions = []
-        params = []
-        
-        if has_is_destroyed:
-            if status_filter == 'active':
-                where_conditions.append("(IsDestroyed = 0 OR IsDestroyed IS NULL)")
-            elif status_filter == 'destroyed':
-                where_conditions.append("(IsDestroyed = 1)")
-        
-        if date_from:
-            where_conditions.append("TimeStamp >= ?")
-            params.append(date_from)
-        
-        if date_to:
-            where_conditions.append("TimeStamp <= ?")
-            params.append(date_to)
-        
-        if search:
-            where_conditions.append("(FenceId LIKE ? OR FenceName LIKE ?)")
-            search_param = f"%{search}%"
-            params.extend([search_param, search_param])
-        
-        where_clause = ""
-        if where_conditions:
-            where_clause = "WHERE " + " AND ".join(where_conditions)
-        
-        query = f"""
-            SELECT IdFenceTracking, FenceId, FenceName,
-                   PositionX, PositionY, PositionZ, TimeStamp,
-                   IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt
-            FROM (
-                SELECT IdFenceTracking, FenceId, FenceName,
-                       PositionX, PositionY, PositionZ, TimeStamp,
-                       IsDestroyed, DestroyedAt,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY FenceId 
-                           ORDER BY TimeStamp DESC, IdFenceTracking DESC
-                       ) as rn
-                FROM fences_tracking
-                {where_clause}
-            ) ranked
-            WHERE rn = 1
-        """
-        
-        if where_clause and params:
-            cursor.execute(query, params)
+    try:
+        if not table_exists('fences_tracking'):
+            logger.warning("Tabela fences_tracking não encontrada no banco de dados")
         else:
-            cursor.execute(query)
-        
-        for row in cursor.fetchall():
-            structure = dict(row)
-            structure['StructureId'] = structure['FenceId']
-            structure['StructureName'] = structure['FenceName']
-            structure['StructureType'] = 'fence'
-            all_structures.append(structure)
+            with DatabaseConnection(config.DB_STRUCTURES) as conn:
+                cursor = conn.cursor()
+                try:
+                    columns = get_table_columns(config.DB_STRUCTURES, 'fences_tracking')
+                    has_is_destroyed = 'IsDestroyed' in columns
+                except Exception as e:
+                    logger.warning(f"Erro ao obter colunas da tabela fences_tracking: {e}")
+                    has_is_destroyed = False
+                
+                where_conditions = []
+                params = []
+                
+                if has_is_destroyed:
+                    if status_filter == 'active':
+                        where_conditions.append("(IsDestroyed = 0 OR IsDestroyed IS NULL)")
+                    elif status_filter == 'destroyed':
+                        where_conditions.append("(IsDestroyed = 1)")
+                
+                if date_from:
+                    where_conditions.append("TimeStamp >= ?")
+                    params.append(date_from)
+                
+                if date_to:
+                    where_conditions.append("TimeStamp <= ?")
+                    params.append(date_to)
+                
+                if search:
+                    where_conditions.append("(FenceId LIKE ? OR FenceName LIKE ?)")
+                    search_param = f"%{search}%"
+                    params.extend([search_param, search_param])
+                
+                where_clause = ""
+                if where_conditions:
+                    where_clause = "WHERE " + " AND ".join(where_conditions)
+                
+                query = f"""
+                    SELECT IdFenceTracking, FenceId, FenceName,
+                           PositionX, PositionY, PositionZ, TimeStamp,
+                           IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt
+                    FROM (
+                        SELECT IdFenceTracking, FenceId, FenceName,
+                               PositionX, PositionY, PositionZ, TimeStamp,
+                               IsDestroyed, DestroyedAt,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY FenceId 
+                                   ORDER BY TimeStamp DESC, IdFenceTracking DESC
+                               ) as rn
+                        FROM fences_tracking
+                        {where_clause}
+                    ) ranked
+                    WHERE rn = 1
+                """
+                
+                try:
+                    if where_clause and params:
+                        cursor.execute(query, params)
+                    else:
+                        cursor.execute(query)
+                    
+                    fence_count = 0
+                    for row in cursor.fetchall():
+                        structure = dict(row)
+                        structure['StructureId'] = structure['FenceId']
+                        structure['StructureName'] = structure['FenceName']
+                        structure['StructureType'] = 'fence'
+                        all_structures.append(structure)
+                        fence_count += 1
+                    
+                    logger.info(f"Encontradas {fence_count} fences")
+                except Exception as e:
+                    logger.error(f"Erro ao buscar fences: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Erro ao processar fences: {e}", exc_info=True)
     
     # Buscar watchtowers
-    with DatabaseConnection(config.DB_STRUCTURES) as conn:
-        cursor = conn.cursor()
-        columns = get_table_columns(config.DB_STRUCTURES, 'watchtowers_tracking')
-        has_is_destroyed = 'IsDestroyed' in columns
-        
-        where_conditions = []
-        params = []
-        
-        if has_is_destroyed:
-            if status_filter == 'active':
-                where_conditions.append("(IsDestroyed = 0 OR IsDestroyed IS NULL)")
-            elif status_filter == 'destroyed':
-                where_conditions.append("(IsDestroyed = 1)")
-        
-        if date_from:
-            where_conditions.append("TimeStamp >= ?")
-            params.append(date_from)
-        
-        if date_to:
-            where_conditions.append("TimeStamp <= ?")
-            params.append(date_to)
-        
-        if search:
-            where_conditions.append("(WatchtowerId LIKE ? OR WatchtowerName LIKE ?)")
-            search_param = f"%{search}%"
-            params.extend([search_param, search_param])
-        
-        where_clause = ""
-        if where_conditions:
-            where_clause = "WHERE " + " AND ".join(where_conditions)
-        
-        query = f"""
-            SELECT WatchtowerTrackingId, WatchtowerId, WatchtowerName,
-                   PositionX, PositionY, PositionZ, TimeStamp,
-                   IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt
-            FROM (
-                SELECT WatchtowerTrackingId, WatchtowerId, WatchtowerName,
-                       PositionX, PositionY, PositionZ, TimeStamp,
-                       IsDestroyed, DestroyedAt,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY WatchtowerId 
-                           ORDER BY TimeStamp DESC, WatchtowerTrackingId DESC
-                       ) as rn
-                FROM watchtowers_tracking
-                {where_clause}
-            ) ranked
-            WHERE rn = 1
-        """
-        
-        if where_clause and params:
-            cursor.execute(query, params)
+    try:
+        if not table_exists('watchtowers_tracking'):
+            logger.warning("Tabela watchtowers_tracking não encontrada no banco de dados")
         else:
-            cursor.execute(query)
-        
-        for row in cursor.fetchall():
-            structure = dict(row)
-            structure['StructureId'] = structure['WatchtowerId']
-            structure['StructureName'] = structure['WatchtowerName']
-            structure['StructureType'] = 'watchtower'
-            all_structures.append(structure)
+            with DatabaseConnection(config.DB_STRUCTURES) as conn:
+                cursor = conn.cursor()
+                try:
+                    columns = get_table_columns(config.DB_STRUCTURES, 'watchtowers_tracking')
+                    has_is_destroyed = 'IsDestroyed' in columns
+                except Exception as e:
+                    logger.warning(f"Erro ao obter colunas da tabela watchtowers_tracking: {e}")
+                    has_is_destroyed = False
+                
+                where_conditions = []
+                params = []
+                
+                if has_is_destroyed:
+                    if status_filter == 'active':
+                        where_conditions.append("(IsDestroyed = 0 OR IsDestroyed IS NULL)")
+                    elif status_filter == 'destroyed':
+                        where_conditions.append("(IsDestroyed = 1)")
+                
+                if date_from:
+                    where_conditions.append("TimeStamp >= ?")
+                    params.append(date_from)
+                
+                if date_to:
+                    where_conditions.append("TimeStamp <= ?")
+                    params.append(date_to)
+                
+                if search:
+                    where_conditions.append("(WatchtowerId LIKE ? OR WatchtowerName LIKE ?)")
+                    search_param = f"%{search}%"
+                    params.extend([search_param, search_param])
+                
+                where_clause = ""
+                if where_conditions:
+                    where_clause = "WHERE " + " AND ".join(where_conditions)
+                
+                query = f"""
+                    SELECT WatchtowerTrackingId, WatchtowerId, WatchtowerName,
+                           PositionX, PositionY, PositionZ, TimeStamp,
+                           IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt
+                    FROM (
+                        SELECT WatchtowerTrackingId, WatchtowerId, WatchtowerName,
+                               PositionX, PositionY, PositionZ, TimeStamp,
+                               IsDestroyed, DestroyedAt,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY WatchtowerId 
+                                   ORDER BY TimeStamp DESC, WatchtowerTrackingId DESC
+                               ) as rn
+                        FROM watchtowers_tracking
+                        {where_clause}
+                    ) ranked
+                    WHERE rn = 1
+                """
+                
+                try:
+                    if where_clause and params:
+                        cursor.execute(query, params)
+                    else:
+                        cursor.execute(query)
+                    
+                    watchtower_count = 0
+                    for row in cursor.fetchall():
+                        structure = dict(row)
+                        structure['StructureId'] = structure['WatchtowerId']
+                        structure['StructureName'] = structure['WatchtowerName']
+                        structure['StructureType'] = 'watchtower'
+                        all_structures.append(structure)
+                        watchtower_count += 1
+                    
+                    logger.info(f"Encontradas {watchtower_count} watchtowers")
+                except Exception as e:
+                    logger.error(f"Erro ao buscar watchtowers: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Erro ao processar watchtowers: {e}", exc_info=True)
     
     # Buscar flags
-    with DatabaseConnection(config.DB_STRUCTURES) as conn:
-        cursor = conn.cursor()
-        columns = get_table_columns(config.DB_STRUCTURES, 'flags_tracking')
-        has_is_destroyed = 'IsDestroyed' in columns
-        
-        where_conditions = []
-        params = []
-        
-        if has_is_destroyed:
-            if status_filter == 'active':
-                where_conditions.append("(IsDestroyed = 0 OR IsDestroyed IS NULL)")
-            elif status_filter == 'destroyed':
-                where_conditions.append("(IsDestroyed = 1)")
-        
-        if date_from:
-            where_conditions.append("TimeStamp >= ?")
-            params.append(date_from)
-        
-        if date_to:
-            where_conditions.append("TimeStamp <= ?")
-            params.append(date_to)
-        
-        if search:
-            where_conditions.append("(FlagId LIKE ? OR FlagName LIKE ?)")
-            search_param = f"%{search}%"
-            params.extend([search_param, search_param])
-        
-        where_clause = ""
-        if where_conditions:
-            where_clause = "WHERE " + " AND ".join(where_conditions)
-        
-        query = f"""
-            SELECT FlagTrackingId, FlagId, FlagName,
-                   PositionX, PositionY, PositionZ, TimeStamp,
-                   IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt
-            FROM (
-                SELECT FlagTrackingId, FlagId, FlagName,
-                       PositionX, PositionY, PositionZ, TimeStamp,
-                       IsDestroyed, DestroyedAt,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY FlagId 
-                           ORDER BY TimeStamp DESC, FlagTrackingId DESC
-                       ) as rn
-                FROM flags_tracking
-                {where_clause}
-            ) ranked
-            WHERE rn = 1
-        """
-        
-        if where_clause and params:
-            cursor.execute(query, params)
+    try:
+        if not table_exists('flags_tracking'):
+            logger.warning("Tabela flags_tracking não encontrada no banco de dados")
         else:
-            cursor.execute(query)
-        
-        for row in cursor.fetchall():
-            structure = dict(row)
-            structure['StructureId'] = structure['FlagId']
-            structure['StructureName'] = structure['FlagName']
-            structure['StructureType'] = 'flag'
-            all_structures.append(structure)
+            with DatabaseConnection(config.DB_STRUCTURES) as conn:
+                cursor = conn.cursor()
+                try:
+                    columns = get_table_columns(config.DB_STRUCTURES, 'flags_tracking')
+                    has_is_destroyed = 'IsDestroyed' in columns
+                except Exception as e:
+                    logger.warning(f"Erro ao obter colunas da tabela flags_tracking: {e}")
+                    has_is_destroyed = False
+                
+                where_conditions = []
+                params = []
+                
+                if has_is_destroyed:
+                    if status_filter == 'active':
+                        where_conditions.append("(IsDestroyed = 0 OR IsDestroyed IS NULL)")
+                    elif status_filter == 'destroyed':
+                        where_conditions.append("(IsDestroyed = 1)")
+                
+                if date_from:
+                    where_conditions.append("TimeStamp >= ?")
+                    params.append(date_from)
+                
+                if date_to:
+                    where_conditions.append("TimeStamp <= ?")
+                    params.append(date_to)
+                
+                if search:
+                    where_conditions.append("(FlagId LIKE ? OR FlagName LIKE ?)")
+                    search_param = f"%{search}%"
+                    params.extend([search_param, search_param])
+                
+                where_clause = ""
+                if where_conditions:
+                    where_clause = "WHERE " + " AND ".join(where_conditions)
+                
+                query = f"""
+                    SELECT FlagTrackingId, FlagId, FlagName,
+                           PositionX, PositionY, PositionZ, TimeStamp,
+                           IFNULL(IsDestroyed, 0) as IsDestroyed, DestroyedAt
+                    FROM (
+                        SELECT FlagTrackingId, FlagId, FlagName,
+                               PositionX, PositionY, PositionZ, TimeStamp,
+                               IsDestroyed, DestroyedAt,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY FlagId 
+                                   ORDER BY TimeStamp DESC, FlagTrackingId DESC
+                               ) as rn
+                        FROM flags_tracking
+                        {where_clause}
+                    ) ranked
+                    WHERE rn = 1
+                """
+                
+                try:
+                    if where_clause and params:
+                        cursor.execute(query, params)
+                    else:
+                        cursor.execute(query)
+                    
+                    flag_count = 0
+                    for row in cursor.fetchall():
+                        structure = dict(row)
+                        structure['StructureId'] = structure['FlagId']
+                        structure['StructureName'] = structure['FlagName']
+                        structure['StructureType'] = 'flag'
+                        all_structures.append(structure)
+                        flag_count += 1
+                    
+                    logger.info(f"Encontradas {flag_count} flags")
+                except Exception as e:
+                    logger.error(f"Erro ao buscar flags: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Erro ao processar flags: {e}", exc_info=True)
+    
+    # Contar estruturas por tipo para log detalhado
+    fence_count = sum(1 for s in all_structures if s.get('StructureType') == 'fence')
+    watchtower_count = sum(1 for s in all_structures if s.get('StructureType') == 'watchtower')
+    flag_count = sum(1 for s in all_structures if s.get('StructureType') == 'flag')
+    logger.info(f"Total de estruturas encontradas: {len(all_structures)} (Fences: {fence_count}, WatchTowers: {watchtower_count}, Flags: {flag_count})")
     
     # Calcular ChangeCount para todas as estruturas
     selected_change_types = set(change_types or [])
