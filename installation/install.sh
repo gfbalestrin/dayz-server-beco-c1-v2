@@ -488,6 +488,7 @@ if [[ "$SKIP_SERVER_CONFIG" -eq 0 ]]; then
     sed -i "/class Missions/i motdInterval = $DayzMotdIntervalSeconds;" "$ServerDZFile"
     sed -i "/class Missions/i BattlEye = 1;" "$ServerDZFile" 
     sed -i "/class Missions/i adminLogBuildActions = 1;" "$ServerDZFile" 
+    sed -i "/class Missions/i disableBaseDamage = 0;" "$ServerDZFile" 
 
     echo "Arquivo $ServerDZFile editado com sucesso."
 

@@ -144,7 +144,7 @@ handle_flags_positions() {
             IFS='|' read -r rem_name rem_x rem_z rem_y rem_has_base rem_has_flag_base rem_flag_raised rem_flag_height <<< "$removed_data"
             INSERT_CUSTOM_LOG "Flag removida (ID=$removed_id) - Última posição=($rem_x,$rem_z,$rem_y)" "INFO" "$ScriptName"
             Content="Flag destruída (ID=$removed_id) removida do mapa - Última posição=($rem_x,$rem_z,$rem_y)"
-            SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+            #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             
             # Escapar aspas simples no ID para SQL
             EscapedRemovedId=$(echo "$removed_id" | sed "s/'/''/g")

@@ -323,15 +323,52 @@ NIGHT_ACCEL="__NIGHT_ACCEL__"
 sed -i "s/^\s*serverTimeAcceleration=.*/serverTimeAcceleration=${DAY_ACCEL};/" "$CFG_FILE"
 sed -i "s/^\s*serverNightTimeAcceleration=.*/serverNightTimeAcceleration=${NIGHT_ACCEL};/" "$CFG_FILE"
 
+# Converte lista de dias em inglês abreviado (MON,TUE,...) para nomes em português
+convert_days_to_pt() {
+    local input="$1"
+    local result=""
+    local day name_pt
+
+    IFS=',' read -ra days_array <<< "$input"
+    for day in "${days_array[@]}"; do
+        # Remover espaços em branco
+        day="${day//[[:space:]]/}"
+        if [[ -z "$day" ]]; then
+            continue
+        fi
+
+        case "$day" in
+            MON) name_pt="Segunda-feira" ;;
+            TUE) name_pt="Terça-feira" ;;
+            WED) name_pt="Quarta-feira" ;;
+            THU) name_pt="Quinta-feira" ;;
+            FRI) name_pt="Sexta-feira" ;;
+            SAT) name_pt="Sábado" ;;
+            SUN) name_pt="Domingo" ;;
+            *) name_pt="$day" ;;
+        esac
+
+        if [[ -n "$name_pt" ]]; then
+            if [[ -n "$result" ]]; then
+                result+=", "
+            fi
+            result+="$name_pt"
+        fi
+    done
+
+    echo "$result"
+}
+
 if [[ "$DayzRaidRulesEnable" == "1" ]]; then
     DAY_ALLOWED=false
     HOUR_ALLOWED=false
+    DayzRaidRulesDaysAllowedPT="$(convert_days_to_pt "$DayzRaidRulesDaysAllowed")"
     
     if CHECK_RAID_DAY_ALLOWED "$DayzRaidRulesDaysAllowed"; then
         DAY_ALLOWED=true
         INSERT_CUSTOM_LOG "Dia permitido para raid: $(date +%a)" "INFO" "$ScriptName"
     else
-        INSERT_CUSTOM_LOG "Dia NÃO permitido para raid: $(date +%a). Dias permitidos: $DayzRaidRulesDaysAllowed" "INFO" "$ScriptName"
+        INSERT_CUSTOM_LOG "Dia NÃO permitido para raid: $(date +%a). Dias permitidos: $DayzRaidRulesDaysAllowedPT" "INFO" "$ScriptName"
     fi
     
     if CHECK_RAID_HOUR_ALLOWED "$DayzRaidRulesHoursAllowed"; then
@@ -340,15 +377,14 @@ if [[ "$DayzRaidRulesEnable" == "1" ]]; then
     else
         INSERT_CUSTOM_LOG "Horário NÃO permitido para raid: $(date +%H:%M). Intervalo permitido: $DayzRaidRulesHoursAllowed" "INFO" "$ScriptName"
     fi
-    CFG_GAMEPLAY_FILE="__DAYZ_FOLDER__/mpmissions/__DAYZ_MPMISSION__/cfggameplay.json"
     if [[ "$DAY_ALLOWED" == "true" ]] && [[ "$HOUR_ALLOWED" == "true" ]]; then
         INSERT_CUSTOM_LOG "Ativando regras de raid (dia e horário permitidos)..." "INFO" "$ScriptName"
-        SEND_DISCORD_WEBHOOK "Raid permitido (dia e horário permitidos)!" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
-        sed -i "s/\"disableBaseDamage\": true,/\"disableBaseDamage\": false,/g" "$CFG_GAMEPLAY_FILE"
+        SEND_DISCORD_WEBHOOK "Raid liberado! Dias permitidos: $DayzRaidRulesDaysAllowedPT - Horário permitido: $DayzRaidRule>
+        sed -i "s/^\s*disableBaseDamage =.*/disableBaseDamage = 0;/" "$CFG_FILE"
     else
         INSERT_CUSTOM_LOG "Regras de raid NÃO ativadas: condições de dia/horário não atendidas" "INFO" "$ScriptName"
-        SEND_DISCORD_WEBHOOK "Raid NÃO Permitido: condições de dia/horário não atendidas!" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
-        sed -i "s/\"disableBaseDamage\": false,/\"disableBaseDamage\": true,/g" "$CFG_GAMEPLAY_FILE"
+        SEND_DISCORD_WEBHOOK "Raid NÃO Permitido! Dias permitidos: $DayzRaidRulesDaysAllowedPT - Horário permitido: $DayzRai>
+        sed -i "s/^\s*disableBaseDamage =.*/disableBaseDamage = 1;/" "$CFG_FILE"
     fi
 fi
 

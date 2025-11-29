@@ -42,7 +42,7 @@ handle_player_respawned() {
             local Message
             Message="$SafePlayerInfo respawnou"
             INSERT_CUSTOM_LOG "Evento player_respawned registrado para $SafePlayerInfo na posição ($CoordX, $CoordY, $CoordZ)" "INFO" "$ScriptName"
-            SEND_DISCORD_WEBHOOK "$Message" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+            #SEND_DISCORD_WEBHOOK "$Message" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
         else
             INSERT_CUSTOM_LOG "Falha ao extrair coordenadas da posição: $Position" "ERROR" "$ScriptName"
         fi

@@ -56,9 +56,11 @@ function EnviaLogsDiscord() {
     #fi
 
     if [[ "$EVENT" == "CONNECT" ]]; then
-        Content="Jogador **$(sanitize_discord_markdown "$PlayerName")** ([$(sanitize_discord_markdown "$SteamName")](<https://steamcommunity.com/profiles/$SteamID>)) conectou"
+        #Content="Jogador **$(sanitize_discord_markdown "$PlayerName")** ([$(sanitize_discord_markdown "$SteamName")](<https://steamcommunity.com/profiles/$SteamID>)) conectou"
+        Content="Jogador **$(sanitize_discord_markdown "$PlayerName")** conectou"
     else
-        Content="Jogador **$(sanitize_discord_markdown "$PlayerName")** ([$(sanitize_discord_markdown "$SteamName")](<https://steamcommunity.com/profiles/$SteamID>)) desconectou"
+        #Content="Jogador **$(sanitize_discord_markdown "$PlayerName")** ([$(sanitize_discord_markdown "$SteamName")](<https://steamcommunity.com/profiles/$SteamID>)) desconectou"
+        Content="Jogador **$(sanitize_discord_markdown "$PlayerName")** desconectou"
     fi
     			
     SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
@@ -245,7 +247,8 @@ if [[ "$PLAYER_ID" == "RESET" ]]; then
         # Enviar webhook Discord de desconexão (não bloquear se falhar)
         {
             CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
-            Content="Jogador **$(sanitize_discord_markdown "$PlayerName")** ([$(sanitize_discord_markdown "$SteamName")](<https://steamcommunity.com/profiles/$SteamID>)) desconectou"
+            #Content="Jogador **$(sanitize_discord_markdown "$PlayerName")** ([$(sanitize_discord_markdown "$SteamName")](<https://steamcommunity.com/profiles/$SteamID>)) desconectou"
+            Content="Jogador **$(sanitize_discord_markdown "$PlayerName")** desconectou"
             SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
         } || true
         
@@ -489,6 +492,11 @@ else
 fi
 
 if [[ $NUM_REGISTROS -eq 0 ]]; then
+    AtualizaPlayersOnlineDiscord
+    exit 0
+fi
+
+if [[ "$DayzDeathmatch" -eq "0" ]]; then
     AtualizaPlayersOnlineDiscord
     exit 0
 fi

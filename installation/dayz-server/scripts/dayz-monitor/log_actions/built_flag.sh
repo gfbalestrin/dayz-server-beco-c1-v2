@@ -49,5 +49,7 @@ handle_built_flag() {
     else
         INSERT_CUSTOM_LOG "Falha ao montar coordenadas para comando registerflag" "ERROR" "$ScriptName"
     fi
+
+    HANDLER_SHOULD_CONTINUE=1
 }
 

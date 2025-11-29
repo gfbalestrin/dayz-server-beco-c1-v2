@@ -846,6 +846,7 @@ $(document).ready(function() {
             const changeBadgesHtml = changeTypes ? renderChangeTypeBadges(changeTypes) : '';
             
             // Mensagem de ataque
+            // record = estado atual (mais recente), nextRecord = estado anterior (mais antigo)
             let attackMessage = '';
             if (hasAttack) {
                 if (structureType === 'fence') {
@@ -855,10 +856,11 @@ $(document).ready(function() {
                     const currUpper = normalizeBoolValue(nextRecord.UpperPanelBuilt);
                     
                     const parts = [];
-                    if (prevLower === 1 && currLower === 0) {
+                    // Ataque: estado anterior tinha painel (1) e estado atual não tem (0)
+                    if (currLower === 1 && prevLower === 0) {
                         parts.push('Painel inferior perdido');
                     }
-                    if (prevUpper === 1 && currUpper === 0) {
+                    if (currUpper === 1 && prevUpper === 0) {
                         parts.push('Painel superior perdido');
                     }
                     attackMessage = parts.join('; ');
@@ -879,7 +881,8 @@ $(document).ready(function() {
                     for (let wallField of wallFields) {
                         const prevWall = normalizeBoolValue(record[wallField]);
                         const currWall = normalizeBoolValue(nextRecord[wallField]);
-                        if (prevWall === 1 && currWall === 0) {
+                        // Ataque: estado anterior tinha parede (1) e estado atual não tem (0)
+                        if (currWall === 1 && prevWall === 0) {
                             const wallName = wallField.replace(/([A-Z])/g, ' $1').trim();
                             parts.push(wallName + ' perdida');
                         }
@@ -1015,6 +1018,7 @@ $(document).ready(function() {
     }
     
     // Detectar ataque: componente estava construído e agora está destruído
+    // prev = estado atual (mais recente), curr = estado anterior (mais antigo)
     function detectAttack(prev, curr, structureType) {
         if (!prev || !curr) {
             return false;
@@ -1026,8 +1030,9 @@ $(document).ready(function() {
             const currLower = normalizeBoolValue(curr.LowerPanelBuilt);
             const currUpper = normalizeBoolValue(curr.UpperPanelBuilt);
             
-            // Ataque: painel estava construído (1) e agora está destruído (0)
-            if ((prevLower === 1 && currLower === 0) || (prevUpper === 1 && currUpper === 0)) {
+            // Ataque: estado anterior tinha painel construído (1) e estado atual não tem (0)
+            // Invertido: curr (anterior) tinha, prev (atual) não tem = ATAQUE
+            if ((currLower === 1 && prevLower === 0) || (currUpper === 1 && prevUpper === 0)) {
                 return true;
             }
         } else if (structureType === 'watchtower') {
@@ -1048,8 +1053,9 @@ $(document).ready(function() {
                 const prevWall = normalizeBoolValue(prev[wallField]);
                 const currWall = normalizeBoolValue(curr[wallField]);
                 
-                // Ataque: parede estava construída (1) e agora está destruída (0)
-                if (prevWall === 1 && currWall === 0) {
+                // Ataque: estado anterior tinha parede construída (1) e estado atual não tem (0)
+                // Invertido: curr (anterior) tinha, prev (atual) não tem = ATAQUE
+                if (currWall === 1 && prevWall === 0) {
                     return true;
                 }
             }

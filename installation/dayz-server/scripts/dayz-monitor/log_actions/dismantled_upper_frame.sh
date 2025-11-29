@@ -41,6 +41,8 @@ handle_dismantled_upper_frame() {
         DetailsJson="{\"fence_type\": \"upper_frame\", \"position\": \"$Position\", \"action\": \"dismantled\", \"tool\": \"$Tool\"}"
         INSERT_PLAYER_EVENT "$PlayerId" "fence_destroyed" "$CoordX" "$CoordY" "$CoordZ" "$DetailsJson" ""
     fi
+
+    HANDLER_SHOULD_CONTINUE=1
 }
 
 

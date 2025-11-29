@@ -49,6 +49,8 @@ handle_built_watchtower() {
     else
         INSERT_CUSTOM_LOG "Falha ao montar coordenadas para comando registerfence" "ERROR" "$ScriptName"
     fi
+
+    HANDLER_SHOULD_CONTINUE=1
 }
 
 

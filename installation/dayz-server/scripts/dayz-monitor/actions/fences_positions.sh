@@ -154,7 +154,7 @@ handle_fences_positions() {
                     destruction_summary="${destruction_summary%??}"
                     local Content
                     Content="Fence destruída (ID=$fence_id) em (${coord_x},${coord_z},${coord_y}) - $destruction_summary"
-                    SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+                    #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
                 fi
             fi
 
@@ -187,7 +187,7 @@ handle_fences_positions() {
             IFS='|' read -r rem_name rem_x rem_z rem_y rem_has_base rem_lower rem_upper <<< "$removed_data"
             INSERT_CUSTOM_LOG "Fence removida (ID=$removed_id) - Última posição=($rem_x,$rem_z,$rem_y) - Base=$(format_bool_log "$rem_has_base") - PainelInf=$(format_bool_log "$rem_lower") - PainelSup=$(format_bool_log "$rem_upper")" "INFO" "$ScriptName"
             Content="Fence destruída (ID=$removed_id) removida do mapa - Última posição=($rem_x,$rem_z,$rem_y)"
-            SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+            #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             
             # Marcar todos os registros da fence como destruída (garantir que não apareça no mapa)
             sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" <<EOF

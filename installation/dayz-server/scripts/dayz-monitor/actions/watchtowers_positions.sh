@@ -358,7 +358,7 @@ handle_watchtowers_positions() {
                     destruction_summary="${destruction_summary%??}"
                     local Content
                     Content="Watchtower atacada (ID=$watchtower_id) em (${coord_x},${coord_z},${coord_y}) - $destruction_summary"
-                    SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+                    #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
                 fi
             fi
             
@@ -390,7 +390,7 @@ handle_watchtowers_positions() {
             IFS='|' read -r rem_name rem_x rem_z rem_y rem_has_base rem_level1_base rem_level2_base rem_level3_base rem_level1_stairs rem_level2_stairs rem_has_roof <<< "$removed_data"
             INSERT_CUSTOM_LOG "Watchtower removida (ID=$removed_id) - Última posição=($rem_x,$rem_z,$rem_y)" "INFO" "$ScriptName"
             Content="Watchtower destruída (ID=$removed_id) removida do mapa - Última posição=($rem_x,$rem_z,$rem_y)"
-            SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+            #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
             
             # Escapar aspas simples no ID para SQL
             EscapedRemovedId=$(echo "$removed_id" | sed "s/'/''/g")

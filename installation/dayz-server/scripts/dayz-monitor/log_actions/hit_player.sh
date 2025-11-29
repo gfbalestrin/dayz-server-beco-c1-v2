@@ -100,5 +100,7 @@ handle_hit_player() {
     SafePlayerVictimInfo="**$(sanitize_discord_markdown "$PlayerVictimName")** ([$(sanitize_discord_markdown "$VictimSteamName")](<https://steamcommunity.com/profiles/$VictimSteamID>))"
 
     HANDLER_CONTENT="Jogador $SafePlayerVictimInfo foi atingido por $SafePlayerAttackerInfo. Local do dano: $LocalDamage, dano sofrido: $Damage, arma: $Weapon, tipo de ataque: $HitType, distância: $metros metros, HP restante: $Health"
+
+    HANDLER_SHOULD_CONTINUE=1
 }
 

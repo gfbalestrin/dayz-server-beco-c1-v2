@@ -38,5 +38,7 @@ handle_dismantled_fence() {
         DetailsJson="{\"fence_type\": \"fence\", \"position\": \"$Position\", \"action\": \"dismantled\"}"
         INSERT_PLAYER_EVENT "$PlayerId" "fence_destroyed" "$CoordX" "$CoordY" "$CoordZ" "$DetailsJson" ""
     fi
+
+    HANDLER_SHOULD_CONTINUE=1
 }
 

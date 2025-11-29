@@ -58,6 +58,8 @@ handle_built_shelter() {
     else
         INSERT_CUSTOM_LOG "Falha ao montar coordenadas para comando registercontainer" "ERROR" "$ScriptName"
     fi
+
+    HANDLER_SHOULD_CONTINUE=1
 }
 
 
