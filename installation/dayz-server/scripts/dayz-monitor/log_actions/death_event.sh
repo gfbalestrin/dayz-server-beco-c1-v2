@@ -371,5 +371,6 @@ handle_death_event() {
     fi
 
     HANDLER_CONTENT=$(echo "$UpdatedContent" | tr -d '\r\n' | sed "s/   */ /g")
+    HANDLER_SHOULD_CONTINUE=1
 }
 
