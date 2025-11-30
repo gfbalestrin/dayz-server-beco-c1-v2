@@ -16,9 +16,11 @@ handle_event_minutes_to_restart() {
         Content="Horário: $CurrentTime"
     fi
 
-    if [[ "$Message" == *"O servidor vai ser reiniciado em 1 minuto"* ]]; then
-        SEND_DISCORD_WEBHOOK "⏱️ $Message $Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
-    else
-        SEND_DISCORD_WEBHOOK "⏱️ $Message" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
-    fi    
+    SEND_DISCORD_WEBHOOK "⏱️ $Message $Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+
+    #if [[ "$Message" == *"O servidor vai ser reiniciado em 1 minuto"* ]]; then
+    #    SEND_DISCORD_WEBHOOK "⏱️ $Message $Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+    #else
+    #    SEND_DISCORD_WEBHOOK "⏱️ $Message" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
+    #fi    
 }

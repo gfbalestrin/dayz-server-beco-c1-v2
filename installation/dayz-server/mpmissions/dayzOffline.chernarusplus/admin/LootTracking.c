@@ -9,7 +9,12 @@ TStringArray GetContainerTypes()
 	containerTypes.Insert("CarTent");
 	containerTypes.Insert("LargeTent");
 	containerTypes.Insert("MediumTent");
+	containerTypes.Insert("MediumTent_Green");
+	containerTypes.Insert("MediumTent_Orange");
 	containerTypes.Insert("PartyTent");
+	containerTypes.Insert("PartyTent_Blue");
+	containerTypes.Insert("PartyTent_Brown");
+	containerTypes.Insert("PartyTent_Lunapark");
 	containerTypes.Insert("ShelterStick");
 	containerTypes.Insert("ShelterFabric");
 	containerTypes.Insert("ShelterLeather");
