@@ -640,29 +640,33 @@ function showKillMarkerActions(killEvent, positionType) {
     $('#confirmTeleportToPlayerBtn').data('coordX', coordX);
     $('#confirmTeleportToPlayerBtn').data('coordY', coordY);
     $('#confirmTeleportToPlayerBtn').data('coordZ', coordZ);
+    $('#confirmTeleportToPlayerBtn').data('selectedPlayerId', null);
     
-    // Limpar e popular dropdown com jogadores online
-    const dropdown = $('#teleportToPlayerDropdown');
-    dropdown.html('<option value="">Carregando jogadores...</option>');
+    // Limpar campos
+    $('#teleportToPlayerSearch').val('');
+    $('#teleportToPlayerSearchResults').hide();
+    $('#teleportToPlayerSelected').hide();
     
-    // Buscar jogadores online
+    // Buscar jogadores online (sem filtrar nenhum jogador, já que não temos um targetPlayerId)
     $.get('/api/players/online/positions')
         .done(function(data) {
-            dropdown.html('<option value="">Selecione um jogador</option>');
+            // Popular lista de jogadores para pesquisa
+            teleportToPlayerList = data.players || [];
             
-            data.players.forEach(function(player) {
-                const option = $('<option></option>');
-                option.val(player.player_id);
-                option.text(`${player.player_name}${player.steam_name ? ' (' + player.steam_name + ')' : ''}`);
-                dropdown.append(option);
-            });
+            if (teleportToPlayerList.length === 0) {
+                $('#teleportToPlayerSearch').prop('disabled', true).attr('placeholder', 'Nenhum jogador online disponível');
+            } else {
+                $('#teleportToPlayerSearch').prop('disabled', false).attr('placeholder', 'Digite o nome do jogador...');
+            }
         })
         .fail(function() {
-            dropdown.html('<option value="">Erro ao carregar jogadores</option>');
+            $('#teleportToPlayerSearch').prop('disabled', true).attr('placeholder', 'Erro ao carregar jogadores');
+            teleportToPlayerList = [];
         });
     
-    // Abrir modal de teleporte
-    $('#teleportToPlayerModal').modal('show');
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('teleportToPlayerModal'));
+    modal.show();
 }
 
 /**
