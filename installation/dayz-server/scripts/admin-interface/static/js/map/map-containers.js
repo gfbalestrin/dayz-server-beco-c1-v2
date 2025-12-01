@@ -121,9 +121,6 @@ function updateContainers(data) {
     });
     MapState.containerMarkers = {};
     
-    // Atualizar contador de containers
-    $('#containerCount').text(data.containers.length);
-    
     if (!MapState.showContainers) {
         // Salvar estado anterior mesmo se não estiver mostrando
         MapState.previousContainersData = {};
@@ -156,6 +153,18 @@ function updateContainers(data) {
             return MapState.selectedContainerFilters.includes(container.container_id);
         });
     }
+    
+    // Aplicar filtro de containers vazios (por padrão, mostrar apenas containers com items)
+    const showEmptyContainers = $('#showEmptyContainersCheck').is(':checked');
+    if (!showEmptyContainers) {
+        containersToShow = containersToShow.filter(function(container) {
+            const items = container.items || [];
+            return items.length > 0;
+        });
+    }
+    
+    // Atualizar contador de containers (após aplicar filtros)
+    $('#containerCount').text(containersToShow.length);
     
     // Adicionar containers ao cluster group
     containersToShow.forEach(function(container) {

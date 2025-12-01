@@ -61,6 +61,9 @@ $(document).ready(function() {
         if (MapState.showContainers) loadContainers();
         if (MapState.showFences) loadFences();
     });
+    $('#showEmptyContainersCheck').on('change', function() {
+        if (MapState.showContainers) loadContainers();
+    });
     $('#toggleTrailsBtn').on('click', toggleTrails);
     $('#togglePlayersBtn').on('click', togglePlayersDisplay);
     $('#toggleVehiclesBtn').on('click', toggleVehiclesDisplay);
