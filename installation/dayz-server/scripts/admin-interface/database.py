@@ -400,33 +400,58 @@ def get_vehicles_map_positions(include_destroyed: bool = False) -> List[Dict]:
         return vehicles
 
 def get_vehicle_trail(vehicle_id: str, limit: int = 100, date_from: str = None, date_to: str = None) -> List[Dict]:
-    """Retorna histórico de posições de um veículo, filtrando pontos duplicados"""
+    """Retorna histórico de posições de um veículo, filtrando pontos duplicados
+    
+    A função busca mais registros do banco para garantir que, após filtrar duplicados
+    (mesma posição), ainda haja pontos únicos suficientes para retornar.
+    """
     with DatabaseConnection(config.DB_VEHICLES) as conn:
         cursor = conn.cursor()
-        # Construir query com filtros de data opcionais
-        query = """
-            SELECT IdVehicleTracking, VehicleId, VehicleName,
-                   PositionX, PositionY, PositionZ, TimeStamp
-            FROM vehicles_tracking
-            WHERE VehicleId = ?
-        """
+        
+        # Construir condições WHERE dinamicamente
+        where_conditions = ["VehicleId = ?"]
         params = [vehicle_id]
         
         if date_from:
-            query += " AND TimeStamp >= ?"
+            # Usar datetime() do SQLite para garantir comparação correta de datas
+            # Isso funciona mesmo se TimeStamp tiver milissegundos
+            where_conditions.append("datetime(TimeStamp) >= datetime(?)")
             params.append(date_from)
         
         if date_to:
-            query += " AND TimeStamp <= ?"
+            # Usar datetime() do SQLite para garantir comparação correta de datas
+            where_conditions.append("datetime(TimeStamp) <= datetime(?)")
             params.append(date_to)
         
-        query += " ORDER BY TimeStamp DESC LIMIT ?"
-        params.append(limit)
+        where_clause = " AND ".join(where_conditions)
+        
+        # Se filtros de data estiverem ativos, usar limite maior para buscar mais registros brutos
+        # Isso garante que, após filtrar duplicados, ainda haja pontos únicos suficientes
+        # Para evitar sobrecarga, usar limite de 10000 quando filtros estão ativos
+        if date_from or date_to:
+            db_query_limit = limit if limit > 10000 else 10000
+        else:
+            # Quando não há filtros de data, buscar mais registros (multiplicador)
+            # para garantir pontos únicos suficientes após filtrar duplicados
+            # Exemplo: se limit=100, buscar 1000 registros brutos para ter ~100 únicos
+            db_query_limit = limit * 10 if limit * 10 <= 10000 else 10000
+        
+        # Buscar mais registros do banco (antes de filtrar duplicados)
+        query = f"""
+            SELECT IdVehicleTracking, VehicleId, VehicleName,
+                   PositionX, PositionY, PositionZ, TimeStamp
+            FROM vehicles_tracking
+            WHERE {where_clause}
+            ORDER BY datetime(TimeStamp) DESC
+            LIMIT ?
+        """
+        params.append(db_query_limit)
         
         cursor.execute(query, params)
         all_vehicles = [dict(row) for row in cursor.fetchall()]
         
-        # Filtrar eventos duplicados (mesma posição)
+        # Filtrar eventos duplicados (mesma posição) ANTES de aplicar o limite final
+        # Isso garante que o limite seja aplicado sobre pontos únicos (onde houve movimento)
         filtered_vehicles = []
         prev_state = None
         
@@ -448,7 +473,8 @@ def get_vehicle_trail(vehicle_id: str, limit: int = 100, date_from: str = None, 
                 filtered_vehicles.append(vehicle)
                 prev_state = current_state
         
-        return filtered_vehicles
+        # Aplicar limite final sobre os pontos únicos já filtrados
+        return filtered_vehicles[:limit]
 
 def get_vehicles_overview(include_destroyed: bool = False, date_from: str = None, date_to: str = None) -> List[Dict]:
     """Retorna último registro de cada veículo com filtros opcionais"""

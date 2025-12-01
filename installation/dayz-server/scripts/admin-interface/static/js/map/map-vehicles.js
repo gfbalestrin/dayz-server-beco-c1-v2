@@ -256,12 +256,33 @@ function loadVehicleTrail(vehicleId, forceReload = false, dateFrom = null, dateT
     
     // Verificar se há filtro ativo para este veículo
     const filter = MapState.vehicleTrailFilters[vehicleId];
-    if (filter && filter.enabled) {
-        dateFrom = dateFrom || (filter.startDate ? filter.startDate.toISOString() : null);
-        dateTo = dateTo || (filter.endDate ? filter.endDate.toISOString() : null);
+    // Usar datas do filtro se não foram passadas como parâmetros
+    // Verificar tanto filter.enabled quanto se há datas definidas no filtro
+    if (filter && (filter.enabled || filter.startDate || filter.endDate)) {
+        if (!dateFrom && filter.startDate) {
+            dateFrom = filter.startDate;
+        }
+        if (!dateTo && filter.endDate) {
+            dateTo = filter.endDate;
+        }
     }
     
-    const params = { limit: 100 };
+    // Converter objetos Date para ISO string se necessário
+    if (dateFrom instanceof Date) {
+        dateFrom = dateFrom.toISOString();
+    }
+    if (dateTo instanceof Date) {
+        dateTo = dateTo.toISOString();
+    }
+    
+    // Quando há filtros de data, usar limite maior para garantir pontos únicos suficientes
+    // após filtrar duplicados no backend (similar ao comportamento de get_player_trail)
+    // Verificar se dateFrom ou dateTo existem e são strings não-vazias
+    const hasDateFilter = (dateFrom && String(dateFrom).trim().length > 0) || 
+                          (dateTo && String(dateTo).trim().length > 0);
+    const limit = hasDateFilter ? 10000 : 100;
+    
+    const params = { limit: limit };
     if (dateFrom) {
         params.date_from = dateFrom;
     }
