@@ -134,7 +134,11 @@ class CustomMission: MissionServer
 	override void OnInit()
     {
         super.OnInit();		
-		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitWorldTracking, 5000, false);
+		if (!IsDeathmatchEnabled)
+		{
+			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitWorldTracking, 5000, false);
+		}
+		
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SendStartEvent, 5000, false);
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SpawnConfiguredVehiclesFromConfig, 3000, false);
     }
@@ -213,7 +217,11 @@ class CustomMission: MissionServer
 			GetGame().GetPlayers(players);
 
 			// Passar para SendPlayersPositions
-			SendPlayersPositions(players);		
+			if (!IsDeathmatchEnabled)
+			{
+				SendPlayersPositions(players);	
+			}
+				
 
 			CheckCommands();
 			array<string> msgs = CheckMessages();
@@ -305,43 +313,50 @@ class CustomMission: MissionServer
 				}
 				CleanUpDeadEntitiesNearPlayers();
 			} 
-			//LogVehiclesPositionsSimple(); // Loga coordenadas dos veículos para análise de performance
-			CleanTrackedVehicles(); // Limpa veículos destruídos do array
-			SendVehiclesPositionsSimple(); // Envia apenas coordenadas dos veículos (update parcial)
-			//LogFencesStatusSimple(); // Loga informações simples das fences rastreadas
-			//LogWatchtowersStatusSimple(); // Loga informações simples das watchtowers rastreadas
-			//LogFlagsStatusSimple(); // Loga informações simples das flags rastreadas
-			//LogContainersStatusSimple(); // Loga informações básicas dos containers rastreados
-			//SendVehiclesPositions(); // Completo (comentado para performance)			
-			//CleanTrackedFences(); // Limpa cercas destruídas do array
-			//SendFencesStatus(); // Envia status de todas as cercas rastreadas
-			//CleanTrackedWatchtowers(); // Limpa watchtowers removidas do array
-			//SendWatchtowersStatus(); // Envia status das watchtowers rastreadas
-			//CleanTrackedFlags(); // Limpa flags inválidas do array
-			//SendFlagsStatus(); // Envia status das flags rastreadas
-			//CleanTrackedContainers(); // Limpa containers destruídos do array
-			//CheckContainersForLoot(); // Verifica e envia containers que receberam loot
+			if (!IsDeathmatchEnabled)
+			{
+				//LogVehiclesPositionsSimple(); // Loga coordenadas dos veículos para análise de performance
+				CleanTrackedVehicles(); // Limpa veículos destruídos do array
+				SendVehiclesPositionsSimple(); // Envia apenas coordenadas dos veículos (update parcial)
+				//LogFencesStatusSimple(); // Loga informações simples das fences rastreadas
+				//LogWatchtowersStatusSimple(); // Loga informações simples das watchtowers rastreadas
+				//LogFlagsStatusSimple(); // Loga informações simples das flags rastreadas
+				//LogContainersStatusSimple(); // Loga informações básicas dos containers rastreados
+				//SendVehiclesPositions(); // Completo (comentado para performance)			
+				//CleanTrackedFences(); // Limpa cercas destruídas do array
+				//SendFencesStatus(); // Envia status de todas as cercas rastreadas
+				//CleanTrackedWatchtowers(); // Limpa watchtowers removidas do array
+				//SendWatchtowersStatus(); // Envia status das watchtowers rastreadas
+				//CleanTrackedFlags(); // Limpa flags inválidas do array
+				//SendFlagsStatus(); // Envia status das flags rastreadas
+				//CleanTrackedContainers(); // Limpa containers destruídos do array
+				//CheckContainersForLoot(); // Verifica e envia containers que receberam loot			
+				//ListActivePlayers();
+				//SendPlayersPositions();		
+			}
 			
-			//ListActivePlayers();
-			//SendPlayersPositions();		
 		}
 
 		// Timer de 10 minutos para tracking de construções e containers
 		if (m_AdminCheckTimer600 >= m_AdminCheckCooldown600)
 		{
 			m_AdminCheckTimer600 = 0.0;
+
+			if (!IsDeathmatchEnabled)
+			{
+				// Limpeza de objetos destruídos/removidos dos arrays
+				CleanTrackedFences(); // Limpa fences destruídas do array
+				CleanTrackedWatchtowers(); // Limpa watchtowers removidas do array
+				CleanTrackedFlags(); // Limpa flags inválidas do array
+				CleanTrackedContainers(); // Limpa containers destruídos do array
+				
+				// Envio de status completo via ExternalAction
+				SendFencesStatus(); // Envia status completo de todas as fences rastreadas
+				SendWatchtowersStatus(); // Envia status completo das watchtowers rastreadas
+				SendFlagsStatus(); // Envia status completo das flags rastreadas
+				SendContainersPositionsSimple(); // Envia posições simplificadas dos containers (sem items)
+			}
 			
-			// Limpeza de objetos destruídos/removidos dos arrays
-			CleanTrackedFences(); // Limpa fences destruídas do array
-			CleanTrackedWatchtowers(); // Limpa watchtowers removidas do array
-			CleanTrackedFlags(); // Limpa flags inválidas do array
-			CleanTrackedContainers(); // Limpa containers destruídos do array
-			
-			// Envio de status completo via ExternalAction
-			SendFencesStatus(); // Envia status completo de todas as fences rastreadas
-			SendWatchtowersStatus(); // Envia status completo das watchtowers rastreadas
-			SendFlagsStatus(); // Envia status completo das flags rastreadas
-			SendContainersPositionsSimple(); // Envia posições simplificadas dos containers (sem items)
 		}
 	}
 	
