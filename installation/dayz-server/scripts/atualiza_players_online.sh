@@ -472,7 +472,10 @@ else
 fi
 
 # Sincroniza dados do RCON antes de montar o relatório
-AtualizaPlayersOnlineRcon
+# COMENTADO TEMPORARIAMENTE: Removido por questões de performance
+# A chamada RCON estava causando atrasos de 20-36 segundos no tracking de players
+# Será implementada de forma mais performática posteriormente (ex: processo separado periódico)
+#AtualizaPlayersOnlineRcon
 
 NUM_REGISTROS=$(sqlite3 "$PLAYERS_BECO_C1_DB" "SELECT COUNT(*) FROM players_online;")
 

@@ -106,6 +106,8 @@ CREATE TABLE IF NOT EXISTS players_coord (
 );
 
 CREATE INDEX IF NOT EXISTS idx_players_coords_playerid ON players_coord(PlayerID);
+CREATE INDEX IF NOT EXISTS idx_players_coord_data ON players_coord(Data);
+CREATE INDEX IF NOT EXISTS idx_players_coord_playerid_data ON players_coord(PlayerID, Data);
 
 -- Tabela players_coord_backup
 CREATE TABLE IF NOT EXISTS players_coord_backup (
@@ -114,6 +116,8 @@ CREATE TABLE IF NOT EXISTS players_coord_backup (
     TimeStamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (PlayerCoordId) REFERENCES players_coord(PlayerCoordId) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_coord_backup_coordid_timestamp ON players_coord_backup(PlayerCoordId, TimeStamp);
 
 -- Tabela players_damage
 CREATE TABLE IF NOT EXISTS players_damage (

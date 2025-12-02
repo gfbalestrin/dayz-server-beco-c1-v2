@@ -285,23 +285,41 @@ handle_players_positions() {
     local sync_timestamp
     sync_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
     local sync_sql
-    sync_sql="BEGIN;
+    sync_sql="BEGIN IMMEDIATE;
 CREATE TEMP TABLE IF NOT EXISTS SyncCurrent(PlayerID TEXT PRIMARY KEY);
 DELETE FROM SyncCurrent;
 "
 
-    local sanitized_id
-    local idx
-    for idx in "${!current_players[@]}"; do
-        sanitized_id=$(echo "${current_players[$idx]}" | sed "s/'/''/g")
-        sync_sql+="INSERT INTO SyncCurrent(PlayerID) VALUES ('$sanitized_id');
-INSERT INTO players_online (PlayerID, DataConnect) VALUES ('$sanitized_id', '$sync_timestamp')
-ON CONFLICT(PlayerID) DO UPDATE SET DataConnect='$sync_timestamp';
-"
-    done
-
+    # Construir INSERT em batch para SyncCurrent e players_online
     if [[ ${#current_players[@]} -gt 0 ]]; then
-        sync_sql+="DELETE FROM players_online WHERE PlayerID NOT IN (SELECT PlayerID FROM SyncCurrent);
+        local sync_values=""
+        local online_values=""
+        local first_sync=1
+        local first_online=1
+        local sanitized_id
+        
+        for idx in "${!current_players[@]}"; do
+            sanitized_id=$(echo "${current_players[$idx]}" | sed "s/'/''/g")
+            
+            # Adicionar vírgula se não for o primeiro valor
+            if [[ $first_sync -eq 0 ]]; then
+                sync_values+=", "
+            fi
+            first_sync=0
+            sync_values+="('$sanitized_id')"
+            
+            # Adicionar vírgula se não for o primeiro valor
+            if [[ $first_online -eq 0 ]]; then
+                online_values+=", "
+            fi
+            first_online=0
+            online_values+="('$sanitized_id', '$sync_timestamp')"
+        done
+        
+        sync_sql+="INSERT INTO SyncCurrent(PlayerID) VALUES $sync_values;
+INSERT INTO players_online (PlayerID, DataConnect) VALUES $online_values
+ON CONFLICT(PlayerID) DO UPDATE SET DataConnect='$sync_timestamp';
+DELETE FROM players_online WHERE PlayerID NOT IN (SELECT PlayerID FROM SyncCurrent);
 "
     else
         sync_sql+="DELETE FROM players_online;
