@@ -37,6 +37,27 @@ function getCountryFlag(countryCode) {
 }
 
 /**
+ * Formatar timestamp para exibição em America/Sao_Paulo
+ */
+function formatTimestampBR(timestamp) {
+    if (!timestamp) return '';
+    try {
+        const date = new Date(timestamp);
+        return date.toLocaleString('pt-BR', {
+            timeZone: 'America/Sao_Paulo',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    } catch (e) {
+        return timestamp; // Fallback: retornar original se houver erro
+    }
+}
+
+/**
  * Carregar posições dos jogadores
  */
 function loadPositions() {
@@ -633,7 +654,7 @@ function drawTrail(playerId, trail) {
         const steamName = MapState.playersData[playerId]?.steamName || '';
         let tooltipText = `<strong>👤 ${playerName}${steamName ? ` (${steamName})` : ''}</strong><br>`;
         tooltipText += `<strong>📍 Ponto ${processedTrail.length - i}</strong><br>`;
-        tooltipText += `⏰ Tempo: <span class="value">${point.timestamp}</span><br>`;
+        tooltipText += `⏰ Tempo: <span class="value">${formatTimestampBR(point.timestamp)}</span><br>`;
         tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
         
         // Indicador de backup
@@ -1699,7 +1720,7 @@ function showPointActionsMenu(playerId, point, pointNumber, pointIndexInTrail, f
     
     // Preencher informações do ponto
     $('#pointMarkerPointNumber').text(pointNumber.toString());
-    $('#pointMarkerPointDate').text(pointDate || 'Desconhecido');
+    $('#pointMarkerPointDate').text(pointDate ? formatTimestampBR(pointDate) : 'Desconhecido');
     
     // Preencher status de vida
     const hasHealthData = (health !== null && health !== undefined) || 
@@ -2107,7 +2128,7 @@ function showRestoreBackupModal(playerId, point, pointNumber) {
     // Preencher informações no modal
     $('#backupPlayerName').text(playerName);
     $('#backupPointNumber').text(pointNumber);
-    $('#backupPointDate').text(point.timestamp);
+    $('#backupPointDate').text(formatTimestampBR(point.timestamp));
     $('#backupCoords').text(`X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}, Z=${point.coord_z ? point.coord_z.toFixed(1) : 'N/A'}`);
     
     // Armazenar dados para restauração
@@ -2597,7 +2618,7 @@ function showCloneCharacterModal(playerId, point, pointNumber) {
     // Preencher informações
     $('#cloneSourcePlayerName').text(playerName);
     $('#clonePointNumber').text(pointNumber);
-    $('#clonePointDate').text(point.timestamp);
+    $('#clonePointDate').text(formatTimestampBR(point.timestamp));
     $('#cloneCoords').text(`X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}, Z=${point.coord_z ? point.coord_z.toFixed(1) : 'N/A'}`);
     
     // Armazenar dados

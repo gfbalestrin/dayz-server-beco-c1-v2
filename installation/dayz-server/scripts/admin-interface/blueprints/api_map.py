@@ -121,26 +121,24 @@ def api_player_trail(player_id):
     
     for point in trail:
         pixel_coords = dayz_to_pixel(point['CoordX'], point['CoordY'])
-        # Converter timestamp do banco (UTC) para America/Sao_Paulo
-        # Retornar em formato ISO com timezone para o frontend interpretar corretamente
+        # Timestamp do banco já está em America/Sao_Paulo (salvo com 'localtime')
+        # Apenas adicionar timezone -03:00 para manter formato ISO consistente
         timestamp_br = None
         if point.get('Data'):
-            # Converter de UTC para America/Sao_Paulo
             try:
-                # Parse timestamp do banco (assumindo UTC)
+                # Parse timestamp do banco (já em America/Sao_Paulo)
                 # Tentar primeiro com milissegundos, depois sem
                 try:
-                    dt_utc = datetime.strptime(point['Data'], '%Y-%m-%d %H:%M:%S.%f')
+                    dt = datetime.strptime(point['Data'], '%Y-%m-%d %H:%M:%S.%f')
                 except ValueError:
-                    dt_utc = datetime.strptime(point['Data'], '%Y-%m-%d %H:%M:%S')
-                dt_utc = dt_utc.replace(tzinfo=ZoneInfo('UTC'))
-                # Converter para America/Sao_Paulo
-                dt_sp = dt_utc.astimezone(ZoneInfo('America/Sao_Paulo'))
+                    dt = datetime.strptime(point['Data'], '%Y-%m-%d %H:%M:%S')
+                # Adicionar timezone America/Sao_Paulo (sem conversão, pois já está nesse timezone)
+                dt_sp = dt.replace(tzinfo=ZoneInfo('America/Sao_Paulo'))
                 # Retornar em formato ISO com timezone
                 timestamp_br = dt_sp.isoformat()
             except (ValueError, AttributeError):
-                # Fallback: usar função helper
-                timestamp_br = convert_timestamp_to_br(point['Data'])
+                # Fallback: retornar timestamp original
+                timestamp_br = point['Data']
         
         trail_point = {
             'player_coord_id': point['PlayerCoordId'],
