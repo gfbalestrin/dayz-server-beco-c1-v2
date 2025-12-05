@@ -97,14 +97,14 @@ handle_fences_positions() {
             fence_name="${fence_name}_Locked"
         fi
 
-        local prev_data
+        local prev_data diff_message
         prev_data="${prev_fences[$fence_id]}"
+        diff_message=""
         if [[ -z "$prev_data" ]]; then
             INSERT_CUSTOM_LOG "Fence nova detectada (ID=$fence_id) - Coords=($coord_x,$coord_z,$coord_y) - Base=$(format_bool_log "$has_base") - PainelInf=$(format_bool_log "$lower_panel_built") - PainelSup=$(format_bool_log "$upper_panel_built")" "INFO" "$ScriptName"
         else
-            local prev_name prev_x prev_z prev_y prev_has_base prev_lower prev_upper diff_message
+            local prev_name prev_x prev_z prev_y prev_has_base prev_lower prev_upper
             IFS='|' read -r prev_name prev_x prev_z prev_y prev_has_base prev_lower prev_upper <<< "$prev_data"
-            diff_message=""
 
             if [[ "$fence_name" != "$prev_name" ]]; then
                 diff_message+="nome(${prev_name}->${fence_name}); "
@@ -161,19 +161,36 @@ handle_fences_positions() {
             unset "prev_fences[$fence_id]"
         fi
 
-        local FenceTrackingId insert_exit_code
-        FenceTrackingId=$(INSERT_FENCE_POSITION "$fence_id" "$fence_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp" "$has_base" "$lower_panel_built" "$upper_panel_built")
-        insert_exit_code=$?
+        local FenceTrackingId operation_exit_code has_changes
+        has_changes="false"
+        
+        # Verificar se houve mudanças (diff_message foi definido e não está vazio)
+        if [[ -n "$prev_data" && -z "$diff_message" ]]; then
+            # Não houve mudanças: apenas atualizar timestamp
+            FenceTrackingId=$(UPDATE_FENCE_TIMESTAMP "$fence_id" "$current_timestamp")
+            operation_exit_code=$?
+            has_changes="false"
+        else
+            # Houve mudanças ou fence nova: inserir novo registro
+            FenceTrackingId=$(INSERT_FENCE_POSITION "$fence_id" "$fence_name" "$coord_x" "$coord_z" "$coord_y" "$current_timestamp" "$has_base" "$lower_panel_built" "$upper_panel_built")
+            operation_exit_code=$?
+            has_changes="true"
+        fi
 
-        if [[ $insert_exit_code -eq 0 && -n "$FenceTrackingId" && "$FenceTrackingId" =~ ^[0-9]+$ ]]; then
+        if [[ $operation_exit_code -eq 0 && -n "$FenceTrackingId" && "$FenceTrackingId" =~ ^[0-9]+$ ]]; then
             processed_count=$((processed_count + 1))
         else
-            local error_msg="Erro ao salvar posição da fence em ($coord_x,$coord_z,$coord_y)"
+            local error_msg
+            if [[ "$has_changes" == "true" ]]; then
+                error_msg="Erro ao salvar posição da fence em ($coord_x,$coord_z,$coord_y)"
+            else
+                error_msg="Erro ao atualizar timestamp da fence em ($coord_x,$coord_z,$coord_y)"
+            fi
             if [[ -n "$FenceTrackingId" ]]; then
                 error_msg="$error_msg - Resposta: $FenceTrackingId"
             fi
-            if [[ $insert_exit_code -ne 0 ]]; then
-                error_msg="$error_msg - Exit code: $insert_exit_code"
+            if [[ $operation_exit_code -ne 0 ]]; then
+                error_msg="$error_msg - Exit code: $operation_exit_code"
             fi
             INSERT_CUSTOM_LOG "$error_msg" "ERROR" "$ScriptName"
         fi

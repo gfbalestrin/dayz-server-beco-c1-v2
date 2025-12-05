@@ -3120,6 +3120,113 @@ EOF
     return 1
 }
 
+UPDATE_FENCE_TIMESTAMP() {
+    local FenceId="$1"
+    local CustomTimestamp="$2"  # Parâmetro opcional para timestamp customizado
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+
+    if [[ -z "$FenceId" ]]; then
+        echo "Error: FenceId is required."
+        echo ""
+        return 1
+    fi
+
+    # Configurar PRAGMAs do SQLite para melhorar concorrência
+    configure_sqlite_pragmas "$AppFolder/$AppStructureBecoC1DbFile"
+
+    local EscapedFenceId
+    local TimestampValue
+
+    # Escapar aspas simples
+    EscapedFenceId=$(echo "$FenceId" | sed "s/'/''/g")
+
+    # Usar timestamp customizado se fornecido, senão usar datetime atual
+    if [[ -n "$CustomTimestamp" ]]; then
+        TimestampValue="'$CustomTimestamp'"
+    else
+        TimestampValue="datetime('now', 'localtime')"
+    fi
+
+    # Verificar se coluna IsDestroyed existe
+    local has_is_destroyed
+    has_is_destroyed=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('fences_tracking') WHERE name='IsDestroyed';")
+
+    while (( attempt <= max_retries )); do
+        local FenceTrackingId
+        
+        if [[ "$has_is_destroyed" -eq 1 ]]; then
+            # Buscar o ID do último registro não-destruído primeiro
+            FenceTrackingId=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" 2>&1 <<EOF
+SELECT ft.IdFenceTracking
+FROM fences_tracking ft
+WHERE ft.FenceId = '$EscapedFenceId'
+AND (ft.IsDestroyed = 0 OR ft.IsDestroyed IS NULL)
+ORDER BY ft.TimeStamp DESC, ft.IdFenceTracking DESC
+LIMIT 1;
+EOF
+)
+            
+            # Se encontrou um registro, atualizar
+            if [[ -n "$FenceTrackingId" && "$FenceTrackingId" =~ ^[0-9]+$ ]]; then
+                sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" 2>&1 <<EOF
+UPDATE fences_tracking
+SET TimeStamp = $TimestampValue
+WHERE IdFenceTracking = $FenceTrackingId;
+EOF
+                local update_exit_code=$?
+                if [[ $update_exit_code -eq 0 ]]; then
+                    echo "$FenceTrackingId"
+                    return 0
+                fi
+            fi
+        else
+            # Buscar o ID do último registro primeiro
+            FenceTrackingId=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" 2>&1 <<EOF
+SELECT ft.IdFenceTracking
+FROM fences_tracking ft
+WHERE ft.FenceId = '$EscapedFenceId'
+ORDER BY ft.TimeStamp DESC, ft.IdFenceTracking DESC
+LIMIT 1;
+EOF
+)
+            
+            # Se encontrou um registro, atualizar
+            if [[ -n "$FenceTrackingId" && "$FenceTrackingId" =~ ^[0-9]+$ ]]; then
+                sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" 2>&1 <<EOF
+UPDATE fences_tracking
+SET TimeStamp = $TimestampValue
+WHERE IdFenceTracking = $FenceTrackingId;
+EOF
+                local update_exit_code=$?
+                if [[ $update_exit_code -eq 0 ]]; then
+                    echo "$FenceTrackingId"
+                    return 0
+                fi
+            fi
+        fi
+        
+        # Se chegou aqui, a atualização falhou ou não encontrou registro
+        # Verificar se foi erro de database locked
+        if [[ "$FenceTrackingId" == *"database is locked"* ]] || [[ "$FenceTrackingId" == *"locked"* ]]; then
+            local progressive_delay=$((retry_delay * attempt))
+            # Limitar delay máximo a 2 segundos
+            if [[ $progressive_delay -gt 2 ]]; then
+                progressive_delay=2
+            fi
+            sleep "$progressive_delay"
+        else
+            sleep "$retry_delay"
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    echo "Failed to update fence timestamp after $max_retries attempts."
+    echo ""
+    return 1
+}
+
 INSERT_WATCHTOWER_POSITION() {
     local WatchtowerId="$1"
     local WatchtowerName="$2"
