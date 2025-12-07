@@ -383,10 +383,13 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
             prev_z_cmp="$prev_z"
             prev_y_cmp="$prev_y"
             
+            # Para snapshots parciais: não comparar items (snapshots parciais não incluem items)
             # Para snapshots completos: só comparar items se o último registro também for completo (IsPartialUpdate = 0)
             # Se último registro for parcial, considerar como novo snapshot completo (items adicionados)
-            local should_compare_items=true
+            local should_compare_items=false
             if [[ "$is_partial_update" == false ]]; then
+                # Apenas snapshots completos devem comparar items
+                should_compare_items=true
                 if [[ "$prev_is_partial_update" != "0" ]]; then
                     # Último registro é parcial: não comparar items (será tratado como novo snapshot completo)
                     should_compare_items=false
