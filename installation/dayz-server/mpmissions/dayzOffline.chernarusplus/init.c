@@ -351,10 +351,11 @@ class CustomMission: MissionServer
 				CleanTrackedContainers(); // Limpa containers destruídos do array
 				
 				// Envio de status completo via ExternalAction
-				SendFencesStatus(); // Envia status completo de todas as fences rastreadas
-				SendWatchtowersStatus(); // Envia status completo das watchtowers rastreadas
-				SendFlagsStatus(); // Envia status completo das flags rastreadas
-				SendContainersPositionsSimple(); // Envia posições simplificadas dos containers (sem items)
+			SendFencesStatus(); // Envia status completo de todas as fences rastreadas
+			SendWatchtowersStatus(); // Envia status completo das watchtowers rastreadas
+			SendFlagsStatus(); // Envia status completo das flags rastreadas
+			// TEMPORARIAMENTE DESATIVADO: Update parcial de containers desativado para avaliação de performance
+			// SendContainersPositionsSimple(); // Envia posições simplificadas dos containers (sem items)
 			}
 			
 		}

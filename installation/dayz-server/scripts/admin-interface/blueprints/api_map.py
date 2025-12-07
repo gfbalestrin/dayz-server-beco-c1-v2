@@ -14,7 +14,7 @@ except ImportError:
     from backports.zoneinfo import ZoneInfo
 from database import (
     get_players_last_position, get_online_players, get_player_trail,
-    get_online_players_positions, get_vehicles_map_positions,
+    get_players_trails_batch, get_online_players_positions, get_vehicles_map_positions,
     get_vehicle_trail, get_containers_last_position, get_container_trail,
     get_fences_last_position, get_watchtowers_last_position, get_flags_last_position,
     get_fence_trail, get_watchtower_trail, get_flag_trail,
@@ -175,6 +175,113 @@ def api_player_trail(player_id):
             trail_point['main_items'] = point['MainItems']
         
         result['trail'].append(trail_point)
+    
+    return jsonify(result)
+
+@api_map_bp.route('/api/players/trails/batch', methods=['POST'])
+@admin_required
+def api_players_trails_batch():
+    """API para buscar trails de múltiplos jogadores em uma única requisição"""
+    data = request.get_json()
+    
+    if not data or 'player_ids' not in data:
+        return jsonify({'error': 'player_ids é obrigatório'}), 400
+    
+    player_ids = data.get('player_ids', [])
+    if not isinstance(player_ids, list) or len(player_ids) == 0:
+        return jsonify({'error': 'player_ids deve ser uma lista não vazia'}), 400
+    
+    # Limitar tamanho do batch para evitar requisições muito grandes
+    if len(player_ids) > 100:
+        return jsonify({'error': 'Máximo de 100 player_ids por requisição'}), 400
+    
+    limit = data.get('limit', 100)
+    date_from = data.get('date_from', None)
+    date_to = data.get('date_to', None)
+    
+    # Converter parâmetros de data de UTC para formato do banco
+    if date_from:
+        try:
+            dt_from = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
+            if dt_from.tzinfo is None:
+                dt_from = dt_from.replace(tzinfo=ZoneInfo('UTC'))
+            if dt_from.microsecond > 0:
+                date_from = dt_from.strftime('%Y-%m-%d %H:%M:%S.%f')
+            else:
+                date_from = dt_from.strftime('%Y-%m-%d %H:%M:%S')
+        except (ValueError, AttributeError):
+            pass
+    
+    if date_to:
+        try:
+            dt_to = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
+            if dt_to.tzinfo is None:
+                dt_to = dt_to.replace(tzinfo=ZoneInfo('UTC'))
+            if dt_to.microsecond > 0:
+                date_to = dt_to.strftime('%Y-%m-%d %H:%M:%S.%f')
+            else:
+                date_to = dt_to.strftime('%Y-%m-%d %H:%M:%S')
+        except (ValueError, AttributeError):
+            pass
+    
+    # Buscar trails em lote
+    trails_by_player = get_players_trails_batch(player_ids, limit, date_from, date_to)
+    
+    # Formatar resposta no mesmo formato do endpoint individual
+    result = {}
+    for player_id, trail_points in trails_by_player.items():
+        formatted_trail = []
+        for point in trail_points:
+            pixel_coords = dayz_to_pixel(point['CoordX'], point['CoordY'])
+            timestamp_br = None
+            if point.get('Data'):
+                try:
+                    try:
+                        dt = datetime.strptime(point['Data'], '%Y-%m-%d %H:%M:%S.%f')
+                    except ValueError:
+                        dt = datetime.strptime(point['Data'], '%Y-%m-%d %H:%M:%S')
+                    dt_sp = dt.replace(tzinfo=ZoneInfo('America/Sao_Paulo'))
+                    timestamp_br = dt_sp.isoformat()
+                except (ValueError, AttributeError):
+                    timestamp_br = point['Data']
+            
+            trail_point = {
+                'player_coord_id': point['PlayerCoordId'],
+                'coord_x': point['CoordX'],
+                'coord_y': point['CoordY'],
+                'coord_z': point['CoordZ'],
+                'pixel_coords': pixel_coords,
+                'timestamp': timestamp_br or '',
+                'has_backup': bool(point.get('HasBackup', 0))
+            }
+            
+            # Adicionar campos de informações do jogador se estiverem disponíveis
+            if 'Health' in point and point['Health'] is not None:
+                trail_point['health'] = point['Health']
+            if 'Blood' in point and point['Blood'] is not None:
+                trail_point['blood'] = point['Blood']
+            if 'Shock' in point and point['Shock'] is not None:
+                trail_point['shock'] = point['Shock']
+            if 'Energy' in point and point['Energy'] is not None:
+                trail_point['energy'] = point['Energy']
+            if 'Water' in point and point['Water'] is not None:
+                trail_point['water'] = point['Water']
+            if 'IsAlive' in point and point['IsAlive'] is not None:
+                trail_point['is_alive'] = bool(point['IsAlive'])
+            if 'Stamina' in point and point['Stamina'] is not None:
+                trail_point['stamina'] = point['Stamina']
+            if 'StaminaMax' in point and point['StaminaMax'] is not None:
+                trail_point['stamina_max'] = point['StaminaMax']
+            if 'ItemsInHands' in point and point['ItemsInHands']:
+                trail_point['items_in_hands'] = point['ItemsInHands']
+            if 'ItemsCount' in point and point['ItemsCount'] is not None:
+                trail_point['items_count'] = point['ItemsCount']
+            if 'MainItems' in point and point['MainItems']:
+                trail_point['main_items'] = point['MainItems']
+            
+            formatted_trail.append(trail_point)
+        
+        result[player_id] = formatted_trail
     
     return jsonify(result)
 

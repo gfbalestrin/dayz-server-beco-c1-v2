@@ -3402,6 +3402,103 @@ def get_player_trail(player_id: str, limit: int = 100, date_from: str = None, da
         results = [dict(row) for row in cursor.fetchall()]
         return results
 
+def get_players_trails_batch(player_ids: List[str], limit: int = 100, date_from: str = None, date_to: str = None) -> Dict[str, List[Dict]]:
+    """Retorna o histórico de movimento de múltiplos jogadores em uma única query
+    
+    Args:
+        player_ids: Lista de IDs dos jogadores
+        limit: Limite de registros por jogador (padrão 100)
+        date_from: Data inicial para filtrar (formato: 'YYYY-MM-DD HH:MM:SS' ou ISO)
+        date_to: Data final para filtrar (formato: 'YYYY-MM-DD HH:MM:SS' ou ISO)
+    
+    Returns:
+        Dicionário onde a chave é o player_id e o valor é a lista de pontos do trail
+    """
+    if not player_ids:
+        return {}
+    
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        
+        # Construir condições WHERE dinamicamente
+        placeholders = ','.join(['?' for _ in player_ids])
+        where_conditions = [f"pc.PlayerID IN ({placeholders})"]
+        params = list(player_ids)
+        
+        date_conditions = []
+        date_conditions_subquery = []  # Para usar na subquery sem alias
+        if date_from:
+            date_conditions.append("datetime(pc.Data) >= datetime(?)")
+            date_conditions_subquery.append("datetime(Data) >= datetime(?)")
+            params.append(date_from)
+        
+        if date_to:
+            date_conditions.append("datetime(pc.Data) <= datetime(?)")
+            date_conditions_subquery.append("datetime(Data) <= datetime(?)")
+            params.append(date_to)
+        
+        where_clause = " AND ".join(where_conditions)
+        date_clause = " AND ".join(date_conditions) if date_conditions else "1=1"
+        date_clause_subquery = " AND ".join(date_conditions_subquery) if date_conditions_subquery else "1=1"
+        
+        # Se filtros de data estiverem ativos, usar limite maior
+        if date_from or date_to:
+            effective_limit = limit if limit > 10000 else 10000
+        else:
+            effective_limit = limit
+        
+        # Query otimizada para buscar múltiplos jogadores
+        # Usar subquery otimizada - SQLite 3.8.3+ suporta CTE, mas vamos usar abordagem mais compatível
+        # Primeiro obter os PlayerCoordIds que queremos (limitados por jogador)
+        query = f"""
+            SELECT pc.PlayerID, pc.PlayerCoordId, pc.CoordX, pc.CoordY, pc.CoordZ, pc.Data,
+                   pc.Health, pc.Blood, pc.Shock, pc.Energy, pc.Water,
+                   pc.IsAlive, pc.IsAdmin, pc.Stamina, pc.StaminaMax,
+                   pc.ItemsInHands, pc.ItemsCount, pc.MainItems,
+                   CASE WHEN pcb.PlayerCoordId IS NOT NULL THEN 1 ELSE 0 END as HasBackup
+            FROM players_coord pc
+            INNER JOIN (
+                SELECT PlayerCoordId
+                FROM (
+                    SELECT PlayerCoordId,
+                           ROW_NUMBER() OVER (PARTITION BY PlayerID ORDER BY datetime(Data) DESC) as rn
+                    FROM players_coord
+                    WHERE PlayerID IN ({placeholders})
+                    AND {date_clause_subquery}
+                ) ranked
+                WHERE rn <= ?
+            ) rc ON pc.PlayerCoordId = rc.PlayerCoordId
+            LEFT JOIN (
+                SELECT DISTINCT PlayerCoordId FROM players_coord_backup
+            ) pcb ON pc.PlayerCoordId = pcb.PlayerCoordId
+            WHERE pc.PlayerID IN ({placeholders})
+            AND {date_clause}
+            ORDER BY pc.PlayerID, datetime(pc.Data) DESC
+        """
+        
+        # Parâmetros: player_ids para subquery, date conditions, limit, player_ids para WHERE, date conditions
+        batch_params = list(player_ids) + (params[len(player_ids):] if date_conditions else [])
+        batch_params.append(effective_limit)
+        batch_params += list(player_ids) + (params[len(player_ids):] if date_conditions else [])
+        
+        cursor.execute(query, batch_params)
+        results = [dict(row) for row in cursor.fetchall()]
+        
+        # Agrupar resultados por player_id
+        trails_by_player = {}
+        for row in results:
+            player_id = row['PlayerID']
+            if player_id not in trails_by_player:
+                trails_by_player[player_id] = []
+            trails_by_player[player_id].append(row)
+        
+        # Garantir que todos os player_ids tenham uma entrada (mesmo que vazia)
+        for player_id in player_ids:
+            if player_id not in trails_by_player:
+                trails_by_player[player_id] = []
+        
+        return trails_by_player
+
 def get_online_players_positions() -> List[Dict]:
     """Retorna posições de jogadores online"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:
