@@ -262,13 +262,11 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
     local parsing_start_time
     parsing_start_time=$(date +%s.%N 2>/dev/null || date +%s)
 
-    local containers container_count processed_count
-    # Suportar tanto .container_data (formato antigo) quanto .containers (formato novo simplificado)
+    local container_count processed_count
+    # Extrair contagem de containers
     if echo "$line" | jq -e '.containers' >/dev/null 2>&1; then
-        containers=$(echo "$line" | jq -c '.containers[]')
         container_count=$(echo "$line" | jq '.containers | length')
     else
-        containers=$(echo "$line" | jq -c '.container_data[]')
         container_count=$(echo "$line" | jq '.container_data | length')
     fi
     processed_count=0
@@ -280,31 +278,45 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
     declare -A containers_metadata=()     # ContainerId -> metadata (type, coords, etc)
     declare -a containers_items_to_update=()  # ContainerTrackingIds que precisam atualizar items (snapshots completos sem mudanças)
 
-    # Primeira passagem: coletar todos os dados e fazer comparações
-    local container_data
-    local containers_processed_in_loop=0
-    while IFS= read -r container_data; do
-        if [[ -z "$container_data" ]]; then
-            continue
-        fi
-        containers_processed_in_loop=$((containers_processed_in_loop + 1))
-
-        # Extrair todos os campos de uma vez com uma única chamada jq
-        local container_type coord_x coord_z coord_y container_id container_name
-        local jq_extracted
-        jq_extracted=$(echo "$container_data" | jq -r '
-          (if .container_id then .container_id else "" end) + "|" + 
-          (if .container_type then .container_type else "" end) + "|" + 
-          (if .position then (if .position.x then (.position.x | tostring) else "" end) else (if .x then (.x | tostring) else "" end) end) + "|" + 
-          (if .position then (if .position.z then (.position.z | tostring) else "" end) else (if .z then (.z | tostring) else "" end) end) + "|" + 
-          (if .position then (if .position.y then (.position.y | tostring) else "" end) else (if .y then (.y | tostring) else "" end) end)
+    # Extrair todos os containers de uma vez com uma única chamada jq (otimização de performance)
+    local all_containers_data
+    if [[ "$is_partial_update" == "true" ]]; then
+        # Snapshot parcial: extrair apenas campos básicos (sem items)
+        all_containers_data=$(echo "$line" | jq -r '
+            (if .containers then .containers else .container_data end)[]? |
+            (if .container_id then .container_id else "" end) + "|" +
+            (if .container_type then .container_type else "" end) + "|" +
+            (if .position then (if .position.x then (.position.x | tostring) else "" end) else (if .x then (.x | tostring) else "" end) end) + "|" +
+            (if .position then (if .position.z then (.position.z | tostring) else "" end) else (if .z then (.z | tostring) else "" end) end) + "|" +
+            (if .position then (if .position.y then (.position.y | tostring) else "" end) else (if .y then (.y | tostring) else "" end) end) + "|" +
+            ""
         ' 2>/dev/null)
-        
-        IFS='|' read -r container_id container_type coord_x coord_z coord_y <<< "$jq_extracted"
+    else
+        # Snapshot completo: extrair campos básicos + items
+        all_containers_data=$(echo "$line" | jq -r '
+            (if .containers then .containers else .container_data end)[]? |
+            (if .container_id then .container_id else "" end) + "|" +
+            (if .container_type then .container_type else "" end) + "|" +
+            (if .position then (if .position.x then (.position.x | tostring) else "" end) else (if .x then (.x | tostring) else "" end) end) + "|" +
+            (if .position then (if .position.z then (.position.z | tostring) else "" end) else (if .z then (.z | tostring) else "" end) end) + "|" +
+            (if .position then (if .position.y then (.position.y | tostring) else "" end) else (if .y then (.y | tostring) else "" end) end) + "|" +
+            ([.items[]? | select(.type != null and .type != "" and .type != "empty")] |
+             if length > 0 then
+               map(.type + ":" + (if .health != null and .health != "" then (.health | tostring) else "" end)) |
+               join(",")
+             else
+               ""
+             end)
+        ' 2>/dev/null)
+    fi
 
+    # Processar todas as linhas extraídas
+    local containers_processed_in_loop=0
+    while IFS='|' read -r container_id container_type coord_x coord_z coord_y current_items_str; do
         if [[ -z "$container_id" || "$container_id" == "null" ]]; then
             continue
         fi
+        containers_processed_in_loop=$((containers_processed_in_loop + 1))
 
         container_name="$container_type"
 
@@ -337,23 +349,11 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
         coord_z_cmp="$coord_z_log"
         coord_y_cmp="$coord_y_log"
 
-        # Processar items de forma otimizada - uma única chamada ao jq
-        # Se for update parcial, pular processamento de items
-        local current_items_str item_count
+        # Processar items (já extraídos na chamada jq acima)
+        local item_count
         if [[ "$is_partial_update" == "true" ]]; then
-            current_items_str=""
             item_count=0
         else
-            current_items_str=$(echo "$container_data" | jq -r '
-              [.items[]? | select(.type != null and .type != "" and .type != "empty")] |
-              if length > 0 then
-                map(.type + ":" + (if .health != null and .health != "" then (.health | tostring) else "" end)) |
-                join(",")
-              else
-                ""
-              end
-            ' 2>/dev/null)
-            
             # Contar items
             if [[ -n "$current_items_str" ]]; then
                 item_count=$(echo "$current_items_str" | tr ',' '\n' | grep -c . || echo "0")
@@ -654,7 +654,7 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
         # Isso deve acontecer para TODOS os containers processados, não apenas os que têm prev_data
         unset "prev_containers[$container_id]"
 
-    done <<< "$containers"
+    done <<< "$all_containers_data"
     
     # Batch UPDATE de items para containers sem mudanças (snapshots completos)
     if [[ "$is_partial_update" == false && ${#containers_items_to_update[@]} -gt 0 ]]; then
