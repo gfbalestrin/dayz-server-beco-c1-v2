@@ -3227,6 +3227,428 @@ EOF
     return 1
 }
 
+UPDATE_CONTAINER_TIMESTAMP() {
+    local ContainerId="$1"
+    local CustomTimestamp="$2"  # Parâmetro opcional para timestamp customizado
+    local PreferComplete="$3"   # Parâmetro opcional: "true" para preferir registro completo (IsPartialUpdate = 0)
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+
+    if [[ -z "$ContainerId" ]]; then
+        echo "Error: ContainerId is required."
+        echo ""
+        return 1
+    fi
+
+    # Configurar PRAGMAs do SQLite para melhorar concorrência
+    configure_sqlite_pragmas "$AppFolder/$AppContainerBecoC1DbFile"
+
+    local EscapedContainerId
+    local TimestampValue
+
+    # Escapar aspas simples
+    EscapedContainerId=$(echo "$ContainerId" | sed "s/'/''/g")
+
+    # Usar timestamp customizado se fornecido, senão usar datetime atual
+    if [[ -n "$CustomTimestamp" ]]; then
+        TimestampValue="'$CustomTimestamp'"
+    else
+        TimestampValue="datetime('now', 'localtime')"
+    fi
+
+    # Verificar se coluna IsDestroyed existe
+    local has_is_destroyed
+    has_is_destroyed=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('containers_tracking') WHERE name='IsDestroyed';")
+
+    while (( attempt <= max_retries )); do
+        local ContainerTrackingId
+        local sql_query
+        
+        # Construir query baseado nas preferências
+        if [[ "$PreferComplete" == "true" ]]; then
+            # Preferir registro completo (IsPartialUpdate = 0), mas aceitar parcial se não houver completo
+            if [[ "$has_is_destroyed" -eq 1 ]]; then
+                sql_query="SELECT ct.IdContainerTracking
+FROM containers_tracking ct
+WHERE ct.ContainerId = '$EscapedContainerId'
+AND (ct.IsDestroyed = 0 OR ct.IsDestroyed IS NULL)
+ORDER BY 
+    CASE WHEN ct.IsPartialUpdate = 0 THEN 0 ELSE 1 END,
+    ct.TimeStamp DESC,
+    ct.IdContainerTracking DESC
+LIMIT 1;"
+            else
+                sql_query="SELECT ct.IdContainerTracking
+FROM containers_tracking ct
+WHERE ct.ContainerId = '$EscapedContainerId'
+ORDER BY 
+    CASE WHEN ct.IsPartialUpdate = 0 THEN 0 ELSE 1 END,
+    ct.TimeStamp DESC,
+    ct.IdContainerTracking DESC
+LIMIT 1;"
+            fi
+        else
+            # Qualquer registro (completo ou parcial), apenas o mais recente
+            if [[ "$has_is_destroyed" -eq 1 ]]; then
+                sql_query="SELECT ct.IdContainerTracking
+FROM containers_tracking ct
+WHERE ct.ContainerId = '$EscapedContainerId'
+AND (ct.IsDestroyed = 0 OR ct.IsDestroyed IS NULL)
+ORDER BY ct.TimeStamp DESC, ct.IdContainerTracking DESC
+LIMIT 1;"
+            else
+                sql_query="SELECT ct.IdContainerTracking
+FROM containers_tracking ct
+WHERE ct.ContainerId = '$EscapedContainerId'
+ORDER BY ct.TimeStamp DESC, ct.IdContainerTracking DESC
+LIMIT 1;"
+            fi
+        fi
+        
+        ContainerTrackingId=$(sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" 2>&1 <<EOF
+$sql_query
+EOF
+)
+        
+        # Se encontrou um registro, atualizar
+        if [[ -n "$ContainerTrackingId" && "$ContainerTrackingId" =~ ^[0-9]+$ ]]; then
+            sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" 2>&1 <<EOF
+UPDATE containers_tracking
+SET TimeStamp = $TimestampValue
+WHERE IdContainerTracking = $ContainerTrackingId;
+EOF
+            local update_exit_code=$?
+            if [[ $update_exit_code -eq 0 ]]; then
+                echo "$ContainerTrackingId"
+                return 0
+            fi
+        fi
+        
+        # Se chegou aqui, a atualização falhou ou não encontrou registro
+        # Verificar se foi erro de database locked
+        if [[ "$ContainerTrackingId" == *"database is locked"* ]] || [[ "$ContainerTrackingId" == *"locked"* ]]; then
+            local progressive_delay=$((retry_delay * attempt))
+            # Limitar delay máximo a 2 segundos
+            if [[ $progressive_delay -gt 2 ]]; then
+                progressive_delay=2
+            fi
+            sleep "$progressive_delay"
+        else
+            sleep "$retry_delay"
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    echo "Failed to update container timestamp after $max_retries attempts."
+    echo ""
+    return 1
+}
+
+UPDATE_VEHICLE_TIMESTAMP() {
+    local VehicleId="$1"
+    local CustomTimestamp="$2"  # Parâmetro opcional para timestamp customizado
+    local PreferComplete="$3"   # Parâmetro opcional: "true" para preferir registro completo (IsPartialUpdate = 0)
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+
+    if [[ -z "$VehicleId" ]]; then
+        echo "Error: VehicleId is required."
+        echo ""
+        return 1
+    fi
+
+    # Configurar PRAGMAs do SQLite para melhorar concorrência
+    configure_sqlite_pragmas "$AppFolder/$AppVehicleBecoC1DbFile"
+
+    local EscapedVehicleId
+    local TimestampValue
+
+    # Escapar aspas simples
+    EscapedVehicleId=$(echo "$VehicleId" | sed "s/'/''/g")
+
+    # Usar timestamp customizado se fornecido, senão usar datetime atual
+    if [[ -n "$CustomTimestamp" ]]; then
+        TimestampValue="'$CustomTimestamp'"
+    else
+        TimestampValue="datetime('now', 'localtime')"
+    fi
+
+    # Verificar se coluna IsDestroyed existe
+    local has_is_destroyed
+    has_is_destroyed=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='IsDestroyed';")
+
+    while (( attempt <= max_retries )); do
+        local VehicleTrackingId
+        local sql_query
+        
+        # Construir query baseado nas preferências
+        if [[ "$PreferComplete" == "true" ]]; then
+            # Preferir registro completo (IsPartialUpdate = 0), mas aceitar parcial se não houver completo
+            if [[ "$has_is_destroyed" -eq 1 ]]; then
+                sql_query="SELECT vt.IdVehicleTracking
+FROM vehicles_tracking vt
+WHERE vt.VehicleId = '$EscapedVehicleId'
+AND (vt.IsDestroyed = 0 OR vt.IsDestroyed IS NULL)
+ORDER BY 
+    CASE WHEN vt.IsPartialUpdate = 0 THEN 0 ELSE 1 END,
+    vt.TimeStamp DESC,
+    vt.IdVehicleTracking DESC
+LIMIT 1;"
+            else
+                sql_query="SELECT vt.IdVehicleTracking
+FROM vehicles_tracking vt
+WHERE vt.VehicleId = '$EscapedVehicleId'
+ORDER BY 
+    CASE WHEN vt.IsPartialUpdate = 0 THEN 0 ELSE 1 END,
+    vt.TimeStamp DESC,
+    vt.IdVehicleTracking DESC
+LIMIT 1;"
+            fi
+        else
+            # Qualquer registro (completo ou parcial), apenas o mais recente
+            if [[ "$has_is_destroyed" -eq 1 ]]; then
+                sql_query="SELECT vt.IdVehicleTracking
+FROM vehicles_tracking vt
+WHERE vt.VehicleId = '$EscapedVehicleId'
+AND (vt.IsDestroyed = 0 OR vt.IsDestroyed IS NULL)
+ORDER BY vt.TimeStamp DESC, vt.IdVehicleTracking DESC
+LIMIT 1;"
+            else
+                sql_query="SELECT vt.IdVehicleTracking
+FROM vehicles_tracking vt
+WHERE vt.VehicleId = '$EscapedVehicleId'
+ORDER BY vt.TimeStamp DESC, vt.IdVehicleTracking DESC
+LIMIT 1;"
+            fi
+        fi
+        
+        VehicleTrackingId=$(sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" 2>&1 <<EOF
+$sql_query
+EOF
+)
+        
+        # Se encontrou um registro, atualizar
+        if [[ -n "$VehicleTrackingId" && "$VehicleTrackingId" =~ ^[0-9]+$ ]]; then
+            sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" 2>&1 <<EOF
+UPDATE vehicles_tracking
+SET TimeStamp = $TimestampValue
+WHERE IdVehicleTracking = $VehicleTrackingId;
+EOF
+            local update_exit_code=$?
+            if [[ $update_exit_code -eq 0 ]]; then
+                echo "$VehicleTrackingId"
+                return 0
+            fi
+        fi
+        
+        # Se chegou aqui, a atualização falhou ou não encontrou registro
+        # Verificar se foi erro de database locked
+        if [[ "$VehicleTrackingId" == *"database is locked"* ]] || [[ "$VehicleTrackingId" == *"locked"* ]]; then
+            local progressive_delay=$((retry_delay * attempt))
+            # Limitar delay máximo a 2 segundos
+            if [[ $progressive_delay -gt 2 ]]; then
+                progressive_delay=2
+            fi
+            sleep "$progressive_delay"
+        else
+            sleep "$retry_delay"
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    echo "Failed to update vehicle timestamp after $max_retries attempts."
+    echo ""
+    return 1
+}
+
+UPDATE_WATCHTOWER_TIMESTAMP() {
+    local WatchtowerId="$1"
+    local CustomTimestamp="$2"  # Parâmetro opcional para timestamp customizado
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+
+    if [[ -z "$WatchtowerId" ]]; then
+        echo "Error: WatchtowerId is required."
+        echo ""
+        return 1
+    fi
+
+    # Configurar PRAGMAs do SQLite para melhorar concorrência
+    configure_sqlite_pragmas "$AppFolder/$AppStructureBecoC1DbFile"
+
+    local EscapedWatchtowerId
+    local TimestampValue
+
+    # Escapar aspas simples
+    EscapedWatchtowerId=$(echo "$WatchtowerId" | sed "s/'/''/g")
+
+    # Usar timestamp customizado se fornecido, senão usar datetime atual
+    if [[ -n "$CustomTimestamp" ]]; then
+        TimestampValue="'$CustomTimestamp'"
+    else
+        TimestampValue="datetime('now', 'localtime')"
+    fi
+
+    # Verificar se coluna IsDestroyed existe
+    local has_is_destroyed
+    has_is_destroyed=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('watchtowers_tracking') WHERE name='IsDestroyed';")
+
+    while (( attempt <= max_retries )); do
+        local WatchtowerTrackingId
+        
+        if [[ "$has_is_destroyed" -eq 1 ]]; then
+            # Buscar o ID do último registro não-destruído primeiro
+            WatchtowerTrackingId=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" 2>&1 <<EOF
+SELECT wt.IdWatchtowerTracking
+FROM watchtowers_tracking wt
+WHERE wt.WatchtowerId = '$EscapedWatchtowerId'
+AND (wt.IsDestroyed = 0 OR wt.IsDestroyed IS NULL)
+ORDER BY wt.TimeStamp DESC, wt.IdWatchtowerTracking DESC
+LIMIT 1;
+EOF
+)
+        else
+            # Buscar o ID do último registro primeiro
+            WatchtowerTrackingId=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" 2>&1 <<EOF
+SELECT wt.IdWatchtowerTracking
+FROM watchtowers_tracking wt
+WHERE wt.WatchtowerId = '$EscapedWatchtowerId'
+ORDER BY wt.TimeStamp DESC, wt.IdWatchtowerTracking DESC
+LIMIT 1;
+EOF
+)
+        fi
+        
+        # Se encontrou um registro, atualizar
+        if [[ -n "$WatchtowerTrackingId" && "$WatchtowerTrackingId" =~ ^[0-9]+$ ]]; then
+            sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" 2>&1 <<EOF
+UPDATE watchtowers_tracking
+SET TimeStamp = $TimestampValue
+WHERE IdWatchtowerTracking = $WatchtowerTrackingId;
+EOF
+            local update_exit_code=$?
+            if [[ $update_exit_code -eq 0 ]]; then
+                echo "$WatchtowerTrackingId"
+                return 0
+            fi
+        fi
+        
+        # Se chegou aqui, a atualização falhou ou não encontrou registro
+        # Verificar se foi erro de database locked
+        if [[ "$WatchtowerTrackingId" == *"database is locked"* ]] || [[ "$WatchtowerTrackingId" == *"locked"* ]]; then
+            local progressive_delay=$((retry_delay * attempt))
+            # Limitar delay máximo a 2 segundos
+            if [[ $progressive_delay -gt 2 ]]; then
+                progressive_delay=2
+            fi
+            sleep "$progressive_delay"
+        else
+            sleep "$retry_delay"
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    echo "Failed to update watchtower timestamp after $max_retries attempts."
+    echo ""
+    return 1
+}
+
+UPDATE_FLAG_TIMESTAMP() {
+    local FlagId="$1"
+    local CustomTimestamp="$2"  # Parâmetro opcional para timestamp customizado
+    local max_retries=5
+    local retry_delay=0.2
+    local attempt=1
+
+    if [[ -z "$FlagId" ]]; then
+        echo "Error: FlagId is required."
+        echo ""
+        return 1
+    fi
+
+    # Configurar PRAGMAs do SQLite para melhorar concorrência
+    configure_sqlite_pragmas "$AppFolder/$AppStructureBecoC1DbFile"
+
+    local EscapedFlagId
+    local TimestampValue
+
+    # Escapar aspas simples
+    EscapedFlagId=$(echo "$FlagId" | sed "s/'/''/g")
+
+    # Usar timestamp customizado se fornecido, senão usar datetime atual
+    if [[ -n "$CustomTimestamp" ]]; then
+        TimestampValue="'$CustomTimestamp'"
+    else
+        TimestampValue="datetime('now', 'localtime')"
+    fi
+
+    # Verificar se coluna IsDestroyed existe
+    local has_is_destroyed
+    has_is_destroyed=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" "SELECT COUNT(*) FROM pragma_table_info('flags_tracking') WHERE name='IsDestroyed';")
+
+    while (( attempt <= max_retries )); do
+        local FlagTrackingId
+        
+        if [[ "$has_is_destroyed" -eq 1 ]]; then
+            # Buscar o ID do último registro não-destruído primeiro
+            FlagTrackingId=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" 2>&1 <<EOF
+SELECT ft.FlagTrackingId
+FROM flags_tracking ft
+WHERE ft.FlagId = '$EscapedFlagId'
+AND (ft.IsDestroyed = 0 OR ft.IsDestroyed IS NULL)
+ORDER BY ft.TimeStamp DESC, ft.FlagTrackingId DESC
+LIMIT 1;
+EOF
+)
+        else
+            # Buscar o ID do último registro primeiro
+            FlagTrackingId=$(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" 2>&1 <<EOF
+SELECT ft.FlagTrackingId
+FROM flags_tracking ft
+WHERE ft.FlagId = '$EscapedFlagId'
+ORDER BY ft.TimeStamp DESC, ft.FlagTrackingId DESC
+LIMIT 1;
+EOF
+)
+        fi
+        
+        # Se encontrou um registro, atualizar
+        if [[ -n "$FlagTrackingId" && "$FlagTrackingId" =~ ^[0-9]+$ ]]; then
+            sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" 2>&1 <<EOF
+UPDATE flags_tracking
+SET TimeStamp = $TimestampValue
+WHERE FlagTrackingId = $FlagTrackingId;
+EOF
+            local update_exit_code=$?
+            if [[ $update_exit_code -eq 0 ]]; then
+                echo "$FlagTrackingId"
+                return 0
+            fi
+        fi
+        
+        # Se chegou aqui, a atualização falhou ou não encontrou registro
+        # Verificar se foi erro de database locked
+        if [[ "$FlagTrackingId" == *"database is locked"* ]] || [[ "$FlagTrackingId" == *"locked"* ]]; then
+            local progressive_delay=$((retry_delay * attempt))
+            # Limitar delay máximo a 2 segundos
+            if [[ $progressive_delay -gt 2 ]]; then
+                progressive_delay=2
+            fi
+            sleep "$progressive_delay"
+        else
+            sleep "$retry_delay"
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    echo "Failed to update flag timestamp after $max_retries attempts."
+    echo ""
+    return 1
+}
+
 INSERT_WATCHTOWER_POSITION() {
     local WatchtowerId="$1"
     local WatchtowerName="$2"

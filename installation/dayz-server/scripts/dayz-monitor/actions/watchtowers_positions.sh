@@ -156,8 +156,9 @@ handle_watchtowers_positions() {
         local watchtower_id
         watchtower_id="Watchtower_${coord_x}_${coord_z}_${coord_y}"
 
-        local prev_data
+        local prev_data diff_message
         prev_data="${prev_watchtowers[$watchtower_id]}"
+        diff_message=""
         if [[ -z "$prev_data" ]]; then
             INSERT_CUSTOM_LOG "Watchtower nova detectada (ID=$watchtower_id) - Coords=($coord_x,$coord_z,$coord_y)" "INFO" "$ScriptName"
         else
@@ -165,14 +166,11 @@ handle_watchtowers_positions() {
             local prev_l1_w1_lower prev_l1_w1_upper prev_l1_w2_lower prev_l1_w2_upper prev_l1_w3_lower prev_l1_w3_upper
             local prev_l2_w1_lower prev_l2_w1_upper prev_l2_w2_lower prev_l2_w2_upper prev_l2_w3_lower prev_l2_w3_upper
             local prev_l3_w1_lower prev_l3_w1_upper prev_l3_w2_lower prev_l3_w2_upper prev_l3_w3_lower prev_l3_w3_upper
-            local diff_message
             
             IFS='|' read -r prev_name prev_x prev_z prev_y prev_has_base prev_level1_base prev_level2_base prev_level3_base prev_level1_stairs prev_level2_stairs prev_has_roof \
                 prev_l1_w1_lower prev_l1_w1_upper prev_l1_w2_lower prev_l1_w2_upper prev_l1_w3_lower prev_l1_w3_upper \
                 prev_l2_w1_lower prev_l2_w1_upper prev_l2_w2_lower prev_l2_w2_upper prev_l2_w3_lower prev_l2_w3_upper \
                 prev_l3_w1_lower prev_l3_w1_upper prev_l3_w2_lower prev_l3_w2_upper prev_l3_w3_lower prev_l3_w3_upper <<< "$prev_data"
-            
-            diff_message=""
             
             local coord_x_norm coord_z_norm coord_y_norm
             local prev_x_norm prev_z_norm prev_y_norm
@@ -365,19 +363,36 @@ handle_watchtowers_positions() {
             unset "prev_watchtowers[$watchtower_id]"
         fi
 
-        local WatchtowerTrackingId insert_exit_code
-        WatchtowerTrackingId=$(INSERT_WATCHTOWER_POSITION "$watchtower_id" "Watchtower" "$coord_x" "$coord_z" "$coord_y" "$ori_x" "$ori_y" "$ori_z" "$current_timestamp" "$has_base" "$level_1_base" "$level_2_base" "$level_3_base" "$level_1_stairs" "$level_2_stairs" "$has_roof" "$level_1_wall_1_lower" "$level_1_wall_1_upper" "$level_1_wall_2_lower" "$level_1_wall_2_upper" "$level_1_wall_3_lower" "$level_1_wall_3_upper" "$level_2_wall_1_lower" "$level_2_wall_1_upper" "$level_2_wall_2_lower" "$level_2_wall_2_upper" "$level_2_wall_3_lower" "$level_2_wall_3_upper" "$level_3_wall_1_lower" "$level_3_wall_1_upper" "$level_3_wall_2_lower" "$level_3_wall_2_upper" "$level_3_wall_3_lower" "$level_3_wall_3_upper")
-        insert_exit_code=$?
+        local WatchtowerTrackingId operation_exit_code has_changes
+        has_changes="false"
+        
+        # Verificar se houve mudanças (diff_message foi definido e não está vazio)
+        if [[ -n "$prev_data" && -z "$diff_message" ]]; then
+            # Não houve mudanças: apenas atualizar timestamp
+            WatchtowerTrackingId=$(UPDATE_WATCHTOWER_TIMESTAMP "$watchtower_id" "$current_timestamp")
+            operation_exit_code=$?
+            has_changes="false"
+        else
+            # Houve mudanças ou watchtower nova: inserir novo registro
+            WatchtowerTrackingId=$(INSERT_WATCHTOWER_POSITION "$watchtower_id" "Watchtower" "$coord_x" "$coord_z" "$coord_y" "$ori_x" "$ori_y" "$ori_z" "$current_timestamp" "$has_base" "$level_1_base" "$level_2_base" "$level_3_base" "$level_1_stairs" "$level_2_stairs" "$has_roof" "$level_1_wall_1_lower" "$level_1_wall_1_upper" "$level_1_wall_2_lower" "$level_1_wall_2_upper" "$level_1_wall_3_lower" "$level_1_wall_3_upper" "$level_2_wall_1_lower" "$level_2_wall_1_upper" "$level_2_wall_2_lower" "$level_2_wall_2_upper" "$level_2_wall_3_lower" "$level_2_wall_3_upper" "$level_3_wall_1_lower" "$level_3_wall_1_upper" "$level_3_wall_2_lower" "$level_3_wall_2_upper" "$level_3_wall_3_lower" "$level_3_wall_3_upper")
+            operation_exit_code=$?
+            has_changes="true"
+        fi
 
-        if [[ $insert_exit_code -eq 0 && -n "$WatchtowerTrackingId" && "$WatchtowerTrackingId" =~ ^[0-9]+$ ]]; then
+        if [[ $operation_exit_code -eq 0 && -n "$WatchtowerTrackingId" && "$WatchtowerTrackingId" =~ ^[0-9]+$ ]]; then
             processed_count=$((processed_count + 1))
         else
-            local error_msg="Erro ao salvar posição da watchtower em ($coord_x,$coord_z,$coord_y)"
+            local error_msg
+            if [[ "$has_changes" == "true" ]]; then
+                error_msg="Erro ao salvar posição da watchtower em ($coord_x,$coord_z,$coord_y)"
+            else
+                error_msg="Erro ao atualizar timestamp da watchtower em ($coord_x,$coord_z,$coord_y)"
+            fi
             if [[ -n "$WatchtowerTrackingId" ]]; then
                 error_msg="$error_msg - Resposta: $WatchtowerTrackingId"
             fi
-            if [[ $insert_exit_code -ne 0 ]]; then
-                error_msg="$error_msg - Exit code: $insert_exit_code"
+            if [[ $operation_exit_code -ne 0 ]]; then
+                error_msg="$error_msg - Exit code: $operation_exit_code"
             fi
             INSERT_CUSTOM_LOG "$error_msg" "ERROR" "$ScriptName"
         fi

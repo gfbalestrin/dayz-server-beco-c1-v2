@@ -24,16 +24,12 @@ handle_containers_positions() {
     local line="$1"
     local captured_timestamp="$2"  # Timestamp capturado no momento da leitura
 
-    INSERT_CUSTOM_LOG "DEBUG: handle_containers_positions iniciado" "INFO" "$ScriptName"
-    
     local current_timestamp CurrentDate
     # Se timestamp não foi fornecido, usar timestamp atual como fallback
     if [[ -n "$captured_timestamp" ]]; then
         current_timestamp="$captured_timestamp"
-        INSERT_CUSTOM_LOG "DEBUG: usando timestamp capturado: $captured_timestamp" "INFO" "$ScriptName"
     else
         current_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-        INSERT_CUSTOM_LOG "DEBUG: usando timestamp atual: $current_timestamp" "INFO" "$ScriptName"
     fi
     CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
 
@@ -46,7 +42,6 @@ handle_containers_positions() {
 
     # Verificar se existe container_data (formato antigo) ou containers (formato novo simplificado)
     if ! echo "$line" | jq -e '.container_data // .containers' >/dev/null 2>&1; then
-        INSERT_CUSTOM_LOG "DEBUG: JSON de containers vazio ou inválido, retornando" "INFO" "$ScriptName"
         return
     fi
     
@@ -57,7 +52,6 @@ handle_containers_positions() {
     else
         container_count_check=$(echo "$line" | jq '.container_data | length // 0' 2>/dev/null || echo "0")
     fi
-    INSERT_CUSTOM_LOG "DEBUG: containers encontrados no JSON: $container_count_check" "INFO" "$ScriptName"
 
     declare -A prev_containers=()
 
@@ -88,44 +82,90 @@ handle_containers_positions() {
             fi
     
     # Buscar último registro de cada container com items usando window function (muito mais eficiente que subquery MAX)
+    # Para snapshots completos: buscar apenas último registro completo (IsPartialUpdate = 0)
+    # Para snapshots parciais: buscar último registro qualquer (completo ou parcial)
     # Usa índice composto idx_containers_tracking_lookup para performance otimizada
     local sql_query
-    if [[ "$has_is_destroyed" -eq 1 ]]; then
-        sql_query="SELECT 
+    if [[ "$is_partial_update" == "true" ]]; then
+        # Snapshot parcial: buscar último registro qualquer (completo ou parcial)
+        if [[ "$has_is_destroyed" -eq 1 ]]; then
+            sql_query="SELECT 
     ranked.ContainerId,
     ranked.ContainerName,
     ranked.PositionX,
     ranked.PositionZ,
     ranked.PositionY,
-    IFNULL(GROUP_CONCAT(cit.ItemType || ':' || IFNULL(cit.ItemHealth, ''), ','), '')
+    IFNULL(GROUP_CONCAT(cit.ItemType || ':' || IFNULL(cit.ItemHealth, ''), ','), ''),
+    IFNULL(ranked.IsPartialUpdate, 0)
 FROM (
-    SELECT ContainerId, ContainerName, PositionX, PositionZ, PositionY, IdContainerTracking,
+    SELECT ContainerId, ContainerName, PositionX, PositionZ, PositionY, IdContainerTracking, IsPartialUpdate,
            ROW_NUMBER() OVER (PARTITION BY ContainerId ORDER BY TimeStamp DESC) as rn
     FROM containers_tracking
     WHERE (IsDestroyed = 0 OR IsDestroyed IS NULL)
 ) ranked
 LEFT JOIN container_items_tracking cit ON ranked.IdContainerTracking = cit.ContainerTrackingId
 WHERE ranked.rn = 1
-GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.PositionZ, ranked.PositionY;"
-    else
-        sql_query="SELECT 
+GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.PositionZ, ranked.PositionY, ranked.IsPartialUpdate;"
+        else
+            sql_query="SELECT 
     ranked.ContainerId,
     ranked.ContainerName,
     ranked.PositionX,
     ranked.PositionZ,
     ranked.PositionY,
-    IFNULL(GROUP_CONCAT(cit.ItemType || ':' || IFNULL(cit.ItemHealth, ''), ','), '')
+    IFNULL(GROUP_CONCAT(cit.ItemType || ':' || IFNULL(cit.ItemHealth, ''), ','), ''),
+    IFNULL(ranked.IsPartialUpdate, 0)
 FROM (
-    SELECT ContainerId, ContainerName, PositionX, PositionZ, PositionY, IdContainerTracking,
+    SELECT ContainerId, ContainerName, PositionX, PositionZ, PositionY, IdContainerTracking, IsPartialUpdate,
            ROW_NUMBER() OVER (PARTITION BY ContainerId ORDER BY TimeStamp DESC) as rn
     FROM containers_tracking
 ) ranked
 LEFT JOIN container_items_tracking cit ON ranked.IdContainerTracking = cit.ContainerTrackingId
 WHERE ranked.rn = 1
-GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.PositionZ, ranked.PositionY;"
+GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.PositionZ, ranked.PositionY, ranked.IsPartialUpdate;"
+        fi
+    else
+        # Snapshot completo: buscar apenas último registro completo (IsPartialUpdate = 0)
+        if [[ "$has_is_destroyed" -eq 1 ]]; then
+            sql_query="SELECT 
+    ranked.ContainerId,
+    ranked.ContainerName,
+    ranked.PositionX,
+    ranked.PositionZ,
+    ranked.PositionY,
+    IFNULL(GROUP_CONCAT(cit.ItemType || ':' || IFNULL(cit.ItemHealth, ''), ','), ''),
+    IFNULL(ranked.IsPartialUpdate, 0)
+FROM (
+    SELECT ContainerId, ContainerName, PositionX, PositionZ, PositionY, IdContainerTracking, IsPartialUpdate,
+           ROW_NUMBER() OVER (PARTITION BY ContainerId ORDER BY TimeStamp DESC) as rn
+    FROM containers_tracking
+    WHERE (IsDestroyed = 0 OR IsDestroyed IS NULL)
+    AND IsPartialUpdate = 0
+) ranked
+LEFT JOIN container_items_tracking cit ON ranked.IdContainerTracking = cit.ContainerTrackingId
+WHERE ranked.rn = 1
+GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.PositionZ, ranked.PositionY, ranked.IsPartialUpdate;"
+        else
+            sql_query="SELECT 
+    ranked.ContainerId,
+    ranked.ContainerName,
+    ranked.PositionX,
+    ranked.PositionZ,
+    ranked.PositionY,
+    IFNULL(GROUP_CONCAT(cit.ItemType || ':' || IFNULL(cit.ItemHealth, ''), ','), ''),
+    IFNULL(ranked.IsPartialUpdate, 0)
+FROM (
+    SELECT ContainerId, ContainerName, PositionX, PositionZ, PositionY, IdContainerTracking, IsPartialUpdate,
+           ROW_NUMBER() OVER (PARTITION BY ContainerId ORDER BY TimeStamp DESC) as rn
+    FROM containers_tracking
+    WHERE IsPartialUpdate = 0
+) ranked
+LEFT JOIN container_items_tracking cit ON ranked.IdContainerTracking = cit.ContainerTrackingId
+WHERE ranked.rn = 1
+GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.PositionZ, ranked.PositionY, ranked.IsPartialUpdate;"
+        fi
     fi
     
-    INSERT_CUSTOM_LOG "DEBUG: iniciando busca de containers anteriores no banco" "INFO" "$ScriptName"
     local prev_containers_query_start
     prev_containers_query_start=$(date +%s.%N 2>/dev/null || date +%s)
     
@@ -184,18 +224,26 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
     
     local prev_containers_count=0
     if [[ "$query_success" == true ]]; then
-        INSERT_CUSTOM_LOG "DEBUG: query de containers anteriores bem-sucedida, processando resultados" "INFO" "$ScriptName"
-        while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_items; do
+        while IFS='|' read -r prev_id prev_name prev_x prev_z prev_y prev_items prev_is_partial_update; do
             # Pular linhas vazias ou quando prev_id está vazio
             if [[ -z "$prev_id" ]]; then
                 continue
             fi
-            prev_containers["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_items"
+            # Normalizar is_partial_update (0 = completo, 1 = parcial)
+            local prev_is_partial_norm
+            prev_is_partial_norm="${prev_is_partial_update:-0}"
+            if [[ "$prev_is_partial_norm" != "0" && "$prev_is_partial_norm" != "1" ]]; then
+                prev_is_partial_norm="0"
+            fi
+            # Normalizar coordenadas antes de armazenar no array (seguindo padrão de vehicles_positions.sh)
+            local prev_x_fmt prev_z_fmt prev_y_fmt
+            prev_x_fmt=$(normalize_coordinate "$prev_x")
+            prev_z_fmt=$(normalize_coordinate "$prev_z")
+            prev_y_fmt=$(normalize_coordinate "$prev_y")
+            # Armazenar: name|x|z|y|items_str|is_partial_update (usar valores formatados)
+            prev_containers["$prev_id"]="$prev_name|$prev_x_fmt|$prev_z_fmt|$prev_y_fmt|${prev_items:-}|$prev_is_partial_norm"
             prev_containers_count=$((prev_containers_count + 1))
         done <<< "$query_output"
-        INSERT_CUSTOM_LOG "DEBUG: containers anteriores carregados: $prev_containers_count" "INFO" "$ScriptName"
-    else
-        INSERT_CUSTOM_LOG "DEBUG: query de containers anteriores falhou após $max_retries tentativas" "WARNING" "$ScriptName"
     fi
     
     local prev_containers_query_end
@@ -223,7 +271,6 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
         containers=$(echo "$line" | jq -c '.container_data[]')
         container_count=$(echo "$line" | jq '.container_data | length')
     fi
-    INSERT_CUSTOM_LOG "DEBUG: total de containers no JSON para processar: $container_count" "INFO" "$ScriptName"
     processed_count=0
 
     # Arrays para coletar dados antes de processar
@@ -231,8 +278,8 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
     declare -A containers_items_map=()    # ContainerId -> array de items
     declare -a containers_to_process=()  # Lista de containers para processar
     declare -A containers_metadata=()     # ContainerId -> metadata (type, coords, etc)
+    declare -a containers_items_to_update=()  # ContainerTrackingIds que precisam atualizar items (snapshots completos sem mudanças)
 
-    INSERT_CUSTOM_LOG "DEBUG: iniciando loop de processamento de containers" "INFO" "$ScriptName"
     # Primeira passagem: coletar todos os dados e fazer comparações
     local container_data
     local containers_processed_in_loop=0
@@ -241,34 +288,21 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
             continue
         fi
         containers_processed_in_loop=$((containers_processed_in_loop + 1))
-        
-        # Log de progresso a cada 100 containers
-        if [[ $((containers_processed_in_loop % 100)) -eq 0 ]]; then
-            INSERT_CUSTOM_LOG "DEBUG: processados $containers_processed_in_loop de $container_count containers no loop" "INFO" "$ScriptName"
-        fi
-        
-        local container_loop_start
-        container_loop_start=$(date +%s.%N 2>/dev/null || date +%s)
 
+        # Extrair todos os campos de uma vez com uma única chamada jq
         local container_type coord_x coord_z coord_y container_id container_name
-        container_id=$(echo "$container_data" | jq -r '.container_id')
-        container_type=$(echo "$container_data" | jq -r '.container_type')
+        local jq_extracted
+        jq_extracted=$(echo "$container_data" | jq -r '
+          (if .container_id then .container_id else "" end) + "|" + 
+          (if .container_type then .container_type else "" end) + "|" + 
+          (if .position then (if .position.x then (.position.x | tostring) else "" end) else (if .x then (.x | tostring) else "" end) end) + "|" + 
+          (if .position then (if .position.z then (.position.z | tostring) else "" end) else (if .z then (.z | tostring) else "" end) end) + "|" + 
+          (if .position then (if .position.y then (.position.y | tostring) else "" end) else (if .y then (.y | tostring) else "" end) end)
+        ' 2>/dev/null)
         
-        # Suportar tanto formato antigo (position.x) quanto novo (x diretamente)
-        if echo "$container_data" | jq -e '.position' >/dev/null 2>&1; then
-            coord_x=$(echo "$container_data" | jq -r '.position.x')
-            coord_z=$(echo "$container_data" | jq -r '.position.z')
-            coord_y=$(echo "$container_data" | jq -r '.position.y')
-        else
-            coord_x=$(echo "$container_data" | jq -r '.x')
-            coord_z=$(echo "$container_data" | jq -r '.z')
-            coord_y=$(echo "$container_data" | jq -r '.y')
-        fi
+        IFS='|' read -r container_id container_type coord_x coord_z coord_y <<< "$jq_extracted"
 
         if [[ -z "$container_id" || "$container_id" == "null" ]]; then
-            if [[ $containers_processed_in_loop -le 10 ]]; then
-                INSERT_CUSTOM_LOG "DEBUG: container_id não encontrado no JSON (container $containers_processed_in_loop), pulando" "WARNING" "$ScriptName"
-            fi
             continue
         fi
 
@@ -328,8 +362,9 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
             fi
         fi
 
-        local prev_data
+        local prev_data diff_message
         prev_data="${prev_containers[$container_id]}"
+        diff_message=""
         local should_save_empty=false
         if [[ -z "$prev_data" ]]; then
             # Container novo - não logar individualmente para não poluir logs
@@ -337,36 +372,36 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
             :
         else
             local prev_name prev_x prev_z prev_y prev_items_str
-            IFS='|' read -r prev_name prev_x prev_z prev_y prev_items_str <<< "$prev_data"
-            local prev_x_norm prev_z_norm prev_y_norm prev_x_log prev_z_log prev_y_log
+            IFS='|' read -r prev_name prev_x prev_z prev_y prev_items_str prev_is_partial_update <<< "$prev_data"
+            # Valores já estão formatados quando lidos do array prev_containers
+            local prev_x_log prev_z_log prev_y_log
             local prev_x_cmp prev_z_cmp prev_y_cmp
-            prev_x_norm=$(normalize_coordinate "$prev_x")
-            prev_z_norm=$(normalize_coordinate "$prev_z")
-            prev_y_norm=$(normalize_coordinate "$prev_y")
-
             prev_x_log="$prev_x"
             prev_z_log="$prev_z"
             prev_y_log="$prev_y"
-
-            if [[ -n "$prev_x_norm" ]]; then
-                prev_x_log="$prev_x_norm"
+            prev_x_cmp="$prev_x"
+            prev_z_cmp="$prev_z"
+            prev_y_cmp="$prev_y"
+            
+            # Para snapshots completos: só comparar items se o último registro também for completo (IsPartialUpdate = 0)
+            # Se último registro for parcial, considerar como novo snapshot completo (items adicionados)
+            local should_compare_items=true
+            if [[ "$is_partial_update" == false ]]; then
+                if [[ "$prev_is_partial_update" != "0" ]]; then
+                    # Último registro é parcial: não comparar items (será tratado como novo snapshot completo)
+                    should_compare_items=false
+                    # Se há items no snapshot atual, considerar como adicionados
+                    if [[ -n "$current_items_str" ]]; then
+                        diff_message+="items_adicionados(novo_snapshot_completo); "
+                    fi
+                fi
             fi
-            if [[ -n "$prev_z_norm" ]]; then
-                prev_z_log="$prev_z_norm"
-            fi
-            if [[ -n "$prev_y_norm" ]]; then
-                prev_y_log="$prev_y_norm"
-            fi
-
-            prev_x_cmp="$prev_x_log"
-            prev_z_cmp="$prev_z_log"
-            prev_y_cmp="$prev_y_log"
             
             # Detectar se container foi esvaziado (tinha items, agora está vazio)
-            if [[ -n "$prev_items_str" && -z "$current_items_str" ]]; then
+            # Só considerar esvaziado se último registro for completo
+            if [[ "$should_compare_items" == true && -n "$prev_items_str" && -z "$current_items_str" ]]; then
                 should_save_empty=true
             fi
-            local diff_message=""
             local container_moved=false
 
             if [[ "$coord_x_cmp" != "$prev_x_cmp" || "$coord_z_cmp" != "$prev_z_cmp" || "$coord_y_cmp" != "$prev_y_cmp" ]]; then
@@ -375,9 +410,10 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
             fi
 
             # Contar items anteriores e atuais (comparação rápida)
+            # Só contar items anteriores se último registro for completo
             local prev_items_count=0
             local current_items_count=0
-            if [[ -n "$prev_items_str" ]]; then
+            if [[ "$should_compare_items" == true && -n "$prev_items_str" ]]; then
                 prev_items_count=$(echo "$prev_items_str" | tr ',' '\n' | grep -c . || echo "0")
             fi
             if [[ -n "$current_items_str" ]]; then
@@ -386,11 +422,15 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
             
             # Fazer comparação detalhada apenas se necessário:
             # 1. Container mudou de posição
-            # 2. Número de items mudou
-            # 3. Container foi esvaziado
+            # 2. Número de items mudou (e último registro é completo)
+            # 3. Container foi esvaziado (e último registro é completo)
             local needs_detailed_comparison=false
-            if [[ "$container_moved" == true ]] || [[ "$prev_items_count" != "$current_items_count" ]] || [[ "$should_save_empty" == true ]]; then
+            if [[ "$container_moved" == true ]]; then
                 needs_detailed_comparison=true
+            elif [[ "$should_compare_items" == true ]]; then
+                if [[ "$prev_items_count" != "$current_items_count" ]] || [[ "$should_save_empty" == true ]]; then
+                    needs_detailed_comparison=true
+                fi
             fi
 
             local items_added items_removed items_changed
@@ -398,8 +438,8 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
             items_removed=""
             items_changed=""
 
-            # Comparação detalhada apenas quando necessário
-            if [[ "$needs_detailed_comparison" == true ]]; then
+            # Comparação detalhada apenas quando necessário e se deve comparar items
+            if [[ "$needs_detailed_comparison" == true && "$should_compare_items" == true ]]; then
                 local comparison_start
                 comparison_start=$(date +%s.%N 2>/dev/null || date +%s)
                 
@@ -479,6 +519,17 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
                     fi
                 done
                 
+                # Adicionar mudanças de items ao diff_message
+                if [[ -n "$items_added" ]]; then
+                    diff_message+="items_adicionados($items_added); "
+                fi
+                if [[ -n "$items_removed" ]]; then
+                    diff_message+="items_removidos($items_removed); "
+                fi
+                if [[ -n "$items_changed" ]]; then
+                    diff_message+="items_alterados($items_changed); "
+                fi
+                
                 local comparison_end
                 comparison_end=$(date +%s.%N 2>/dev/null || date +%s)
                 local comparison_elapsed_ms=0
@@ -495,25 +546,12 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
                 # Se não precisa de comparação detalhada, apenas indicar que items mudaram se contagem mudou
                 if [[ "$prev_items_count" != "$current_items_count" ]]; then
                     items_changed="contagem_mudou($prev_items_count->$current_items_count)"
+                    diff_message+="items_alterados($items_changed); "
                 fi
             fi
             
-            local container_loop_end
-            container_loop_end=$(date +%s.%N 2>/dev/null || date +%s)
-            local container_loop_elapsed_ms=0
-            if [[ -n "$container_loop_start" ]] && [[ -n "$container_loop_end" ]]; then
-                if command -v awk >/dev/null 2>&1; then
-                    container_loop_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($container_loop_end - $container_loop_start) * 1000}" 2>/dev/null || echo "0")
-                else
-                    local container_loop_elapsed_seconds
-                    container_loop_elapsed_seconds=$(echo "$container_loop_end - $container_loop_start" | bc -l 2>/dev/null || echo "0")
-                    container_loop_elapsed_ms=$(echo "$container_loop_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
-                fi
-            fi
             # Não logar mudanças individuais de containers para não poluir logs
             # Apenas coletar dados para batch INSERT
-
-            unset "prev_containers[$container_id]"
         fi
 
         # Salvar container para batch INSERT se:
@@ -522,20 +560,60 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
         # 3. É shelter type
         # 4. É container novo (sem prev_data) - sempre salvar containers novos
         # 5. É update parcial (position_only) - salvar todos para atualizar posição e health
+        # 6. Houve mudanças (posição ou items)
         local is_new_container=false
         if [[ -z "$prev_data" ]]; then
             is_new_container=true
         fi
         
-        if [[ "$is_partial_update" == "true" || -n "$current_items_str" || "$should_save_empty" == true || "$is_shelter_type" == true || "$is_new_container" == true ]]; then
+        # Verificar se deve usar UPDATE ao invés de INSERT
+        local should_update_timestamp=false
+        if [[ -n "$prev_data" && "$is_new_container" == false && "$should_save_empty" == false ]]; then
+            if [[ "$is_partial_update" == "true" ]]; then
+                # Para updates parciais: usar UPDATE se posição não mudou
+                if [[ -z "$diff_message" ]]; then
+                    should_update_timestamp=true
+                fi
+            else
+                # Para updates completos: usar UPDATE se não houver mudanças (posição e items iguais)
+                if [[ -z "$diff_message" ]]; then
+                    should_update_timestamp=true
+                fi
+            fi
+        fi
+        
+        if [[ "$should_update_timestamp" == true ]]; then
+            # Atualizar apenas o timestamp do último registro
+            local prefer_complete="false"
+            if [[ "$is_partial_update" == false ]]; then
+                # Para snapshots completos, preferir atualizar registro completo
+                prefer_complete="true"
+            fi
+            
+            local ContainerTrackingId update_exit_code
+            ContainerTrackingId=$(UPDATE_CONTAINER_TIMESTAMP "$container_id" "$current_timestamp" "$prefer_complete")
+            update_exit_code=$?
+            
+            if [[ $update_exit_code -eq 0 && -n "$ContainerTrackingId" && "$ContainerTrackingId" =~ ^[0-9]+$ ]]; then
+                # Para snapshots completos, coletar ContainerTrackingId para atualizar items em batch
+                if [[ "$is_partial_update" == false ]]; then
+                    containers_items_to_update+=("$ContainerTrackingId")
+                fi
+                processed_count=$((processed_count + 1))
+            else
+                local error_msg="Erro ao atualizar timestamp do container $container_id"
+                if [[ -n "$ContainerTrackingId" ]]; then
+                    error_msg="$error_msg - Resposta: $ContainerTrackingId"
+                fi
+                if [[ $update_exit_code -ne 0 ]]; then
+                    error_msg="$error_msg - Exit code: $update_exit_code"
+                fi
+                INSERT_CUSTOM_LOG "$error_msg" "ERROR" "$ScriptName"
+            fi
+        elif [[ ("$is_partial_update" == "true" && "$should_update_timestamp" == false) || -n "$current_items_str" || "$should_save_empty" == true || "$is_new_container" == true || -n "$diff_message" ]]; then
             # Adicionar ao batch de containers (formato: container_id|container_name|coord_x|coord_z|coord_y)
             batch_containers_data+=("$container_id|$container_name|$coord_x|$coord_z|$coord_y")
             containers_to_process+=("$container_id")
-            
-            # Log apenas para os primeiros 10 containers para debug
-            if [[ ${#batch_containers_data[@]} -le 10 ]]; then
-                INSERT_CUSTOM_LOG "DEBUG: container adicionado ao batch: $container_id (total no batch: ${#batch_containers_data[@]})" "INFO" "$ScriptName"
-            fi
             
             # Armazenar metadata do container
             containers_metadata["$container_id"]="$container_type|$coord_x_log|$coord_z_log|$coord_y_log|$is_shelter_type"
@@ -569,12 +647,51 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
             fi
         fi
 
+        # Remover container de prev_containers para não marcá-lo como destruído
+        # Isso deve acontecer para TODOS os containers processados, não apenas os que têm prev_data
+        unset "prev_containers[$container_id]"
+
     done <<< "$containers"
     
-    INSERT_CUSTOM_LOG "DEBUG: loop de processamento concluído, processados: $containers_processed_in_loop, batch_containers_data: ${#batch_containers_data[@]}" "INFO" "$ScriptName"
+    # Batch UPDATE de items para containers sem mudanças (snapshots completos)
+    if [[ "$is_partial_update" == false && ${#containers_items_to_update[@]} -gt 0 ]]; then
+        local items_batch_update_start_time
+        items_batch_update_start_time=$(date +%s.%N 2>/dev/null || date +%s)
+        
+        configure_sqlite_pragmas "$AppFolder/$AppContainerBecoC1DbFile"
+        
+        # Construir lista de IDs para IN clause
+        local tracking_ids_list
+        tracking_ids_list=$(IFS=','; echo "${containers_items_to_update[*]}")
+        
+        # Atualizar TimeStamp dos items em batch
+        sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" <<EOF
+UPDATE container_items_tracking
+SET TimeStamp = '$current_timestamp'
+WHERE ContainerTrackingId IN ($tracking_ids_list);
+EOF
+        local items_batch_update_result=$?
+        
+        local items_batch_update_end_time
+        items_batch_update_end_time=$(date +%s.%N 2>/dev/null || date +%s)
+        local items_batch_update_elapsed_ms=0
+        if [[ -n "$items_batch_update_start_time" ]] && [[ -n "$items_batch_update_end_time" ]]; then
+            if command -v awk >/dev/null 2>&1; then
+                items_batch_update_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($items_batch_update_end_time - $items_batch_update_start_time) * 1000}" 2>/dev/null || echo "0")
+            else
+                local items_batch_update_elapsed_seconds
+                items_batch_update_elapsed_seconds=$(echo "$items_batch_update_end_time - $items_batch_update_start_time" | bc -l 2>/dev/null || echo "0")
+                items_batch_update_elapsed_ms=$(echo "$items_batch_update_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+            fi
+        fi
+        
+        if [[ $items_batch_update_result -ne 0 ]]; then
+            INSERT_CUSTOM_LOG "Erro ao atualizar timestamp de items em batch (containers: ${#containers_items_to_update[@]})" "ERROR" "$ScriptName"
+        else
+            INSERT_CUSTOM_LOG "Etapa [batch_update_items_timestamp] executada em ${items_batch_update_elapsed_ms}ms (containers: ${#containers_items_to_update[@]})" "INFO" "$ScriptName"
+        fi
+    fi
     
-    # Log resumido do processamento
-
     local parsing_end_time
     parsing_end_time=$(date +%s.%N 2>/dev/null || date +%s)
     local parsing_elapsed_ms=0
@@ -587,10 +704,11 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
             parsing_elapsed_ms=$(echo "$parsing_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
         fi
     fi
+    INSERT_CUSTOM_LOG "Etapa [parsing_json_coleta_dados] executada em ${parsing_elapsed_ms}ms (containers: $container_count)" "INFO" "$ScriptName"
+    
     # Batch INSERT/UPDATE de todos os containers
     local inserted_ids
     local batch_insert_result
-    INSERT_CUSTOM_LOG "DEBUG: batch_containers_data tem ${#batch_containers_data[@]} containers para inserir" "INFO" "$ScriptName"
     if [[ ${#batch_containers_data[@]} -gt 0 ]]; then
         local containers_insert_start_time
         containers_insert_start_time=$(date +%s.%N 2>/dev/null || date +%s)
@@ -610,11 +728,7 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
         rm -f "$batch_stderr"
         
         if [[ $batch_insert_result -ne 0 ]]; then
-            INSERT_CUSTOM_LOG "DEBUG: INSERT_CONTAINERS_POSITIONS_BATCH retornou erro: $batch_insert_result, stderr: ${batch_error:0:500}" "ERROR" "$ScriptName"
-        else
-            local inserted_ids_count
-            inserted_ids_count=$(echo "$inserted_ids" | grep -c . || echo "0")
-            INSERT_CUSTOM_LOG "DEBUG: INSERT_CONTAINERS_POSITIONS_BATCH sucesso, inserted_ids tem $inserted_ids_count linhas" "INFO" "$ScriptName"
+            INSERT_CUSTOM_LOG "INSERT_CONTAINERS_POSITIONS_BATCH retornou erro: $batch_insert_result, stderr: ${batch_error:0:500}" "ERROR" "$ScriptName"
         fi
         
         local containers_insert_end_time
@@ -629,10 +743,16 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
                 containers_insert_elapsed_ms=$(echo "$containers_insert_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
             fi
         fi
+        if [[ "$is_partial_update" == "true" ]]; then
+            INSERT_CUSTOM_LOG "Etapa [update_parcial_containers] executada em ${containers_insert_elapsed_ms}ms (containers: ${#batch_containers_data[@]})" "INFO" "$ScriptName"
+        else
+            INSERT_CUSTOM_LOG "Etapa [batch_insert_containers] executada em ${containers_insert_elapsed_ms}ms (containers: ${#batch_containers_data[@]})" "INFO" "$ScriptName"
+        fi
         if [[ $batch_insert_result -ne 0 ]]; then
             INSERT_CUSTOM_LOG "Erro: não foi possível inserir containers em batch (código: $batch_insert_result)" "ERROR" "$ScriptName"
         else
-            processed_count=${#batch_containers_data[@]}
+            # Adicionar containers inseridos ao contador (não sobrescrever, pois processed_count já inclui UPDATEs)
+            processed_count=$((processed_count + ${#batch_containers_data[@]}))
             
             # Criar mapeamento ContainerId -> ContainerTrackingId
             declare -A container_tracking_map=()
@@ -704,6 +824,7 @@ GROUP BY ranked.ContainerId, ranked.ContainerName, ranked.PositionX, ranked.Posi
                         items_insert_elapsed_ms=$(echo "$items_insert_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
                     fi
                 fi
+                INSERT_CUSTOM_LOG "Etapa [batch_insert_items] executada em ${items_insert_elapsed_ms}ms (items: ${#all_items_batch[@]})" "INFO" "$ScriptName"
                 if [[ $items_insert_result -ne 0 ]]; then
                     INSERT_CUSTOM_LOG "Erro ao inserir items de containers em batch" "ERROR" "$ScriptName"
                 fi
