@@ -252,27 +252,22 @@ void ProcessAllWorldObjectsOptimized(array<Object> worldObjects, out string cont
 
 		bool isShelterType = objectType.Contains("Shelter");
 		
-		if (containerHasItems || isShelterType || isBuried)
+		// Sempre adicionar container ao JSON no snapshot completo (representação completa do estado)
+		// Isso garante que todos os containers sejam rastreados, mesmo os vazios
+		if (containerHasItems)
 		{
-			if (containerHasItems)
-			{
-				totalContainersWithItems++;
-			}
-			else
-			{
-				totalContainersEmpty++;
-			}
-
-			string positionJson = "{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "}";
-			string orientationJson = "{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "}";
-			string isBuriedStr = isBuried.ToString();
-			string containerJsonItem = "{\"container_id\":\"" + containerIdentifier + "\",\"container_type\":\"" + objectType + "\",\"position\":" + positionJson + ",\"orientation\":" + orientationJson + ",\"items\":[" + itemsJson + "],\"is_buried\":" + isBuriedStr + "}";
-			containersJsonArray.Insert(containerJsonItem);
+			totalContainersWithItems++;
 		}
 		else
 		{
 			totalContainersEmpty++;
 		}
+
+		string positionJson = "{\"x\":" + containerPosition[0].ToString() + ",\"z\":" + containerPosition[1].ToString() + ",\"y\":" + containerPosition[2].ToString() + "}";
+		string orientationJson = "{\"x\":" + containerOrientation[0].ToString() + ",\"y\":" + containerOrientation[1].ToString() + ",\"z\":" + containerOrientation[2].ToString() + "}";
+		string isBuriedStr = isBuried.ToString();
+		string containerJsonItem = "{\"container_id\":\"" + containerIdentifier + "\",\"container_type\":\"" + objectType + "\",\"position\":" + positionJson + ",\"orientation\":" + orientationJson + ",\"items\":[" + itemsJson + "],\"is_buried\":" + isBuriedStr + "}";
+		containersJsonArray.Insert(containerJsonItem);
 	}
 
 	// Construir JSON final de containers (otimização: join ao invés de concatenação)
