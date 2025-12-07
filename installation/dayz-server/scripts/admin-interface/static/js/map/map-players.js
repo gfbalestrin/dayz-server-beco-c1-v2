@@ -211,6 +211,21 @@ function updatePositions(data) {
             return;
         }
         
+        // Verificar filtro de exclusão (apenas se não houver filtro de inclusão ativo)
+        if (MapState.selectedPlayerFilters.length === 0 && MapState.excludedPlayerFilters.includes(playerId)) {
+            // Remover trail se existir (marcador permanece, apenas trail é ocultado)
+            if (MapState.playerTrails[playerId]) {
+                const trail = MapState.playerTrails[playerId];
+                if (Array.isArray(trail)) {
+                    trail.forEach(item => MapState.map.removeLayer(item));
+                } else {
+                    MapState.map.removeLayer(trail);
+                }
+                delete MapState.playerTrails[playerId];
+            }
+            // Continuar processando o jogador (marcador permanece visível)
+        }
+        
         // Verificar filtro "Apenas online"
         const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
         if (onlineOnlyFilterActive && !player.is_online) {
@@ -413,6 +428,9 @@ function updatePositions(data) {
     if (MapState.selectedPlayerFilters.length > 0) {
         updateSelectedPlayersBadges();
     }
+    if (MapState.excludedPlayerFilters.length > 0) {
+        updateExcludedPlayersBadges();
+    }
     
     // Atualizar contadores na UI
     $('#mapOnlineCount').text(onlineCount);
@@ -421,7 +439,7 @@ function updatePositions(data) {
     
     if (MapState.showTrails) {
         setTimeout(function() {
-            // Carregar trails apenas de jogadores visíveis (respeitando filtro "Apenas online")
+            // Carregar trails apenas de jogadores visíveis (respeitando filtro "Apenas online" e exclusões)
             const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
             Object.keys(MapState.playerMarkers).forEach(function(playerId) {
                 // Se filtro "Apenas online" está ativo, verificar se jogador está online
@@ -432,6 +450,13 @@ function updatePositions(data) {
                         return;
                     }
                 }
+                
+                // Verificar filtro de exclusão (apenas se não houver filtro de inclusão ativo)
+                if (MapState.selectedPlayerFilters.length === 0 && MapState.excludedPlayerFilters.includes(playerId)) {
+                    // Jogador está excluído, não carregar trail
+                    return;
+                }
+                
                 loadPlayerTrail(playerId);
             });
             // Atualizar filtro de trails após carregar todos os trails
@@ -466,6 +491,21 @@ function loadPlayerTrail(playerId) {
     // Proteção contra requisições duplicadas
     if (MapState.loadingTrails[playerId]) {
         return; // Já há uma requisição em andamento para este jogador
+    }
+    
+    // Verificar filtro de exclusão (apenas se não houver filtro de inclusão ativo)
+    if (MapState.selectedPlayerFilters.length === 0 && MapState.excludedPlayerFilters.includes(playerId)) {
+        // Jogador está excluído, não carregar trail
+        if (MapState.playerTrails[playerId]) {
+            const trail = MapState.playerTrails[playerId];
+            if (Array.isArray(trail)) {
+                trail.forEach(item => MapState.map.removeLayer(item));
+            } else {
+                MapState.map.removeLayer(trail);
+            }
+            delete MapState.playerTrails[playerId];
+        }
+        return;
     }
     
     // Verificar filtro "Apenas online"
@@ -1023,6 +1063,11 @@ function handlePlayerSearch() {
                 return false;
             }
             
+            // Não mostrar jogadores já excluídos
+            if (MapState.excludedPlayerFilters.includes(playerId)) {
+                return false;
+            }
+            
             return name.includes(searchTerm) || 
                    steamName.includes(searchTerm) || 
                    playerId.toLowerCase().includes(searchTerm);
@@ -1135,6 +1180,179 @@ function clearAllPlayerFilters() {
 }
 
 /**
+ * Pesquisar jogadores para exclusão
+ */
+function handlePlayerExcludeSearch() {
+    const searchTerm = $('#playerExcludeSearchInput').val().toLowerCase().trim();
+    const resultsContainer = $('#playerExcludeSearchResults');
+    
+    if (searchTerm === '') {
+        resultsContainer.hide();
+        return;
+    }
+    
+    // Filtrar jogadores que correspondem à pesquisa
+    const matchingPlayers = Object.keys(MapState.playersData)
+        .filter(playerId => {
+            const player = MapState.playersData[playerId];
+            const name = (player.name || '').toLowerCase();
+            const steamName = (player.steamName || '').toLowerCase();
+            
+            // Não mostrar jogadores já excluídos
+            if (MapState.excludedPlayerFilters.includes(playerId)) {
+                return false;
+            }
+            
+            // Não mostrar jogadores que estão no filtro de inclusão
+            if (MapState.selectedPlayerFilters.includes(playerId)) {
+                return false;
+            }
+            
+            return name.includes(searchTerm) || 
+                   steamName.includes(searchTerm) || 
+                   playerId.toLowerCase().includes(searchTerm);
+        })
+        .slice(0, 10); // Limitar a 10 resultados
+    
+    if (matchingPlayers.length === 0) {
+        resultsContainer.html('<div class="list-group-item text-muted">Nenhum jogador encontrado</div>');
+        resultsContainer.show();
+        return;
+    }
+    
+    // Renderizar resultados
+    resultsContainer.empty();
+    matchingPlayers.forEach(playerId => {
+        const player = MapState.playersData[playerId];
+        const displayName = player.name || playerId;
+        const steamName = player.steamName ? ` (${player.steamName})` : '';
+        const statusIcon = player.isOnline ? '🟢' : '🔴';
+        
+        const item = $('<div class="list-group-item"></div>')
+            .html(`${statusIcon} ${displayName}${steamName}`)
+            .on('click', function() {
+                addPlayerToExclusion(playerId);
+            });
+        
+        resultsContainer.append(item);
+    });
+    
+    resultsContainer.show();
+}
+
+/**
+ * Adicionar jogador à lista de exclusão
+ */
+function addPlayerToExclusion(playerId) {
+    if (MapState.excludedPlayerFilters.includes(playerId)) {
+        return;
+    }
+    
+    MapState.excludedPlayerFilters.push(playerId);
+    
+    // Limpar campo de pesquisa
+    $('#playerExcludeSearchInput').val('');
+    $('#playerExcludeSearchResults').hide();
+    
+    // Atualizar UI
+    updateExcludedPlayersBadges();
+    
+    // Remover trail do jogador excluído (se não houver filtro de inclusão ativo)
+    if (MapState.selectedPlayerFilters.length === 0 && MapState.showTrails) {
+        if (MapState.playerTrails[playerId]) {
+            const trail = MapState.playerTrails[playerId];
+            if (Array.isArray(trail)) {
+                trail.forEach(item => MapState.map.removeLayer(item));
+            } else {
+                MapState.map.removeLayer(trail);
+            }
+            delete MapState.playerTrails[playerId];
+        }
+    }
+    
+    // Aplicar filtro
+    filterPlayers();
+}
+
+/**
+ * Remover jogador da lista de exclusão
+ */
+function removePlayerFromExclusion(playerId) {
+    const index = MapState.excludedPlayerFilters.indexOf(playerId);
+    if (index > -1) {
+        MapState.excludedPlayerFilters.splice(index, 1);
+    }
+    
+    // Atualizar UI
+    updateExcludedPlayersBadges();
+    
+    // Recarregar trail do jogador se trails estão ativos e não houver filtro de inclusão
+    if (MapState.selectedPlayerFilters.length === 0 && MapState.showTrails) {
+        const playerData = MapState.playersData[playerId];
+        if (playerData && playerData.isOnline) {
+            loadPlayerTrail(playerId);
+        }
+    }
+    
+    // Aplicar filtro
+    filterPlayers();
+}
+
+/**
+ * Atualizar badges de jogadores excluídos
+ */
+function updateExcludedPlayersBadges() {
+    const container = $('#excludedPlayersBadges');
+    container.empty();
+    
+    if (MapState.excludedPlayerFilters.length === 0) {
+        $('#clearAllExclusionsBtn').hide();
+        return;
+    }
+    
+    $('#clearAllExclusionsBtn').show();
+    
+    MapState.excludedPlayerFilters.forEach(playerId => {
+        const player = MapState.playersData[playerId];
+        const displayName = player ? (player.name || playerId) : playerId;
+        const steamName = player && player.steamName ? ` (${player.steamName})` : '';
+        const statusIcon = player && player.isOnline ? '🟢' : '🔴';
+        
+        const badge = $('<span class="badge bg-danger"></span>')
+            .html(`${statusIcon} ${displayName}${steamName} <i class="fas fa-times remove-exclusion"></i>`)
+            .find('.remove-exclusion')
+            .on('click', function(e) {
+                e.stopPropagation();
+                removePlayerFromExclusion(playerId);
+            })
+            .end();
+        
+        container.append(badge);
+    });
+}
+
+/**
+ * Limpar todas as exclusões de jogadores
+ */
+function clearAllPlayerExclusions() {
+    const excludedIds = [...MapState.excludedPlayerFilters];
+    MapState.excludedPlayerFilters = [];
+    updateExcludedPlayersBadges();
+    
+    // Recarregar trails dos jogadores que foram removidos da exclusão
+    if (MapState.selectedPlayerFilters.length === 0 && MapState.showTrails) {
+        excludedIds.forEach(playerId => {
+            const playerData = MapState.playersData[playerId];
+            if (playerData && playerData.isOnline) {
+                loadPlayerTrail(playerId);
+            }
+        });
+    }
+    
+    filterPlayers();
+}
+
+/**
  * Filtrar jogadores
  */
 function filterPlayers() {
@@ -1150,6 +1368,21 @@ function filterPlayers() {
             }
         });
         MapState.playerTrails = {};
+        
+        // Remover trails de jogadores excluídos (se não houver filtro de inclusão ativo)
+        if (MapState.selectedPlayerFilters.length === 0 && MapState.excludedPlayerFilters.length > 0) {
+            MapState.excludedPlayerFilters.forEach(function(playerId) {
+                if (MapState.playerTrails[playerId]) {
+                    const trail = MapState.playerTrails[playerId];
+                    if (Array.isArray(trail)) {
+                        trail.forEach(item => MapState.map.removeLayer(item));
+                    } else {
+                        MapState.map.removeLayer(trail);
+                    }
+                    delete MapState.playerTrails[playerId];
+                }
+            });
+        }
     }
     
     // Recarregar posições
@@ -1295,7 +1528,7 @@ function applyTrailFilterShortcut(shortcut) {
             MapState.activeTrailShortcut = null;
             MapState.hasCustomFilter = false;
             // Restaurar classes outline de todos os botões (já feito no início da função, mas garantindo aqui também)
-            // Recarregar trails apenas de jogadores visíveis (respeitando filtro "Apenas online")
+            // Recarregar trails apenas de jogadores visíveis (respeitando filtro "Apenas online" e exclusões)
             const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
             Object.keys(MapState.playerMarkers).forEach(function(playerId) {
                 if (onlineOnlyFilterActive) {
@@ -1304,6 +1537,13 @@ function applyTrailFilterShortcut(shortcut) {
                         return;
                     }
                 }
+                
+                // Verificar filtro de exclusão (apenas se não houver filtro de inclusão ativo)
+                if (MapState.selectedPlayerFilters.length === 0 && MapState.excludedPlayerFilters.includes(playerId)) {
+                    // Jogador está excluído, não carregar trail
+                    return;
+                }
+                
                 loadPlayerTrail(playerId);
             });
             return;
@@ -1505,7 +1745,7 @@ function applyTrailDateFilter(preserveShortcut = false) {
         }
     }
     
-    // Recarregar trails com filtro (respeitando filtro "Apenas online")
+    // Recarregar trails com filtro (respeitando filtro "Apenas online" e exclusões)
     const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
     Object.keys(MapState.playerMarkers).forEach(function(playerId) {
         if (onlineOnlyFilterActive) {
@@ -1514,6 +1754,13 @@ function applyTrailDateFilter(preserveShortcut = false) {
                 return;
             }
         }
+        
+        // Verificar filtro de exclusão (apenas se não houver filtro de inclusão ativo)
+        if (MapState.selectedPlayerFilters.length === 0 && MapState.excludedPlayerFilters.includes(playerId)) {
+            // Jogador está excluído, não carregar trail
+            return;
+        }
+        
         loadPlayerTrail(playerId);
     });
 }
@@ -1539,6 +1786,13 @@ function reapplyCurrentTrailFilter() {
                     return;
                 }
             }
+            
+            // Verificar filtro de exclusão (apenas se não houver filtro de inclusão ativo)
+            if (MapState.selectedPlayerFilters.length === 0 && MapState.excludedPlayerFilters.includes(playerId)) {
+                // Jogador está excluído, não carregar trail
+                return;
+            }
+            
             loadPlayerTrail(playerId);
         });
     };

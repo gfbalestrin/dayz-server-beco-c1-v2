@@ -69,6 +69,7 @@ const MapState = {
     
     // Filtros e seleções
     selectedPlayerFilters: [],
+    excludedPlayerFilters: [],
     selectedVehicleFilters: [],
     selectedContainerFilters: [],
     selectedStructureFilters: [],

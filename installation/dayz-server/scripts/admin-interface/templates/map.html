@@ -308,6 +308,30 @@
                     </button>
                 </div>
                 <div class="mb-2">
+                    <label class="form-label small">Excluir Jogadores dos Trails:</label>
+                    
+                    <!-- Campo de pesquisa -->
+                    <input type="text" 
+                           class="form-control form-control-sm mb-2" 
+                           id="playerExcludeSearchInput" 
+                           placeholder="Pesquisar jogador para excluir...">
+                    
+                    <!-- Lista de jogadores filtrados (dropdown) -->
+                    <div class="list-group" id="playerExcludeSearchResults" style="max-height: 150px; overflow-y: auto; display: none;">
+                        <!-- Resultados da pesquisa aparecerão aqui -->
+                    </div>
+                    
+                    <!-- Badges dos jogadores excluídos -->
+                    <div id="excludedPlayersBadges" class="mt-2">
+                        <!-- Badges aparecerão aqui -->
+                    </div>
+                    
+                    <!-- Botão para limpar todas as exclusões -->
+                    <button type="button" class="btn btn-sm btn-outline-danger w-100 mt-2" id="clearAllExclusionsBtn" style="display: none;">
+                        <i class="fas fa-times me-1"></i>Limpar Exclusões
+                    </button>
+                </div>
+                <div class="mb-2">
                     <label class="form-label small">Filtrar Veículos:</label>
                     
                     <!-- Campo de pesquisa -->

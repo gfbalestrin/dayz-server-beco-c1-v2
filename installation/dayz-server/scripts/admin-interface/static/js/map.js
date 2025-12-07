@@ -82,6 +82,15 @@ $(document).ready(function() {
     });
     $('#clearAllFiltersBtn').on('click', clearAllPlayerFilters);
     
+    // Event listeners para o novo sistema de filtro de exclusão de jogadores
+    $('#playerExcludeSearchInput').on('input', handlePlayerExcludeSearch);
+    $('#playerExcludeSearchInput').on('focus', handlePlayerExcludeSearch);
+    $('#playerExcludeSearchInput').on('blur', function() {
+        // Delay para permitir clique nos resultados
+        setTimeout(() => $('#playerExcludeSearchResults').hide(), 200);
+    });
+    $('#clearAllExclusionsBtn').on('click', clearAllPlayerExclusions);
+    
     // Event listeners para o novo sistema de filtro de veículos
     $('#vehicleSearchInput').on('input', handleVehicleSearch);
     $('#vehicleSearchInput').on('focus', handleVehicleSearch);
@@ -539,6 +548,9 @@ $(document).ready(function() {
     $(document).on('click', function(e) {
         if (!$(e.target).closest('#teleportToPlayerSearch, #teleportToPlayerSearchResults').length) {
             $('#teleportToPlayerSearchResults').hide();
+        }
+        if (!$(e.target).closest('#playerExcludeSearchInput, #playerExcludeSearchResults').length) {
+            $('#playerExcludeSearchResults').hide();
         }
     });
     
