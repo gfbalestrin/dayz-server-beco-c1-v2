@@ -62,27 +62,30 @@ handle_fences_positions() {
         prev_fences["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_has_base|$prev_lower_panel|$prev_upper_panel"
     done < <(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" -separator '|' "$sql_query")
 
-    local fences fence_count processed_count
-    fences=$(echo "$line" | jq -c '.fence_data[]')
+    local fence_count processed_count
     fence_count=$(echo "$line" | jq '.fence_data | length')
     processed_count=0
 
-    local fence_data
-    while IFS= read -r fence_data; do
-        if [[ -z "$fence_data" ]]; then
+    # Extrair todos os fences de uma vez com uma única chamada jq (otimização de performance)
+    local all_fences_data
+    all_fences_data=$(echo "$line" | jq -r '
+        .fence_data[]? |
+        (if .position.x then (.position.x | tostring) else "" end) + "|" +
+        (if .position.z then (.position.z | tostring) else "" end) + "|" +
+        (if .position.y then (.position.y | tostring) else "" end) + "|" +
+        (if .has_gate then (if .has_gate then "true" else "false" end) else "" end) + "|" +
+        (if .is_opened then (if .is_opened then "true" else "false" end) else "" end) + "|" +
+        (if .is_locked then (if .is_locked then "true" else "false" end) else "" end) + "|" +
+        (if has("has_base") then (if .has_base then "1" else "0" end) else "" end) + "|" +
+        (if has("lower_panel_built") then (if .lower_panel_built then "1" else "0" end) else "" end) + "|" +
+        (if has("upper_panel_built") then (if .upper_panel_built then "1" else "0" end) else "" end)
+    ' 2>/dev/null)
+
+    # Processar todas as linhas extraídas
+    while IFS='|' read -r coord_x coord_z coord_y has_gate is_opened is_locked has_base lower_panel_built upper_panel_built; do
+        if [[ -z "$coord_x" ]]; then
             continue
         fi
-
-        local coord_x coord_z coord_y has_gate is_opened is_locked has_base lower_panel_built upper_panel_built
-        coord_x=$(echo "$fence_data" | jq -r '.position.x')
-        coord_z=$(echo "$fence_data" | jq -r '.position.z')
-        coord_y=$(echo "$fence_data" | jq -r '.position.y')
-        has_gate=$(echo "$fence_data" | jq -r '.has_gate')
-        is_opened=$(echo "$fence_data" | jq -r '.is_opened')
-        is_locked=$(echo "$fence_data" | jq -r '.is_locked')
-        has_base=$(echo "$fence_data" | jq -r 'if has("has_base") then (if .has_base then "1" else "0" end) else "" end')
-        lower_panel_built=$(echo "$fence_data" | jq -r 'if has("lower_panel_built") then (if .lower_panel_built then "1" else "0" end) else "" end')
-        upper_panel_built=$(echo "$fence_data" | jq -r 'if has("upper_panel_built") then (if .upper_panel_built then "1" else "0" end) else "" end')
 
         local fence_id fence_name
         fence_id="Fence_${coord_x}_${coord_y}_${coord_z}"
@@ -195,7 +198,7 @@ handle_fences_positions() {
             INSERT_CUSTOM_LOG "$error_msg" "ERROR" "$ScriptName"
         fi
 
-    done <<< "$fences"
+    done <<< "$all_fences_data"
 
     if [[ ${#prev_fences[@]} -gt 0 ]]; then
         local removed_id removed_data rem_name rem_x rem_z rem_y rem_has_base rem_lower rem_upper Content

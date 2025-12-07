@@ -74,39 +74,30 @@ handle_flags_positions() {
         prev_flags["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_has_base|$prev_has_flag_base|$prev_flag_raised|$prev_flag_height"
     done < <(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" -separator '|' "$sql_query")
 
-    local flags
-    flags=$(echo "$line" | jq -c '.flag_data[]?')
+    # Extrair todos os flags de uma vez com uma única chamada jq (otimização de performance)
+    local all_flags_data
+    all_flags_data=$(echo "$line" | jq -r '
+        .flag_data[]? |
+        (if .position.x then (.position.x | tostring) else "" end) + "|" +
+        (if .position.z then (.position.z | tostring) else "" end) + "|" +
+        (if .position.y then (.position.y | tostring) else "" end) + "|" +
+        (if .orientation.x then (.orientation.x | tostring) else "" end) + "|" +
+        (if .orientation.y then (.orientation.y | tostring) else "" end) + "|" +
+        (if .orientation.z then (.orientation.z | tostring) else "" end) + "|" +
+        (if .has_base then (if .has_base then "1" else "0" end) else "" end) + "|" +
+        (if .has_flag_base then (if .has_flag_base then "1" else "0" end) else "" end) + "|" +
+        (if .flag_raised then (if .flag_raised then "1" else "0" end) else "" end) + "|" +
+        (if .flag_height then (.flag_height | tostring) else "" end)
+    ' 2>/dev/null)
 
     local processed_count
     processed_count=0
 
-    local flag_data
-    while IFS= read -r flag_data; do
-        if [[ -z "$flag_data" ]]; then
+    # Processar todas as linhas extraídas
+    while IFS='|' read -r coord_x coord_z coord_y ori_x ori_y ori_z has_base has_flag_base flag_raised flag_height; do
+        if [[ -z "$coord_x" ]]; then
             continue
         fi
-
-        local coord_x coord_z coord_y
-        coord_x=$(echo "$flag_data" | jq -r '.position.x')
-        coord_z=$(echo "$flag_data" | jq -r '.position.z')
-        coord_y=$(echo "$flag_data" | jq -r '.position.y')
-
-        local ori_x ori_y ori_z
-        ori_x=$(echo "$flag_data" | jq -r '.orientation.x')
-        ori_y=$(echo "$flag_data" | jq -r '.orientation.y')
-        ori_z=$(echo "$flag_data" | jq -r '.orientation.z')
-
-        local has_base
-        has_base=$(flag_bool_to_int "$(echo "$flag_data" | jq -r '.has_base')")
-
-        local has_flag_base
-        has_flag_base=$(flag_bool_to_int "$(echo "$flag_data" | jq -r '.has_flag_base')")
-
-        local flag_raised
-        flag_raised=$(flag_bool_to_int "$(echo "$flag_data" | jq -r '.flag_raised')")
-
-        local flag_height
-        flag_height=$(echo "$flag_data" | jq -r '.flag_height // empty')
 
         local flag_id
         flag_id="Flag_${coord_x}_${coord_z}_${coord_y}"
@@ -189,7 +180,7 @@ handle_flags_positions() {
             fi
             INSERT_CUSTOM_LOG "$error_msg" "ERROR" "$ScriptName"
         fi
-    done <<< "$flags"
+    done <<< "$all_flags_data"
 
     if [[ ${#prev_flags[@]} -gt 0 ]]; then
         local removed_id removed_data rem_name rem_x rem_z rem_y Content EscapedRemovedId

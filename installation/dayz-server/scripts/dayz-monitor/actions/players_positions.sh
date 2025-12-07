@@ -57,9 +57,6 @@ handle_players_positions() {
 
     echo ">> Recebendo posições dos jogadores"
 
-    local players
-    players=$(echo "$line" | jq -c '.players[]')
-
     # Configurar PRAGMAs antes de acessar o banco
     configure_sqlite_pragmas "$PLAYERS_BECO_C1_DB"
     
@@ -80,37 +77,33 @@ handle_players_positions() {
         base_captured_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
     fi
     
-    # Extrair todos os dados de uma vez usando jq
-    while IFS= read -r player_json; do
-        if [[ -z "$player_json" ]]; then
-            continue
-        fi
-        
-        # Extrair todos os campos de uma vez
-        local player_id coord_x coord_z coord_y health blood shock energy water is_alive is_admin stamina stamina_max items_in_hands items_count main_items
-        
-        player_id=$(echo "$player_json" | jq -r '.player_id // empty')
+    # Extrair todos os players de uma vez com uma única chamada jq (otimização de performance)
+    local all_players_data
+    all_players_data=$(echo "$line" | jq -r '
+        .players[]? |
+        (if .player_id then .player_id else "" end) + "|" +
+        (if .x then (.x | tostring) else "" end) + "|" +
+        (if .z then (.z | tostring) else "" end) + "|" +
+        (if .y then (.y | tostring) else "" end) + "|" +
+        (if .health then (.health | tostring) else "" end) + "|" +
+        (if .blood then (.blood | tostring) else "" end) + "|" +
+        (if .shock then (.shock | tostring) else "" end) + "|" +
+        (if .energy then (.energy | tostring) else "" end) + "|" +
+        (if .water then (.water | tostring) else "" end) + "|" +
+        (if .is_alive then (if .is_alive then "true" else "false" end) else "false" end) + "|" +
+        (if .is_admin then (if .is_admin then "true" else "false" end) else "false" end) + "|" +
+        (if .stamina then (.stamina | tostring) else "" end) + "|" +
+        (if .stamina_max then (.stamina_max | tostring) else "" end) + "|" +
+        (if .items_in_hands then (.items_in_hands | tostring) else "[]" end) + "|" +
+        (if .items_count then (.items_count | tostring) else "" end) + "|" +
+        (if .main_items then (.main_items | tostring) else "[]" end)
+    ' 2>/dev/null)
+
+    # Processar todas as linhas extraídas
+    while IFS='|' read -r player_id coord_x coord_z coord_y health blood shock energy water is_alive is_admin stamina stamina_max items_in_hands items_count main_items; do
         if [[ -z "$player_id" ]]; then
             continue
         fi
-        
-        current_players+=("$player_id")
-        
-        coord_x=$(echo "$player_json" | jq -r '.x // empty')
-        coord_z=$(echo "$player_json" | jq -r '.z // empty')
-        coord_y=$(echo "$player_json" | jq -r '.y // empty')
-        health=$(echo "$player_json" | jq -r '.health // empty')
-        blood=$(echo "$player_json" | jq -r '.blood // empty')
-        shock=$(echo "$player_json" | jq -r '.shock // empty')
-        energy=$(echo "$player_json" | jq -r '.energy // empty')
-        water=$(echo "$player_json" | jq -r '.water // empty')
-        is_alive=$(echo "$player_json" | jq -r '.is_alive // false')
-        is_admin=$(echo "$player_json" | jq -r '.is_admin // false')
-        stamina=$(echo "$player_json" | jq -r '.stamina // empty')
-        stamina_max=$(echo "$player_json" | jq -r '.stamina_max // empty')
-        items_in_hands=$(echo "$player_json" | jq -c '.items_in_hands // []')
-        items_count=$(echo "$player_json" | jq -r '.items_count // empty')
-        main_items=$(echo "$player_json" | jq -c '.main_items // []')
         
         # Validar campos obrigatórios antes de adicionar ao batch
         # Coordenadas devem ser números válidos (ou pelo menos não vazias)
@@ -119,12 +112,14 @@ handle_players_positions() {
             continue
         fi
         
+        current_players+=("$player_id")
+        
         # Armazenar dados completos para uso posterior (backups)
         player_data_map+=("$player_id|$coord_x|$coord_z|$coord_y|$health|$blood|$shock|$energy|$water|$is_alive|$is_admin|$stamina|$stamina_max|$items_in_hands|$items_count|$main_items")
         
         # Preparar dados para batch INSERT (formato: player_id|coord_x|coord_z|coord_y|...)
         batch_data+=("$player_id|$coord_x|$coord_z|$coord_y|$health|$blood|$shock|$energy|$water|$is_alive|$is_admin|$stamina|$stamina_max|$items_in_hands|$items_count|$main_items")
-    done <<< "$players"
+    done <<< "$all_players_data"
     
     # Batch INSERT de todas as posições
     local inserted_ids

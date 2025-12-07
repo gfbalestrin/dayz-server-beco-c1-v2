@@ -97,61 +97,54 @@ handle_watchtowers_positions() {
         prev_watchtowers["$prev_id"]="$prev_name|$prev_x|$prev_z|$prev_y|$prev_has_base|$prev_level1_base|$prev_level2_base|$prev_level3_base|$prev_level1_stairs|$prev_level2_stairs|$prev_has_roof|$prev_l1_w1_lower|$prev_l1_w1_upper|$prev_l1_w2_lower|$prev_l1_w2_upper|$prev_l1_w3_lower|$prev_l1_w3_upper|$prev_l2_w1_lower|$prev_l2_w1_upper|$prev_l2_w2_lower|$prev_l2_w2_upper|$prev_l2_w3_lower|$prev_l2_w3_upper|$prev_l3_w1_lower|$prev_l3_w1_upper|$prev_l3_w2_lower|$prev_l3_w2_upper|$prev_l3_w3_lower|$prev_l3_w3_upper"
     done < <(sqlite3 "$AppFolder/$AppStructureBecoC1DbFile" -separator '|' "$sql_query")
 
-    local watchtowers
-    watchtowers=$(echo "$line" | jq -c '.watchtower_data[]?')
+    # Extrair todos os watchtowers de uma vez com uma única chamada jq (otimização de performance)
+    local all_watchtowers_data
+    all_watchtowers_data=$(echo "$line" | jq -r '
+        .watchtower_data[]? |
+        (if .position.x then (.position.x | tostring) else "" end) + "|" +
+        (if .position.z then (.position.z | tostring) else "" end) + "|" +
+        (if .position.y then (.position.y | tostring) else "" end) + "|" +
+        (if .orientation.x then (.orientation.x | tostring) else "" end) + "|" +
+        (if .orientation.y then (.orientation.y | tostring) else "" end) + "|" +
+        (if .orientation.z then (.orientation.z | tostring) else "" end) + "|" +
+        (if .has_base then (if .has_base then "1" else "0" end) else "" end) + "|" +
+        (if .level_1_base then (if .level_1_base then "1" else "0" end) else "" end) + "|" +
+        (if .level_2_base then (if .level_2_base then "1" else "0" end) else "" end) + "|" +
+        (if .level_3_base then (if .level_3_base then "1" else "0" end) else "" end) + "|" +
+        (if .level_1_stairs then (if .level_1_stairs then "1" else "0" end) else "" end) + "|" +
+        (if .level_2_stairs then (if .level_2_stairs then "1" else "0" end) else "" end) + "|" +
+        (if .has_roof then (if .has_roof then "1" else "0" end) else "" end) + "|" +
+        (if .level_1_wall_1_lower_built then (if .level_1_wall_1_lower_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_1_wall_1_upper_built then (if .level_1_wall_1_upper_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_1_wall_2_lower_built then (if .level_1_wall_2_lower_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_1_wall_2_upper_built then (if .level_1_wall_2_upper_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_1_wall_3_lower_built then (if .level_1_wall_3_lower_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_1_wall_3_upper_built then (if .level_1_wall_3_upper_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_2_wall_1_lower_built then (if .level_2_wall_1_lower_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_2_wall_1_upper_built then (if .level_2_wall_1_upper_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_2_wall_2_lower_built then (if .level_2_wall_2_lower_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_2_wall_2_upper_built then (if .level_2_wall_2_upper_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_2_wall_3_lower_built then (if .level_2_wall_3_lower_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_2_wall_3_upper_built then (if .level_2_wall_3_upper_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_3_wall_1_lower_built then (if .level_3_wall_1_lower_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_3_wall_1_upper_built then (if .level_3_wall_1_upper_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_3_wall_2_lower_built then (if .level_3_wall_2_lower_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_3_wall_2_upper_built then (if .level_3_wall_2_upper_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_3_wall_3_lower_built then (if .level_3_wall_3_lower_built then "1" else "0" end) else "" end) + "|" +
+        (if .level_3_wall_3_upper_built then (if .level_3_wall_3_upper_built then "1" else "0" end) else "" end)
+    ' 2>/dev/null)
 
     local processed_count
     processed_count=0
 
-    local watchtower_data
-    while IFS= read -r watchtower_data; do
-        if [[ -z "$watchtower_data" ]]; then
+    # Processar todas as linhas extraídas
+    while IFS='|' read -r coord_x coord_z coord_y ori_x ori_y ori_z has_base level_1_base level_2_base level_3_base level_1_stairs level_2_stairs has_roof \
+        level_1_wall_1_lower level_1_wall_1_upper level_1_wall_2_lower level_1_wall_2_upper level_1_wall_3_lower level_1_wall_3_upper \
+        level_2_wall_1_lower level_2_wall_1_upper level_2_wall_2_lower level_2_wall_2_upper level_2_wall_3_lower level_2_wall_3_upper \
+        level_3_wall_1_lower level_3_wall_1_upper level_3_wall_2_lower level_3_wall_2_upper level_3_wall_3_lower level_3_wall_3_upper; do
+        if [[ -z "$coord_x" ]]; then
             continue
         fi
-
-        local coord_x coord_z coord_y
-        coord_x=$(echo "$watchtower_data" | jq -r '.position.x')
-        coord_z=$(echo "$watchtower_data" | jq -r '.position.z')
-        coord_y=$(echo "$watchtower_data" | jq -r '.position.y')
-
-        local ori_x ori_y ori_z
-        ori_x=$(echo "$watchtower_data" | jq -r '.orientation.x')
-        ori_y=$(echo "$watchtower_data" | jq -r '.orientation.y')
-        ori_z=$(echo "$watchtower_data" | jq -r '.orientation.z')
-
-        local has_base level_1_base level_2_base level_3_base level_1_stairs level_2_stairs has_roof
-        has_base=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.has_base')")
-        level_1_base=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_1_base')")
-        level_2_base=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_2_base')")
-        level_3_base=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_3_base')")
-        level_1_stairs=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_1_stairs')")
-        level_2_stairs=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_2_stairs')")
-        has_roof=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.has_roof')")
-
-        local level_1_wall_1_lower level_1_wall_1_upper level_1_wall_2_lower level_1_wall_2_upper
-        local level_1_wall_3_lower level_1_wall_3_upper level_2_wall_1_lower level_2_wall_1_upper
-        local level_2_wall_2_lower level_2_wall_2_upper level_2_wall_3_lower level_2_wall_3_upper
-        local level_3_wall_1_lower level_3_wall_1_upper level_3_wall_2_lower level_3_wall_2_upper
-        local level_3_wall_3_lower level_3_wall_3_upper
-
-        level_1_wall_1_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_1_wall_1_lower_built')")
-        level_1_wall_1_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_1_wall_1_upper_built')")
-        level_1_wall_2_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_1_wall_2_lower_built')")
-        level_1_wall_2_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_1_wall_2_upper_built')")
-        level_1_wall_3_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_1_wall_3_lower_built')")
-        level_1_wall_3_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_1_wall_3_upper_built')")
-        level_2_wall_1_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_2_wall_1_lower_built')")
-        level_2_wall_1_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_2_wall_1_upper_built')")
-        level_2_wall_2_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_2_wall_2_lower_built')")
-        level_2_wall_2_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_2_wall_2_upper_built')")
-        level_2_wall_3_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_2_wall_3_lower_built')")
-        level_2_wall_3_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_2_wall_3_upper_built')")
-        level_3_wall_1_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_3_wall_1_lower_built')")
-        level_3_wall_1_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_3_wall_1_upper_built')")
-        level_3_wall_2_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_3_wall_2_lower_built')")
-        level_3_wall_2_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_3_wall_2_upper_built')")
-        level_3_wall_3_lower=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_3_wall_3_lower_built')")
-        level_3_wall_3_upper=$(watchtower_bool_to_int "$(echo "$watchtower_data" | jq -r '.level_3_wall_3_upper_built')")
 
         local watchtower_id
         watchtower_id="Watchtower_${coord_x}_${coord_z}_${coord_y}"
@@ -396,7 +389,7 @@ handle_watchtowers_positions() {
             fi
             INSERT_CUSTOM_LOG "$error_msg" "ERROR" "$ScriptName"
         fi
-    done <<< "$watchtowers"
+    done <<< "$all_watchtowers_data"
 
     if [[ ${#prev_watchtowers[@]} -gt 0 ]]; then
         local removed_id removed_data rem_name rem_x rem_z rem_y Content EscapedRemovedId
