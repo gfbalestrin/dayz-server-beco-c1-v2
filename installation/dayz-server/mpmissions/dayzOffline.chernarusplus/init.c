@@ -219,7 +219,7 @@ class CustomMission: MissionServer
 			// Passar para SendPlayersPositions
 			if (!IsDeathmatchEnabled)
 			{
-				//SendPlayersPositions(players);	
+				SendPlayersPositions(players);	
 			}
 				
 
@@ -311,13 +311,13 @@ class CustomMission: MissionServer
 					if (!g_VoteMapManager.GetStatusVotingMap())
 						AppendMessage(msgFixed);
 				}
-				//CleanUpDeadEntitiesNearPlayers();
+				CleanUpDeadEntitiesNearPlayers();
 			} 
 			if (!IsDeathmatchEnabled)
 			{
 				//LogVehiclesPositionsSimple(); // Loga coordenadas dos veículos para análise de performance
-				//CleanTrackedVehicles(); // Limpa veículos destruídos do array
-				//SendVehiclesPositionsSimple(); // Envia apenas coordenadas dos veículos (update parcial)
+				CleanTrackedVehicles(); // Limpa veículos destruídos do array
+				SendVehiclesPositionsSimple(); // Envia apenas coordenadas dos veículos (update parcial)
 				//LogFencesStatusSimple(); // Loga informações simples das fences rastreadas
 				//LogWatchtowersStatusSimple(); // Loga informações simples das watchtowers rastreadas
 				//LogFlagsStatusSimple(); // Loga informações simples das flags rastreadas
@@ -345,17 +345,17 @@ class CustomMission: MissionServer
 			if (!IsDeathmatchEnabled)
 			{
 				// Limpeza de objetos destruídos/removidos dos arrays
-				//CleanTrackedFences(); // Limpa fences destruídas do array
-				//CleanTrackedWatchtowers(); // Limpa watchtowers removidas do array
-				//CleanTrackedFlags(); // Limpa flags inválidas do array
-				//CleanTrackedContainers(); // Limpa containers destruídos do array
+				CleanTrackedFences(); // Limpa fences destruídas do array
+				CleanTrackedWatchtowers(); // Limpa watchtowers removidas do array
+				CleanTrackedFlags(); // Limpa flags inválidas do array
+				CleanTrackedContainers(); // Limpa containers destruídos do array
 				
 				// Envio de status completo via ExternalAction
-			//SendFencesStatus(); // Envia status completo de todas as fences rastreadas
-			//SendWatchtowersStatus(); // Envia status completo das watchtowers rastreadas
-			//SendFlagsStatus(); // Envia status completo das flags rastreadas
-			// TEMPORARIAMENTE DESATIVADO: Update parcial de containers desativado para avaliação de performance
-			// SendContainersPositionsSimple(); // Envia posições simplificadas dos containers (sem items)
+				SendFencesStatus(); // Envia status completo de todas as fences rastreadas
+				SendWatchtowersStatus(); // Envia status completo das watchtowers rastreadas
+				SendFlagsStatus(); // Envia status completo das flags rastreadas
+				// TEMPORARIAMENTE DESATIVADO: Update parcial de containers desativado para avaliação de performance
+				// SendContainersPositionsSimple(); // Envia posições simplificadas dos containers (sem items)
 			}
 			
 		}
