@@ -1,0 +1,502 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_edit %}Editar{% else %}Criar{% endif %} Loadout {% if loadout_type == 'player' %}Player{% else %}Custom{% endif %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/loadouts.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            {% if request.path.startswith('/my-loadout') %}
+            <li class="breadcrumb-item"><a href="{{ url_for('views.my_loadout') }}">Meu Loadout</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{% if is_edit %}Editar{% else %}Criar{% endif %} Loadout</li>
+            {% else %}
+            <li class="breadcrumb-item"><a href="{{ url_for('views.loadouts') }}">Loadouts</a></li>
+            {% if loadout_type == 'player' %}
+            <li class="breadcrumb-item"><a href="{{ url_for('views.loadouts') }}#players-tab">Loadouts Players</a></li>
+            {% else %}
+            <li class="breadcrumb-item"><a href="{{ url_for('views.loadouts') }}#custom-tab">Loadouts Custom</a></li>
+            {% endif %}
+            <li class="breadcrumb-item active" aria-current="page">{% if is_edit %}Editar{% else %}Criar{% endif %} Loadout</li>
+            {% endif %}
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-layer-group me-2"></i>{% if is_edit %}Editar{% else %}Criar Novo{% endif %} Loadout {% if loadout_type == 'player' %}Player{% else %}Custom{% endif %}</h2>
+    </div>
+
+    <!-- Barra de Ações Fixa no Topo -->
+    <div class="loadout-actions-bar">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span id="loadoutChangesIndicator" class="text-warning me-2" style="display: none;">
+                        <i class="fas fa-exclamation-circle"></i> Alterações não salvas
+                    </span>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-secondary me-2" id="btnCancelLoadoutTop" onclick="handleCancelLoadout();">
+                        <i class="fas fa-times me-2"></i>Cancelar
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btnSaveCustomLoadoutTop">
+                        <i class="fas fa-save me-2"></i>Salvar Loadout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form id="customLoadoutForm" onsubmit="return false;">
+        <input type="hidden" id="loadoutType" value="{{ loadout_type if loadout_type else 'custom' }}">
+        {% if loadout_type == 'player' %}
+        <input type="hidden" id="playerLoadoutPlayerId" value="{{ player_id if player_id else '' }}">
+        <input type="hidden" id="playerLoadoutLoadoutId" value="{{ loadout_id if loadout_id else '' }}">
+        {% else %}
+        <input type="hidden" id="customLoadoutId" value="{{ loadout_id if loadout_id else '' }}">
+        {% endif %}
+        
+        <!-- Campos Básicos -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Informações Básicas</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    {% if loadout_type == 'player' %}
+                    <div class="col-md-4">
+                        <label for="playerLoadoutId" class="form-label">ID do Loadout:</label>
+                        <input type="number" class="form-control" id="playerLoadoutId" required min="1">
+                        <small class="form-text text-muted">ID interno do loadout no arquivo JSON do jogador</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="playerLoadoutName" class="form-label">Nome do Loadout:</label>
+                        <input type="text" class="form-control" id="playerLoadoutName" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="playerLoadoutActive" class="form-label">Status:</label>
+                        <select class="form-select" id="playerLoadoutActive">
+                            <option value="false">Inativo</option>
+                            <option value="true">Ativo</option>
+                        </select>
+                    </div>
+                    {% else %}
+                    <div class="col-md-6">
+                        <label for="customLoadoutName" class="form-label">Nome do Loadout:</label>
+                        <input type="text" class="form-control" id="customLoadoutName" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="customLoadoutActive" class="form-label">Status:</label>
+                        <select class="form-select" id="customLoadoutActive">
+                            <option value="false">Inativo</option>
+                            <option value="true">Ativo</option>
+                        </select>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modo Visual -->
+        <div id="visualModeContent">
+            <!-- Abas de Seleção de Itens -->
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="tab" href="#loadout-primary-weapon-tab">
+                        <i class="fas fa-crosshairs me-2"></i>Arma Primária
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#loadout-secondary-weapon-tab">
+                        <i class="fas fa-crosshairs me-2"></i>Arma Secundária
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#loadout-small-weapon-tab">
+                        <i class="fas fa-crosshairs me-2"></i>Arma Pequena
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#loadout-explosives-tab">
+                        <i class="fas fa-bomb me-2"></i>Explosivos
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#loadout-items-tab">
+                        <i class="fas fa-box me-2"></i>Itens Gerais
+                    </a>
+                </li>
+            </ul>
+            
+            <div class="tab-content">
+                <!-- Aba Arma Primária -->
+                <div id="loadout-primary-weapon-tab" class="tab-pane fade show active">
+                    <div class="card">
+                        <div class="card-body">
+                            <!-- Arma Selecionada - Movido para cima -->
+                            <div id="selectedPrimaryWeaponContainer" class="mb-4 selected-items-highlight">
+                                <h6 class="mb-3"><i class="fas fa-check-circle text-success me-2"></i>Arma Primária Selecionada:</h6>
+                                <div id="selectedPrimaryWeaponList"></div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-3">
+                                    <input type="text" id="weaponSearchLoadoutPrimary" class="form-control" placeholder="Buscar arma...">
+                                </div>
+                                <div class="col-md-2">
+                                    <select class="form-select" id="filterWeaponFeedTypeLoadoutPrimary">
+                                        <option value="">Todos Feed Types</option>
+                                        <option value="magazine">Magazine</option>
+                                        <option value="manual">Manual</option>
+                                        <option value="internal">Internal</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <select class="form-select" id="filterWeaponSizeLoadoutPrimary" readonly disabled style="background-color: #e9ecef;">
+                                        <option value="large" selected>Grandes (>12)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <select class="form-select" id="filterWeaponCaliberLoadoutPrimary">
+                                        <option value="">Todos Calibres</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="weaponsGridLoadoutPrimary" class="weapons-grid"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Aba Arma Secundária -->
+                <div id="loadout-secondary-weapon-tab" class="tab-pane fade">
+                    <div class="card">
+                        <div class="card-body">
+                            <!-- Arma Selecionada - Movido para cima -->
+                            <div id="selectedSecondaryWeaponContainer" class="mb-4 selected-items-highlight">
+                                <h6 class="mb-3"><i class="fas fa-check-circle text-success me-2"></i>Arma Secundária Selecionada:</h6>
+                                <div id="selectedSecondaryWeaponList"></div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-3">
+                                    <input type="text" id="weaponSearchLoadoutSecondary" class="form-control" placeholder="Buscar arma...">
+                                </div>
+                                <div class="col-md-2">
+                                    <select class="form-select" id="filterWeaponFeedTypeLoadoutSecondary">
+                                        <option value="">Todos Feed Types</option>
+                                        <option value="magazine">Magazine</option>
+                                        <option value="manual">Manual</option>
+                                        <option value="internal">Internal</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <select class="form-select" id="filterWeaponSizeLoadoutSecondary" readonly disabled style="background-color: #e9ecef;">
+                                        <option value="large" selected>Grandes (>12)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <select class="form-select" id="filterWeaponCaliberLoadoutSecondary">
+                                        <option value="">Todos Calibres</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="weaponsGridLoadoutSecondary" class="weapons-grid"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Aba Arma Pequena -->
+                <div id="loadout-small-weapon-tab" class="tab-pane fade">
+                    <div class="card">
+                        <div class="card-body">
+                            <!-- Arma Selecionada - Movido para cima -->
+                            <div id="selectedSmallWeaponContainer" class="mb-4 selected-items-highlight">
+                                <h6 class="mb-3"><i class="fas fa-check-circle text-success me-2"></i>Arma Pequena Selecionada:</h6>
+                                <div id="selectedSmallWeaponList"></div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-3">
+                                    <input type="text" id="weaponSearchLoadoutSmall" class="form-control" placeholder="Buscar arma...">
+                                </div>
+                                <div class="col-md-2">
+                                    <select class="form-select" id="filterWeaponFeedTypeLoadoutSmall">
+                                        <option value="">Todos Feed Types</option>
+                                        <option value="magazine">Magazine</option>
+                                        <option value="manual">Manual</option>
+                                        <option value="internal">Internal</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <select class="form-select" id="filterWeaponSizeLoadoutSmall" readonly disabled style="background-color: #e9ecef;">
+                                        <option value="small" selected>Pequenas (≤12)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <select class="form-select" id="filterWeaponCaliberLoadoutSmall">
+                                        <option value="">Todos Calibres</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="weaponsGridLoadoutSmall" class="weapons-grid"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Aba Explosivos -->
+                <div id="loadout-explosives-tab" class="tab-pane fade">
+                    <div class="card">
+                        <div class="card-body">
+                            <!-- Explosivos Selecionados - Movido para cima -->
+                            <div id="selectedExplosivesContainer" class="mb-4 selected-items-highlight">
+                                <h6 class="mb-3"><i class="fas fa-check-circle text-success me-2"></i>Explosivos Selecionados:</h6>
+                                <div id="selectedExplosivesList"></div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <input type="text" id="explosiveSearchLoadout" class="form-control" placeholder="Buscar explosivo...">
+                                </div>
+                            </div>
+                            <div id="explosivesGridLoadout" class="weapons-grid"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Aba Itens Gerais -->
+                <div id="loadout-items-tab" class="tab-pane fade">
+                    <div class="card">
+                        <div class="card-body">
+                            <!-- Items Selecionados - Movido para cima -->
+                            <div id="selectedItemsContainer" class="mb-4 selected-items-highlight">
+                                <h6 class="mb-3"><i class="fas fa-check-circle text-success me-2"></i>Items Selecionados:</h6>
+                                <div id="selectedItemsList" class="items-tree"></div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <input type="text" id="itemSearchLoadout" class="form-control" placeholder="Buscar item...">
+                                </div>
+                                <div class="col-md-3">
+                                    <select class="form-select" id="filterItemTypeLoadout">
+                                        <option value="">Todos os Tipos</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <select class="form-select" id="filterItemLocationLoadout">
+                                        <option value="">Todas Localizações</option>
+                                        <option value="head">Cabeça</option>
+                                        <option value="face">Rosto</option>
+                                        <option value="torso">Torso</option>
+                                        <option value="legs">Pernas</option>
+                                        <option value="foot">Pés</option>
+                                        <option value="hands">Mãos</option>
+                                        <option value="back">Costas</option>
+                                        <option value="waist">Cintura</option>
+                                        <option value="arm">Braço</option>
+                                        <option value="none">Sem Localização</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <select class="form-select" id="filterItemStorageLoadout">
+                                        <option value="">Todos</option>
+                                        <option value="with">Com Storage</option>
+                                        <option value="without">Sem Storage</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <!-- Grids de Itens Separados por Tipo (Gerados dinamicamente) -->
+                            <div id="itemsGridsByType">
+                                <!-- Grids serão gerados dinamicamente via JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Preview JSON (Collapsible) -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#jsonPreviewCollapse">
+                        <i class="fas fa-code me-1"></i>Visualizar JSON Montado
+                    </button>
+                </div>
+                <div class="collapse mt-2" id="jsonPreviewCollapse">
+                    <div class="card-body">
+                        <textarea class="form-control font-monospace" id="jsonPreview" rows="15" readonly></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Botões de Ação (no final da página) -->
+        <div class="mt-4 mb-4">
+            <button type="button" class="btn btn-secondary" id="btnCancelLoadoutBottom" onclick="handleCancelLoadout();">
+                <i class="fas fa-times me-2"></i>Cancelar
+            </button>
+            <button type="button" class="btn btn-primary" id="btnSaveCustomLoadout">
+                <i class="fas fa-save me-2"></i>Salvar Loadout
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Modal de Configuração de Arma no Loadout -->
+<div class="modal fade" id="weaponConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Configurar Arma: <span id="weaponConfigName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="weaponConfigId">
+                <input type="hidden" id="weaponConfigType"> <!-- primary/secondary/small -->
+                
+                <!-- Magazine -->
+                <div class="mb-3">
+                    <label class="form-label">Magazine:</label>
+                    <div id="magazinesGridConfig" class="relationship-grid" style="max-height: 300px; overflow-y: auto;"></div>
+                    <div id="selectedMagazineConfig" class="mt-2">
+                        <h6>Magazine Selecionado:</h6>
+                        <div id="selectedMagazineListConfig"></div>
+                    </div>
+                    <small class="form-text text-muted">Selecione apenas UM magazine compatível com esta arma</small>
+                </div>
+                
+                <!-- Ammunition -->
+                <div class="mb-3">
+                    <label class="form-label">Ammunition:</label>
+                    <div id="ammunitionsGridConfig" class="relationship-grid" style="max-height: 300px; overflow-y: auto;"></div>
+                    <div id="selectedAmmunitionConfig" class="mt-2">
+                        <h6>Ammunition Selecionada:</h6>
+                        <div id="selectedAmmunitionListConfig"></div>
+                    </div>
+                    <small class="form-text text-muted">Selecione apenas UMA munição compatível com esta arma</small>
+                </div>
+                
+                <!-- Attachments -->
+                <div class="mb-3">
+                    <label class="form-label">Attachments:</label>
+                    <div class="mb-2">
+                        <input type="text" class="form-control" id="attachmentSearchConfig" placeholder="Buscar attachment...">
+                    </div>
+                    <div class="mb-2">
+                        <select class="form-select" id="filterAttachmentTypeConfig">
+                            <option value="">Todos os Tipos</option>
+                            <option value="buttstock">Buttstock</option>
+                            <option value="compensator">Compensator</option>
+                            <option value="flashlight">Flashlight</option>
+                            <option value="ghillie">Ghillie</option>
+                            <option value="scope">Scope</option>
+                            <option value="handguard">Handguard</option>
+                            <option value="suppressor">Suppressor</option>
+                        </select>
+                    </div>
+                    <div id="attachmentsGridConfig" class="relationship-grid" style="max-height: 300px; overflow-y: auto;"></div>
+                    <div id="selectedAttachmentsConfig" class="mt-2">
+                        <h6>Attachments Selecionados:</h6>
+                        <div id="selectedAttachmentsListConfig"></div>
+                    </div>
+                    <small class="form-text text-muted">Selecione apenas UM attachment por tipo (scope, suppressor, etc)</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveWeaponConfig">Salvar Configuração</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Subitems -->
+<div class="modal fade" id="subitemsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    Configurar Subitems: <span id="subitemsParentName"></span>
+                </h5>
+                <button type="button" class="btn btn-secondary me-2" id="btnBackSubitemsModal" onclick="navigateBackInSubitemsModal(); return false;" style="display: none;">
+                    <i class="fas fa-arrow-left me-2"></i>Voltar
+                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="subitemsItemIndex">
+                
+                <!-- Breadcrumb de navegação hierárquica -->
+                <div id="subitemsBreadcrumb" class="mb-3"></div>
+                
+                <!-- Informações do item pai -->
+                <div class="alert alert-info mb-3">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong id="subitemsParentInfo"></strong>
+                </div>
+                
+                <!-- Filtros -->
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="subitemSearchInput" placeholder="Buscar subitem...">
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="filterSubitemType">
+                            <option value="">Todos os Tipos</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="filterSubitemLocation">
+                            <option value="">Todas Localizações</option>
+                            <option value="head">Cabeça</option>
+                            <option value="face">Rosto</option>
+                            <option value="torso">Torso</option>
+                            <option value="legs">Pernas</option>
+                            <option value="foot">Pés</option>
+                            <option value="hands">Mãos</option>
+                            <option value="back">Costas</option>
+                            <option value="waist">Cintura</option>
+                            <option value="arm">Braço</option>
+                            <option value="none">Sem Localização</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select" id="filterSubitemStorage">
+                            <option value="">Todos</option>
+                            <option value="with">Com Storage</option>
+                            <option value="without">Sem Storage</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Subitems já selecionados -->
+                <div id="selectedSubitemsContainer" class="mb-3">
+                    <h6 class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Subitems Selecionados:</h6>
+                    <div id="selectedSubitemsList" class="items-tree"></div>
+                </div>
+                
+                <!-- Grid de subitems compatíveis -->
+                <div class="mb-3">
+                    <h6 class="mb-2"><i class="fas fa-box me-2"></i>Subitems Disponíveis:</h6>
+                    <div id="subitemsGrid" class="weapons-grid" style="max-height: 400px; overflow-y: auto;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveSubitems">Salvar Subitems</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/loadouts.js') }}"></script>
+{% endblock %}
+

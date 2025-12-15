@@ -80,7 +80,16 @@
             "MessageId": "1111111111111111111",
             "BotToken": "abcdefghijklmnopqrstuvwxyz1234567890"
         }
-    },   
+    },
+    "RabbitMQ": {
+        "Host": "monitoring-server-ip",
+        "Port": 5672,
+        "Username": "dayz_producer",
+        "Password": "secure_password",
+        "VHost": "dayz",
+        "Exchange": "dayz.events",
+        "Enabled": true
+    },
     "Steam": {
         "Account": "contasteam"        
     }    

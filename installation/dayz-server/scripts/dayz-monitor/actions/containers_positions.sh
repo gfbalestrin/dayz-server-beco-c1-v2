@@ -53,10 +53,8 @@ handle_containers_positions() {
         container_count_check=$(echo "$line" | jq '.container_data | length // 0' 2>/dev/null || echo "0")
     fi
 
-    declare -A prev_containers=()
-
-    # Configurar PRAGMAs antes de acessar o banco
-    configure_sqlite_pragmas "$AppFolder/$AppContainerBecoC1DbFile"
+    # Toda lógica SQLite foi movida para o consumer no servidor de monitoramento
+    # Aqui apenas publicamos o JSON original no RabbitMQ
 
     # Verificar se coluna IsDestroyed existe
     local has_is_destroyed
@@ -709,53 +707,18 @@ EOF
     fi
     INSERT_CUSTOM_LOG "Etapa [parsing_json_coleta_dados] executada em ${parsing_elapsed_ms}ms (containers: $container_count)" "INFO" "$ScriptName"
     
-    # Batch INSERT/UPDATE de todos os containers
-    local inserted_ids
-    local batch_insert_result
-    if [[ ${#batch_containers_data[@]} -gt 0 ]]; then
-        local containers_insert_start_time
-        containers_insert_start_time=$(date +%s.%N 2>/dev/null || date +%s)
-        
-        # Usar função apropriada baseado no tipo de update
-        local batch_stderr
-        batch_stderr=$(mktemp)
-        if [[ "$is_partial_update" == "true" ]]; then
-            UPDATE_CONTAINERS_POSITIONS_PARTIAL "$current_timestamp" "${batch_containers_data[@]}" 2>"$batch_stderr"
-            batch_insert_result=$?
-        else
-            inserted_ids=$(INSERT_CONTAINERS_POSITIONS_BATCH "$current_timestamp" "${batch_containers_data[@]}" 2>"$batch_stderr")
-            batch_insert_result=$?
-        fi
-        local batch_error
-        batch_error=$(cat "$batch_stderr" 2>/dev/null)
-        rm -f "$batch_stderr"
-        
-        if [[ $batch_insert_result -ne 0 ]]; then
-            INSERT_CUSTOM_LOG "INSERT_CONTAINERS_POSITIONS_BATCH retornou erro: $batch_insert_result, stderr: ${batch_error:0:500}" "ERROR" "$ScriptName"
-        fi
-        
-        local containers_insert_end_time
-        containers_insert_end_time=$(date +%s.%N 2>/dev/null || date +%s)
-        local containers_insert_elapsed_ms=0
-        if [[ -n "$containers_insert_start_time" ]] && [[ -n "$containers_insert_end_time" ]]; then
-            if command -v awk >/dev/null 2>&1; then
-                containers_insert_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($containers_insert_end_time - $containers_insert_start_time) * 1000}" 2>/dev/null || echo "0")
-            else
-                local containers_insert_elapsed_seconds
-                containers_insert_elapsed_seconds=$(echo "$containers_insert_end_time - $containers_insert_start_time" | bc -l 2>/dev/null || echo "0")
-                containers_insert_elapsed_ms=$(echo "$containers_insert_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
-            fi
-        fi
-        if [[ "$is_partial_update" == "true" ]]; then
-            INSERT_CUSTOM_LOG "Etapa [update_parcial_containers] executada em ${containers_insert_elapsed_ms}ms (containers: ${#batch_containers_data[@]})" "INFO" "$ScriptName"
-        else
-            INSERT_CUSTOM_LOG "Etapa [batch_insert_containers] executada em ${containers_insert_elapsed_ms}ms (containers: ${#batch_containers_data[@]})" "INFO" "$ScriptName"
-        fi
-        if [[ $batch_insert_result -ne 0 ]]; then
-            INSERT_CUSTOM_LOG "Erro: não foi possível inserir containers em batch (código: $batch_insert_result)" "ERROR" "$ScriptName"
-        else
-            # Adicionar containers inseridos ao contador (não sobrescrever, pois processed_count já inclui UPDATEs)
+    # Publicar dados no RabbitMQ (toda lógica SQLite será feita no consumer)
+    if [[ -n "$line" ]]; then
+        local rabbitmq_payload
+        rabbitmq_payload=$(echo "$line" | jq -c . 2>/dev/null)
+        if [[ -n "$rabbitmq_payload" ]]; then
+            PUBLISH_TO_RABBITMQ "data.containers.positions" "$rabbitmq_payload"
             processed_count=$((processed_count + ${#batch_containers_data[@]}))
+            INSERT_CUSTOM_LOG "Dados de containers publicados no RabbitMQ (containers: ${#batch_containers_data[@]})" "INFO" "$ScriptName"
+        fi
+    fi
+    
+    if [[ ${#batch_containers_data[@]} -gt 0 ]]; then
             
             # Criar mapeamento ContainerId -> ContainerTrackingId
             declare -A container_tracking_map=()
@@ -803,111 +766,11 @@ EOF
                     collection_elapsed_ms=$(echo "$collection_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
                 fi
             fi
-            # Processar todos os items em um único batch INSERT
-            # Se for update parcial, pular processamento de items
-            if [[ "$is_partial_update" == "true" ]]; then
-                INSERT_CUSTOM_LOG "Update parcial: items não processados (preservados do último registro completo)" "INFO" "$ScriptName"
-            elif [[ ${#all_items_batch[@]} -gt 0 ]]; then
-                local items_insert_start_time
-                items_insert_start_time=$(date +%s.%N 2>/dev/null || date +%s)
-                
-                local inserted_items_count
-                inserted_items_count=$(INSERT_ALL_CONTAINERS_ITEMS_BATCH "$current_timestamp" "${all_items_batch[@]}" 2>/dev/null)
-                local items_insert_result=$?
-                
-                local items_insert_end_time
-                items_insert_end_time=$(date +%s.%N 2>/dev/null || date +%s)
-                local items_insert_elapsed_ms=0
-                if [[ -n "$items_insert_start_time" ]] && [[ -n "$items_insert_end_time" ]]; then
-                    if command -v awk >/dev/null 2>&1; then
-                        items_insert_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($items_insert_end_time - $items_insert_start_time) * 1000}" 2>/dev/null || echo "0")
-                    else
-                        local items_insert_elapsed_seconds
-                        items_insert_elapsed_seconds=$(echo "$items_insert_end_time - $items_insert_start_time" | bc -l 2>/dev/null || echo "0")
-                        items_insert_elapsed_ms=$(echo "$items_insert_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
-                    fi
-                fi
-                INSERT_CUSTOM_LOG "Etapa [batch_insert_items] executada em ${items_insert_elapsed_ms}ms (items: ${#all_items_batch[@]})" "INFO" "$ScriptName"
-                if [[ $items_insert_result -ne 0 ]]; then
-                    INSERT_CUSTOM_LOG "Erro ao inserir items de containers em batch" "ERROR" "$ScriptName"
-                fi
-            fi
+            # Processamento de items será feito no consumer
         fi
     fi
 
-    if [[ ${#prev_containers[@]} -gt 0 ]]; then
-        local removed_id removed_data rem_name rem_x rem_z rem_y rem_items Content
-        for removed_id in "${!prev_containers[@]}"; do
-            removed_data="${prev_containers[$removed_id]}"
-            IFS='|' read -r rem_name rem_x rem_z rem_y rem_items <<< "$removed_data"
-            local rem_x_norm rem_z_norm rem_y_norm rem_x_log rem_z_log rem_y_log
-            rem_x_norm=$(normalize_coordinate "$rem_x")
-            rem_z_norm=$(normalize_coordinate "$rem_z")
-            rem_y_norm=$(normalize_coordinate "$rem_y")
-
-            rem_x_log="$rem_x"
-            rem_z_log="$rem_z"
-            rem_y_log="$rem_y"
-
-            if [[ -n "$rem_x_norm" ]]; then
-                rem_x_log="$rem_x_norm"
-            fi
-            if [[ -n "$rem_z_norm" ]]; then
-                rem_z_log="$rem_z_norm"
-            fi
-            if [[ -n "$rem_y_norm" ]]; then
-                rem_y_log="$rem_y_norm"
-            fi
-            local rem_item_count rem_items_summary
-            rem_item_count=0
-            rem_items_summary=""
-            if [[ -n "$rem_items" ]]; then
-                declare -A rem_items_map
-                IFS=',' read -ra rem_items_array <<< "$rem_items"
-                for item_pair in "${rem_items_array[@]}"; do
-                    if [[ -n "$item_pair" ]]; then
-                        local item_type_rem item_health_rem
-                        IFS=':' read -r item_type_rem item_health_rem <<< "$item_pair"
-                        if [[ -n "$item_type_rem" ]]; then
-                            rem_item_count=$((rem_item_count + 1))
-                            if [[ -z "${rem_items_map[$item_type_rem]}" ]]; then
-                                rem_items_map["$item_type_rem"]=1
-                            else
-                                rem_items_map["$item_type_rem"]=$((${rem_items_map[$item_type_rem]} + 1))
-                            fi
-                        fi
-                    fi
-                done
-                for item_type_key in "${!rem_items_map[@]}"; do
-                    if [[ -n "$rem_items_summary" ]]; then
-                        rem_items_summary+=", "
-                    fi
-                    rem_items_summary+="$item_type_key(${rem_items_map[$item_type_key]})"
-                done
-            fi
-            
-            # Não logar containers removidos individualmente para não poluir logs
-            # Apenas marcar como destruído no banco
-            
-            # Marcar todos os registros do container como destruído (garantir que não apareça no mapa)
-            local update_stderr
-            update_stderr=$(mktemp)
-            sqlite3 "$AppFolder/$AppContainerBecoC1DbFile" <<EOF 2>"$update_stderr"
-UPDATE containers_tracking
-SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
-WHERE ContainerId = '$removed_id'
-AND (IsDestroyed = 0 OR IsDestroyed IS NULL);
-EOF
-            local update_error
-            update_error=$(cat "$update_stderr" 2>/dev/null)
-            rm -f "$update_stderr"
-            if [[ -n "$update_error" ]] && ! echo "$update_error" | grep -q "database is locked"; then
-                INSERT_CUSTOM_LOG "SQLite error (marcar container destruído): $update_error" "ERROR" "$ScriptName"
-            fi
-            
-            #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
-        done
-    fi
+    # Detecção de containers removidos será feita no consumer
 
     INSERT_CUSTOM_LOG "Total de $processed_count containers rastreados" "INFO" "$ScriptName"
 }

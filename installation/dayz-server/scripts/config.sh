@@ -129,131 +129,299 @@ configure_sqlite_pragmas() {
 INSERT_ADM_LOG() {
     local message="$1"
     local level="${2:-INFO}"
-    local max_retries=5
-    local retry_delay=0.2
-    local attempt=1
 
     if [[ -z "$message" ]]; then
         echo "Error: Log message is required."
         return 1
     fi
 
-    local escaped_message
-    local escaped_level
-
-    # Escapar aspas simples
-    escaped_message=$(echo "$message" | sed "s/'/''/g")
-    escaped_level=$(echo "$level" | sed "s/'/''/g")
-
-    while (( attempt <= max_retries )); do
-        sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
-INSERT INTO logs_adm (Message, LogLevel, TimeStamp)
-VALUES (
-    '$escaped_message',
-    '$escaped_level',
-    datetime('now', 'localtime')
-);
-EOF
-
-        if [[ $? -eq 0 ]]; then
-            return 0
-        else
-            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
-            sleep "$retry_delay"
-            attempt=$((attempt + 1))
-        fi
-    done
-
-    echo "Failed to insert log after $max_retries attempts."
-    return 1
+    # Publicar no RabbitMQ (não bloqueia, executa em background)
+    local rabbitmq_payload
+    rabbitmq_payload=$(jq -n \
+        --arg message "$message" \
+        --arg level "$level" \
+        '{message: $message, level: $level}' 2>/dev/null)
+    
+    if [[ -n "$rabbitmq_payload" ]]; then
+        PUBLISH_TO_RABBITMQ "logs.adm" "$rabbitmq_payload"
+        return 0
+    else
+        echo "Failed to create RabbitMQ payload."
+        return 1
+    fi
 }
 INSERT_RPT_LOG() {
     local message="$1"
     local level="${2:-INFO}"
-    local max_retries=5
-    local retry_delay=0.2
-    local attempt=1
 
     if [[ -z "$message" ]]; then
         echo "Error: Log message is required."
         return 1
     fi
 
-    local escaped_message
-    local escaped_level
-
-    # Escapar aspas simples
-    escaped_message=$(echo "$message" | sed "s/'/''/g")
-    escaped_level=$(echo "$level" | sed "s/'/''/g")
-
-    while (( attempt <= max_retries )); do
-        sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
-INSERT INTO logs_rpt (Message, LogLevel, TimeStamp)
-VALUES (
-    '$escaped_message',
-    '$escaped_level',
-    datetime('now', 'localtime')
-);
-EOF
-
-        if [[ $? -eq 0 ]]; then
-            return 0
-        else
-            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
-            sleep "$retry_delay"
-            attempt=$((attempt + 1))
-        fi
-    done
-
-    echo "Failed to insert log after $max_retries attempts."
-    return 1
+    # Publicar no RabbitMQ (não bloqueia, executa em background)
+    local rabbitmq_payload
+    rabbitmq_payload=$(jq -n \
+        --arg message "$message" \
+        --arg level "$level" \
+        '{message: $message, level: $level}' 2>/dev/null)
+    
+    if [[ -n "$rabbitmq_payload" ]]; then
+        PUBLISH_TO_RABBITMQ "logs.rpt" "$rabbitmq_payload"
+        return 0
+    else
+        echo "Failed to create RabbitMQ payload."
+        return 1
+    fi
 }
+
+PUBLISH_TO_RABBITMQ() {
+    local queue="$1"
+    local message="$2"
+    local verbose="${3:-0}"  # Terceiro parâmetro opcional para modo verbose
+    
+    if [[ -z "$queue" || -z "$message" ]]; then
+        return 1
+    fi
+    
+    # Caminho do script producer
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local producer_script="$script_dir/rabbitmq_producer.py"
+    
+    # Verificar se script existe
+    if [[ ! -f "$producer_script" ]]; then
+        echo "ERRO: Script rabbitmq_producer.py não encontrado em: $producer_script" >&2
+        return 1
+    fi
+    
+    # Verificar e usar venv se existir (ou criar se necessário)
+    local venv_dir="$script_dir/venv"
+    local python_cmd="python3"
+    
+    # Se venv existe, usar Python do venv
+    if [[ -d "$venv_dir" && -f "$venv_dir/bin/python3" ]]; then
+        python_cmd="$venv_dir/bin/python3"
+    elif [[ -d "$script_dir" ]]; then
+        # Tentar criar venv se não existir (em background, não bloqueia)
+        # O script Python criará o venv se necessário
+        python_cmd="python3"
+    fi
+    
+    # Escapar mensagem para JSON (básico)
+    local json_message
+    json_message=$(echo "$message" | jq -Rs . 2>/dev/null || echo "\"$message\"")
+    
+    # Criar payload JSON completo
+    local payload
+    payload=$(jq -n \
+        --arg queue "$queue" \
+        --argjson message "$json_message" \
+        --arg timestamp "$(date '+%Y-%m-%d %H:%M:%S')" \
+        '{queue: $queue, message: $message, timestamp: $timestamp}' 2>/dev/null)
+    
+    if [[ -z "$payload" ]]; then
+        # Fallback se jq falhar
+        payload="{\"queue\":\"$queue\",\"message\":$json_message,\"timestamp\":\"$(date '+%Y-%m-%d %H:%M:%S')\"}"
+    fi
+    
+    # Criar diretório de logs se não existir
+    local log_dir="${DayzServerFolder:-/tmp}/profiles/"
+    mkdir -p "$log_dir"
+    local error_log="${log_dir}/rabbitmq_producer_errors.log"
+    
+    # Sempre usar modo verbose para capturar erros detalhados
+    # Os erros serão logados no arquivo de log mesmo sem verbose=1
+    # Usar printf com %q para escapar o payload corretamente
+    local error_output
+    local exit_code=0
+    
+    # Sempre capturar stderr para logar detalhes
+    # Usar printf %q para escapar caracteres especiais do JSON
+    local escaped_payload
+    escaped_payload=$(printf '%q' "$payload")
+    
+    error_output=$(timeout 10 bash -c "RABBITMQ_VERBOSE=1 $python_cmd \"$producer_script\" \"$queue\" $escaped_payload" 2>&1)
+    exit_code=$?
+    
+    # Se houver erro, sempre logar detalhes no arquivo de log
+    if [[ $exit_code -ne 0 ]]; then
+        {
+            echo "$(date '+%Y-%m-%d %H:%M:%S') - ERRO: Falha ao publicar no RabbitMQ"
+            echo "  Queue: $queue"
+            echo "  Exit code: $exit_code"
+            if [[ -n "$error_output" ]]; then
+                echo "  Detalhes do erro:"
+                echo "$error_output" | sed 's/^/    /'
+            fi
+            echo "---"
+        } >>"$error_log"
+        
+        # Se verbose, também mostrar no stderr
+        if [[ "$verbose" == "1" ]]; then
+            echo "ERRO: Falha ao publicar no RabbitMQ (queue: $queue, exit code: $exit_code)" >&2
+            if [[ -n "$error_output" ]]; then
+                echo "Detalhes: $error_output" >&2
+            fi
+        fi
+    fi
+    
+    # Verificar se foi timeout ou erro real
+    if [[ $exit_code -eq 124 ]]; then
+        # Timeout
+        if [[ "$verbose" == "1" ]]; then
+            echo "ERRO: Timeout ao publicar no RabbitMQ (mais de 10 segundos)" >&2
+        else
+            echo "$(date '+%Y-%m-%d %H:%M:%S') - ERRO: Timeout ao publicar no RabbitMQ (queue: $queue)" >>"$error_log"
+        fi
+        return 1
+    elif [[ $exit_code -ne 0 ]]; then
+        # Erro na publicação
+        if [[ "$verbose" == "1" ]]; then
+            echo "ERRO: Falha ao publicar no RabbitMQ (exit code: $exit_code)" >&2
+            if [[ -n "$error_output" ]]; then
+                echo "Detalhes: $error_output" >&2
+            fi
+        fi
+        return 1
+    fi
+    
+    return 0
+}
+
 INSERT_CUSTOM_LOG() {
     local message="$1"
     local level="${2:-INFO}"
     local source="${3:-Script}"
-    local max_retries=5
-    local retry_delay=0.2
-    local attempt=1
 
     if [[ -z "$message" ]]; then
         echo "Error: Log message is required."
         return 1
     fi
 
-    local escaped_message
-    local escaped_level
-    local escaped_source
+    echo "$message"
 
-    # Escapar aspas simples
-    escaped_message=$(echo "$message" | sed "s/'/''/g")
-    escaped_level=$(echo "$level" | sed "s/'/''/g")
-    escaped_source=$(echo "$source" | sed "s/'/''/g")
+    # Publicar no RabbitMQ (não bloqueia, executa em background)
+    local rabbitmq_payload
+    rabbitmq_payload=$(jq -n \
+        --arg message "$message" \
+        --arg level "$level" \
+        --arg source "$source" \
+        '{message: $message, level: $level, source: $source}' 2>/dev/null)
+    
+    if [[ -n "$rabbitmq_payload" ]]; then
+        PUBLISH_TO_RABBITMQ "logs.custom" "$rabbitmq_payload"
+        return 0
+    else
+        echo "Failed to create RabbitMQ payload."
+        return 1
+    fi
+}
 
-    echo $escaped_message
+# Funções de publicação RabbitMQ para posições (substituem INSERT_*_BATCH)
 
-    while (( attempt <= max_retries )); do
-        sqlite3 "$AppFolder/$AppServerBecoC1LogsDbFile" <<EOF
-INSERT INTO logs_custom (Message, LogLevel, Source, TimeStamp)
-VALUES (
-    '$escaped_message',
-    '$escaped_level',
-    '$escaped_source',
-    datetime('now', 'localtime')
-);
-EOF
+PUBLISH_PLAYERS_POSITIONS() {
+    local timestamp="$1"
+    shift
+    local players_data=("$@")
+    
+    if [[ -z "$timestamp" || ${#players_data[@]} -eq 0 ]]; then
+        return 1
+    fi
+    
+    # Criar payload JSON com todos os dados
+    local payload
+    payload=$(jq -n \
+        --arg action "players_positions" \
+        --arg timestamp "$timestamp" \
+        --argjson players "$(printf '%s\n' "${players_data[@]}" | jq -R . | jq -s .)" \
+        '{action: $action, timestamp: $timestamp, players: $players}' 2>/dev/null)
+    
+    if [[ -n "$payload" ]]; then
+        PUBLISH_TO_RABBITMQ "data.players.positions" "$payload"
+        return 0
+    else
+        return 1
+    fi
+}
 
-        if [[ $? -eq 0 ]]; then
-            return 0
-        else
-            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
-            sleep "$retry_delay"
-            attempt=$((attempt + 1))
-        fi
-    done
+PUBLISH_VEHICLES_POSITIONS() {
+    local timestamp="$1"
+    shift
+    local vehicles_data=("$@")
+    
+    if [[ -z "$timestamp" || ${#vehicles_data[@]} -eq 0 ]]; then
+        return 1
+    fi
+    
+    # Criar payload JSON com todos os dados
+    local payload
+    payload=$(jq -n \
+        --arg action "vehicles_positions" \
+        --arg timestamp "$timestamp" \
+        --argjson vehicles "$(printf '%s\n' "${vehicles_data[@]}" | jq -R . | jq -s .)" \
+        '{action: $action, timestamp: $timestamp, vehicles: $vehicles}' 2>/dev/null)
+    
+    if [[ -n "$payload" ]]; then
+        PUBLISH_TO_RABBITMQ "data.vehicles.positions" "$payload"
+        return 0
+    else
+        return 1
+    fi
+}
 
-    echo "Failed to insert log after $max_retries attempts."
-    return 1
+PUBLISH_CONTAINERS_POSITIONS() {
+    local timestamp="$1"
+    local update_type="${2:-full}"
+    shift 2
+    local containers_data=("$@")
+    
+    if [[ -z "$timestamp" || ${#containers_data[@]} -eq 0 ]]; then
+        return 1
+    fi
+    
+    # Criar payload JSON com todos os dados
+    local payload
+    payload=$(jq -n \
+        --arg action "containers_positions" \
+        --arg timestamp "$timestamp" \
+        --arg update_type "$update_type" \
+        --argjson containers "$(printf '%s\n' "${containers_data[@]}" | jq -R . | jq -s .)" \
+        '{action: $action, timestamp: $timestamp, update_type: $update_type, containers: $containers}' 2>/dev/null)
+    
+    if [[ -n "$payload" ]]; then
+        PUBLISH_TO_RABBITMQ "data.containers.positions" "$payload"
+        return 0
+    else
+        return 1
+    fi
+}
+
+PUBLISH_STRUCTURES_POSITIONS() {
+    local timestamp="$1"
+    local structure_type="$2"  # fences, watchtowers, flags
+    shift 2
+    local structures_data=("$@")
+    
+    if [[ -z "$timestamp" || -z "$structure_type" || ${#structures_data[@]} -eq 0 ]]; then
+        return 1
+    fi
+    
+    # Criar payload JSON com todos os dados
+    local payload
+    payload=$(jq -n \
+        --arg action "structures_positions" \
+        --arg timestamp "$timestamp" \
+        --arg structure_type "$structure_type" \
+        --argjson structures "$(printf '%s\n' "${structures_data[@]}" | jq -R . | jq -s .)" \
+        '{action: $action, timestamp: $timestamp, structure_type: $structure_type, structures: $structures}' 2>/dev/null)
+    
+    if [[ -n "$payload" ]]; then
+        PUBLISH_TO_RABBITMQ "data.structures.positions" "$payload"
+        return 0
+    else
+        return 1
+    fi
 }
 
 INSERT_KILLFEED() {
@@ -264,48 +432,26 @@ INSERT_KILLFEED() {
     local Data="$5"
     local PosKiller="$6"
     local PosKilled="$7"
-    local max_retries=5
-    local retry_delay=0.2
-    local attempt=1
 
-    local escaped_message
-    local escaped_level
-    local escaped_source
-
-    # Escapar aspas simples
-    PlayerIDKiller=$(echo "$PlayerIDKiller" | sed "s/'/''/g")
-    PlayerIDKilled=$(echo "$PlayerIDKilled" | sed "s/'/''/g")
-    Weapon=$(echo "$Weapon" | sed "s/'/''/g")
-    DistanceMeter=$(echo "$DistanceMeter" | sed "s/'/''/g")
-    Data=$(echo "$Data" | sed "s/'/''/g")
-    PosKiller=$(echo "$PosKiller" | sed "s/'/''/g")
-    PosKilled=$(echo "$PosKilled" | sed "s/'/''/g")
-
-    while (( attempt <= max_retries )); do
-        sqlite3 "$AppFolder/$AppPlayerBecoC1DbFile" <<EOF
-INSERT INTO players_killfeed (PlayerIDKiller, PlayerIDKilled, Weapon, DistanceMeter, Data, PosKiller, PosKilled)
-VALUES (
-    '$PlayerIDKiller',
-    '$PlayerIDKilled',
-    '$Weapon',
-    '$DistanceMeter',
-    '$Data',
-    '$PosKiller',
-    '$PosKilled'
-);
-EOF
-
-        if [[ $? -eq 0 ]]; then
-            return 0
-        else
-            echo "Attempt $attempt failed. Retrying in $retry_delay seconds..."
-            sleep "$retry_delay"
-            attempt=$((attempt + 1))
-        fi
-    done
-
-    echo "Failed to insert log after $max_retries attempts."
-    return 1
+    # Publicar no RabbitMQ
+    local rabbitmq_payload
+    rabbitmq_payload=$(jq -n \
+        --arg player_id_killer "$PlayerIDKiller" \
+        --arg player_id_killed "$PlayerIDKilled" \
+        --arg weapon "$Weapon" \
+        --arg distance_meter "$DistanceMeter" \
+        --arg data "$Data" \
+        --arg pos_killer "$PosKiller" \
+        --arg pos_killed "$PosKilled" \
+        '{player_id_killer: $player_id_killer, player_id_killed: $player_id_killed, weapon: $weapon, distance_meter: $distance_meter, data: $data, pos_killer: $pos_killer, pos_killed: $pos_killed}' 2>/dev/null)
+    
+    if [[ -n "$rabbitmq_payload" ]]; then
+        PUBLISH_TO_RABBITMQ "events.killfeed" "$rabbitmq_payload"
+        return 0
+    else
+        echo "Failed to create RabbitMQ payload for killfeed."
+        return 1
+    fi
 }
 
 INSERT_PLAYER_DAMAGE() {

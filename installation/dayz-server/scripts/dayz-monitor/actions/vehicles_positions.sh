@@ -21,14 +21,8 @@ handle_vehicles_positions() {
         INSERT_CUSTOM_LOG "Update parcial detectado: apenas coordenadas serão atualizadas" "INFO" "$ScriptName"
     fi
 
-    declare -A prev_vehicles=()
-
-    # Medir tempo da query inicial
-    local query_start_time
-    query_start_time=$(date +%s.%N 2>/dev/null || date +%s)
-
-    # Configurar PRAGMAs antes de acessar o banco
-    configure_sqlite_pragmas "$AppFolder/$AppVehicleBecoC1DbFile"
+    # Toda lógica SQLite foi movida para o consumer no servidor de monitoramento
+    # Aqui apenas publicamos o JSON original no RabbitMQ
 
     # Garantir que índice composto otimizado existe (criação automática se não existir)
     # Nota: SQLite não suporta DESC na definição do índice, mas ORDER BY DESC na query ainda usa o índice eficientemente
@@ -597,52 +591,22 @@ EOF
     fi
     INSERT_CUSTOM_LOG "Etapa [parsing_json_coleta_dados] executada em ${parsing_elapsed_ms}ms (veículos: $vehicle_count)" "INFO" "$ScriptName"
 
-    # Batch INSERT/UPDATE de todos os veículos
-    local inserted_ids
-    local batch_insert_result
-    if [[ ${#batch_vehicles_data[@]} -gt 0 ]]; then
-        local vehicles_insert_start_time
-        vehicles_insert_start_time=$(date +%s.%N 2>/dev/null || date +%s)
-        
-        # Usar função apropriada baseado no tipo de update
-        if [[ "$is_partial_update" == "true" ]]; then
-            UPDATE_VEHICLES_POSITIONS_PARTIAL "$current_timestamp" "${batch_vehicles_data[@]}"
-            batch_insert_result=$?
-        else
-            inserted_ids=$(INSERT_VEHICLES_POSITIONS_BATCH "$current_timestamp" "${batch_vehicles_data[@]}")
-            batch_insert_result=$?
-        fi
-        
-        local vehicles_insert_end_time
-        vehicles_insert_end_time=$(date +%s.%N 2>/dev/null || date +%s)
-        local vehicles_insert_elapsed_ms
-        if command -v awk >/dev/null 2>&1; then
-            vehicles_insert_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($vehicles_insert_end_time - $vehicles_insert_start_time) * 1000}")
-        else
-            local vehicles_insert_elapsed_seconds
-            vehicles_insert_elapsed_seconds=$(echo "$vehicles_insert_end_time - $vehicles_insert_start_time" | bc -l 2>/dev/null || echo "0")
-            vehicles_insert_elapsed_ms=$(echo "$vehicles_insert_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
-        fi
-        
-        if [[ "$is_partial_update" == "true" ]]; then
-            INSERT_CUSTOM_LOG "Etapa [update_parcial_veiculos] executada em ${vehicles_insert_elapsed_ms}ms (veículos: ${#batch_vehicles_data[@]})" "INFO" "$ScriptName"
-        else
-            INSERT_CUSTOM_LOG "Etapa [batch_insert_veiculos] executada em ${vehicles_insert_elapsed_ms}ms (veículos: ${#batch_vehicles_data[@]})" "INFO" "$ScriptName"
-        fi
-        
-        if [[ $batch_insert_result -ne 0 ]]; then
-            if [[ "$is_partial_update" == "true" ]]; then
-                INSERT_CUSTOM_LOG "Erro: não foi possível atualizar veículos parcialmente (código: $batch_insert_result)" "ERROR" "$ScriptName"
-            else
-                INSERT_CUSTOM_LOG "Erro: não foi possível inserir veículos em batch (código: $batch_insert_result)" "ERROR" "$ScriptName"
-            fi
-        else
+    # Publicar dados no RabbitMQ (toda lógica SQLite será feita no consumer)
+    if [[ -n "$line" ]]; then
+        local rabbitmq_payload
+        rabbitmq_payload=$(echo "$line" | jq -c . 2>/dev/null)
+        if [[ -n "$rabbitmq_payload" ]]; then
+            PUBLISH_TO_RABBITMQ "data.vehicles.positions" "$rabbitmq_payload"
             processed_count=${#batch_vehicles_data[@]}
-            
-            # Se for update parcial, pular processamento de items/attachments
-            if [[ "$is_partial_update" == "true" ]]; then
-                INSERT_CUSTOM_LOG "Update parcial: items/attachments não processados (preservados do último registro completo)" "INFO" "$ScriptName"
-            else
+            INSERT_CUSTOM_LOG "Dados de veículos publicados no RabbitMQ (veículos: ${#batch_vehicles_data[@]})" "INFO" "$ScriptName"
+        fi
+    fi
+    
+    if [[ ${#batch_vehicles_data[@]} -gt 0 ]]; then
+        # Processamento de items/attachments será feito no consumer
+        if [[ "$is_partial_update" == "true" ]]; then
+            INSERT_CUSTOM_LOG "Update parcial: items/attachments não processados (preservados do último registro completo)" "INFO" "$ScriptName"
+        else
                 # Criar mapeamento VehicleId -> VehicleTrackingId
                 declare -A vehicle_tracking_map=()
                 if [[ -n "$inserted_ids" ]]; then
@@ -701,95 +665,12 @@ EOF
                 fi
                 INSERT_CUSTOM_LOG "Etapa [coleta_items_attachments_globais] executada em ${collection_elapsed_ms}ms (items: ${#all_items_batch[@]}, attachments: ${#all_attachments_batch[@]})" "INFO" "$ScriptName"
                 
-                # Processar todos os items em um único batch INSERT
-                if [[ ${#all_items_batch[@]} -gt 0 ]]; then
-                    local items_insert_start_time
-                    items_insert_start_time=$(date +%s.%N 2>/dev/null || date +%s)
-                    
-                    local inserted_items_count
-                    inserted_items_count=$(INSERT_ALL_VEHICLES_ITEMS_BATCH "$current_timestamp" "${all_items_batch[@]}" 2>/dev/null)
-                    local items_insert_result=$?
-                    
-                    local items_insert_end_time
-                    items_insert_end_time=$(date +%s.%N 2>/dev/null || date +%s)
-                    local items_insert_elapsed_ms
-                    if command -v awk >/dev/null 2>&1; then
-                        items_insert_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($items_insert_end_time - $items_insert_start_time) * 1000}")
-                    else
-                        local items_insert_elapsed_seconds
-                        items_insert_elapsed_seconds=$(echo "$items_insert_end_time - $items_insert_start_time" | bc -l 2>/dev/null || echo "0")
-                        items_insert_elapsed_ms=$(echo "$items_insert_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
-                    fi
-                    INSERT_CUSTOM_LOG "Etapa [batch_insert_items] executada em ${items_insert_elapsed_ms}ms (items: ${#all_items_batch[@]})" "INFO" "$ScriptName"
-                    
-                    if [[ $items_insert_result -ne 0 ]]; then
-                        INSERT_CUSTOM_LOG "Erro ao inserir items de veículos em batch" "ERROR" "$ScriptName"
-                    fi
-                fi
-                
-                # Processar todos os attachments em um único batch INSERT
-                if [[ ${#all_attachments_batch[@]} -gt 0 ]]; then
-                    local attachments_insert_start_time
-                    attachments_insert_start_time=$(date +%s.%N 2>/dev/null || date +%s)
-                    
-                    local inserted_attachments_count
-                    inserted_attachments_count=$(INSERT_ALL_VEHICLES_ATTACHMENTS_BATCH "$current_timestamp" "${all_attachments_batch[@]}" 2>/dev/null)
-                    local attachments_insert_result=$?
-                    
-                    local attachments_insert_end_time
-                    attachments_insert_end_time=$(date +%s.%N 2>/dev/null || date +%s)
-                    local attachments_insert_elapsed_ms
-                    if command -v awk >/dev/null 2>&1; then
-                        attachments_insert_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($attachments_insert_end_time - $attachments_insert_start_time) * 1000}")
-                    else
-                        local attachments_insert_elapsed_seconds
-                        attachments_insert_elapsed_seconds=$(echo "$attachments_insert_end_time - $attachments_insert_start_time" | bc -l 2>/dev/null || echo "0")
-                        attachments_insert_elapsed_ms=$(echo "$attachments_insert_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
-                    fi
-                    INSERT_CUSTOM_LOG "Etapa [batch_insert_attachments] executada em ${attachments_insert_elapsed_ms}ms (attachments: ${#all_attachments_batch[@]})" "INFO" "$ScriptName"
-                    
-                    if [[ $attachments_insert_result -ne 0 ]]; then
-                        INSERT_CUSTOM_LOG "Erro ao inserir attachments de veículos em batch" "ERROR" "$ScriptName"
-                    fi
-                fi
+                # Processamento de items/attachments será feito no consumer
             fi
         fi
     fi
 
-    if [[ ${#prev_vehicles[@]} -gt 0 ]]; then
-        local removed_start_time
-        removed_start_time=$(date +%s.%N 2>/dev/null || date +%s)
-        
-        local removed_id removed_data rem_name rem_x rem_z rem_y
-        for removed_id in "${!prev_vehicles[@]}"; do
-            removed_data="${prev_vehicles[$removed_id]}"
-            IFS='|' read -r rem_name rem_x rem_z rem_y <<< "$removed_data"
-            Content="Veículo removido (ID=$removed_id) - Nome=\"$rem_name\" - Última posição=($rem_x,$rem_z,$rem_y)"
-            INSERT_CUSTOM_LOG "$Content" "INFO" "$ScriptName"
-            
-            # Marcar todos os registros do veículo como destruído (garantir que não apareça no mapa)
-            sqlite3 "$AppFolder/$AppVehicleBecoC1DbFile" <<EOF
-UPDATE vehicles_tracking
-SET IsDestroyed = 1, DestroyedAt = '$current_timestamp'
-WHERE VehicleId = '$removed_id'
-AND (IsDestroyed = 0 OR IsDestroyed IS NULL);
-EOF
-            
-            #SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
-        done
-        
-        local removed_end_time
-        removed_end_time=$(date +%s.%N 2>/dev/null || date +%s)
-        local removed_elapsed_ms
-        if command -v awk >/dev/null 2>&1; then
-            removed_elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($removed_end_time - $removed_start_time) * 1000}")
-        else
-            local removed_elapsed_seconds
-            removed_elapsed_seconds=$(echo "$removed_end_time - $removed_start_time" | bc -l 2>/dev/null || echo "0")
-            removed_elapsed_ms=$(echo "$removed_elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
-        fi
-        INSERT_CUSTOM_LOG "Etapa [processamento_veiculos_removidos] executada em ${removed_elapsed_ms}ms (veículos: ${#prev_vehicles[@]})" "INFO" "$ScriptName"
-    fi
+    # Detecção de veículos removidos será feita no consumer
 
     echo ">> $processed_count veículos processados de $vehicle_count totais"
     INSERT_CUSTOM_LOG "Total de $processed_count veículos rastreados" "INFO" "$ScriptName"

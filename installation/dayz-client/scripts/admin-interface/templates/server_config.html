@@ -1,0 +1,885 @@
+{% extends "base.html" %}
+
+{% block title %}Configurações do Servidor - DayZ Admin Interface{% endblock %}
+
+{% block extra_css %}
+<style>
+    .config-section {
+        margin-bottom: 2rem;
+    }
+    .config-subsection {
+        margin-left: 1.5rem;
+        margin-top: 1rem;
+        padding-left: 1rem;
+        border-left: 3px solid #0d6efd;
+    }
+    .config-subsection h6 {
+        color: #0d6efd;
+        margin-bottom: 0.75rem;
+    }
+    .form-label {
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+    }
+    .form-control:disabled,
+    .form-check-input:disabled {
+        background-color: #e9ecef;
+        cursor: not-allowed;
+    }
+    .alert {
+        margin-top: 1rem;
+    }
+    .readonly-badge {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+    }
+    .section-card {
+        margin-bottom: 1.5rem;
+    }
+    .section-header {
+        cursor: pointer;
+        user-select: none;
+    }
+    .section-header:hover {
+        background-color: rgba(0,0,0,0.05);
+    }
+    .section-header[aria-expanded="false"] .fa-chevron-down {
+        transform: rotate(-90deg);
+    }
+    .section-header .fa-chevron-down {
+        transition: transform 0.3s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-server me-2"></i>Configurações do Servidor
+        </h2>
+        <div class="btn-group">
+            <button type="button" class="btn btn-primary" id="btnLoadConfig">
+                <i class="fas fa-download me-2"></i>Carregar
+            </button>
+            {% if session.user_type == 'super_admin' %}
+            <button type="button" class="btn btn-success" id="btnSaveConfig">
+                <i class="fas fa-save me-2"></i>Salvar
+            </button>
+            {% else %}
+            <button type="button" class="btn btn-secondary" disabled title="Apenas Super Admin pode salvar configurações">
+                <i class="fas fa-lock me-2"></i>Somente Leitura
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if session.user_type != 'super_admin' %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        <strong>Modo Somente Leitura:</strong> Você está visualizando as configurações. Apenas Super Admin pode fazer alterações.
+    </div>
+    {% endif %}
+
+    <div id="alertContainer"></div>
+
+    <!-- Abas por Arquivo -->
+    <ul class="nav nav-tabs mb-3" id="configTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="serverdz-tab" data-bs-toggle="tab" data-bs-target="#serverdz" type="button" role="tab">
+                <i class="fas fa-file-code me-1"></i>serverDZ.cfg
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="cfggameplay-tab" data-bs-toggle="tab" data-bs-target="#cfggameplay" type="button" role="tab">
+                <i class="fas fa-file-code me-1"></i>cfggameplay.json
+            </button>
+        </li>
+    </ul>
+
+    <!-- Conteúdo das Abas -->
+    <div class="tab-content" id="configTabContent">
+        <!-- Aba serverDZ.cfg -->
+        <div class="tab-pane fade show active" id="serverdz" role="tabpanel">
+            <div class="card">
+                <div class="card-body">
+                    <!-- Seção Geral -->
+                    <div class="section-card card mb-3">
+                        <div class="card-header section-header" data-bs-toggle="collapse" data-bs-target="#serverdzGeneral" aria-expanded="true">
+                            <h5 class="mb-0">
+                                <i class="fas fa-cog me-2"></i>Geral
+                                <i class="fas fa-chevron-down float-end"></i>
+                            </h5>
+                        </div>
+                        <div id="serverdzGeneral" class="collapse show">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Hostname</label>
+                                        <input type="text" class="form-control" id="serverdz_hostname" name="hostname" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Password</label>
+                                        <input type="password" class="form-control" id="serverdz_password" name="password" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Password Admin</label>
+                                        <input type="password" class="form-control" id="serverdz_passwordAdmin" name="passwordAdmin" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Description</label>
+                                        <input type="text" class="form-control" id="serverdz_description" name="description" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Shard ID</label>
+                                        <input type="text" class="form-control" id="serverdz_shardId" name="shardId" maxlength="6" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Mission Template</label>
+                                        <select class="form-select" id="serverdz_missionTemplate" name="missionTemplate" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <option value="dayzOffline.chernarusplus">dayzOffline.chernarusplus (Vanilla)</option>
+                                            <option value="dayzOffline.enoch">dayzOffline.enoch (DLC)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção Jogadores -->
+                    <div class="section-card card mb-3">
+                        <div class="card-header section-header" data-bs-toggle="collapse" data-bs-target="#serverdzPlayers" aria-expanded="true">
+                            <h5 class="mb-0">
+                                <i class="fas fa-users me-2"></i>Jogadores
+                                <i class="fas fa-chevron-down float-end"></i>
+                            </h5>
+                        </div>
+                        <div id="serverdzPlayers" class="collapse show">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="serverdz_enableWhitelist" name="enableWhitelist" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="serverdz_enableWhitelist">Enable Whitelist</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Max Players</label>
+                                        <input type="number" class="form-control" id="serverdz_maxPlayers" name="maxPlayers" min="1" max="128" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Verify Signatures</label>
+                                        <input type="number" class="form-control" id="serverdz_verifySignatures" name="verifySignatures" min="0" max="2" value="2" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="serverdz_forceSameBuild" name="forceSameBuild" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="serverdz_forceSameBuild">Force Same Build</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção Voz -->
+                    <div class="section-card card mb-3">
+                        <div class="card-header section-header" data-bs-toggle="collapse" data-bs-target="#serverdzVoice" aria-expanded="true">
+                            <h5 class="mb-0">
+                                <i class="fas fa-microphone me-2"></i>Voz
+                                <i class="fas fa-chevron-down float-end"></i>
+                            </h5>
+                        </div>
+                        <div id="serverdzVoice" class="collapse show">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="serverdz_disableVoN" name="disableVoN" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="serverdz_disableVoN">Disable VoN (Voice over Network)</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">VoN Codec Quality</label>
+                                        <input type="number" class="form-control" id="serverdz_vonCodecQuality" name="vonCodecQuality" min="0" max="30" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção Visual -->
+                    <div class="section-card card mb-3">
+                        <div class="card-header section-header" data-bs-toggle="collapse" data-bs-target="#serverdzVisual" aria-expanded="true">
+                            <h5 class="mb-0">
+                                <i class="fas fa-eye me-2"></i>Visual
+                                <i class="fas fa-chevron-down float-end"></i>
+                            </h5>
+                        </div>
+                        <div id="serverdzVisual" class="collapse show">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="serverdz_disable3rdPerson" name="disable3rdPerson" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="serverdz_disable3rdPerson">Disable 3rd Person</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="serverdz_disableCrosshair" name="disableCrosshair" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="serverdz_disableCrosshair">Disable Crosshair</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="serverdz_disablePersonalLight" name="disablePersonalLight" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="serverdz_disablePersonalLight">Disable Personal Light</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Lighting Config</label>
+                                        <select class="form-select" id="serverdz_lightingConfig" name="lightingConfig" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <option value="0">0 - Brighter Night</option>
+                                            <option value="1">1 - Darker Night</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção Tempo -->
+                    <div class="section-card card mb-3">
+                        <div class="card-header section-header" data-bs-toggle="collapse" data-bs-target="#serverdzTime" aria-expanded="true">
+                            <h5 class="mb-0">
+                                <i class="fas fa-clock me-2"></i>Tempo
+                                <i class="fas fa-chevron-down float-end"></i>
+                            </h5>
+                        </div>
+                        <div id="serverdzTime" class="collapse show">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Server Time</label>
+                                        <input type="text" class="form-control" id="serverdz_serverTime" name="serverTime" placeholder="SystemTime ou YYYY/MM/DD/HH/MM" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        <small class="form-text text-muted">Use "SystemTime" para usar o horário do sistema ou formato "2015/4/8/17/23"</small>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Server Time Acceleration</label>
+                                        <input type="number" class="form-control" id="serverdz_serverTimeAcceleration" name="serverTimeAcceleration" step="0.1" min="0" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Server Night Time Acceleration</label>
+                                        <input type="number" class="form-control" id="serverdz_serverNightTimeAcceleration" name="serverNightTimeAcceleration" step="0.1" min="0" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="serverdz_serverTimePersistent" name="serverTimePersistent" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="serverdz_serverTimePersistent">Server Time Persistent</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção Login Queue -->
+                    <div class="section-card card mb-3">
+                        <div class="card-header section-header" data-bs-toggle="collapse" data-bs-target="#serverdzLoginQueue" aria-expanded="true">
+                            <h5 class="mb-0">
+                                <i class="fas fa-sign-in-alt me-2"></i>Login Queue
+                                <i class="fas fa-chevron-down float-end"></i>
+                            </h5>
+                        </div>
+                        <div id="serverdzLoginQueue" class="collapse show">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Login Queue Concurrent Players</label>
+                                        <input type="number" class="form-control" id="serverdz_loginQueueConcurrentPlayers" name="loginQueueConcurrentPlayers" min="1" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Login Queue Max Players</label>
+                                        <input type="number" class="form-control" id="serverdz_loginQueueMaxPlayers" name="loginQueueMaxPlayers" min="1" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção Sistema -->
+                    <div class="section-card card mb-3">
+                        <div class="card-header section-header" data-bs-toggle="collapse" data-bs-target="#serverdzSystem" aria-expanded="true">
+                            <h5 class="mb-0">
+                                <i class="fas fa-server me-2"></i>Sistema
+                                <i class="fas fa-chevron-down float-end"></i>
+                            </h5>
+                        </div>
+                        <div id="serverdzSystem" class="collapse show">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Guaranteed Updates</label>
+                                        <input type="number" class="form-control" id="serverdz_guaranteedUpdates" name="guaranteedUpdates" value="1" min="1" max="1" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Instance ID</label>
+                                        <input type="number" class="form-control" id="serverdz_instanceId" name="instanceId" min="1" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="serverdz_storageAutoFix" name="storageAutoFix" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="serverdz_storageAutoFix">Storage Auto Fix</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="serverdz_BattlEye" name="BattlEye" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="serverdz_BattlEye">BattlEye</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="serverdz_adminLogBuildActions" name="adminLogBuildActions" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="serverdz_adminLogBuildActions">Admin Log Build Actions</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção MOTD -->
+                    <div class="section-card card mb-3">
+                        <div class="card-header section-header" data-bs-toggle="collapse" data-bs-target="#serverdzMOTD" aria-expanded="true">
+                            <h5 class="mb-0">
+                                <i class="fas fa-comment-dots me-2"></i>MOTD (Message of the Day)
+                                <i class="fas fa-chevron-down float-end"></i>
+                            </h5>
+                        </div>
+                        <div id="serverdzMOTD" class="collapse show">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-12 mb-3">
+                                        <label class="form-label">MOTD Messages (uma por linha)</label>
+                                        <textarea class="form-control" id="serverdz_motd" name="motd" rows="5" placeholder="Bem vindo ao servidor!" {% if session.user_type != 'super_admin' %}disabled{% endif %}></textarea>
+                                        <small class="form-text text-muted">Cada linha será uma mensagem separada no array motd[]</small>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">MOTD Interval (segundos)</label>
+                                        <input type="number" class="form-control" id="serverdz_motdInterval" name="motdInterval" min="0" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aba cfggameplay.json -->
+        <div class="tab-pane fade" id="cfggameplay" role="tabpanel">
+            <div class="card">
+                <div class="card-body">
+                    <!-- Seção Geral -->
+                    <div class="section-card card mb-3">
+                        <div class="card-header section-header" data-bs-toggle="collapse" data-bs-target="#sectionGeneral" aria-expanded="true">
+                            <h5 class="mb-0">
+                                <i class="fas fa-cog me-2"></i>Geral
+                                <i class="fas fa-chevron-down float-end"></i>
+                            </h5>
+                        </div>
+                        <div id="sectionGeneral" class="collapse show">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Version</label>
+                                        <input type="number" class="form-control" id="version" name="version" min="0" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="disableBaseDamage" name="disableBaseDamage" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="disableBaseDamage">Desabilitar Dano de Base</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="disableContainerDamage" name="disableContainerDamage" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="disableContainerDamage">Desabilitar Dano de Container</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="disableRespawnDialog" name="disableRespawnDialog" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="disableRespawnDialog">Desabilitar Diálogo de Respawn</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="disableRespawnInUnconsciousness" name="disableRespawnInUnconsciousness" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="disableRespawnInUnconsciousness">Desabilitar Respawn em Inconsciência</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção Jogador -->
+                    <div class="section-card card mb-3">
+                        <div class="card-header section-header" data-bs-toggle="collapse" data-bs-target="#sectionPlayer" aria-expanded="true">
+                            <h5 class="mb-0">
+                                <i class="fas fa-user me-2"></i>Jogador
+                                <i class="fas fa-chevron-down float-end"></i>
+                            </h5>
+                        </div>
+                        <div id="sectionPlayer" class="collapse show">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="disablePersonalLight" name="disablePersonalLight" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="disablePersonalLight">Desabilitar Luz Pessoal</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- StaminaData -->
+                                <div class="config-subsection">
+                                    <h6>Dados de Stamina</h6>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Sprint Stamina Modifier ERC</label>
+                                            <input type="number" class="form-control" id="sprintStaminaModifierErc" name="sprintStaminaModifierErc" step="0.1" min="0" max="10" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Sprint Stamina Modifier CRO</label>
+                                            <input type="number" class="form-control" id="sprintStaminaModifierCro" name="sprintStaminaModifierCro" step="0.1" min="0" max="10" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Stamina Weight Limit Threshold</label>
+                                            <input type="number" class="form-control" id="staminaWeightLimitThreshold" name="staminaWeightLimitThreshold" step="0.1" min="0" max="100000" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Stamina Max</label>
+                                            <input type="number" class="form-control" id="staminaMax" name="staminaMax" step="0.1" min="0" max="1000" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Stamina Kg to Stamina Percent Penalty</label>
+                                            <input type="number" class="form-control" id="staminaKgToStaminaPercentPenalty" name="staminaKgToStaminaPercentPenalty" step="0.1" min="0" max="10" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Stamina Min Cap</label>
+                                            <input type="number" class="form-control" id="staminaMinCap" name="staminaMinCap" step="0.1" min="0" max="100" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Sprint Swimming Stamina Modifier</label>
+                                            <input type="number" class="form-control" id="sprintSwimmingStaminaModifier" name="sprintSwimmingStaminaModifier" step="0.1" min="0" max="10" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Sprint Ladder Stamina Modifier</label>
+                                            <input type="number" class="form-control" id="sprintLadderStaminaModifier" name="sprintLadderStaminaModifier" step="0.1" min="0" max="10" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Melee Stamina Modifier</label>
+                                            <input type="number" class="form-control" id="meleeStaminaModifier" name="meleeStaminaModifier" step="0.1" min="0" max="10" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Obstacle Traversal Stamina Modifier</label>
+                                            <input type="number" class="form-control" id="obstacleTraversalStaminaModifier" name="obstacleTraversalStaminaModifier" step="0.1" min="0" max="10" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Hold Breath Stamina Modifier</label>
+                                            <input type="number" class="form-control" id="holdBreathStaminaModifier" name="holdBreathStaminaModifier" step="0.1" min="0" max="10" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- ShockHandlingData -->
+                                <div class="config-subsection">
+                                    <h6>Dados de Tratamento de Choque</h6>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Shock Refill Speed Conscious</label>
+                                            <input type="number" class="form-control" id="shockRefillSpeedConscious" name="shockRefillSpeedConscious" step="0.1" min="0" max="100" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Shock Refill Speed Unconscious</label>
+                                            <input type="number" class="form-control" id="shockRefillSpeedUnconscious" name="shockRefillSpeedUnconscious" step="0.1" min="0" max="100" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="allowRefillSpeedModifier" name="allowRefillSpeedModifier" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="allowRefillSpeedModifier">Permitir Modificador de Velocidade de Recarga</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- MovementData -->
+                                <div class="config-subsection">
+                                    <h6>Dados de Movimento</h6>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Time to Strafe Jog</label>
+                                            <input type="number" class="form-control" id="timeToStrafeJog" name="timeToStrafeJog" step="0.01" min="0" max="10" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Rotation Speed Jog</label>
+                                            <input type="number" class="form-control" id="rotationSpeedJog" name="rotationSpeedJog" step="0.01" min="0" max="10" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Time to Sprint</label>
+                                            <input type="number" class="form-control" id="timeToSprint" name="timeToSprint" step="0.01" min="0" max="10" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Time to Strafe Sprint</label>
+                                            <input type="number" class="form-control" id="timeToStrafeSprint" name="timeToStrafeSprint" step="0.01" min="0" max="10" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Rotation Speed Sprint</label>
+                                            <input type="number" class="form-control" id="rotationSpeedSprint" name="rotationSpeedSprint" step="0.01" min="0" max="10" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="allowStaminaAffectInertia" name="allowStaminaAffectInertia" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="allowStaminaAffectInertia">Permitir Stamina Afetar Inércia</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- DrowningData -->
+                                <div class="config-subsection">
+                                    <h6>Dados de Afogamento</h6>
+                                    <div class="row">
+                                        <div class="col-md-4 mb-3">
+                                            <label class="form-label">Stamina Depletion Speed</label>
+                                            <input type="number" class="form-control" id="staminaDepletionSpeed" name="staminaDepletionSpeed" step="0.1" min="0" max="100" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label class="form-label">Health Depletion Speed</label>
+                                            <input type="number" class="form-control" id="healthDepletionSpeed" name="healthDepletionSpeed" step="0.1" min="0" max="100" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label class="form-label">Shock Depletion Speed</label>
+                                            <input type="number" class="form-control" id="shockDepletionSpeed" name="shockDepletionSpeed" step="0.1" min="0" max="100" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- WeaponObstructionData -->
+                                <div class="config-subsection">
+                                    <h6>Dados de Obstrução de Arma</h6>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Static Mode</label>
+                                            <input type="number" class="form-control" id="staticMode" name="staticMode" min="0" max="2" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Dynamic Mode</label>
+                                            <input type="number" class="form-control" id="dynamicMode" name="dynamicMode" min="0" max="2" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção Mundo -->
+                    <div class="section-card card mb-3">
+                        <div class="card-header section-header" data-bs-toggle="collapse" data-bs-target="#sectionWorld" aria-expanded="true">
+                            <h5 class="mb-0">
+                                <i class="fas fa-globe me-2"></i>Mundo
+                                <i class="fas fa-chevron-down float-end"></i>
+                            </h5>
+                        </div>
+                        <div id="sectionWorld" class="collapse show">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Lighting Config</label>
+                                        <input type="number" class="form-control" id="lightingConfig" name="lightingConfig" min="0" max="2" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-12">
+                                        <label class="form-label">Environment Min Temps (12 valores - um por mês)</label>
+                                        <div class="row" id="environmentMinTempsContainer">
+                                            <!-- Preenchido via JS -->
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-12">
+                                        <label class="form-label">Environment Max Temps (12 valores - um por mês)</label>
+                                        <div class="row" id="environmentMaxTempsContainer">
+                                            <!-- Preenchido via JS -->
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-12">
+                                        <label class="form-label">Wetness Weight Modifiers (5 valores)</label>
+                                        <div class="row" id="wetnessWeightModifiersContainer">
+                                            <!-- Preenchido via JS -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção Construção -->
+                    <div class="section-card card mb-3">
+                        <div class="card-header section-header" data-bs-toggle="collapse" data-bs-target="#sectionBuilding" aria-expanded="true">
+                            <h5 class="mb-0">
+                                <i class="fas fa-building me-2"></i>Construção
+                                <i class="fas fa-chevron-down float-end"></i>
+                            </h5>
+                        </div>
+                        <div id="sectionBuilding" class="collapse show">
+                            <div class="card-body">
+                                <!-- HologramData -->
+                                <div class="config-subsection">
+                                    <h6>Dados de Holograma</h6>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="disableIsCollidingBBoxCheck" name="disableIsCollidingBBoxCheck" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="disableIsCollidingBBoxCheck">Desabilitar Verificação de Colisão BBox</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="disableIsCollidingPlayerCheck" name="disableIsCollidingPlayerCheck" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="disableIsCollidingPlayerCheck">Desabilitar Verificação de Colisão com Jogador</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="disableIsClippingRoofCheck" name="disableIsClippingRoofCheck" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="disableIsClippingRoofCheck">Desabilitar Verificação de Clipping de Telhado</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="disableIsBaseViableCheck" name="disableIsBaseViableCheck" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="disableIsBaseViableCheck">Desabilitar Verificação de Base Viável</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="disableIsCollidingGPlotCheck" name="disableIsCollidingGPlotCheck" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="disableIsCollidingGPlotCheck">Desabilitar Verificação de Colisão GPlot</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="disableIsCollidingAngleCheck" name="disableIsCollidingAngleCheck" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="disableIsCollidingAngleCheck">Desabilitar Verificação de Colisão de Ângulo</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="disableIsPlacementPermittedCheck" name="disableIsPlacementPermittedCheck" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="disableIsPlacementPermittedCheck">Desabilitar Verificação de Permissão de Colocação</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="disableHeightPlacementCheck" name="disableHeightPlacementCheck" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="disableHeightPlacementCheck">Desabilitar Verificação de Altura de Colocação</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="disableIsUnderwaterCheck" name="disableIsUnderwaterCheck" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="disableIsUnderwaterCheck">Desabilitar Verificação de Subaquático</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="disableIsInTerrainCheck" name="disableIsInTerrainCheck" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="disableIsInTerrainCheck">Desabilitar Verificação de Terreno</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="disableColdAreaBuildingCheck" name="disableColdAreaBuildingCheck" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="disableColdAreaBuildingCheck">Desabilitar Verificação de Construção em Área Fria</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-12 mb-3">
+                                            <label class="form-label">Disallowed Types In Underground (separados por vírgula)</label>
+                                            <input type="text" class="form-control" id="disallowedTypesInUnderground" name="disallowedTypesInUnderground" placeholder="FenceKit,TerritoryFlagKit,WatchtowerKit" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- ConstructionData -->
+                                <div class="config-subsection">
+                                    <h6>Dados de Construção</h6>
+                                    <div class="row">
+                                        <div class="col-md-4 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="disablePerformRoofCheck" name="disablePerformRoofCheck" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="disablePerformRoofCheck">Desabilitar Verificação de Telhado</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="disableIsCollidingCheck" name="disableIsCollidingCheck" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="disableIsCollidingCheck">Desabilitar Verificação de Colisão</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="disableDistanceCheck" name="disableDistanceCheck" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="disableDistanceCheck">Desabilitar Verificação de Distância</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção UI -->
+                    <div class="section-card card mb-3">
+                        <div class="card-header section-header" data-bs-toggle="collapse" data-bs-target="#sectionUI" aria-expanded="true">
+                            <h5 class="mb-0">
+                                <i class="fas fa-desktop me-2"></i>UI
+                                <i class="fas fa-chevron-down float-end"></i>
+                            </h5>
+                        </div>
+                        <div id="sectionUI" class="collapse show">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="use3DMap" name="use3DMap" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="use3DMap">Usar Mapa 3D</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- HitIndicationData -->
+                                <div class="config-subsection">
+                                    <h6>Dados de Indicação de Dano</h6>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="hitDirectionOverrideEnabled" name="hitDirectionOverrideEnabled" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="hitDirectionOverrideEnabled">Habilitar Override de Direção de Dano</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Hit Direction Behaviour</label>
+                                            <input type="number" class="form-control" id="hitDirectionBehaviour" name="hitDirectionBehaviour" min="0" max="2" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Hit Direction Style</label>
+                                            <input type="number" class="form-control" id="hitDirectionStyle" name="hitDirectionStyle" min="0" max="2" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Hit Direction Indicator Color (hex)</label>
+                                            <input type="text" class="form-control" id="hitDirectionIndicatorColorStr" name="hitDirectionIndicatorColorStr" placeholder="0xffbb0a1e" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Hit Direction Max Duration</label>
+                                            <input type="number" class="form-control" id="hitDirectionMaxDuration" name="hitDirectionMaxDuration" step="0.1" min="0" max="10" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Hit Direction Break Point Relative</label>
+                                            <input type="number" class="form-control" id="hitDirectionBreakPointRelative" name="hitDirectionBreakPointRelative" step="0.01" min="0" max="1" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Hit Direction Scatter</label>
+                                            <input type="number" class="form-control" id="hitDirectionScatter" name="hitDirectionScatter" step="0.1" min="0" max="100" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="hitIndicationPostProcessEnabled" name="hitIndicationPostProcessEnabled" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                                <label class="form-check-label" for="hitIndicationPostProcessEnabled">Habilitar Pós-processamento de Indicação de Dano</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção Mapa -->
+                    <div class="section-card card mb-3">
+                        <div class="card-header section-header" data-bs-toggle="collapse" data-bs-target="#sectionMap" aria-expanded="true">
+                            <h5 class="mb-0">
+                                <i class="fas fa-map me-2"></i>Mapa
+                                <i class="fas fa-chevron-down float-end"></i>
+                            </h5>
+                        </div>
+                        <div id="sectionMap" class="collapse show">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="ignoreMapOwnership" name="ignoreMapOwnership" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="ignoreMapOwnership">Ignorar Propriedade do Mapa</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="ignoreNavItemsOwnership" name="ignoreNavItemsOwnership" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="ignoreNavItemsOwnership">Ignorar Propriedade de Itens de Navegação</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="displayPlayerPosition" name="displayPlayerPosition" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="displayPlayerPosition">Exibir Posição do Jogador</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="displayNavInfo" name="displayNavInfo" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                            <label class="form-check-label" for="displayNavInfo">Exibir Informações de Navegação</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção Veículos -->
+                    <div class="section-card card mb-3">
+                        <div class="card-header section-header" data-bs-toggle="collapse" data-bs-target="#sectionVehicle" aria-expanded="true">
+                            <h5 class="mb-0">
+                                <i class="fas fa-car me-2"></i>Veículos
+                                <i class="fas fa-chevron-down float-end"></i>
+                            </h5>
+                        </div>
+                        <div id="sectionVehicle" class="collapse show">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Boat Decay Multiplier</label>
+                                        <input type="number" class="form-control" id="boatDecayMultiplier" name="boatDecayMultiplier" step="0.1" min="0" max="10" {% if session.user_type != 'super_admin' %}disabled{% endif %}>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/server_config.js') }}"></script>
+{% endblock %}

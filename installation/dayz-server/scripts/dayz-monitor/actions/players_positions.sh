@@ -57,15 +57,8 @@ handle_players_positions() {
 
     echo ">> Recebendo posições dos jogadores"
 
-    # Configurar PRAGMAs antes de acessar o banco
-    configure_sqlite_pragmas "$PLAYERS_BECO_C1_DB"
-    
-    local previous_players=()
-    while IFS= read -r player_id; do
-        if [[ -n "$player_id" ]]; then
-            previous_players+=("$player_id")
-        fi
-    done < <(sqlite3 "$PLAYERS_BECO_C1_DB" "SELECT PlayerID FROM players_online;" 2>/dev/null || true)
+    # Toda lógica SQLite foi movida para o consumer no servidor de monitoramento
+    # Aqui apenas publicamos o JSON original no RabbitMQ
 
     # Processar JSON uma vez e coletar dados em arrays
     declare -a batch_data=()
@@ -124,28 +117,17 @@ handle_players_positions() {
     # Batch INSERT de todas as posições
     local inserted_ids
     local batch_insert_result
-    if [[ ${#batch_data[@]} -gt 0 ]]; then
-        # Passar timestamp base se disponível (fallback para comportamento atual se não houver)
-        if [[ -n "$base_captured_timestamp" ]]; then
-            inserted_ids=$(INSERT_PLAYERS_POSITIONS_BATCH "$base_captured_timestamp" "${batch_data[@]}")
-        else
-            inserted_ids=$(INSERT_PLAYERS_POSITIONS_BATCH "${batch_data[@]}")
-        fi
-        batch_insert_result=$?
-        
-        if [[ $batch_insert_result -ne 0 ]]; then
-            INSERT_CUSTOM_LOG "Erro: não foi possível inserir posições em batch (código: $batch_insert_result)" "ERROR" "$ScriptName"
-        else
-            # INSERT foi bem-sucedido, mesmo que não tenha conseguido pegar os IDs
-            if [[ -n "$inserted_ids" ]]; then
-                echo ">> Posições armazenadas em batch (${#batch_data[@]} jogadores) - IDs obtidos"
-            else
-                echo ">> Posições armazenadas em batch (${#batch_data[@]} jogadores) - IDs não disponíveis"
-            fi
+    # Publicar dados no RabbitMQ (toda lógica SQLite será feita no consumer)
+    if [[ -n "$line" ]]; then
+        local rabbitmq_payload
+        rabbitmq_payload=$(echo "$line" | jq -c . 2>/dev/null)
+        if [[ -n "$rabbitmq_payload" ]]; then
+            PUBLISH_TO_RABBITMQ "data.players.positions" "$rabbitmq_payload"
+            INSERT_CUSTOM_LOG "Dados de jogadores publicados no RabbitMQ (jogadores: ${#current_players[@]})" "INFO" "$ScriptName"
         fi
     fi
     
-    # Se não for deathmatch, processar backups
+    # Processamento de backups será feito no consumer
     if [[ "$DayzDeathmatch" -ne "1" && ${#current_players[@]} -gt 0 ]]; then
         # Batch query para verificar últimos backups de todos os jogadores
         declare -A last_backups=()
@@ -277,91 +259,6 @@ handle_players_positions() {
         fi
     done
 
-    local sync_timestamp
-    sync_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
-    local sync_sql
-    sync_sql="BEGIN IMMEDIATE;
-CREATE TEMP TABLE IF NOT EXISTS SyncCurrent(PlayerID TEXT PRIMARY KEY);
-DELETE FROM SyncCurrent;
-"
-
-    # Construir INSERT em batch para SyncCurrent e players_online
-    if [[ ${#current_players[@]} -gt 0 ]]; then
-        local sync_values=""
-        local online_values=""
-        local first_sync=1
-        local first_online=1
-        local sanitized_id
-        
-        for idx in "${!current_players[@]}"; do
-            sanitized_id=$(echo "${current_players[$idx]}" | sed "s/'/''/g")
-            
-            # Adicionar vírgula se não for o primeiro valor
-            if [[ $first_sync -eq 0 ]]; then
-                sync_values+=", "
-            fi
-            first_sync=0
-            sync_values+="('$sanitized_id')"
-            
-            # Adicionar vírgula se não for o primeiro valor
-            if [[ $first_online -eq 0 ]]; then
-                online_values+=", "
-            fi
-            first_online=0
-            online_values+="('$sanitized_id', '$sync_timestamp')"
-        done
-        
-        sync_sql+="INSERT INTO SyncCurrent(PlayerID) VALUES $sync_values;
-INSERT INTO players_online (PlayerID, DataConnect) VALUES $online_values
-ON CONFLICT(PlayerID) DO UPDATE SET DataConnect='$sync_timestamp';
-DELETE FROM players_online WHERE PlayerID NOT IN (SELECT PlayerID FROM SyncCurrent);
-"
-    else
-        sync_sql+="DELETE FROM players_online;
-"
-    fi
-
-    sync_sql+="DROP TABLE IF EXISTS SyncCurrent;
-COMMIT;
-"
-
-    # Sincronizar players_online com retry logic para evitar locks
-    local sync_output
-    local sync_success=false
-    local max_retries=5
-    local retry_delay=0.2
-    local attempt=1
-    
-    while [[ $attempt -le $max_retries ]]; do
-        # Configurar PRAGMAs antes de cada tentativa
-        configure_sqlite_pragmas "$PLAYERS_BECO_C1_DB"
-        
-        sync_output=$(sqlite3 "$PLAYERS_BECO_C1_DB" "$sync_sql" 2>&1)
-        
-        if [[ $? -eq 0 ]]; then
-            sync_success=true
-            break
-        fi
-        
-        # Verificar se é erro de lock (código 5)
-        if echo "$sync_output" | grep -q "database is locked"; then
-            if [[ $attempt -lt $max_retries ]]; then
-                sleep "$retry_delay"
-                # Backoff exponencial: 0.2, 0.4, 0.8, 1.6, 3.2
-                retry_delay=$(awk "BEGIN {printf \"%.1f\", $retry_delay * 2}")
-                attempt=$((attempt + 1))
-                continue
-            fi
-        else
-            # Erro diferente de lock, não tentar novamente
-            break
-        fi
-    done
-
-    if [[ "$sync_success" == true ]]; then
-        INSERT_CUSTOM_LOG "Tabela players_online sincronizada com sucesso ($player_count jogadores)." "INFO" "$ScriptName"
-    else
-        INSERT_CUSTOM_LOG "Erro ao sincronizar players_online após $max_retries tentativas: $sync_output" "ERROR" "$ScriptName"
-    fi
+    # Sincronização de players_online será feita no consumer
 }
 
