@@ -405,13 +405,35 @@ def publish_message(queue: str, message: str, config: dict) -> bool:
 
 def main():
     """Função principal - chamada via linha de comando"""
-    if len(sys.argv) < 3:
-        print("Uso: rabbitmq_producer.py <queue> <message>", file=sys.stderr)
+    if len(sys.argv) < 2:
+        print("Uso: rabbitmq_producer.py <queue> [message]", file=sys.stderr)
+        print("      Mensagem será lida de stdin se disponível, caso contrário usa segundo argumento", file=sys.stderr)
         print("      Variável de ambiente RABBITMQ_VERBOSE=1 para modo verbose", file=sys.stderr)
         sys.exit(1)
     
     queue = sys.argv[1]
-    message = sys.argv[2]
+    message = None
+    
+    # Sempre tentar ler de stdin primeiro (quando disponível via pipe)
+    if not sys.stdin.isatty():
+        # stdin está disponível (pipe ou redirecionamento)
+        try:
+            message = sys.stdin.read()
+            if VERBOSE:
+                logger.debug(f"Mensagem lida de stdin: {len(message)} caracteres")
+        except Exception as e:
+            if VERBOSE:
+                logger.error(f"Erro ao ler de stdin: {e}")
+    
+    # Fallback: usar segundo argumento se stdin não estava disponível ou estava vazio
+    if not message and len(sys.argv) >= 3:
+        message = sys.argv[2]
+        if VERBOSE:
+            logger.debug(f"Mensagem lida de argumento: {len(message)} caracteres")
+    
+    if not message:
+        print("ERRO: Nenhuma mensagem fornecida (nem via stdin nem via argumento)", file=sys.stderr)
+        sys.exit(1)
     
     if VERBOSE:
         logger.debug(f"Iniciando publicação: queue={queue}, message_length={len(message)}")

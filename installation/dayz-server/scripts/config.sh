@@ -232,16 +232,12 @@ PUBLISH_TO_RABBITMQ() {
     
     # Sempre usar modo verbose para capturar erros detalhados
     # Os erros serão logados no arquivo de log mesmo sem verbose=1
-    # Usar printf com %q para escapar o payload corretamente
+    # Sempre passar mensagem via stdin (pipe) para evitar limites de argumentos
     local error_output
     local exit_code=0
     
-    # Sempre capturar stderr para logar detalhes
-    # Usar printf %q para escapar caracteres especiais do JSON
-    local escaped_payload
-    escaped_payload=$(printf '%q' "$payload")
-    
-    error_output=$(timeout 10 bash -c "RABBITMQ_VERBOSE=1 $python_cmd \"$producer_script\" \"$queue\" $escaped_payload" 2>&1)
+    # Passar payload via stdin usando pipe (elimina limites de tamanho de argumentos)
+    error_output=$(echo "$payload" | timeout 10 bash -c "RABBITMQ_VERBOSE=1 $python_cmd \"$producer_script\" \"$queue\"" 2>&1)
     exit_code=$?
     
     # Se houver erro, sempre logar detalhes no arquivo de log

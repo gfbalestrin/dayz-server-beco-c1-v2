@@ -20,7 +20,7 @@ extract_position() {
 # Função auxiliar para extrair PlayerId de uma linha de log
 extract_player_id() {
     local content="$1"
-    echo "$content" | grep -oP 'id=\K[^ ]+' | head -1
+    echo "$content" | awk -F'id=' '{print $2}' | awk -F')' '{print $1}'
 }
 
 # Função auxiliar para enfileirar comando de registro de estrutura
@@ -51,12 +51,14 @@ enqueue_chat_command() {
     local command="$2"
     
     if [[ -z "$player_id" || -z "$command" ]]; then
+        INSERT_CUSTOM_LOG "enqueue_chat_command: PlayerId ou comando vazio (player_id='$player_id', command='$command')" "DEBUG" "$ScriptName"
         return 1
     fi
     
     # Verificar se é admin ou se é deathmatch com comandos permitidos
     if grep -q "$player_id" "$DayzServerFolder/$DayzAdminIdsFile" 2>/dev/null; then
         echo "$player_id $command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
+        INSERT_CUSTOM_LOG "Comando de admin enfileirado: player_id='$player_id', command='$command'" "DEBUG" "$ScriptName"
         return 0
     fi
     
@@ -67,10 +69,14 @@ enqueue_chat_command() {
         
         if echo "$allowed_commands" | grep -q "\b$command_name\b"; then
             echo "$player_id $command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
+            INSERT_CUSTOM_LOG "Comando de deathmatch enfileirado: player_id='$player_id', command='$command'" "DEBUG" "$ScriptName"
             return 0
         fi
+        
+        INSERT_CUSTOM_LOG "Comando não permitido para jogador: player_id='$player_id', command='$command', command_name='$command_name'" "DEBUG" "$ScriptName"
     fi
     
+    INSERT_CUSTOM_LOG "Comando não enfileirado: player_id='$player_id' não é admin e não está em modo deathmatch" "DEBUG" "$ScriptName"
     return 1
 }
 
@@ -100,7 +106,6 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
     Content=$(echo "$Line" | cut -c 12-)
     
     # Publicar linha bruta no RabbitMQ (todo processamento será feito no consumer)
-    local payload
     payload=$(jq -n \
         --arg log_type "adm" \
         --arg log_file "$(basename "$LogFileName")" \
@@ -115,30 +120,39 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
     
     # Lógica mínima para enfileirar comandos (apenas extração de dados básicos)
     if [[ "$Content" == *"Built base on Fence"* ]]; then
-        local position
         position=$(extract_position "$Content")
         enqueue_structure_command "registerfence" "$position"
     elif [[ "$Content" == *"Built level_1_base on Watchtower"* ]]; then
-        local position
         position=$(extract_position "$Content")
         enqueue_structure_command "registerwatchtower" "$position"
     elif [[ "$Content" == *"Built base on Flag Pole"* ]]; then
-        local position
         position=$(extract_position "$Content")
         enqueue_structure_command "registerflag" "$position"
     elif [[ "$Content" == *"built Shelter"* ]]; then
-        local position
         position=$(extract_position "$Content")
         enqueue_structure_command "registercontainer" "$position"
     elif [[ "$Content" == *"Chat("* ]]; then
-        local player_id chat_message command
         player_id=$(extract_player_id "$Content")
-        chat_message="${Content##*: }"
-        command="$chat_message"
-        if [[ "$command" == "!"* ]]; then
-            command="${command:1}"
+        
+        # Validar PlayerId extraído
+        if [[ -z "$player_id" ]]; then
+            INSERT_CUSTOM_LOG "PlayerId vazio extraído do chat: Content='$Content'" "DEBUG" "$ScriptName"
+        elif [[ ${#player_id} -ne 44 ]]; then
+            INSERT_CUSTOM_LOG "PlayerId com tamanho inválido (esperado 44, obtido ${#player_id}): player_id='$player_id'" "DEBUG" "$ScriptName"
+        else
+            chat_message="${Content##*: }"
+            command="$chat_message"
+            if [[ "$command" == "!"* ]]; then
+                command="${command:1}"
+                INSERT_CUSTOM_LOG "Comando de chat detectado: player_id='$player_id', comando='$command'" "DEBUG" "$ScriptName"
+                
+                if enqueue_chat_command "$player_id" "$command"; then
+                    INSERT_CUSTOM_LOG "Comando enfileirado com sucesso: player_id='$player_id', command='$command'" "INFO" "$ScriptName"
+                else
+                    INSERT_CUSTOM_LOG "Falha ao enfileirar comando: player_id='$player_id', command='$command'" "WARNING" "$ScriptName"
+                fi
+            fi
         fi
-        enqueue_chat_command "$player_id" "$command"
     fi
 
 done
