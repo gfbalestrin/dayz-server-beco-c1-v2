@@ -570,16 +570,30 @@ class PositionsConsumer:
                         normalized_vehicle, previous, is_partial_update
                     )
                     
-                    if not has_changes and previous:
-                        # Não há mudanças: usar UPDATE
-                        vehicles_to_update.append(normalized_vehicle)
-                    else:
-                        # Há mudanças ou vehicle novo: usar INSERT
+                    if is_partial_update:
+                        # IMPORTANTE:
+                        # - Snapshots parciais não devem atualizar o registro completo existente
+                        # - Sempre inserir um novo registro com IsPartialUpdate = 1
+                        #   mesmo que não haja mudança de posição/health.
+                        #
+                        # Isso garante que:
+                        # - coordinates_last_update (último registro) avance a cada parcial
+                        # - items_attachments_last_update (último completo) permaneça estável
                         vehicles_to_insert.append(normalized_vehicle)
+                    else:
+                        if not has_changes and previous:
+                            # Snapshot completo SEM mudanças relevantes:
+                            # otimizar usando UPDATE no registro completo existente
+                            vehicles_to_update.append(normalized_vehicle)
+                        else:
+                            # Há mudanças ou vehicle novo: usar INSERT
+                            vehicles_to_insert.append(normalized_vehicle)
                 
-                # Processar UPDATEs primeiro
+                # Processar UPDATEs primeiro (dentro de uma transação)
                 updated_count = 0
                 if vehicles_to_update:
+                    # Iniciar transação para UPDATEs
+                    cursor.execute("BEGIN IMMEDIATE TRANSACTION")
                     for vehicle in vehicles_to_update:
                         vehicle_id = vehicle['vehicle_id']
                         # Gerar timestamp único para este vehicle
@@ -589,6 +603,8 @@ class PositionsConsumer:
                         )
                         if tracking_id:
                             updated_count += 1
+                    # Commit transação de UPDATEs
+                    conn.commit()
                 
                 # Processar INSERTs
                 inserted_count = 0
@@ -597,7 +613,7 @@ class PositionsConsumer:
                     # Gerar timestamps únicos
                     timestamps = self._generate_unique_timestamps(base_timestamp, len(vehicles_to_insert))
                     
-                    # Iniciar transação
+                    # Iniciar transação para INSERTs
                     cursor.execute("BEGIN IMMEDIATE TRANSACTION")
                     
                     # Inserir vehicles em batch
@@ -709,36 +725,59 @@ class PositionsConsumer:
     
     def _validate_container_data(self, container: Dict[str, Any]) -> bool:
         """Valida dados obrigatórios de um container"""
+        import math
+        
         # Validar container_id (obrigatório)
         container_id = container.get('container_id')
         if not container_id or not isinstance(container_id, str) or not container_id.strip():
+            logger.warning(f"Container validação falhou: container_id inválido (value={container_id}, type={type(container_id)})")
             return False
         
         # Validar coordenadas (obrigatórias, números válidos)
         position = container.get('position', {})
-        if isinstance(position, dict):
+        if isinstance(position, dict) and len(position) > 0:
             x = position.get('x')
             z = position.get('z')
             y = position.get('y')
+            logger.debug(f"Container {container_id}: coordenadas de 'position' dict: x={x} (type={type(x)}), z={z} (type={type(z)}), y={y} (type={type(y)})")
         else:
+            # Se position não é dict válido, tentar pegar direto do container
             x = container.get('x')
             z = container.get('z')
             y = container.get('y')
+            logger.debug(f"Container {container_id}: coordenadas diretas: x={x} (type={type(x)}), z={z} (type={type(z)}), y={y} (type={type(y)})")
+        
+        # Validar que coordenadas existem e são números válidos
+        if x is None or z is None or y is None:
+            logger.warning(f"Container {container_id}: validação falhou - coordenadas None: x={x}, z={z}, y={y}, position={position}")
+            return False
         
         try:
-            float(x) if x is not None else None
-            float(z) if z is not None else None
-            float(y) if y is not None else None
-        except (TypeError, ValueError):
+            x_float = float(x)
+            z_float = float(z)
+            y_float = float(y)
+            
+            # Verificar se são números válidos (não NaN, não infinito)
+            if math.isnan(x_float) or math.isinf(x_float):
+                logger.debug(f"Container {container_id}: validação falhou - x inválido (NaN ou Inf): {x_float}")
+                return False
+            if math.isnan(z_float) or math.isinf(z_float):
+                logger.debug(f"Container {container_id}: validação falhou - z inválido (NaN ou Inf): {z_float}")
+                return False
+            if math.isnan(y_float) or math.isinf(y_float):
+                logger.debug(f"Container {container_id}: validação falhou - y inválido (NaN ou Inf): {y_float}")
+                return False
+        except (TypeError, ValueError) as e:
+            logger.warning(f"Container {container_id}: validação falhou - erro ao converter coordenadas: x={x}, z={z}, y={y}, error={e}")
             return False
         
-        if x is None or z is None or y is None:
-            return False
-        
+        logger.debug(f"Container {container_id}: validação passou - x={x_float}, z={z_float}, y={y_float}")
         return True
     
     def _normalize_container_values(self, container: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Normaliza valores de um container para inserção no banco"""
+        import math
+        
         if not self._validate_container_data(container):
             return None
         
@@ -753,14 +792,21 @@ class PositionsConsumer:
         
         # Coordenadas (obrigatórias, já validadas)
         position = container.get('position', {})
-        if isinstance(position, dict):
+        if isinstance(position, dict) and len(position) > 0:
             normalized['coord_x'] = float(position.get('x'))
             normalized['coord_z'] = float(position.get('z'))
             normalized['coord_y'] = float(position.get('y'))
         else:
+            # Se position não é dict válido, pegar direto do container
             normalized['coord_x'] = float(container.get('x'))
             normalized['coord_z'] = float(container.get('z'))
             normalized['coord_y'] = float(container.get('y'))
+        
+        # Validar novamente após conversão (proteção extra)
+        if (math.isnan(normalized['coord_x']) or math.isinf(normalized['coord_x']) or
+            math.isnan(normalized['coord_z']) or math.isinf(normalized['coord_z']) or
+            math.isnan(normalized['coord_y']) or math.isinf(normalized['coord_y'])):
+            return None
         
         # Items (para processamento posterior)
         normalized['items'] = container.get('items', [])
@@ -774,7 +820,10 @@ class PositionsConsumer:
         Retorna (0, 0) em caso de erro
         """
         if not containers or not timestamps or len(containers) != len(timestamps):
+            logger.warning(f"_insert_containers_batch: dados inválidos - containers={len(containers) if containers else 0}, timestamps={len(timestamps) if timestamps else 0}")
             return (0, 0)
+        
+        logger.info(f"_insert_containers_batch: preparando inserção de {len(containers)} containers (is_partial_update={is_partial_update})")
         
         # Construir query SQL com múltiplos VALUES
         sql = """
@@ -801,13 +850,28 @@ class PositionsConsumer:
             ))
         
         # Executar INSERT em batch
-        cursor.executemany(sql, values)
-        
-        # Obter inserted_count e last_rowid
-        inserted_count = cursor.rowcount
-        last_rowid = cursor.lastrowid
-        
-        return (inserted_count, last_rowid)
+        try:
+            cursor.executemany(sql, values)
+            
+            # Obter inserted_count e last_rowid
+            inserted_count = cursor.rowcount
+            last_rowid = cursor.lastrowid
+            
+            logger.info(f"_insert_containers_batch: INSERT executado com sucesso - rowcount={inserted_count}, last_rowid={last_rowid}")
+            
+            # Log do primeiro container inserido para debug
+            if containers:
+                first_container = containers[0]
+                logger.info(f"_insert_containers_batch: primeiro container inserido - container_id={first_container.get('container_id')}, container_name={first_container.get('container_name')}, coord_x={first_container.get('coord_x')}, coord_z={first_container.get('coord_z')}, coord_y={first_container.get('coord_y')}")
+            
+            return (inserted_count, last_rowid)
+        except Exception as e:
+            logger.error(f"_insert_containers_batch: erro ao executar INSERT - {e}")
+            # Log do primeiro container que causou erro
+            if containers:
+                first_container = containers[0]
+                logger.error(f"_insert_containers_batch: primeiro container que causou erro - container_id={first_container.get('container_id')}, container_name={first_container.get('container_name')}, coord_x={first_container.get('coord_x')}, coord_z={first_container.get('coord_z')}, coord_y={first_container.get('coord_y')}")
+            raise
     
     def _get_inserted_container_ids(self, cursor: sqlite3.Cursor, first_rowid: int, last_rowid: int,
                                     container_ids: List[str], inserted_count: int) -> Dict[str, int]:
@@ -816,6 +880,8 @@ class PositionsConsumer:
         Retorna dict {container_id: id_container_tracking}
         """
         container_tracking_map = {}
+        
+        logger.info(f"_get_inserted_container_ids: first_rowid={first_rowid}, last_rowid={last_rowid}, inserted_count={inserted_count}, container_ids={len(container_ids)}")
         
         # Método 1: Usar range de IdContainerTracking
         if first_rowid > 0 and last_rowid > 0 and inserted_count > 0:
@@ -828,18 +894,25 @@ class PositionsConsumer:
                 """, (first_rowid, last_rowid))
                 
                 results = cursor.fetchall()
+                logger.debug(f"_get_inserted_container_ids método 1: encontrados {len(results)} resultados")
                 if results and len(results) == inserted_count:
                     for container_id, tracking_id in results:
                         if container_id in container_ids:
                             container_tracking_map[container_id] = tracking_id
                     
                     if len(container_tracking_map) == inserted_count:
+                        logger.debug(f"_get_inserted_container_ids método 1: sucesso - {len(container_tracking_map)} mapeamentos")
                         return container_tracking_map
+                    else:
+                        logger.warning(f"_get_inserted_container_ids método 1: mapeamento incompleto - esperado {inserted_count}, obtido {len(container_tracking_map)}")
+                else:
+                    logger.warning(f"_get_inserted_container_ids método 1: número de resultados não corresponde - esperado {inserted_count}, obtido {len(results) if results else 0}")
             except Exception as e:
                 logger.warning(f"Método 1 de recuperação de IDs de containers falhou: {e}")
         
         # Método 2: Fallback - buscar por ContainerIds com janela de tempo (5 segundos)
         if container_ids and not container_tracking_map:
+            logger.debug(f"_get_inserted_container_ids: tentando método 2 (fallback) para {len(container_ids)} containers")
             try:
                 placeholders = ','.join(['?'] * len(container_ids))
                 cursor.execute(f"""
@@ -852,17 +925,22 @@ class PositionsConsumer:
                 """, container_ids + [inserted_count])
                 
                 results = cursor.fetchall()
+                logger.debug(f"_get_inserted_container_ids método 2: encontrados {len(results)} resultados")
                 for container_id, tracking_id in results:
                     if container_id in container_ids:
                         container_tracking_map[container_id] = tracking_id
                 
                 if container_tracking_map:
+                    logger.debug(f"_get_inserted_container_ids método 2: sucesso - {len(container_tracking_map)} mapeamentos")
                     return container_tracking_map
+                else:
+                    logger.warning(f"_get_inserted_container_ids método 2: nenhum mapeamento encontrado")
             except Exception as e:
                 logger.warning(f"Método 2 de recuperação de IDs de containers falhou: {e}")
         
         # Método 3: Fallback final - buscar últimos N registros sem filtro de tempo
         if container_ids and not container_tracking_map:
+            logger.debug(f"_get_inserted_container_ids: tentando método 3 (fallback final) para {len(container_ids)} containers")
             try:
                 placeholders = ','.join(['?'] * len(container_ids))
                 cursor.execute(f"""
@@ -874,19 +952,29 @@ class PositionsConsumer:
                 """, container_ids + [inserted_count])
                 
                 results = cursor.fetchall()
+                logger.debug(f"_get_inserted_container_ids método 3: encontrados {len(results)} resultados")
                 for container_id, tracking_id in results:
                     if container_id in container_ids:
                         container_tracking_map[container_id] = tracking_id
+                
+                if container_tracking_map:
+                    logger.debug(f"_get_inserted_container_ids método 3: sucesso - {len(container_tracking_map)} mapeamentos")
+                else:
+                    logger.warning(f"_get_inserted_container_ids método 3: nenhum mapeamento encontrado")
             except Exception as e:
                 logger.warning(f"Método 3 de recuperação de IDs de containers falhou: {e}")
         
+        logger.info(f"_get_inserted_container_ids: retornando {len(container_tracking_map)} mapeamentos de {inserted_count} esperados")
         return container_tracking_map
     
     def _insert_container_items_batch(self, cursor: sqlite3.Cursor, container_tracking_map: Dict[str, int],
                                       containers_data: List[Dict[str, Any]], timestamp: datetime) -> int:
         """Insere items de containers em batch"""
         if not container_tracking_map or not containers_data:
+            logger.warning(f"_insert_container_items_batch: dados inválidos - container_tracking_map={len(container_tracking_map) if container_tracking_map else 0}, containers_data={len(containers_data) if containers_data else 0}")
             return 0
+        
+        logger.info(f"_insert_container_items_batch: preparando inserção de items para {len(containers_data)} containers")
         
         timestamp_str = timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
         
@@ -928,10 +1016,18 @@ class PositionsConsumer:
                 ))
         
         if not values:
+            logger.warning(f"_insert_container_items_batch: nenhum item válido para inserir")
             return 0
         
-        cursor.executemany(sql, values)
-        return cursor.rowcount
+        logger.info(f"_insert_container_items_batch: inserindo {len(values)} items")
+        try:
+            cursor.executemany(sql, values)
+            items_count = cursor.rowcount
+            logger.info(f"_insert_container_items_batch: {items_count} items inseridos com sucesso")
+            return items_count
+        except Exception as e:
+            logger.error(f"_insert_container_items_batch: erro ao inserir items - {e}")
+            raise
     
     def process_containers_data(self, db_path: str, data: Dict[str, Any]) -> bool:
         """
@@ -969,14 +1065,57 @@ class PositionsConsumer:
         # Normalizar e validar containers
         normalized_containers = []
         container_ids = []
-        for container in containers:
+        
+        # Log do primeiro container para debug
+        if containers:
+            first_container = containers[0]
+            logger.info(f"Primeiro container recebido: chaves={list(first_container.keys())}")
+            logger.info(f"Primeiro container: container_id={first_container.get('container_id')}, container_type={first_container.get('container_type')}, position={first_container.get('position')}, x={first_container.get('x')}, z={first_container.get('z')}, y={first_container.get('y')}")
+            # Log detalhado da estrutura de position
+            position = first_container.get('position')
+            if position:
+                logger.info(f"Primeiro container position type={type(position)}, value={position}")
+                if isinstance(position, dict):
+                    logger.info(f"Primeiro container position dict: x={position.get('x')}, z={position.get('z')}, y={position.get('y')}")
+        
+        for idx, container in enumerate(containers):
+            container_id = container.get('container_id', 'N/A')
+            container_type = container.get('container_type', 'N/A')
+            
+            # Log detalhado para os primeiros containers
+            if idx < 3:
+                logger.info(f"Container {idx}: container_id={container_id}, container_type={container_type}")
+                logger.info(f"Container {idx}: chaves disponíveis={list(container.keys())}")
+                position = container.get('position')
+                logger.info(f"Container {idx}: position={position} (type={type(position)})")
+                if isinstance(position, dict):
+                    logger.info(f"Container {idx}: position dict - x={position.get('x')}, z={position.get('z')}, y={position.get('y')}")
+                logger.info(f"Container {idx}: x direto={container.get('x')}, z direto={container.get('z')}, y direto={container.get('y')}")
+            
             normalized = self._normalize_container_values(container)
             if normalized:
                 normalized_containers.append(normalized)
                 container_ids.append(normalized['container_id'])
+                if idx < 3:
+                    logger.info(f"Container {idx} (id={container_id}) normalizado com sucesso: coord_x={normalized.get('coord_x')}, coord_z={normalized.get('coord_z')}, coord_y={normalized.get('coord_y')}, container_name={normalized.get('container_name')}")
+            else:
+                position = container.get('position', 'N/A')
+                x = container.get('x', 'N/A')
+                z = container.get('z', 'N/A')
+                y = container.get('y', 'N/A')
+                logger.warning(f"Container {idx} (id={container_id}): falhou na validação/normalização - position={position} (type={type(position)}), x={x}, z={z}, y={y}")
+                # Log detalhado do motivo da falha
+                if not container_id or not isinstance(container_id, str) or not container_id.strip():
+                    logger.warning(f"Container {idx}: container_id inválido - value={container_id}, type={type(container_id)}")
+                if x is None and (not position or not isinstance(position, dict) or position.get('x') is None):
+                    logger.warning(f"Container {idx}: coordenada x não encontrada")
+                if z is None and (not position or not isinstance(position, dict) or position.get('z') is None):
+                    logger.warning(f"Container {idx}: coordenada z não encontrada")
+                if y is None and (not position or not isinstance(position, dict) or position.get('y') is None):
+                    logger.warning(f"Container {idx}: coordenada y não encontrada")
         
         if not normalized_containers:
-            logger.warning("Nenhum container válido após normalização")
+            logger.warning(f"Nenhum container válido após normalização de {len(containers)} containers recebidos")
             return False
         
         logger.info(f"Após normalização: {len(normalized_containers)} containers válidos de {len(containers)} recebidos")
@@ -992,7 +1131,9 @@ class PositionsConsumer:
                 self._configure_sqlite_pragmas(cursor)
                 
                 # Buscar registros anteriores para comparação
+                logger.info(f"Buscando registros anteriores para {len(container_ids)} containers")
                 prev_containers = self._fetch_previous_containers(cursor, db_path, container_ids)
+                logger.info(f"Encontrados {len(prev_containers)} containers anteriores no banco")
                 
                 # Separar containers em dois grupos: UPDATE e INSERT
                 containers_to_update = []
@@ -1007,16 +1148,32 @@ class PositionsConsumer:
                         normalized_container, previous, is_partial_update
                     )
                     
-                    if not has_changes and previous:
-                        # Não há mudanças: usar UPDATE
-                        containers_to_update.append(normalized_container)
-                    else:
-                        # Há mudanças ou container novo: usar INSERT
+                    if is_partial_update:
+                        # Mesma regra dos vehicles:
+                        # - Snapshots parciais de containers não devem atualizar o registro completo existente
+                        # - Sempre inserir um novo registro com IsPartialUpdate = 1
+                        #
+                        # Isso garante que:
+                        # - coordinates_last_update avance a cada parcial
+                        # - items_last_update (derivado de snapshots completos) permaneça estável
                         containers_to_insert.append(normalized_container)
+                    else:
+                        if not has_changes and previous:
+                            # Snapshot completo SEM mudanças relevantes:
+                            # otimizar usando UPDATE no registro completo existente
+                            containers_to_update.append(normalized_container)
+                        else:
+                            # Há mudanças ou container novo: usar INSERT
+                            containers_to_insert.append(normalized_container)
                 
-                # Processar UPDATEs primeiro
+                logger.info(f"Containers separados: {len(containers_to_update)} para UPDATE, {len(containers_to_insert)} para INSERT")
+                
+                # Processar UPDATEs primeiro (dentro de uma transação)
                 updated_count = 0
                 if containers_to_update:
+                    logger.info(f"Iniciando UPDATE de {len(containers_to_update)} containers")
+                    # Iniciar transação para UPDATEs
+                    cursor.execute("BEGIN IMMEDIATE TRANSACTION")
                     for container in containers_to_update:
                         container_id = container['container_id']
                         # Gerar timestamp único para este container
@@ -1026,21 +1183,31 @@ class PositionsConsumer:
                         )
                         if tracking_id:
                             updated_count += 1
+                        else:
+                            logger.warning(f"Falha ao atualizar timestamp do container {container_id}")
+                    # Commit transação de UPDATEs
+                    conn.commit()
+                    logger.info(f"Atualizados {updated_count} containers")
                 
                 # Processar INSERTs
                 inserted_count = 0
                 last_rowid = 0
                 if containers_to_insert:
+                    logger.info(f"Iniciando INSERT de {len(containers_to_insert)} containers (is_partial_update={is_partial_update})")
+                    # Log dos primeiros containers que serão inseridos
+                    for idx, c in enumerate(containers_to_insert[:3]):
+                        logger.info(f"Container {idx} para INSERT: container_id={c.get('container_id')}, container_name={c.get('container_name')}, coord_x={c.get('coord_x')}, coord_z={c.get('coord_z')}, coord_y={c.get('coord_y')}, items_count={len(c.get('items', []))}")
                     # Gerar timestamps únicos
                     timestamps = self._generate_unique_timestamps(base_timestamp, len(containers_to_insert))
                     
-                    # Iniciar transação
+                    # Iniciar transação para INSERTs
                     cursor.execute("BEGIN IMMEDIATE TRANSACTION")
                     
                     # Inserir containers em batch
                     inserted_count, last_rowid = self._insert_containers_batch(
                         cursor, containers_to_insert, timestamps, is_partial_update
                     )
+                    logger.info(f"INSERT executado: {inserted_count} containers inseridos, last_rowid={last_rowid}")
                 
                     if inserted_count <= 0:
                         conn.rollback()
@@ -1058,12 +1225,15 @@ class PositionsConsumer:
                     # Recuperar IDs inseridos
                     inserted_container_ids = [c['container_id'] for c in containers_to_insert]
                     first_rowid = last_rowid - inserted_count + 1 if last_rowid > 0 and inserted_count > 0 else 0
+                    logger.info(f"Recuperando IDs inseridos: first_rowid={first_rowid}, last_rowid={last_rowid}, inserted_count={inserted_count}, container_ids={len(inserted_container_ids)}")
                     container_tracking_map = self._get_inserted_container_ids(
                         cursor, first_rowid, last_rowid, inserted_container_ids, inserted_count
                     )
+                    logger.info(f"Container tracking map recuperado: {len(container_tracking_map)} mapeamentos")
                     
                     # Se não é update parcial, inserir items
                     if not is_partial_update and container_tracking_map:
+                        logger.info(f"Inserindo items para {len(container_tracking_map)} containers")
                         # Iniciar nova transação para items
                         cursor.execute("BEGIN IMMEDIATE TRANSACTION")
                         
@@ -1074,8 +1244,11 @@ class PositionsConsumer:
                         conn.commit()
                         
                         logger.info(f"Inseridos {items_count} items de containers")
+                    elif not is_partial_update:
+                        logger.warning(f"Container tracking map vazio - não foi possível inserir items (is_partial_update={is_partial_update}, container_tracking_map size={len(container_tracking_map) if container_tracking_map else 0})")
                 else:
                     container_tracking_map = {}
+                    logger.info(f"Nenhum container para inserir (containers_to_insert está vazio)")
                 
                 conn.close()
                 
@@ -1328,8 +1501,10 @@ class PositionsConsumer:
         Retorna dict {container_id: {name, x, z, y, items_str, is_partial_update}}
         """
         if not container_ids:
+            logger.debug("_fetch_previous_containers: lista de container_ids vazia")
             return {}
         
+        logger.info(f"_fetch_previous_containers: buscando {len(container_ids)} containers anteriores")
         prev_containers = {}
         
         try:
@@ -1337,9 +1512,11 @@ class PositionsConsumer:
             cursor.execute("SELECT COUNT(*) FROM pragma_table_info('containers_tracking') WHERE name='IsDestroyed'")
             has_is_destroyed = cursor.fetchone()[0] > 0
             
-            # Construir query com window function
+            # Construir query com window function, filtrando por container_ids
+            placeholders = ','.join(['?'] * len(container_ids))
+            
             if has_is_destroyed:
-                sql_query = """
+                sql_query = f"""
                 SELECT 
                     ranked.ContainerId,
                     ranked.ContainerName,
@@ -1353,7 +1530,8 @@ class PositionsConsumer:
                            IsPartialUpdate,
                            ROW_NUMBER() OVER (PARTITION BY ContainerId ORDER BY TimeStamp DESC) as rn
                     FROM containers_tracking
-                    WHERE (IsDestroyed = 0 OR IsDestroyed IS NULL)
+                    WHERE ContainerId IN ({placeholders})
+                    AND (IsDestroyed = 0 OR IsDestroyed IS NULL)
                     AND IsPartialUpdate = 0
                 ) ranked
                 LEFT JOIN container_items_tracking ci ON ranked.IdContainerTracking = ci.ContainerTrackingId
@@ -1362,7 +1540,7 @@ class PositionsConsumer:
                          ranked.IsPartialUpdate
                 """
             else:
-                sql_query = """
+                sql_query = f"""
                 SELECT 
                     ranked.ContainerId,
                     ranked.ContainerName,
@@ -1376,7 +1554,8 @@ class PositionsConsumer:
                            IsPartialUpdate,
                            ROW_NUMBER() OVER (PARTITION BY ContainerId ORDER BY TimeStamp DESC) as rn
                     FROM containers_tracking
-                    WHERE IsPartialUpdate = 0
+                    WHERE ContainerId IN ({placeholders})
+                    AND IsPartialUpdate = 0
                 ) ranked
                 LEFT JOIN container_items_tracking ci ON ranked.IdContainerTracking = ci.ContainerTrackingId
                 WHERE ranked.rn = 1
@@ -1384,8 +1563,10 @@ class PositionsConsumer:
                          ranked.IsPartialUpdate
                 """
             
-            cursor.execute(sql_query)
+            cursor.execute(sql_query, container_ids)
             results = cursor.fetchall()
+            
+            logger.info(f"_fetch_previous_containers: query retornou {len(results)} resultados")
             
             for row in results:
                 container_id = row[0]
@@ -1398,6 +1579,9 @@ class PositionsConsumer:
                         'items_str': row[5] or '',
                         'is_partial_update': int(row[6]) if row[6] is not None else 0
                     }
+                    logger.debug(f"_fetch_previous_containers: container {container_id} encontrado - x={prev_containers[container_id]['x']}, z={prev_containers[container_id]['z']}, y={prev_containers[container_id]['y']}, items_count={len(prev_containers[container_id]['items_str'].split(',')) if prev_containers[container_id]['items_str'] else 0}")
+            
+            logger.info(f"_fetch_previous_containers: {len(prev_containers)} containers anteriores encontrados de {len(container_ids)} buscados")
         except Exception as e:
             logger.warning(f"Erro ao buscar containers anteriores: {e}")
         
@@ -1645,24 +1829,29 @@ class PositionsConsumer:
                     result = cursor.fetchone()
                     if result:
                         tracking_id = result[0]
+                        # Sempre atualizar o timestamp do registro principal
                         cursor.execute("""
                             UPDATE vehicles_tracking
                             SET TimeStamp = ?
                             WHERE IdVehicleTracking = ?
                         """, (timestamp_str, tracking_id))
                         
-                        # Atualizar timestamp dos items e attachments relacionados
-                        cursor.execute("""
-                            UPDATE vehicles_items
-                            SET TimeStamp = ?
-                            WHERE VehicleTrackingId = ?
-                        """, (timestamp_str, tracking_id))
-                        
-                        cursor.execute("""
-                            UPDATE vehicles_attachments
-                            SET TimeStamp = ?
-                            WHERE VehicleTrackingId = ?
-                        """, (timestamp_str, tracking_id))
+                        # Comportamento diferente para snapshot completo x parcial:
+                        # - prefer_complete == True  -> update completo: também atualizar items/attachments
+                        # - prefer_complete == False -> update parcial: NÃO atualizar items/attachments
+                        if prefer_complete:
+                            # Atualizar timestamp dos items e attachments relacionados (snapshot completo)
+                            cursor.execute("""
+                                UPDATE vehicles_items
+                                SET TimeStamp = ?
+                                WHERE VehicleTrackingId = ?
+                            """, (timestamp_str, tracking_id))
+                            
+                            cursor.execute("""
+                                UPDATE vehicles_attachments
+                                SET TimeStamp = ?
+                                WHERE VehicleTrackingId = ?
+                            """, (timestamp_str, tracking_id))
                         
                         return tracking_id
                     else:
@@ -1744,18 +1933,22 @@ class PositionsConsumer:
                     result = cursor.fetchone()
                     if result:
                         tracking_id = result[0]
+                        # Sempre atualizar o timestamp do registro principal
                         cursor.execute("""
                             UPDATE containers_tracking
                             SET TimeStamp = ?
                             WHERE IdContainerTracking = ?
                         """, (timestamp_str, tracking_id))
                         
-                        # Atualizar timestamp dos items relacionados
-                        cursor.execute("""
-                            UPDATE container_items_tracking
-                            SET TimeStamp = ?
-                            WHERE ContainerTrackingId = ?
-                        """, (timestamp_str, tracking_id))
+                        # Comportamento diferente para snapshot completo x parcial:
+                        # - prefer_complete == True  -> update completo: também atualizar items
+                        # - prefer_complete == False -> update parcial: NÃO atualizar items
+                        if prefer_complete:
+                            cursor.execute("""
+                                UPDATE container_items_tracking
+                                SET TimeStamp = ?
+                                WHERE ContainerTrackingId = ?
+                            """, (timestamp_str, tracking_id))
                         
                         return tracking_id
                     else:
@@ -2865,11 +3058,14 @@ class PositionsConsumer:
     # ==================== STRUCTURES ====================
     
     def _validate_fence_data(self, fence: Dict[str, Any]) -> bool:
-        """Valida dados obrigatórios de um fence"""
-        fence_id = fence.get('fence_id')
-        if not fence_id or not isinstance(fence_id, str) or not fence_id.strip():
-            return False
+        """
+        Valida dados obrigatórios de um fence.
         
+        IMPORTANTE:
+        - O JSON original de fences (SendFencesStatus) não inclui fence_id.
+        - O ID será gerado no normalize se não existir.
+        - Aqui validamos apenas coordenadas obrigatórias.
+        """
         # Coordenadas obrigatórias
         position = fence.get('position', {})
         if isinstance(position, dict):
@@ -2894,11 +3090,14 @@ class PositionsConsumer:
         return True
     
     def _validate_watchtower_data(self, watchtower: Dict[str, Any]) -> bool:
-        """Valida dados obrigatórios de um watchtower"""
-        watchtower_id = watchtower.get('watchtower_id')
-        if not watchtower_id or not isinstance(watchtower_id, str) or not watchtower_id.strip():
-            return False
+        """
+        Valida dados obrigatórios de uma watchtower.
         
+        Observação:
+        - O JSON original de watchtowers também não inclui watchtower_id.
+        - O ID será gerado no normalize se não existir.
+        - Aqui validamos apenas coordenadas obrigatórias.
+        """
         # Coordenadas obrigatórias
         position = watchtower.get('position', {})
         if isinstance(position, dict):
@@ -2923,11 +3122,14 @@ class PositionsConsumer:
         return True
     
     def _validate_flag_data(self, flag: Dict[str, Any]) -> bool:
-        """Valida dados obrigatórios de um flag"""
-        flag_id = flag.get('flag_id')
-        if not flag_id or not isinstance(flag_id, str) or not flag_id.strip():
-            return False
+        """
+        Valida dados obrigatórios de uma flag.
         
+        Observação:
+        - O JSON original de flags também não inclui flag_id.
+        - O ID será gerado no normalize se não existir.
+        - Aqui validamos apenas coordenadas obrigatórias.
+        """
         # Coordenadas obrigatórias
         position = flag.get('position', {})
         if isinstance(position, dict):
@@ -2959,8 +3161,96 @@ class PositionsConsumer:
             if not self._validate_fence_data(structure):
                 return None
             
-            normalized['fence_id'] = structure['fence_id'].strip()
-            normalized['fence_name'] = structure.get('fence_name', '').strip() or ''
+            # ID da fence:
+            # - Se vier no JSON (fence_id), usar direto
+            # - Caso contrário, gerar ID determinística baseada na posição
+            raw_id = structure.get('fence_id')
+            if isinstance(raw_id, str) and raw_id.strip():
+                normalized['fence_id'] = raw_id.strip()
+            else:
+                # Gerar ID baseada na posição (x,z,y) normalizada
+                position = structure.get('position', {})
+                if isinstance(position, dict):
+                    x = position.get('x')
+                    z = position.get('z')
+                    y = position.get('y')
+                else:
+                    x = structure.get('x')
+                    z = structure.get('z')
+                    y = structure.get('y')
+                
+                x_norm = self._normalize_coordinate(x)
+                z_norm = self._normalize_coordinate(z)
+                y_norm = self._normalize_coordinate(y)
+                normalized['fence_id'] = f"fence:{x_norm}:{z_norm}:{y_norm}"
+            
+            # Gerar fence_name no formato antigo para compatibilidade com JavaScript
+            # Formato: Fence, Fence_Gate, Fence_Gate_Open, Fence_Gate_Locked
+            # O JavaScript espera que fence_name contenha "Gate" para identificar portões
+            fence_name = 'Fence'
+            
+            # Converter has_gate para booleano de forma robusta
+            has_gate_raw = structure.get('has_gate', False)
+            has_gate = False
+            if isinstance(has_gate_raw, bool):
+                has_gate = has_gate_raw
+            elif isinstance(has_gate_raw, str):
+                has_gate = has_gate_raw.lower().strip() in ('true', '1', 'yes', 'on')
+            elif isinstance(has_gate_raw, (int, float)):
+                has_gate = bool(has_gate_raw) and has_gate_raw != 0
+            elif has_gate_raw is None:
+                has_gate = False
+            else:
+                try:
+                    has_gate = bool(has_gate_raw)
+                except (TypeError, ValueError):
+                    has_gate = False
+            
+            # Converter is_opened para booleano de forma robusta
+            is_opened_raw = structure.get('is_opened', False)
+            is_opened = False
+            if isinstance(is_opened_raw, bool):
+                is_opened = is_opened_raw
+            elif isinstance(is_opened_raw, str):
+                is_opened = is_opened_raw.lower().strip() in ('true', '1', 'yes', 'on')
+            elif isinstance(is_opened_raw, (int, float)):
+                is_opened = bool(is_opened_raw) and is_opened_raw != 0
+            elif is_opened_raw is None:
+                is_opened = False
+            else:
+                try:
+                    is_opened = bool(is_opened_raw)
+                except (TypeError, ValueError):
+                    is_opened = False
+            
+            # Converter is_locked para booleano de forma robusta
+            is_locked_raw = structure.get('is_locked', False)
+            is_locked = False
+            if isinstance(is_locked_raw, bool):
+                is_locked = is_locked_raw
+            elif isinstance(is_locked_raw, str):
+                is_locked = is_locked_raw.lower().strip() in ('true', '1', 'yes', 'on')
+            elif isinstance(is_locked_raw, (int, float)):
+                is_locked = bool(is_locked_raw) and is_locked_raw != 0
+            elif is_locked_raw is None:
+                is_locked = False
+            else:
+                try:
+                    is_locked = bool(is_locked_raw)
+                except (TypeError, ValueError):
+                    is_locked = False
+            
+            # Construir fence_name no formato antigo (compatível com JavaScript)
+            if has_gate:
+                fence_name = fence_name + '_Gate'
+            if is_opened:
+                fence_name = fence_name + '_Open'
+            if is_locked:
+                fence_name = fence_name + '_Locked'
+            
+            normalized['fence_name'] = fence_name
+            
+            logger.info(f"Fence {normalized['fence_id']}: has_gate={has_gate}, is_opened={is_opened}, is_locked={is_locked}, fence_name={normalized['fence_name']}")
             
             position = structure.get('position', {})
             if isinstance(position, dict):
@@ -2973,10 +3263,34 @@ class PositionsConsumer:
                 normalized['coord_y'] = float(structure.get('y'))
             
             def safe_int(value, default=None):
+                """
+                Converte valor para inteiro (0 ou 1).
+                Suporta: booleanos (True/False), strings ("true"/"false", "1"/"0"), números, None
+                O JSON do Enforce envia booleanos como strings "true"/"false" via BoolToJson()
+                """
                 try:
                     if value is None or value == '':
                         return default
-                    return int(value) if value else default
+                    
+                    # Se já é booleano
+                    if isinstance(value, bool):
+                        return 1 if value else 0
+                    
+                    # Se é string, tratar "true"/"false" e "1"/"0"
+                    if isinstance(value, str):
+                        value_lower = value.lower().strip()
+                        if value_lower in ('true', 'yes', '1'):
+                            return 1
+                        elif value_lower in ('false', 'no', '0', ''):
+                            return 0
+                        # Tentar converter para int
+                        return int(value)
+                    
+                    # Se é número
+                    if isinstance(value, (int, float)):
+                        return 1 if value else 0
+                    
+                    return default
                 except (TypeError, ValueError):
                     return default
             
@@ -2988,8 +3302,31 @@ class PositionsConsumer:
             if not self._validate_watchtower_data(structure):
                 return None
             
-            normalized['watchtower_id'] = structure['watchtower_id'].strip()
-            normalized['watchtower_name'] = structure.get('watchtower_name', '').strip() or ''
+            # ID da watchtower:
+            # - Se vier no JSON (watchtower_id), usar direto
+            # - Caso contrário, gerar ID determinística baseada na posição
+            raw_id = structure.get('watchtower_id')
+            if isinstance(raw_id, str) and raw_id.strip():
+                normalized['watchtower_id'] = raw_id.strip()
+            else:
+                position = structure.get('position', {})
+                if isinstance(position, dict):
+                    x = position.get('x')
+                    z = position.get('z')
+                    y = position.get('y')
+                else:
+                    x = structure.get('x')
+                    z = structure.get('z')
+                    y = structure.get('y')
+                
+                x_norm = self._normalize_coordinate(x)
+                z_norm = self._normalize_coordinate(z)
+                y_norm = self._normalize_coordinate(y)
+                normalized['watchtower_id'] = f"watchtower:{x_norm}:{z_norm}:{y_norm}"
+            
+            # Gerar watchtower_name padrão (o JSON do Enforce não envia watchtower_name)
+            normalized['watchtower_name'] = "Torre de Observação"
+            logger.info(f"Watchtower {normalized['watchtower_id']}: watchtower_name={normalized['watchtower_name']}")
             
             position = structure.get('position', {})
             if isinstance(position, dict):
@@ -3012,46 +3349,99 @@ class PositionsConsumer:
                 normalized['orientation_z'] = float(structure.get('orientation_z')) if structure.get('orientation_z') is not None else None
             
             def safe_int(value, default=None):
+                """
+                Converte valor para inteiro (0 ou 1).
+                Suporta: booleanos (True/False), strings ("true"/"false", "1"/"0"), números, None
+                O JSON do Enforce envia booleanos como strings "true"/"false" via BoolToJson()
+                """
                 try:
                     if value is None or value == '':
                         return default
-                    return int(value) if value else default
+                    
+                    # Se já é booleano
+                    if isinstance(value, bool):
+                        return 1 if value else 0
+                    
+                    # Se é string, tratar "true"/"false" e "1"/"0"
+                    if isinstance(value, str):
+                        value_lower = value.lower().strip()
+                        if value_lower in ('true', 'yes', '1'):
+                            return 1
+                        elif value_lower in ('false', 'no', '0', ''):
+                            return 0
+                        # Tentar converter para int
+                        return int(value)
+                    
+                    # Se é número
+                    if isinstance(value, (int, float)):
+                        return 1 if value else 0
+                    
+                    return default
                 except (TypeError, ValueError):
                     return default
             
             normalized['has_base'] = safe_int(structure.get('has_base'))
-            normalized['level1_base_built'] = safe_int(structure.get('level1_base_built'))
-            normalized['level2_base_built'] = safe_int(structure.get('level2_base_built'))
-            normalized['level3_base_built'] = safe_int(structure.get('level3_base_built'))
-            normalized['level1_stairs_built'] = safe_int(structure.get('level1_stairs_built'))
-            normalized['level2_stairs_built'] = safe_int(structure.get('level2_stairs_built'))
+            
+            # Mapear campos do JSON (level_1_base) para campos normalizados (level1_base_built)
+            # O JSON do Enforce envia: level_1_base, level_2_base, level_3_base, level_1_stairs, level_2_stairs
+            # BoolToJson() retorna strings "true"/"false", então safe_int() converte para 1/0
+            normalized['level1_base_built'] = safe_int(structure.get('level_1_base'))
+            normalized['level2_base_built'] = safe_int(structure.get('level_2_base'))
+            normalized['level3_base_built'] = safe_int(structure.get('level_3_base'))
+            normalized['level1_stairs_built'] = safe_int(structure.get('level_1_stairs'))
+            normalized['level2_stairs_built'] = safe_int(structure.get('level_2_stairs'))
             normalized['has_roof'] = safe_int(structure.get('has_roof'))
             
-            # Walls
-            normalized['level1_wall1_lower_built'] = safe_int(structure.get('level1_wall1_lower_built'))
-            normalized['level1_wall1_upper_built'] = safe_int(structure.get('level1_wall1_upper_built'))
-            normalized['level1_wall2_lower_built'] = safe_int(structure.get('level1_wall2_lower_built'))
-            normalized['level1_wall2_upper_built'] = safe_int(structure.get('level1_wall2_upper_built'))
-            normalized['level1_wall3_lower_built'] = safe_int(structure.get('level1_wall3_lower_built'))
-            normalized['level1_wall3_upper_built'] = safe_int(structure.get('level1_wall3_upper_built'))
-            normalized['level2_wall1_lower_built'] = safe_int(structure.get('level2_wall1_lower_built'))
-            normalized['level2_wall1_upper_built'] = safe_int(structure.get('level2_wall1_upper_built'))
-            normalized['level2_wall2_lower_built'] = safe_int(structure.get('level2_wall2_lower_built'))
-            normalized['level2_wall2_upper_built'] = safe_int(structure.get('level2_wall2_upper_built'))
-            normalized['level2_wall3_lower_built'] = safe_int(structure.get('level2_wall3_lower_built'))
-            normalized['level2_wall3_upper_built'] = safe_int(structure.get('level2_wall3_upper_built'))
-            normalized['level3_wall1_lower_built'] = safe_int(structure.get('level3_wall1_lower_built'))
-            normalized['level3_wall1_upper_built'] = safe_int(structure.get('level3_wall1_upper_built'))
-            normalized['level3_wall2_lower_built'] = safe_int(structure.get('level3_wall2_lower_built'))
-            normalized['level3_wall2_upper_built'] = safe_int(structure.get('level3_wall2_upper_built'))
-            normalized['level3_wall3_lower_built'] = safe_int(structure.get('level3_wall3_lower_built'))
-            normalized['level3_wall3_upper_built'] = safe_int(structure.get('level3_wall3_upper_built'))
+            # Walls - Mapear campos do JSON (level_1_wall_1_lower_built) para campos normalizados (level1_wall1_lower_built)
+            # O JSON do Enforce envia: level_1_wall_1_lower_built, level_1_wall_1_upper_built, etc.
+            normalized['level1_wall1_lower_built'] = safe_int(structure.get('level_1_wall_1_lower_built'))
+            normalized['level1_wall1_upper_built'] = safe_int(structure.get('level_1_wall_1_upper_built'))
+            normalized['level1_wall2_lower_built'] = safe_int(structure.get('level_1_wall_2_lower_built'))
+            normalized['level1_wall2_upper_built'] = safe_int(structure.get('level_1_wall_2_upper_built'))
+            normalized['level1_wall3_lower_built'] = safe_int(structure.get('level_1_wall_3_lower_built'))
+            normalized['level1_wall3_upper_built'] = safe_int(structure.get('level_1_wall_3_upper_built'))
+            normalized['level2_wall1_lower_built'] = safe_int(structure.get('level_2_wall_1_lower_built'))
+            normalized['level2_wall1_upper_built'] = safe_int(structure.get('level_2_wall_1_upper_built'))
+            normalized['level2_wall2_lower_built'] = safe_int(structure.get('level_2_wall_2_lower_built'))
+            normalized['level2_wall2_upper_built'] = safe_int(structure.get('level_2_wall_2_upper_built'))
+            normalized['level2_wall3_lower_built'] = safe_int(structure.get('level_2_wall_3_lower_built'))
+            normalized['level2_wall3_upper_built'] = safe_int(structure.get('level_2_wall_3_upper_built'))
+            normalized['level3_wall1_lower_built'] = safe_int(structure.get('level_3_wall_1_lower_built'))
+            normalized['level3_wall1_upper_built'] = safe_int(structure.get('level_3_wall_1_upper_built'))
+            normalized['level3_wall2_lower_built'] = safe_int(structure.get('level_3_wall_2_lower_built'))
+            normalized['level3_wall2_upper_built'] = safe_int(structure.get('level_3_wall_2_upper_built'))
+            normalized['level3_wall3_lower_built'] = safe_int(structure.get('level_3_wall_3_lower_built'))
+            normalized['level3_wall3_upper_built'] = safe_int(structure.get('level_3_wall_3_upper_built'))
+            
+            # Log para verificar mapeamento (apenas para o primeiro watchtower do batch para não poluir logs)
+            # Este log será usado apenas quando houver watchtowers sendo processados
+            # (o log será feito no método process_structures_data após normalização)
             
         elif structure_type == 'flag':
             if not self._validate_flag_data(structure):
                 return None
             
-            normalized['flag_id'] = structure['flag_id'].strip()
+            # ID da flag:
+            # - Se vier no JSON (flag_id), usar direto
+            # - Caso contrário, gerar ID determinística baseada na posição
+            raw_id = structure.get('flag_id')
+            if isinstance(raw_id, str) and raw_id.strip():
+                normalized['flag_id'] = raw_id.strip()
+            else:
+                position = structure.get('position', {})
+                if isinstance(position, dict):
+                    x = position.get('x')
+                    z = position.get('z')
+                    y = position.get('y')
+                else:
+                    x = structure.get('x')
+                    z = structure.get('z')
+                    y = structure.get('y')
+                
+                x_norm = self._normalize_coordinate(x)
+                z_norm = self._normalize_coordinate(z)
+                y_norm = self._normalize_coordinate(y)
+                normalized['flag_id'] = f"flag:{x_norm}:{z_norm}:{y_norm}"
             normalized['flag_name'] = structure.get('flag_name', '').strip() or ''
             
             position = structure.get('position', {})
@@ -3075,10 +3465,34 @@ class PositionsConsumer:
                 normalized['orientation_z'] = float(structure.get('orientation_z')) if structure.get('orientation_z') is not None else None
             
             def safe_int(value, default=None):
+                """
+                Converte valor para inteiro (0 ou 1).
+                Suporta: booleanos (True/False), strings ("true"/"false", "1"/"0"), números, None
+                O JSON do Enforce envia booleanos como strings "true"/"false" via BoolToJson()
+                """
                 try:
                     if value is None or value == '':
                         return default
-                    return int(value) if value else default
+                    
+                    # Se já é booleano
+                    if isinstance(value, bool):
+                        return 1 if value else 0
+                    
+                    # Se é string, tratar "true"/"false" e "1"/"0"
+                    if isinstance(value, str):
+                        value_lower = value.lower().strip()
+                        if value_lower in ('true', 'yes', '1'):
+                            return 1
+                        elif value_lower in ('false', 'no', '0', ''):
+                            return 0
+                        # Tentar converter para int
+                        return int(value)
+                    
+                    # Se é número
+                    if isinstance(value, (int, float)):
+                        return 1 if value else 0
+                    
+                    return default
                 except (TypeError, ValueError):
                     return default
             
@@ -3285,20 +3699,43 @@ class PositionsConsumer:
         normalized_watchtowers = []
         normalized_flags = []
         
+        # Log primeiro fence para debug
+        if fences:
+            first_fence = fences[0]
+            logger.info(f"Primeiro fence recebido: chaves={list(first_fence.keys())}")
+            logger.info(f"Primeiro fence: has_gate={first_fence.get('has_gate')}, has_base={first_fence.get('has_base')}, lower_panel_built={first_fence.get('lower_panel_built')}, upper_panel_built={first_fence.get('upper_panel_built')}")
+        
         for fence in fences:
             normalized = self._normalize_structure_values(fence, 'fence')
             if normalized:
                 normalized_fences.append(normalized)
+            else:
+                logger.debug(f"Fence falhou na normalização: {fence.get('position', 'N/A')}")
+        
+        # Log primeiro watchtower para debug
+        if watchtowers:
+            first_watchtower = watchtowers[0]
+            logger.info(f"Primeiro watchtower recebido: chaves={list(first_watchtower.keys())}")
+            logger.info(f"Primeiro watchtower: level_1_base={first_watchtower.get('level_1_base')}, level_1_stairs={first_watchtower.get('level_1_stairs')}, has_roof={first_watchtower.get('has_roof')}")
         
         for watchtower in watchtowers:
             normalized = self._normalize_structure_values(watchtower, 'watchtower')
             if normalized:
                 normalized_watchtowers.append(normalized)
+            else:
+                logger.debug(f"Watchtower falhou na normalização: {watchtower.get('position', 'N/A')}")
         
         for flag in flags:
             normalized = self._normalize_structure_values(flag, 'flag')
             if normalized:
                 normalized_flags.append(normalized)
+        
+        logger.info(f"Após normalização: {len(normalized_fences)} fences válidos de {len(fences)} recebidos, {len(normalized_watchtowers)} watchtowers válidos de {len(watchtowers)} recebidos, {len(normalized_flags)} flags válidos de {len(flags)} recebidos")
+        
+        # Log de mapeamento para o primeiro watchtower normalizado (se houver)
+        if normalized_watchtowers:
+            first_wt_normalized = normalized_watchtowers[0]
+            logger.info(f"Primeiro watchtower normalizado: watchtower_id={first_wt_normalized.get('watchtower_id')}, watchtower_name={first_wt_normalized.get('watchtower_name')}, level1_base={first_wt_normalized.get('level1_base_built')}, level1_stairs={first_wt_normalized.get('level1_stairs_built')}, has_roof={first_wt_normalized.get('has_roof')}")
         
         if not normalized_fences and not normalized_watchtowers and not normalized_flags:
             logger.warning("Nenhuma estrutura válida após normalização")
@@ -3324,7 +3761,14 @@ class PositionsConsumer:
                     timestamps = self._generate_unique_timestamps(base_timestamp, len(normalized_fences))
                     inserted_count, _ = self._insert_fences_batch(cursor, normalized_fences, timestamps)
                     total_inserted += inserted_count
-                    logger.info(f"Inseridos {inserted_count} fences")
+                    
+                    # Contar quantos fences de cada tipo foram inseridos
+                    # Formato: Fence, Fence_Gate, Fence_Gate_Open, Fence_Gate_Locked
+                    gate_count = sum(1 for f in normalized_fences if f.get('fence_name', '').find('Gate') != -1)
+                    open_count = sum(1 for f in normalized_fences if f.get('fence_name', '').find('Open') != -1)
+                    locked_count = sum(1 for f in normalized_fences if f.get('fence_name', '').find('Locked') != -1)
+                    regular_count = inserted_count - gate_count
+                    logger.info(f"Inseridos {inserted_count} fences: {gate_count} com portão (Gate), {regular_count} cercas regulares, {open_count} abertos, {locked_count} trancados")
                 
                 # Inserir watchtowers
                 if normalized_watchtowers:
@@ -3333,7 +3777,10 @@ class PositionsConsumer:
                     timestamps = self._generate_unique_timestamps(watchtower_base, len(normalized_watchtowers))
                     inserted_count, _ = self._insert_watchtowers_batch(cursor, normalized_watchtowers, timestamps)
                     total_inserted += inserted_count
-                    logger.info(f"Inseridos {inserted_count} watchtowers")
+                    
+                    # Todos os watchtowers devem ter o nome "Torre de Observação"
+                    torre_count = sum(1 for w in normalized_watchtowers if w.get('watchtower_name') == 'Torre de Observação')
+                    logger.info(f"Inseridos {inserted_count} watchtowers: {torre_count} Torres de Observação")
                 
                 # Inserir flags
                 if normalized_flags:
@@ -3581,7 +4028,9 @@ class PositionsConsumer:
                     captured_timestamp = None
                     update_type = 'full'
                     
-                    for item_data in items:
+                    logger.info(f"Processando containers: batch com {len(items)} mensagens da fila {queue_name}")
+                    
+                    for item_idx, item_data in enumerate(items):
                         if isinstance(item_data, str):
                             try:
                                 item_data = json.loads(item_data)
@@ -3593,12 +4042,34 @@ class PositionsConsumer:
                             logger.warning(f"Item_data não é um dicionário: {type(item_data)}")
                             continue
                         
+                        if item_idx == 0:
+                            logger.info(f"Primeiro item_data de containers: chaves={list(item_data.keys())}")
+                            logger.info(f"Primeiro item_data de containers: tem 'containers'={item_data.get('containers') is not None}, tem 'container_data'={item_data.get('container_data') is not None}")
+                        
                         # Suportar tanto 'containers' quanto 'container_data'
                         containers_list = item_data.get('containers') or item_data.get('container_data', [])
                         if isinstance(containers_list, list):
-                            all_containers.extend(containers_list)
+                            if len(containers_list) > 0:
+                                logger.info(f"Encontrado {len(containers_list)} containers no item_data {item_idx}")
+                                all_containers.extend(containers_list)
+                                if item_idx == 0 and containers_list:
+                                    first_container = containers_list[0]
+                                    if isinstance(first_container, dict):
+                                        logger.info(f"Primeiro container da lista: chaves={list(first_container.keys())}")
+                                        logger.info(f"Primeiro container: container_id={first_container.get('container_id')}, container_type={first_container.get('container_type')}, position={first_container.get('position')}, x={first_container.get('x')}, z={first_container.get('z')}, y={first_container.get('y')}")
+                                        # Log detalhado da estrutura de position
+                                        position = first_container.get('position')
+                                        if position:
+                                            logger.info(f"Primeiro container position type={type(position)}, value={position}")
+                                            if isinstance(position, dict):
+                                                logger.info(f"Primeiro container position dict: x={position.get('x')}, z={position.get('z')}, y={position.get('y')}")
+                                    else:
+                                        logger.warning(f"Primeiro container não é um dicionário: type={type(first_container)}")
+                            else:
+                                if item_idx == 0:
+                                    logger.info(f"Campo 'containers'/'container_data' é uma lista vazia no item_data {item_idx}")
                         else:
-                            logger.warning(f"Campo 'containers'/'container_data' não é uma lista: {type(containers_list)}")
+                            logger.warning(f"Campo 'containers'/'container_data' não é uma lista: {type(containers_list)}. Valor: {str(containers_list)[:500] if containers_list else 'None'}")
                         
                         if not captured_timestamp and 'captured_timestamp' in item_data:
                             captured_timestamp = item_data['captured_timestamp']
@@ -3606,6 +4077,7 @@ class PositionsConsumer:
                         if 'update_type' in item_data:
                             update_type = item_data['update_type']
                     
+                    logger.info(f"Total de containers coletados: {len(all_containers)} de {len(items)} mensagens")
                     if all_containers:
                         combined_data = {
                             'containers': all_containers,
@@ -3613,12 +4085,24 @@ class PositionsConsumer:
                             'update_type': update_type
                         }
                         
+                        logger.info(f"Enviando {len(all_containers)} containers para processamento (update_type={update_type})")
                         if self.process_message(queue_name, combined_data):
+                            logger.info(f"Processamento de containers concluído com sucesso: {len(all_containers)} containers processados")
                             success_count += len(items)
                         else:
+                            logger.error(f"Processamento de containers falhou: {len(all_containers)} containers não processados")
                             fail_count += len(items)
                     else:
-                        logger.warning(f"Nenhum container encontrado no batch de {queue_name}")
+                        logger.warning(f"Nenhum container encontrado no batch de {queue_name} (mensagens recebidas: {len(items)})")
+                        # Log detalhado para debug
+                        for item_idx, item_data in enumerate(items):
+                            if isinstance(item_data, str):
+                                try:
+                                    item_data = json.loads(item_data)
+                                except:
+                                    pass
+                            if isinstance(item_data, dict):
+                                logger.warning(f"Mensagem {item_idx}: chaves={list(item_data.keys())}, tem container_data={item_data.get('container_data') is not None}, tem containers={item_data.get('containers') is not None}")
                         fail_count += len(items)
                 
                 elif queue_name == 'data.structures.positions':
@@ -3628,7 +4112,9 @@ class PositionsConsumer:
                     all_flags = []
                     captured_timestamp = None
                     
-                    for item_data in items:
+                    logger.info(f"Processando structures: batch com {len(items)} mensagens da fila {queue_name}")
+                    
+                    for item_idx, item_data in enumerate(items):
                         if isinstance(item_data, str):
                             try:
                                 item_data = json.loads(item_data)
@@ -3640,24 +4126,100 @@ class PositionsConsumer:
                             logger.warning(f"Item_data não é um dicionário: {type(item_data)}")
                             continue
                         
-                        # Extrair por tipo
+                        if item_idx == 0:
+                            logger.info(f"Primeiro item_data de structures: chaves={list(item_data.keys())}")
+                            # Log detalhado do conteúdo de cada campo *_data
+                            if 'fence_data' in item_data:
+                                fence_data = item_data['fence_data']
+                                logger.info(f"Primeiro item_data: fence_data type={type(fence_data)}, len={len(fence_data) if isinstance(fence_data, (list, str)) else 'N/A'}")
+                            if 'watchtower_data' in item_data:
+                                watchtower_data = item_data['watchtower_data']
+                                logger.info(f"Primeiro item_data: watchtower_data type={type(watchtower_data)}, len={len(watchtower_data) if isinstance(watchtower_data, (list, str)) else 'N/A'}, value={str(watchtower_data)[:500] if watchtower_data else 'None'}")
+                            if 'flag_data' in item_data:
+                                flag_data = item_data['flag_data']
+                                logger.info(f"Primeiro item_data: flag_data type={type(flag_data)}, len={len(flag_data) if isinstance(flag_data, (list, str)) else 'N/A'}")
+                        
+                        # Extrair por tipo (formato novo: *_data direto no JSON bruto vindo do Enforce)
                         if 'fence_data' in item_data:
                             fence_list = item_data['fence_data']
                             if isinstance(fence_list, list):
                                 all_fences.extend(fence_list)
+                                if item_idx == 0:
+                                    logger.info(f"Extraídos {len(fence_list)} fences do item_data {item_idx}")
+                            else:
+                                if item_idx == 0:
+                                    logger.warning(f"Campo 'fence_data' não é uma lista: {type(fence_list)}. Valor: {str(fence_list)[:200] if fence_list else 'None'}")
                         
                         if 'watchtower_data' in item_data:
                             watchtower_list = item_data['watchtower_data']
                             if isinstance(watchtower_list, list):
-                                all_watchtowers.extend(watchtower_list)
+                                if len(watchtower_list) > 0:
+                                    all_watchtowers.extend(watchtower_list)
+                                    if item_idx == 0:
+                                        logger.info(f"Extraídos {len(watchtower_list)} watchtowers do item_data {item_idx}")
+                                        first_wt = watchtower_list[0]
+                                        if isinstance(first_wt, dict):
+                                            logger.info(f"Primeiro watchtower extraído: chaves={list(first_wt.keys())}")
+                                else:
+                                    if item_idx == 0:
+                                        logger.info(f"Campo 'watchtower_data' é uma lista vazia (servidor DayZ não enviou watchtowers neste batch - não é um problema do consumer)")
+                            else:
+                                if item_idx == 0:
+                                    logger.warning(f"Campo 'watchtower_data' não é uma lista: {type(watchtower_list)}. Valor: {str(watchtower_list)[:500] if watchtower_list else 'None'}")
+                                # Tentar converter se for string JSON
+                                if isinstance(watchtower_list, str):
+                                    try:
+                                        parsed = json.loads(watchtower_list)
+                                        if isinstance(parsed, list):
+                                            all_watchtowers.extend(parsed)
+                                            if item_idx == 0:
+                                                logger.info(f"Convertido watchtower_data de string JSON para lista com {len(parsed)} itens")
+                                    except (json.JSONDecodeError, TypeError) as e:
+                                        if item_idx == 0:
+                                            logger.warning(f"Falha ao converter watchtower_data de string JSON: {e}")
                         
                         if 'flag_data' in item_data:
                             flag_list = item_data['flag_data']
                             if isinstance(flag_list, list):
                                 all_flags.extend(flag_list)
+                                if item_idx == 0:
+                                    logger.info(f"Extraídos {len(flag_list)} flags do item_data {item_idx}")
+                            else:
+                                if item_idx == 0:
+                                    logger.warning(f"Campo 'flag_data' não é uma lista: {type(flag_list)}. Valor: {str(flag_list)[:200] if flag_list else 'None'}")
+
+                        # Compatibilidade com formato legacy {structure_type, structures}
+                        # usado anteriormente pelo shell (PUBLISH_STRUCTURES_POSITIONS)
+                        if 'structures' in item_data:
+                            struct_list = item_data.get('structures', [])
+                            struct_type = item_data.get('structure_type')
+
+                            if isinstance(struct_list, list) and struct_type:
+                                parsed_structs = []
+                                for s in struct_list:
+                                    # Cada elemento pode ser string JSON ou já um dict
+                                    if isinstance(s, str):
+                                        try:
+                                            parsed = json.loads(s)
+                                            if isinstance(parsed, dict):
+                                                parsed_structs.append(parsed)
+                                        except (json.JSONDecodeError, TypeError):
+                                            logger.warning("Estrutura em 'structures' não é JSON válido, ignorando.")
+                                    elif isinstance(s, dict):
+                                        parsed_structs.append(s)
+
+                                if parsed_structs:
+                                    if struct_type == 'fences':
+                                        all_fences.extend(parsed_structs)
+                                    elif struct_type == 'watchtowers':
+                                        all_watchtowers.extend(parsed_structs)
+                                    elif struct_type == 'flags':
+                                        all_flags.extend(parsed_structs)
                         
                         if not captured_timestamp and 'captured_timestamp' in item_data:
                             captured_timestamp = item_data['captured_timestamp']
+                    
+                    logger.info(f"Após agregação: {len(all_fences)} fences, {len(all_watchtowers)} watchtowers, {len(all_flags)} flags")
                     
                     if all_fences or all_watchtowers or all_flags:
                         combined_data = {

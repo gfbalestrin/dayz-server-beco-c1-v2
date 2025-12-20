@@ -48,30 +48,16 @@ get_rabbitmq_queue() {
 }
 
 tail -F "$COMMAND_FILE" 2>/dev/null | while IFS= read -r line || [[ -n "$line" ]]; do
-    # Ignorar linhas vazias ou apenas espaços
-    line_trimmed=$(echo "$line" | xargs)
+    # Remove espaços em branco do início e fim usando substituição de padrão do bash
+    line_trimmed="${line#"${line%%[![:space:]]*}"}"
+    line_trimmed="${line_trimmed%"${line_trimmed##*[![:space:]]}"}"
     if [[ -z "$line_trimmed" ]]; then
         continue
     fi
     
-    # Valida se é um JSON válido
-    if ! echo "$line" | jq empty 2>/dev/null; then
-        echo ">> Linha inválida (não é JSON válido): ${line:0:100}..."
-        INSERT_CUSTOM_LOG "Linha inválida (não é JSON): ${line:0:200}" "ERROR" "$ScriptName"
-        continue
-    fi
-
     # Extrai o campo "action"
     action=$(echo "$line" | jq -r '.action // empty' 2>/dev/null)
     
-    if [[ -z "$action" || "$action" == "null" || "$action" == "empty" ]]; then
-        # Tentar extrair todos os campos para debug
-        all_keys=$(echo "$line" | jq -r 'keys[]' 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-        echo ">> Ação não encontrada no JSON. Campos disponíveis: [$all_keys]. Linha completa: ${line:0:200}..."
-        INSERT_CUSTOM_LOG "Ação não encontrada no JSON. Campos: [$all_keys]. Linha: ${line:0:200}" "WARNING" "$ScriptName"
-        continue
-    fi
-
     # Obter queue RabbitMQ para esta ação
     queue=$(get_rabbitmq_queue "$action")
     
