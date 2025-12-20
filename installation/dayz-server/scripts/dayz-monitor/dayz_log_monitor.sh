@@ -99,8 +99,6 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
     fi
     
     echo "$Line" | grep -q "\[HP: 0\]" && continue
-
-    INSERT_ADM_LOG "$Line" "INFO"
     
     # Remove primeiros 12 caracteres que contém informações de data e hora
     Content=$(echo "$Line" | cut -c 12-)
