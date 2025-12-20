@@ -23,6 +23,19 @@ if ! command -v pip3 &> /dev/null; then
     exit 1
 fi
 
+# Carregar variáveis de ambiente de .env se existir
+ENV_FILE="$DIR/.env"
+if [ -f "$ENV_FILE" ]; then
+    echo "📋 Carregando variáveis de ambiente de .env..."
+    # Carregar variáveis, ignorando linhas vazias e comentários
+    set -a  # Exportar todas as variáveis automaticamente
+    source "$ENV_FILE"
+    set +a  # Desativar export automático
+    echo "✅ Variáveis de ambiente carregadas"
+else
+    echo "ℹ️  Arquivo .env não encontrado (opcional)"
+fi
+
 # Verificar se existe ambiente virtual compartilhado no diretório pai
 PARENT_DIR="$(dirname "$DIR")"
 SHARED_VENV="$PARENT_DIR/venv"

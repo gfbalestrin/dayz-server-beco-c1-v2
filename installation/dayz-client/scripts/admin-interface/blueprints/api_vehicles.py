@@ -7,6 +7,7 @@ import os
 import logging
 import fcntl
 from blueprints.auth import admin_required, audit_action
+from blueprints.helpers import write_command_to_file
 from database import (
     get_vehicles_paginated, 
     get_vehicle_history, 
@@ -37,15 +38,6 @@ def api_teleport_vehicle(vehicle_id):
         if coord_x is None or coord_y is None:
             return jsonify({'success': False, 'message': 'Coordenadas não fornecidas'}), 400
         
-        commands_file = config.COMMANDS_FILE
-        
-        if not os.path.exists(commands_file):
-            logger.error(f"Arquivo de comandos não encontrado: {commands_file}")
-            return jsonify({
-                'success': False,
-                'message': 'Arquivo de comandos não encontrado'
-            }), 500
-        
         if coord_z is not None and coord_z != 0:
             command_line = f"SYSTEM teleportvehicle {vehicle_id} {coord_x} {coord_z} {coord_y}\n"
         else:
@@ -53,27 +45,17 @@ def api_teleport_vehicle(vehicle_id):
         
         logger.info(f"Adicionando comando de teleporte de veículo: {command_line.strip()}")
         
-        try:
-            with open(commands_file, 'a') as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                try:
-                    f.write(command_line)
-                    f.flush()
-                    os.fsync(f.fileno())
-                finally:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-            
+        if write_command_to_file(command_line):
             logger.info("Comando de teleporte de veículo adicionado com sucesso")
             return jsonify({
                 'success': True,
                 'message': 'Comando de teleporte enviado! O veículo será teleportado em instantes.'
             })
-            
-        except IOError as e:
-            logger.error(f"Erro ao escrever comando de teleporte de veículo: {e}")
+        else:
+            logger.error("Erro ao escrever comando de teleporte de veículo")
             return jsonify({
                 'success': False,
-                'message': f'Erro ao adicionar comando: {str(e)}'
+                'message': 'Erro ao enviar comando. Verifique a configuração SSH ou arquivo de comandos.'
             }), 500
             
     except Exception as e:
@@ -93,40 +75,21 @@ def api_flip_vehicle(vehicle_id):
     try:
         logger.debug(f"Flip vehicle request: vehicle_id={vehicle_id}")
         
-        commands_file = config.COMMANDS_FILE
-        
-        if not os.path.exists(commands_file):
-            logger.error(f"Arquivo de comandos não encontrado: {commands_file}")
-            return jsonify({
-                'success': False,
-                'message': 'Arquivo de comandos não encontrado'
-            }), 500
-        
         command_line = f"SYSTEM flipvehicle {vehicle_id}\n"
         
         logger.info(f"Adicionando comando de virar veículo: {command_line.strip()}")
         
-        try:
-            with open(commands_file, 'a') as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                try:
-                    f.write(command_line)
-                    f.flush()
-                    os.fsync(f.fileno())
-                finally:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-            
+        if write_command_to_file(command_line):
             logger.info("Comando de virar veículo adicionado com sucesso")
             return jsonify({
                 'success': True,
                 'message': 'Comando de virar veículo enviado! O veículo será virado em instantes.'
             })
-            
-        except IOError as e:
-            logger.error(f"Erro ao escrever comando de virar veículo: {e}")
+        else:
+            logger.error("Erro ao escrever comando de virar veículo")
             return jsonify({
                 'success': False,
-                'message': f'Erro ao adicionar comando: {str(e)}'
+                'message': 'Erro ao enviar comando. Verifique a configuração SSH ou arquivo de comandos.'
             }), 500
             
     except Exception as e:
@@ -153,39 +116,21 @@ def api_refresh_vehicle(vehicle_id):
                 'message': 'request_id não fornecido'
             }), 400
         
-        commands_file = config.COMMANDS_FILE
-        
-        if not os.path.exists(commands_file):
-            logger.error(f"Arquivo de comandos não encontrado: {commands_file}")
-            return jsonify({
-                'success': False,
-                'message': 'Arquivo de comandos não encontrado'
-            }), 500
-        
         command_line = f"SYSTEM checkvehicle {vehicle_id} {request_id}\n"
         logger.info(f"Adicionando comando de atualização de veículo: {command_line.strip()}")
         
-        try:
-            with open(commands_file, 'a') as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                try:
-                    f.write(command_line)
-                    f.flush()
-                    os.fsync(f.fileno())
-                finally:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-            
+        if write_command_to_file(command_line):
             logger.info("Comando de atualização de veículo adicionado com sucesso")
             return jsonify({
                 'success': True,
                 'message': 'Comando enviado com sucesso',
                 'request_id': request_id
             })
-        except IOError as e:
-            logger.error(f"Erro ao escrever comando de atualização de veículo: {e}")
+        else:
+            logger.error("Erro ao escrever comando de atualização de veículo")
             return jsonify({
                 'success': False,
-                'message': f'Erro ao escrever comando: {str(e)}'
+                'message': 'Erro ao enviar comando. Verifique a configuração SSH ou arquivo de comandos.'
             }), 500
     except Exception as e:
         logger.exception("Erro inesperado ao atualizar veículo")

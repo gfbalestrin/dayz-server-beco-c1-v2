@@ -7,13 +7,52 @@ import os
 import time
 import re
 import json
+import fcntl
+import logging
 from database import get_active_vehicle_name_counts
 import vehicle_limits
+import config
 
 try:
     from zoneinfo import ZoneInfo
 except ImportError:
     from backports.zoneinfo import ZoneInfo
+
+logger = logging.getLogger(__name__)
+
+# Importar SSH client se disponível
+try:
+    from ssh_client import write_command_to_remote_file
+    SSH_AVAILABLE = True
+except ImportError:
+    SSH_AVAILABLE = False
+    logger.warning("ssh_client não disponível, usando arquivo local")
+
+
+def write_command_to_file(command_line: str) -> bool:
+    """Escreve comando no arquivo (local ou remoto via SSH)"""
+    if SSH_AVAILABLE and config.DAYZ_SERVER_SSH_HOST and config.DAYZ_SERVER_COMMANDS_FILE:
+        # Usar SSH para escrever remotamente
+        return write_command_to_remote_file(command_line)
+    else:
+        # Fallback para arquivo local (se config.COMMANDS_FILE existir)
+        if hasattr(config, 'COMMANDS_FILE') and config.COMMANDS_FILE:
+            commands_file = config.COMMANDS_FILE
+            if os.path.exists(commands_file):
+                try:
+                    with open(commands_file, 'a') as f:
+                        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                        try:
+                            f.write(command_line)
+                            f.flush()
+                            os.fsync(f.fileno())
+                        finally:
+                            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                    return True
+                except IOError as e:
+                    logger.error(f"Erro ao escrever no arquivo de comandos: {e}")
+                    return False
+        return False
 
 UTC_TZ = ZoneInfo("UTC")
 SAO_PAULO_TZ = ZoneInfo("America/Sao_Paulo")

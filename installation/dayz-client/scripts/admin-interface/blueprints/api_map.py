@@ -21,7 +21,7 @@ from database import (
     get_item_details_from_items_db, dayz_to_pixel, get_player_events, clear_player_events
 )
 from blueprints.auth import admin_required, audit_action
-from blueprints.helpers import convert_timestamp_to_br
+from blueprints.helpers import convert_timestamp_to_br, write_command_to_file
 
 api_map_bp = Blueprint('api_map', __name__)
 
@@ -1205,15 +1205,6 @@ def api_teleport_container(container_id):
         if coord_x is None or coord_y is None:
             return jsonify({'success': False, 'message': 'Coordenadas não fornecidas'}), 400
         
-        commands_file = config.COMMANDS_FILE
-        
-        if not os.path.exists(commands_file):
-            logger.error(f"Arquivo de comandos não encontrado: {commands_file}")
-            return jsonify({
-                'success': False,
-                'message': 'Arquivo de comandos não encontrado'
-            }), 500
-        
         if coord_z is not None and coord_z != 0:
             command_line = f"SYSTEM teleportcontainer {container_id} {coord_x} {coord_z} {coord_y}\n"
         else:
@@ -1221,27 +1212,17 @@ def api_teleport_container(container_id):
         
         logger.info(f"Adicionando comando de teleporte de container: {command_line.strip()}")
         
-        try:
-            with open(commands_file, 'a') as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                try:
-                    f.write(command_line)
-                    f.flush()
-                    os.fsync(f.fileno())
-                finally:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-            
+        if write_command_to_file(command_line):
             logger.info("Comando de teleporte de container adicionado com sucesso")
             return jsonify({
                 'success': True,
                 'message': 'Comando de teleporte enviado! O container será teleportado em instantes.'
             })
-            
-        except IOError as e:
-            logger.error(f"Erro ao escrever comando de teleporte de container: {e}")
+        else:
+            logger.error("Erro ao escrever comando de teleporte de container")
             return jsonify({
                 'success': False,
-                'message': f'Erro ao adicionar comando: {str(e)}'
+                'message': 'Erro ao enviar comando. Verifique a configuração SSH ou arquivo de comandos.'
             }), 500
             
     except Exception as e:
@@ -1261,40 +1242,21 @@ def api_delete_container(container_id):
     try:
         logger.debug(f"Delete container request: container_id={container_id}")
         
-        commands_file = config.COMMANDS_FILE
-        
-        if not os.path.exists(commands_file):
-            logger.error(f"Arquivo de comandos não encontrado: {commands_file}")
-            return jsonify({
-                'success': False,
-                'message': 'Arquivo de comandos não encontrado'
-            }), 500
-        
         command_line = f"SYSTEM deleteentity {container_id}\n"
         
         logger.info(f"Adicionando comando de deletar container: {command_line.strip()}")
         
-        try:
-            with open(commands_file, 'a') as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                try:
-                    f.write(command_line)
-                    f.flush()
-                    os.fsync(f.fileno())
-                finally:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-            
+        if write_command_to_file(command_line):
             logger.info("Comando de deletar container adicionado com sucesso")
             return jsonify({
                 'success': True,
                 'message': 'Comando de deletar container enviado! O container será deletado em instantes.'
             })
-            
-        except IOError as e:
-            logger.error(f"Erro ao escrever comando de deletar container: {e}")
+        else:
+            logger.error("Erro ao escrever comando de deletar container")
             return jsonify({
                 'success': False,
-                'message': f'Erro ao adicionar comando: {str(e)}'
+                'message': 'Erro ao enviar comando. Verifique a configuração SSH ou arquivo de comandos.'
             }), 500
             
     except Exception as e:
@@ -1321,39 +1283,21 @@ def api_refresh_container(container_id):
                 'message': 'request_id não fornecido'
             }), 400
         
-        commands_file = config.COMMANDS_FILE
-        
-        if not os.path.exists(commands_file):
-            logger.error(f"Arquivo de comandos não encontrado: {commands_file}")
-            return jsonify({
-                'success': False,
-                'message': 'Arquivo de comandos não encontrado'
-            }), 500
-        
         command_line = f"SYSTEM checkcontainer {container_id} {request_id}\n"
         logger.info(f"Adicionando comando de atualização de container: {command_line.strip()}")
         
-        try:
-            with open(commands_file, 'a') as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                try:
-                    f.write(command_line)
-                    f.flush()
-                    os.fsync(f.fileno())
-                finally:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-            
+        if write_command_to_file(command_line):
             logger.info("Comando de atualização de container adicionado com sucesso")
             return jsonify({
                 'success': True,
                 'message': 'Comando enviado com sucesso',
                 'request_id': request_id
             })
-        except IOError as e:
-            logger.error(f"Erro ao escrever comando de atualização de container: {e}")
+        else:
+            logger.error("Erro ao escrever comando de atualização de container")
             return jsonify({
                 'success': False,
-                'message': f'Erro ao escrever comando: {str(e)}'
+                'message': 'Erro ao enviar comando. Verifique a configuração SSH ou arquivo de comandos.'
             }), 500
     except Exception as e:
         logger.exception("Erro inesperado ao atualizar container")
@@ -1435,39 +1379,21 @@ def api_refresh_fence(fence_id):
                 'message': 'request_id não fornecido'
             }), 400
         
-        commands_file = config.COMMANDS_FILE
-        
-        if not os.path.exists(commands_file):
-            logger.error(f"Arquivo de comandos não encontrado: {commands_file}")
-            return jsonify({
-                'success': False,
-                'message': 'Arquivo de comandos não encontrado'
-            }), 500
-        
         command_line = f"SYSTEM checkfence {fence_id} {request_id}\n"
         logger.info(f"Adicionando comando de atualização de construção: {command_line.strip()}")
         
-        try:
-            with open(commands_file, 'a') as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                try:
-                    f.write(command_line)
-                    f.flush()
-                    os.fsync(f.fileno())
-                finally:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-            
+        if write_command_to_file(command_line):
             logger.info("Comando de atualização de construção adicionado com sucesso")
             return jsonify({
                 'success': True,
                 'request_id': request_id,
                 'message': 'Comando de atualização enviado'
             })
-        except IOError as e:
-            logger.error(f"Erro ao escrever no arquivo de comandos: {e}")
+        else:
+            logger.error("Erro ao escrever comando de atualização de construção")
             return jsonify({
                 'success': False,
-                'message': 'Erro ao enviar comando'
+                'message': 'Erro ao enviar comando. Verifique a configuração SSH ou arquivo de comandos.'
             }), 500
             
     except Exception as e:

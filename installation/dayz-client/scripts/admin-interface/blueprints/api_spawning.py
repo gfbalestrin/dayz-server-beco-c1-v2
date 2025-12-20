@@ -14,7 +14,7 @@ from database import (
     get_weapon_compatible_items
 )
 from blueprints.auth import admin_required, audit_action
-from blueprints.helpers import evaluate_vehicle_limit, format_limit_block_message, current_time_br
+from blueprints.helpers import evaluate_vehicle_limit, format_limit_block_message, current_time_br, write_command_to_file
 from database import get_active_vehicle_name_counts
 import vehicle_limits
 
@@ -64,14 +64,12 @@ def api_spawn_item():
     command_line = f"{player_id} giveitem {item_type} {quantity}\n"
     
     try:
-        with open(config.COMMANDS_FILE, 'a') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                f.write(command_line)
-                f.flush()
-                os.fsync(f.fileno())
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        if not write_command_to_file(command_line):
+            logger.error(f"Erro ao enviar comando: {command_line.strip()}")
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao enviar comando. Verifique a configuração SSH ou arquivo de comandos.'
+            }), 500
         
         logger.info(f"Comando enviado: {command_line.strip()}")
         return jsonify({
@@ -113,14 +111,12 @@ def api_spawn_vehicle():
     command_line = f"{player_id} spawnvehicle {vehicle_type}\n"
     
     try:
-        with open(config.COMMANDS_FILE, 'a') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                f.write(command_line)
-                f.flush()
-                os.fsync(f.fileno())
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        if not write_command_to_file(command_line):
+            logger.error(f"Erro ao enviar comando: {command_line.strip()}")
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao enviar comando. Verifique a configuração SSH ou arquivo de comandos.'
+            }), 500
         
         logger.info(f"Comando enviado: {command_line.strip()}")
         response = {
@@ -162,14 +158,12 @@ def api_spawn_item_at_coords():
     command_line = f"SYSTEM createitem {item_type} {quantity} {coord_x} {coord_y}\n"
     
     try:
-        with open(config.COMMANDS_FILE, 'a') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                f.write(command_line)
-                f.flush()
-                os.fsync(f.fileno())
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        if not write_command_to_file(command_line):
+            logger.error(f"Erro ao enviar comando de spawn de item")
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao enviar comando. Verifique a configuração SSH ou arquivo de comandos.'
+            }), 500
         
         logger.info(f"Spawn item em coordenadas: {coord_x}, {coord_y}")
         return jsonify({
@@ -212,14 +206,12 @@ def api_spawn_vehicle_at_coords():
     command_line = f"SYSTEM createvehicle {vehicle_type} {coord_x} {coord_y}\n"
     
     try:
-        with open(config.COMMANDS_FILE, 'a') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                f.write(command_line)
-                f.flush()
-                os.fsync(f.fileno())
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        if not write_command_to_file(command_line):
+            logger.error(f"Erro ao enviar comando de spawn de veículo")
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao enviar comando. Verifique a configuração SSH ou arquivo de comandos.'
+            }), 500
         
         logger.info(f"Spawn veículo em coordenadas: {coord_x}, {coord_y}")
         response = {
@@ -333,16 +325,15 @@ def api_spawn_loadout():
         return jsonify({'success': False, 'message': 'Dados incompletos'}), 400
     
     try:
-        with open(config.COMMANDS_FILE, 'a') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                for item in items:
-                    command_line = f"{player_id} giveitem {item['item_type']} {item['quantity']}\n"
-                    f.write(command_line)
-                f.flush()
-                os.fsync(f.fileno())
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        # Escrever cada comando de item
+        for item in items:
+            command_line = f"{player_id} giveitem {item['item_type']} {item['quantity']}\n"
+            if not write_command_to_file(command_line):
+                logger.error(f"Erro ao enviar comando de item do loadout")
+                return jsonify({
+                    'success': False,
+                    'message': 'Erro ao enviar comando. Verifique a configuração SSH ou arquivo de comandos.'
+                }), 500
         
         logger.info(f"Loadout com {len(items)} itens enviado para {player_id}")
         return jsonify({

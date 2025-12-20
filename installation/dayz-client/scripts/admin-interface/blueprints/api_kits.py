@@ -17,7 +17,7 @@ from database import (
     get_magazine_by_id, get_attachment_by_id, get_item_details_from_items_db
 )
 from blueprints.auth import admin_required, audit_action
-from blueprints.helpers import build_weapon_kit_json
+from blueprints.helpers import build_weapon_kit_json, write_command_to_file
 
 
 api_kits_bp = Blueprint('api_kits', __name__)
@@ -365,15 +365,13 @@ def api_spawn_weapon_kit():
         # Montar comando createweapon usando playerID (usa posição atual do jogador)
         command = f"{player_id} createweapon {weapon_json}\n"
         
-        # Escrever no arquivo com file locking
-        with open(config.COMMANDS_FILE, 'a') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                f.write(command)
-                f.flush()
-                os.fsync(f.fileno())
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        # Escrever comando (SSH ou arquivo local)
+        if not write_command_to_file(command):
+            logger.error(f"Erro ao escrever comando de weapon kit")
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao enviar comando. Verifique a configuração SSH ou arquivo de comandos.'
+            }), 500
         
         logger.info(f"Weapon kit {kit_id} spawnado para {player_id}")
         return jsonify({
@@ -462,15 +460,13 @@ def api_spawn_loot_kit():
         items_str = ' '.join(items)
         command = f"{player_id} createcontainer {container_type} {items_str}\n"
         
-        # Escrever no arquivo com file locking
-        with open(config.COMMANDS_FILE, 'a') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                f.write(command)
-                f.flush()
-                os.fsync(f.fileno())
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        # Escrever comando (SSH ou arquivo local)
+        if not write_command_to_file(command):
+            logger.error(f"Erro ao escrever comando de weapon kit")
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao enviar comando. Verifique a configuração SSH ou arquivo de comandos.'
+            }), 500
         
         logger.info(f"Kit de loot {kit_id} spawnado para {player_id}")
         return jsonify({
@@ -514,15 +510,13 @@ def api_spawn_weapon_kit_coords():
         # Montar comando
         command = f"SYSTEM createweapon {coord_x} {coord_y} {weapon_json}\n"
         
-        # Escrever no arquivo com file locking
-        with open(config.COMMANDS_FILE, 'a') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                f.write(command)
-                f.flush()
-                os.fsync(f.fileno())
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        # Escrever comando (SSH ou arquivo local)
+        if not write_command_to_file(command):
+            logger.error(f"Erro ao escrever comando de weapon kit")
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao enviar comando. Verifique a configuração SSH ou arquivo de comandos.'
+            }), 500
         
         logger.info(f"Weapon kit {kit_id} spawnado em coordenadas ({coord_x}, {coord_y})")
         return jsonify({'success': True, 'message': 'Weapon kit spawnado com sucesso!'})
@@ -605,15 +599,13 @@ def api_spawn_loot_kit_coords():
         items_str = ' '.join(items)
         command = f"SYSTEM createcontainer {container_type} {coord_x} {coord_y} {items_str}\n"
         
-        # Escrever no arquivo
-        with open(config.COMMANDS_FILE, 'a') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                f.write(command)
-                f.flush()
-                os.fsync(f.fileno())
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        # Escrever comando (SSH ou arquivo local)
+        if not write_command_to_file(command):
+            logger.error(f"Erro ao escrever comando de kit de loot")
+            return jsonify({
+                'success': False,
+                'message': 'Erro ao enviar comando. Verifique a configuração SSH ou arquivo de comandos.'
+            }), 500
         
         logger.info(f"Kit de loot {kit_id} spawnado em coordenadas ({coord_x}, {coord_y})")
         return jsonify({'success': True, 'message': 'Kit de loot spawnado com sucesso!'})

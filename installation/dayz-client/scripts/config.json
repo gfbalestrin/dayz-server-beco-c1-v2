@@ -36,6 +36,20 @@
       "MessageId": "1111111111111111111",
       "BotToken": "abcdefghijklmnopqrstuvwxyz1234567890"
     }
+  },
+  "DayZServer": {
+    "SSH": {
+      "Host": "",
+      "Port": 22,
+      "User": "",
+      "KeyPath": "",
+      "Password": "",
+      "CommandsFile": "",
+      "ResultsFile": "",
+      "Timeout": 5,
+      "ConnectionPoolSize": 3,
+      "ConnectionTTL": 30
+    }
   }
 }
 

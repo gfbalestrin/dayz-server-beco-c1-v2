@@ -12,6 +12,38 @@ import config
 from database import get_item_details_from_items_db
 from blueprints.auth import admin_required, audit_action
 
+# Importar SSH client se disponível
+try:
+    from ssh_client import read_remote_file
+    SSH_AVAILABLE = True
+except ImportError:
+    SSH_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("ssh_client não disponível, usando arquivo local")
+
+
+def read_results_file() -> tuple[list[str] | None, str | None]:
+    """Lê arquivo de resultados (local ou remoto via SSH)"""
+    if SSH_AVAILABLE and config.DAYZ_SERVER_SSH_HOST and config.DAYZ_SERVER_RESULTS_FILE:
+        # Usar SSH para ler remotamente
+        content = read_remote_file(config.DAYZ_SERVER_RESULTS_FILE)
+        if content is None:
+            return None, "Erro ao ler arquivo de resultados via SSH"
+        lines = content.split('\n')
+        return lines, None
+    else:
+        # Fallback para arquivo local
+        if hasattr(config, 'COMMANDS_RESULTS_FILE') and config.COMMANDS_RESULTS_FILE:
+            results_file = config.COMMANDS_RESULTS_FILE
+            if os.path.exists(results_file):
+                try:
+                    with open(results_file, 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                    return lines, None
+                except IOError as e:
+                    return None, f"Erro ao ler arquivo de resultados: {str(e)}"
+        return None, "Arquivo de resultados não encontrado"
+
 api_commands_bp = Blueprint('api_commands', __name__)
 logger = logging.getLogger(__name__)
 
@@ -79,26 +111,15 @@ def execute_rcon_command(command):
 def api_command_results(request_id):
     """API para obter resultado de um comando pelo request_id"""
     try:
-        # Caminho do arquivo de resultados
-        results_file = config.COMMANDS_RESULTS_FILE
+        # Ler arquivo de resultados (SSH ou local)
+        lines, error = read_results_file()
         
-        if not os.path.exists(results_file):
-            logger.error(f"Arquivo de resultados não encontrado: {results_file}")
-            return jsonify({
-                'status': 'not_found',
-                'message': 'Arquivo de resultados não encontrado'
-            }), 404
-        
-        # Ler arquivo de resultados
-        try:
-            with open(results_file, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-        except IOError as e:
-            logger.error(f"Erro ao ler arquivo de resultados: {e}")
+        if lines is None:
+            logger.error(f"Erro ao ler arquivo de resultados: {error}")
             return jsonify({
                 'status': 'error',
-                'message': f'Erro ao ler arquivo de resultados: {str(e)}'
-            }), 500
+                'message': error or 'Arquivo de resultados não encontrado'
+            }), 404 if 'não encontrado' in (error or '') else 500
         
         # Buscar linha com request_id correspondente (última ocorrência)
         result_data = None

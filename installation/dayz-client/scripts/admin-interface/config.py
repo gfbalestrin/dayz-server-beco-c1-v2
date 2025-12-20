@@ -4,6 +4,8 @@ Versão adaptada sem validações de arquivos DayZ
 """
 import os
 import json
+import logging
+import logging
 
 # Diretório base da aplicação
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -57,24 +59,42 @@ if os.path.exists(CONFIG_JSON_PATH):
             
             # Configurações Flask (servidor)
             flask_config = config_data.get('Flask', {})
-            HOST = flask_config.get('Host', '0.0.0.0')
-            PORT = flask_config.get('Port', 5000)
-            DEBUG = flask_config.get('Debug', False)
-            SECRET_KEY = flask_config.get('SecretKey', 'dayz-beco-c1-secret-key-2024-change-me')
+            HOST = flask_config.get('Host') or '0.0.0.0'  # Fallback mínimo para evitar quebra do Flask
+            PORT = flask_config.get('Port')
+            DEBUG = flask_config.get('Debug')
+            SECRET_KEY = flask_config.get('SecretKey')
             
             # Configurações Admin (credenciais)
             admin_config = config_data.get('Admin', {})
-            ADMIN_USERNAME = admin_config.get('Username', 'admin')
-            ADMIN_PASSWORD = admin_config.get('Password', 'dayz_beco_2024')
+            ADMIN_USERNAME = admin_config.get('Username')
+            ADMIN_PASSWORD = admin_config.get('Password')
             
-            import logging
+            # Configurações SSH para servidor DayZ
+            # Prioridade: Variáveis de ambiente > config.json
+            dayz_server_config = config_data.get('DayZServer', {})
+            ssh_config = dayz_server_config.get('SSH', {})
+            
+            # Credenciais sensíveis: priorizar variáveis de ambiente
+            DAYZ_SERVER_SSH_HOST = os.getenv('DAYZ_SSH_HOST') or ssh_config.get('Host')
+            DAYZ_SERVER_SSH_USER = os.getenv('DAYZ_SSH_USER') or ssh_config.get('User')
+            DAYZ_SERVER_SSH_KEY_PATH = os.getenv('DAYZ_SSH_KEY_PATH') or ssh_config.get('KeyPath')
+            DAYZ_SERVER_SSH_PASSWORD = os.getenv('DAYZ_SSH_PASSWORD') or ssh_config.get('Password', '')
+            
+            # Configurações não-sensíveis: podem vir do config.json ou variáveis de ambiente
+            DAYZ_SERVER_SSH_PORT = int(os.getenv('DAYZ_SSH_PORT', ssh_config.get('Port', 22)))
+            DAYZ_SERVER_COMMANDS_FILE = os.getenv('DAYZ_SSH_COMMANDS_FILE') or ssh_config.get('CommandsFile')
+            DAYZ_SERVER_RESULTS_FILE = os.getenv('DAYZ_SSH_RESULTS_FILE') or ssh_config.get('ResultsFile')
+            DAYZ_SERVER_SSH_TIMEOUT = int(os.getenv('DAYZ_SSH_TIMEOUT', ssh_config.get('Timeout', 5)))
+            DAYZ_SERVER_SSH_CONNECTION_POOL_SIZE = int(os.getenv('DAYZ_SSH_POOL_SIZE', ssh_config.get('ConnectionPoolSize', 3)))
+            DAYZ_SERVER_SSH_CONNECTION_TTL = int(os.getenv('DAYZ_SSH_CONNECTION_TTL', ssh_config.get('ConnectionTTL', 30)))
+            
             logger = logging.getLogger(__name__)
             logger.debug(f"RabbitMQ configurado: HOST={RABBITMQ_HOST}, PORT={RABBITMQ_PORT}, VHOST={RABBITMQ_VHOST}, ENABLED={RABBITMQ_ENABLED}")
             logger.debug(f"Discord configurado: DESACTIVE={DISCORD_DESACTIVE}, WEBHOOK_LOGS={'***' if DISCORD_WEBHOOK_LOGS else ''}, CHANNEL_ID={'***' if DISCORD_CHANNEL_PLAYERS_ONLINE_CHANNEL_ID else ''}")
             logger.debug(f"Flask configurado: HOST={HOST}, PORT={PORT}, DEBUG={DEBUG}")
             logger.debug(f"Admin configurado: USERNAME={ADMIN_USERNAME}")
+            logger.debug(f"SSH configurado: HOST={'***' if DAYZ_SERVER_SSH_HOST else 'não configurado'}, PORT={DAYZ_SERVER_SSH_PORT}, USER={'***' if DAYZ_SERVER_SSH_USER else 'não configurado'}, AUTH={'chave' if DAYZ_SERVER_SSH_KEY_PATH else 'senha' if DAYZ_SERVER_SSH_PASSWORD else 'não configurado'}")
     except Exception as e:
-        import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Erro ao ler configuração do config.json: {str(e)}")
         RABBITMQ_HOST = 'localhost'
@@ -89,15 +109,27 @@ if os.path.exists(CONFIG_JSON_PATH):
         DISCORD_CHANNEL_PLAYERS_ONLINE_CHANNEL_ID = ''
         DISCORD_CHANNEL_PLAYERS_ONLINE_MESSAGE_ID = ''
         DISCORD_CHANNEL_PLAYERS_ONLINE_BOT_TOKEN = ''
-        HOST = '0.0.0.0'
-        PORT = 5000
-        DEBUG = False
-        SECRET_KEY = 'dayz-beco-c1-secret-key-2024-change-me'
-        ADMIN_USERNAME = 'admin'
-        ADMIN_PASSWORD = 'dayz_beco_2024'
+        # Tentar ler de variáveis de ambiente como fallback
+        HOST = os.getenv('FLASK_HOST') or '0.0.0.0'  # Fallback mínimo para evitar quebra do Flask
+        PORT = int(os.getenv('FLASK_PORT')) if os.getenv('FLASK_PORT') else None
+        flask_debug = os.getenv('FLASK_DEBUG')
+        DEBUG = flask_debug.lower() == 'true' if flask_debug else None
+        SECRET_KEY = os.getenv('FLASK_SECRET_KEY') or None
+        ADMIN_USERNAME = os.getenv('ADMIN_USERNAME') or None
+        ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD') or None
+        # Tentar ler de variáveis de ambiente mesmo em caso de erro
+        DAYZ_SERVER_SSH_HOST = os.getenv('DAYZ_SSH_HOST')
+        DAYZ_SERVER_SSH_PORT = int(os.getenv('DAYZ_SSH_PORT', 22))
+        DAYZ_SERVER_SSH_USER = os.getenv('DAYZ_SSH_USER')
+        DAYZ_SERVER_SSH_KEY_PATH = os.getenv('DAYZ_SSH_KEY_PATH')
+        DAYZ_SERVER_SSH_PASSWORD = os.getenv('DAYZ_SSH_PASSWORD', '')
+        DAYZ_SERVER_COMMANDS_FILE = os.getenv('DAYZ_SSH_COMMANDS_FILE')
+        DAYZ_SERVER_RESULTS_FILE = os.getenv('DAYZ_SSH_RESULTS_FILE')
+        DAYZ_SERVER_SSH_TIMEOUT = int(os.getenv('DAYZ_SSH_TIMEOUT', 5))
+        DAYZ_SERVER_SSH_CONNECTION_POOL_SIZE = int(os.getenv('DAYZ_SSH_POOL_SIZE', 3))
+        DAYZ_SERVER_SSH_CONNECTION_TTL = int(os.getenv('DAYZ_SSH_CONNECTION_TTL', 30))
 else:
     # Valores padrão se config.json não existir
-    import logging
     logger = logging.getLogger(__name__)
     logger.warning(f"config.json não encontrado em: {CONFIG_JSON_PATH}")
     RABBITMQ_HOST = 'localhost'
@@ -112,12 +144,49 @@ else:
     DISCORD_CHANNEL_PLAYERS_ONLINE_CHANNEL_ID = ''
     DISCORD_CHANNEL_PLAYERS_ONLINE_MESSAGE_ID = ''
     DISCORD_CHANNEL_PLAYERS_ONLINE_BOT_TOKEN = ''
-    HOST = '0.0.0.0'
-    PORT = 5000
+    # Tentar ler de variáveis de ambiente como fallback
+    HOST = os.getenv('FLASK_HOST') or '0.0.0.0'  # Fallback mínimo para evitar quebra do Flask
+    PORT = int(os.getenv('FLASK_PORT')) if os.getenv('FLASK_PORT') else None
+    flask_debug = os.getenv('FLASK_DEBUG')
+    DEBUG = flask_debug.lower() == 'true' if flask_debug else None
+    SECRET_KEY = os.getenv('FLASK_SECRET_KEY') or None
+    ADMIN_USERNAME = os.getenv('ADMIN_USERNAME') or None
+    ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD') or None
+    # Tentar ler de variáveis de ambiente mesmo se config.json não existir
+    DAYZ_SERVER_SSH_HOST = os.getenv('DAYZ_SSH_HOST')
+    DAYZ_SERVER_SSH_PORT = int(os.getenv('DAYZ_SSH_PORT', 22))
+    DAYZ_SERVER_SSH_USER = os.getenv('DAYZ_SSH_USER')
+    DAYZ_SERVER_SSH_KEY_PATH = os.getenv('DAYZ_SSH_KEY_PATH')
+    DAYZ_SERVER_SSH_PASSWORD = os.getenv('DAYZ_SSH_PASSWORD', '')
+    DAYZ_SERVER_COMMANDS_FILE = os.getenv('DAYZ_SSH_COMMANDS_FILE')
+    DAYZ_SERVER_RESULTS_FILE = os.getenv('DAYZ_SSH_RESULTS_FILE')
+    DAYZ_SERVER_SSH_TIMEOUT = int(os.getenv('DAYZ_SSH_TIMEOUT', 5))
+    DAYZ_SERVER_SSH_CONNECTION_POOL_SIZE = int(os.getenv('DAYZ_SSH_POOL_SIZE', 3))
+    DAYZ_SERVER_SSH_CONNECTION_TTL = int(os.getenv('DAYZ_SSH_CONNECTION_TTL', 30))
+
+# Validação de configurações obrigatórias
+logger = logging.getLogger(__name__)
+
+# Validar configurações críticas
+if not SECRET_KEY:
+    logger.error("SECRET_KEY não configurado no config.json. Configure em Flask.SecretKey")
+    raise ValueError("SECRET_KEY é obrigatório. Configure em config.json -> Flask -> SecretKey")
+
+if PORT is None:
+    logger.error("PORT não configurado no config.json. Configure em Flask.Port")
+    raise ValueError("PORT é obrigatório. Configure em config.json -> Flask -> Port")
+
+if not ADMIN_USERNAME:
+    logger.error("ADMIN_USERNAME não configurado no config.json. Configure em Admin.Username")
+    raise ValueError("ADMIN_USERNAME é obrigatório. Configure em config.json -> Admin -> Username")
+
+if not ADMIN_PASSWORD:
+    logger.error("ADMIN_PASSWORD não configurado no config.json. Configure em Admin.Password")
+    raise ValueError("ADMIN_PASSWORD é obrigatório. Configure em config.json -> Admin -> Password")
+
+# Tratar DEBUG como False se None
+if DEBUG is None:
     DEBUG = False
-    SECRET_KEY = 'dayz-beco-c1-secret-key-2024-change-me'
-    ADMIN_USERNAME = 'admin'
-    ADMIN_PASSWORD = 'dayz_beco_2024'
 
 # Nota: As seguintes configurações não são necessárias no servidor de monitoramento:
 # - RCON (não há servidor DayZ local)
