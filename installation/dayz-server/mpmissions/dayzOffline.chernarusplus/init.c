@@ -344,6 +344,10 @@ class CustomMission: MissionServer
 
 			if (!IsDeathmatchEnabled)
 			{
+				// Obter players UMA vez para reutilizar
+				array<Man> players = new array<Man>;
+				GetGame().GetPlayers(players);
+				
 				// Limpeza de objetos destruídos/removidos dos arrays
 				CleanTrackedFences(); // Limpa fences destruídas do array
 				CleanTrackedWatchtowers(); // Limpa watchtowers removidas do array
@@ -356,6 +360,9 @@ class CustomMission: MissionServer
 				SendFlagsStatus(); // Envia status completo das flags rastreadas
 				// TEMPORARIAMENTE DESATIVADO: Update parcial de containers desativado para avaliação de performance
 				// SendContainersPositionsSimple(); // Envia posições simplificadas dos containers (sem items)
+				
+				// Solicitar backup de jogadores online
+				RequestPlayersBackup(players);
 			}
 			
 		}

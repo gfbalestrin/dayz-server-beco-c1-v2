@@ -6,21 +6,79 @@ PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PARENT_DIR"
 source ./config.sh
 
-LOG_ACTIONS_DIR="$SCRIPT_DIR/log_actions"
-if [[ -d "$LOG_ACTIONS_DIR" ]]; then
-    for action_file in "$LOG_ACTIONS_DIR"/*.sh; do
-        [[ -e "$action_file" ]] || continue
-        source "$action_file"
-    done
-fi
-
-HANDLER_CONTENT=""
-HANDLER_SHOULD_CONTINUE=0
-
 ScriptName=$(basename "$0")
 LogFileName="$DayzServerFolder/$DayzLogAdmFile"
 
 INSERT_CUSTOM_LOG "Monitorando arquivo: $LogFileName" "INFO" "$ScriptName"
+
+# Função auxiliar para extrair posição de uma linha de log
+extract_position() {
+    local content="$1"
+    echo "$content" | sed -n 's/.*pos=<\([^>]*\)>.*/\1/p' | sed 's/, */,/g'
+}
+
+# Função auxiliar para extrair PlayerId de uma linha de log
+extract_player_id() {
+    local content="$1"
+    echo "$content" | awk -F'id=' '{print $2}' | awk -F')' '{print $1}'
+}
+
+# Função auxiliar para enfileirar comando de registro de estrutura
+enqueue_structure_command() {
+    local command_type="$1"  # registerfence, registerwatchtower, registerflag, registercontainer
+    local position="$2"
+    
+    if [[ -z "$position" ]]; then
+        return 1
+    fi
+    
+    local pos_command
+    pos_command=$(echo "$position" | tr ',' ' ')
+    
+    if [[ -n "$pos_command" ]]; then
+        local command_line
+        command_line="SYSTEM $command_type $pos_command"
+        echo "$command_line" >>"$DayzServerFolder/$DayzAdminCmdsFile"
+        return 0
+    fi
+    
+    return 1
+}
+
+# Função auxiliar para enfileirar comando de chat
+enqueue_chat_command() {
+    local player_id="$1"
+    local command="$2"
+    
+    if [[ -z "$player_id" || -z "$command" ]]; then
+        INSERT_CUSTOM_LOG "enqueue_chat_command: PlayerId ou comando vazio (player_id='$player_id', command='$command')" "DEBUG" "$ScriptName"
+        return 1
+    fi
+    
+    # Verificar se é admin ou se é deathmatch com comandos permitidos
+    if grep -q "$player_id" "$DayzServerFolder/$DayzAdminIdsFile" 2>/dev/null; then
+        echo "$player_id $command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
+        INSERT_CUSTOM_LOG "Comando de admin enfileirado: player_id='$player_id', command='$command'" "DEBUG" "$ScriptName"
+        return 0
+    fi
+    
+    if [[ "$DayzDeathmatch" -eq "1" ]]; then
+        local command_name
+        command_name=$(echo "$command" | awk '{print tolower($1)}')
+        local allowed_commands="help kill votemap nextmap maps votekick players loadouts loadout"
+        
+        if echo "$allowed_commands" | grep -q "\b$command_name\b"; then
+            echo "$player_id $command" >>"$DayzServerFolder/$DayzAdminCmdsFile"
+            INSERT_CUSTOM_LOG "Comando de deathmatch enfileirado: player_id='$player_id', command='$command'" "DEBUG" "$ScriptName"
+            return 0
+        fi
+        
+        INSERT_CUSTOM_LOG "Comando não permitido para jogador: player_id='$player_id', command='$command', command_name='$command_name'" "DEBUG" "$ScriptName"
+    fi
+    
+    INSERT_CUSTOM_LOG "Comando não enfileirado: player_id='$player_id' não é admin e não está em modo deathmatch" "DEBUG" "$ScriptName"
+    return 1
+}
 
 stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
     # Ignora linhas que não contêm os eventos desejados
@@ -41,53 +99,58 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
     fi
     
     echo "$Line" | grep -q "\[HP: 0\]" && continue
-
-    INSERT_ADM_LOG "$Line" "INFO"
+    
     # Remove primeiros 12 caracteres que contém informações de data e hora
     Content=$(echo "$Line" | cut -c 12-)
-    CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
-
-    INSERT_CUSTOM_LOG "Evento capturado: $Content" "INFO" "$ScriptName"
-
-    HANDLER_CONTENT="$Content"
-    HANDLER_SHOULD_CONTINUE=0
-
-    if [[ "$Content" == *"hit by Player"* ]]; then
-        handle_hit_player "$Line" "$Content"
-    elif [[ "$Content" == *"Chat("* ]]; then
-        handle_chat_command "$Line" "$Content"
-    elif [[ "$Content" == *"killed by Player"* ]]; then
-        handle_killed_by_player "$Line" "$Content"
-    elif [[ "$Content" == *"Built base on Fence"* ]]; then
-        handle_built_fence "$Line" "$Content"
+    
+    # Publicar linha bruta no RabbitMQ (todo processamento será feito no consumer)
+    payload=$(jq -n \
+        --arg log_type "adm" \
+        --arg log_file "$(basename "$LogFileName")" \
+        --arg line "$Line" \
+        --arg content "$Content" \
+        --arg timestamp "$(date '+%Y-%m-%d %H:%M:%S')" \
+        '{log_type: $log_type, log_file: $log_file, line: $line, content: $content, timestamp: $timestamp}' 2>/dev/null)
+    
+    if [[ -n "$payload" ]]; then
+        PUBLISH_TO_RABBITMQ "logs.adm" "$payload" >/dev/null 2>&1 &
+    fi
+    
+    # Lógica mínima para enfileirar comandos (apenas extração de dados básicos)
+    if [[ "$Content" == *"Built base on Fence"* ]]; then
+        position=$(extract_position "$Content")
+        enqueue_structure_command "registerfence" "$position"
     elif [[ "$Content" == *"Built level_1_base on Watchtower"* ]]; then
-        handle_built_watchtower "$Line" "$Content"
+        position=$(extract_position "$Content")
+        enqueue_structure_command "registerwatchtower" "$position"
     elif [[ "$Content" == *"Built base on Flag Pole"* ]]; then
-        handle_built_flag "$Line" "$Content"
-    elif [[ "$Content" == *"Dismantled Base from Fence"* ]]; then
-        handle_dismantled_fence "$Line" "$Content"
-    elif [[ "$Content" == *"Dismantled Upper Wooden Wall from Fence"* ]]; then
-        handle_dismantled_upper_wall "$Line" "$Content"
-    elif [[ "$Content" == *"Dismantled Upper Frame from Fence"* ]]; then
-        handle_dismantled_upper_frame "$Line" "$Content"
+        position=$(extract_position "$Content")
+        enqueue_structure_command "registerflag" "$position"
     elif [[ "$Content" == *"built Shelter"* ]]; then
-        handle_built_shelter "$Line" "$Content"
-    else
-        handle_death_event "$Line" "$Content"
+        position=$(extract_position "$Content")
+        enqueue_structure_command "registercontainer" "$position"
+    elif [[ "$Content" == *"Chat("* ]]; then
+        player_id=$(extract_player_id "$Content")
+        
+        # Validar PlayerId extraído
+        if [[ -z "$player_id" ]]; then
+            INSERT_CUSTOM_LOG "PlayerId vazio extraído do chat: Content='$Content'" "DEBUG" "$ScriptName"
+        elif [[ ${#player_id} -ne 44 ]]; then
+            INSERT_CUSTOM_LOG "PlayerId com tamanho inválido (esperado 44, obtido ${#player_id}): player_id='$player_id'" "DEBUG" "$ScriptName"
+        else
+            chat_message="${Content##*: }"
+            command="$chat_message"
+            if [[ "$command" == "!"* ]]; then
+                command="${command:1}"
+                INSERT_CUSTOM_LOG "Comando de chat detectado: player_id='$player_id', comando='$command'" "DEBUG" "$ScriptName"
+                
+                if enqueue_chat_command "$player_id" "$command"; then
+                    INSERT_CUSTOM_LOG "Comando enfileirado com sucesso: player_id='$player_id', command='$command'" "INFO" "$ScriptName"
+                else
+                    INSERT_CUSTOM_LOG "Falha ao enfileirar comando: player_id='$player_id', command='$command'" "WARNING" "$ScriptName"
+                fi
+            fi
+        fi
     fi
-
-    if [[ "$HANDLER_SHOULD_CONTINUE" -eq 1 ]]; then
-        continue
-    fi
-
-    if [[ -z "$HANDLER_CONTENT" ]]; then
-        HANDLER_CONTENT="$Content"
-    fi
-
-    Content="$HANDLER_CONTENT"
-    Content=$(echo "$Content" | tr -d '\r\n' | sed "s/[[:space:]]\+/ /g" | sed "s/^ //; s/ $//")
-
-    # Envia $Content para discord
-    SEND_DISCORD_WEBHOOK "$Content" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
 
 done

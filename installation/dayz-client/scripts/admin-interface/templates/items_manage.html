@@ -1,0 +1,1061 @@
+{% extends "base.html" %}
+
+{% block title %}Gerenciar Itens{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/items_manage.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-database me-2"></i>Gerenciar Banco de Dados de Itens</h2>
+    </div>
+
+    <ul class="nav nav-tabs mb-4" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" data-bs-toggle="tab" href="#weapons-tab">
+                <i class="fas fa-crosshairs me-2"></i>Armas
+            </a>
+        </li>        
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#explosives-tab">
+                <i class="fas fa-bomb me-2"></i>Explosivos
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#ammo-tab">
+                <i class="fas fa-bullet me-2"></i>Munições
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#magazines-tab">
+                <i class="fas fa-magazine me-2"></i>Magazines
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#attachments-tab">
+                <i class="fas fa-paperclip me-2"></i>Attachments
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#calibers-tab">
+                <i class="fas fa-ruler me-2"></i>Calibers
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#items-tab">
+                <i class="fas fa-box me-2"></i>Itens gerais
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#types-tab">
+                <i class="fas fa-tags me-2"></i>Tipos de Item
+            </a>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- Aba de Armas -->
+        <div id="weapons-tab" class="tab-pane fade show active">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <button class="btn btn-success" id="btnAddWeapon">
+                        <i class="fas fa-plus me-2"></i>Nova Arma
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <input type="text" id="weaponSearchInput" class="form-control" placeholder="Buscar arma...">
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterFeedType">
+                        <option value="">Todos Feed Types</option>
+                        <option value="magazine">Magazine</option>
+                        <option value="manual">Manual</option>
+                        <option value="internal">Internal</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterWeaponSize">
+                        <option value="">Todos Tamanhos</option>
+                        <option value="small">Pequenas (≤12)</option>
+                        <option value="large">Grandes (>12)</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" id="filterCaliber">
+                        <option value="">Todos Calibres</option>
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+            </div>
+            
+            <div id="weaponsGrid" class="weapons-grid">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Aba de Explosivos -->
+        <div id="explosives-tab" class="tab-pane fade">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <button class="btn btn-success" id="btnAddExplosive">
+                        <i class="fas fa-plus me-2"></i>Novo Explosivo
+                    </button>
+                </div>
+                <div class="col-md-6">
+                    <input type="text" id="explosiveSearchInput" class="form-control" placeholder="Buscar explosivo...">
+                </div>
+            </div>
+            <div id="explosivesGrid" class="weapons-grid"></div>
+        </div>
+
+        <!-- Aba de Munições -->
+        <div id="ammo-tab" class="tab-pane fade">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <button class="btn btn-success" id="btnAddAmmunition">
+                        <i class="fas fa-plus me-2"></i>Nova Munição
+                    </button>
+                </div>
+                <div class="col-md-6">
+                    <input type="text" id="ammunitionSearchInput" class="form-control" placeholder="Buscar munição...">
+                </div>
+            </div>
+            <div id="ammunitionsGrid" class="weapons-grid"></div>
+        </div>
+
+        <!-- Aba de Magazines -->
+        <div id="magazines-tab" class="tab-pane fade">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <button class="btn btn-success" id="btnAddMagazine">
+                        <i class="fas fa-plus me-2"></i>Novo Magazine
+                    </button>
+                </div>
+                <div class="col-md-6">
+                    <input type="text" id="magazineSearchInput" class="form-control" placeholder="Buscar magazine...">
+                </div>
+            </div>
+            <div id="magazinesGrid" class="weapons-grid"></div>
+        </div>
+
+        <!-- Aba de Attachments -->
+        <div id="attachments-tab" class="tab-pane fade">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <button class="btn btn-success" id="btnAddAttachment">
+                        <i class="fas fa-plus me-2"></i>Novo Attachment
+                    </button>
+                </div>
+                <div class="col-md-3">
+                    <input type="text" id="attachmentSearchInput" class="form-control" placeholder="Buscar attachment...">
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" id="filterAttachmentType">
+                        <option value="">Todos os Tipos</option>
+                        <option value="buttstock">Buttstock</option>
+                        <option value="compensator">Compensator</option>
+                        <option value="flashlight">Flashlight</option>
+                        <option value="ghillie">Ghillie</option>
+                        <option value="scope">Scope</option>
+                        <option value="handguard">Handguard</option>
+                        <option value="suppressor">Suppressor</option>
+                    </select>
+                </div>
+            </div>
+            <div id="attachmentsGrid" class="weapons-grid"></div>
+        </div>
+
+        <!-- Aba de Calibers -->
+        <div id="calibers-tab" class="tab-pane fade">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <button class="btn btn-success" id="btnAddCaliber">
+                        <i class="fas fa-plus me-2"></i>Novo Calibre
+                    </button>
+                </div>
+                <div class="col-md-6">
+                    <input type="text" id="caliberSearchInput" class="form-control" placeholder="Buscar calibre...">
+                </div>
+            </div>
+            <table id="calibersTable" class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Aba de Itens -->
+        <div id="items-tab" class="tab-pane fade">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <button class="btn btn-success" id="btnAddItem">
+                        <i class="fas fa-plus me-2"></i>Novo Item
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <input type="text" id="itemSearchInput" class="form-control" placeholder="Buscar item...">
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterItemType">
+                        <option value="">Todos Tipos</option>
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterItemLocation">
+                        <option value="">Todas Localizações</option>
+                        <option value="none">Nenhuma</option>
+                        <option value="back">Back</option>
+                        <option value="eyes">Eyes</option>
+                        <option value="face">Face</option>
+                        <option value="foot">Foot</option>
+                        <option value="hands">Hands</option>
+                        <option value="head">Head</option>
+                        <option value="legs">Legs</option>
+                        <option value="torso">Torso</option>
+                        <option value="waist">Waist</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" id="filterItemStorage">
+                        <option value="">Todos</option>
+                        <option value="with">Com Storage</option>
+                        <option value="without">Sem Storage</option>
+                    </select>
+                </div>
+            </div>
+            <div id="itemsGrid" class="weapons-grid"></div>
+        </div>
+
+        <!-- Aba de Tipos de Item -->
+        <div id="types-tab" class="tab-pane fade">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <button class="btn btn-success" id="btnAddItemType">
+                        <i class="fas fa-plus me-2"></i>Novo Tipo
+                    </button>
+                </div>
+                <div class="col-md-6">
+                    <input type="text" id="itemTypeSearchInput" class="form-control" placeholder="Buscar tipo...">
+                </div>
+            </div>
+            <table id="itemTypesTable" class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Arma -->
+<div class="modal fade" id="weaponModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Arma</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="weaponForm">
+                    <input type="hidden" id="weaponId">
+                    
+                    <!-- Campos básicos -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Nome</label>
+                            <input type="text" class="form-control" id="weaponName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Name Type (Classe DayZ)</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="weaponNameType" required>
+                                <button class="btn btn-outline-secondary" type="button" id="btnValidateType">
+                                    <i class="fas fa-check"></i> Validar
+                                </button>
+                            </div>
+                            <div id="typeValidationFeedback" class="form-text"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-3">
+                            <label>Feed Type</label>
+                            <select class="form-select" id="weaponFeedType" required>
+                                <option value="">Selecione...</option>
+                                <option value="magazine">Magazine</option>
+                                <option value="manual">Manual</option>
+                                <option value="internal">Internal</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label>Width x Height</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="weaponWidth" required min="1">
+                                <span class="input-group-text">x</span>
+                                <input type="number" class="form-control" id="weaponHeight" required min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Slots (auto)</label>
+                            <input type="number" class="form-control" id="weaponSlots" readonly>
+                        </div>
+                        <div class="col-md-12 mt-3">
+                            <label>Imagem (URL)</label>
+                            <input type="text" class="form-control" id="weaponImg" required>
+                        </div>
+                    </div>
+                    
+                    <!-- Relacionamentos -->
+                    <h6 class="mt-4">Relacionamentos</h6>
+                    <ul class="nav nav-pills mb-3" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#weaponAmmo">
+                                Munições <span class="badge bg-primary" id="ammoCount">0</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#weaponMags">
+                                Magazines <span class="badge bg-primary" id="magsCount">0</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#weaponAtts">
+                                Attachments <span class="badge bg-primary" id="attsCount">0</span>
+                            </a>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content">
+                        <!-- Munições -->
+                        <div id="weaponAmmo" class="tab-pane fade show active">
+                            <div class="selected-items mb-3" id="selectedAmmo">
+                                <h6>Selecionados:</h6>
+                                <div class="selected-items-grid"></div>
+                            </div>
+                            <input type="text" class="form-control mb-2" id="ammoSearchInput" placeholder="Buscar munição...">
+                            <div id="ammoGrid" class="relationship-grid"></div>
+                        </div>
+                        
+                        <!-- Magazines -->
+                        <div id="weaponMags" class="tab-pane fade">
+                            <div class="selected-items mb-3" id="selectedMags">
+                                <h6>Selecionados:</h6>
+                                <div class="selected-items-grid"></div>
+                            </div>
+                            <input type="text" class="form-control mb-2" id="magsSearchInput" placeholder="Buscar magazine...">
+                            <div id="magsGrid" class="relationship-grid"></div>
+                        </div>
+                        
+                        <!-- Attachments -->
+                        <div id="weaponAtts" class="tab-pane fade">
+                            <div class="selected-items mb-3" id="selectedAtts">
+                                <h6>Selecionados:</h6>
+                                <div class="selected-items-grid"></div>
+                            </div>
+                            <input type="text" class="form-control mb-2" id="attsSearchInput" placeholder="Buscar attachment...">
+                            <div id="attsGrid" class="relationship-grid"></div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveWeapon">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Item -->
+<div class="modal fade" id="itemModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Item</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="itemForm">
+                    <input type="hidden" id="itemId">
+                    
+                    <!-- Campos básicos -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Nome</label>
+                            <input type="text" class="form-control" id="itemName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Name Type (Classe DayZ)</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="itemNameType" required>
+                                <button class="btn btn-outline-secondary" type="button" id="btnValidateItemType">
+                                    <i class="fas fa-check"></i> Validar
+                                </button>
+                            </div>
+                            <div id="itemTypeValidationFeedback" class="form-text"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dimensões e tipo -->
+                    <div class="row mt-3">
+                        <div class="col-md-3">
+                            <label>Tipo de Item</label>
+                            <select class="form-select" id="itemTypeId" required></select>
+                        </div>
+                        <div class="col-md-3">
+                            <label>Width x Height</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="itemWidth" required min="1">
+                                <span class="input-group-text">x</span>
+                                <input type="number" class="form-control" id="itemHeight" required min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Slots (auto)</label>
+                            <input type="number" class="form-control" id="itemSlots" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label>Localização</label>
+                            <select class="form-select" id="itemLocalization">
+                                <option value="">Nenhuma</option>
+                                <option value="back">Back</option>
+                                <option value="eyes">Eyes</option>
+                                <option value="face">Face</option>
+                                <option value="foot">Foot</option>
+                                <option value="hands">Hands</option>
+                                <option value="head">Head</option>
+                                <option value="legs">Legs</option>
+                                <option value="torso">Torso</option>
+                                <option value="waist">Waist</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Storage (se aplicável) -->
+                    <div class="row mt-3">
+                        <div class="col-md-4">
+                            <label>Storage Width x Height</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="itemStorageWidth" min="0" value="0">
+                                <span class="input-group-text">x</span>
+                                <input type="number" class="form-control" id="itemStorageHeight" min="0" value="0">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Storage Slots (auto)</label>
+                            <input type="number" class="form-control" id="itemStorageSlots" readonly>
+                        </div>
+                        <div class="col-md-12 mt-3">
+                            <label>Imagem (URL)</label>
+                            <input type="text" class="form-control" id="itemImg" required>
+                        </div>
+                    </div>
+                    
+                    <!-- Compatibilidade de Itens -->
+                    <h6 class="mt-4">Compatibilidade de Itens</h6>
+                    <ul class="nav nav-pills mb-3" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#itemParents">
+                                Itens Pais <span class="badge bg-primary" id="parentsCount">0</span>
+                                <small class="d-block" style="font-size: 10px;">Este item encaixa em...</small>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#itemChildren">
+                                Itens Filhos <span class="badge bg-primary" id="childrenCount">0</span>
+                                <small class="d-block" style="font-size: 10px;">Este item recebe...</small>
+                            </a>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content">
+                        <!-- Itens Pais (este item encaixa em...) -->
+                        <div id="itemParents" class="tab-pane fade show active">
+                            <div class="selected-items mb-3" id="selectedParents">
+                                <h6>Selecionados:</h6>
+                                <div class="selected-items-grid"></div>
+                            </div>
+                            <input type="text" class="form-control mb-2" id="parentsSearchInput" placeholder="Buscar item pai...">
+                            <div id="parentsGrid" class="relationship-grid"></div>
+                        </div>
+                        
+                        <!-- Itens Filhos (este item recebe...) -->
+                        <div id="itemChildren" class="tab-pane fade">
+                            <div class="selected-items mb-3" id="selectedChildren">
+                                <h6>Selecionados:</h6>
+                                <div class="selected-items-grid"></div>
+                            </div>
+                            <input type="text" class="form-control mb-2" id="childrenSearchInput" placeholder="Buscar item filho...">
+                            <div id="childrenGrid" class="relationship-grid"></div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveItem">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Explosivo -->
+<div class="modal fade" id="explosiveModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Explosivo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="explosiveForm">
+                    <input type="hidden" id="explosiveId">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Nome</label>
+                            <input type="text" class="form-control" id="explosiveName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Name Type (Classe DayZ)</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="explosiveNameType" required>
+                                <button class="btn btn-outline-secondary" type="button" id="btnValidateExplosiveType">
+                                    <i class="fas fa-check"></i> Validar
+                                </button>
+                            </div>
+                            <div id="explosiveTypeValidationFeedback" class="form-text"></div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-3">
+                            <label>Slots</label>
+                            <input type="number" class="form-control" id="explosiveSlots" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label>Width x Height</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="explosiveWidth" required min="1">
+                                <span class="input-group-text">x</span>
+                                <input type="number" class="form-control" id="explosiveHeight" required min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-12 mt-3">
+                            <label>Imagem (URL)</label>
+                            <input type="text" class="form-control" id="explosiveImg" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveExplosive">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Munição -->
+<div class="modal fade" id="ammunitionModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Munição</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="ammunitionForm">
+                    <input type="hidden" id="ammunitionId">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Nome</label>
+                            <input type="text" class="form-control" id="ammunitionName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Name Type (Classe DayZ)</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="ammunitionNameType" required>
+                                <button class="btn btn-outline-secondary" type="button" id="btnValidateAmmunitionType">
+                                    <i class="fas fa-check"></i> Validar
+                                </button>
+                            </div>
+                            <div id="ammunitionTypeValidationFeedback" class="form-text"></div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-3">
+                            <label>Calibre</label>
+                            <select class="form-select" id="ammunitionCaliberId" required></select>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Slots</label>
+                            <input type="number" class="form-control" id="ammunitionSlots" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label>Width x Height</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="ammunitionWidth" required min="1">
+                                <span class="input-group-text">x</span>
+                                <input type="number" class="form-control" id="ammunitionHeight" required min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-12 mt-3">
+                            <label>Imagem (URL)</label>
+                            <input type="text" class="form-control" id="ammunitionImg" required>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Armas Compatíveis</h6>
+                    <div class="selected-items mb-3" id="selectedAmmunitionWeapons">
+                        <h6>Selecionadas:</h6>
+                        <div class="selected-items-grid"></div>
+                    </div>
+                    <input type="text" class="form-control mb-2" id="ammunitionWeaponSearch" placeholder="Buscar arma...">
+                    <div id="ammunitionWeaponGrid" class="relationship-grid"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveAmmunition">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Magazine -->
+<div class="modal fade" id="magazineModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Magazine</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="magazineForm">
+                    <input type="hidden" id="magazineId">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Nome</label>
+                            <input type="text" class="form-control" id="magazineName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Name Type (Classe DayZ)</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="magazineNameType" required>
+                                <button class="btn btn-outline-secondary" type="button" id="btnValidateMagazineType">
+                                    <i class="fas fa-check"></i> Validar
+                                </button>
+                            </div>
+                            <div id="magazineTypeValidationFeedback" class="form-text"></div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-3">
+                            <label>Capacidade</label>
+                            <input type="number" class="form-control" id="magazineCapacity">
+                        </div>
+                        <div class="col-md-2">
+                            <label>Slots</label>
+                            <input type="number" class="form-control" id="magazineSlots" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label>Width x Height</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="magazineWidth" required min="1">
+                                <span class="input-group-text">x</span>
+                                <input type="number" class="form-control" id="magazineHeight" required min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-12 mt-3">
+                            <label>Imagem (URL)</label>
+                            <input type="text" class="form-control" id="magazineImg" required>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Armas Compatíveis</h6>
+                    <div class="selected-items mb-3" id="selectedMagazineWeapons">
+                        <h6>Selecionadas:</h6>
+                        <div class="selected-items-grid"></div>
+                    </div>
+                    <input type="text" class="form-control mb-2" id="magazineWeaponSearch" placeholder="Buscar arma...">
+                    <div id="magazineWeaponGrid" class="relationship-grid"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveMagazine">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Calibre -->
+<div class="modal fade" id="caliberModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Calibre</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="caliberForm">
+                    <input type="hidden" id="caliberModalId">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label>Nome</label>
+                            <input type="text" class="form-control" id="caliberName" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveCaliber">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Tipo de Item -->
+<div class="modal fade" id="itemTypeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Tipo de Item</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="itemTypeForm">
+                    <input type="hidden" id="itemTypeModalId">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label>Nome</label>
+                            <input type="text" class="form-control" id="itemTypeName" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveItemType">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Explosivo -->
+<div class="modal fade" id="explosiveModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Explosivo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="explosiveForm">
+                    <input type="hidden" id="explosiveId">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Nome</label>
+                            <input type="text" class="form-control" id="explosiveName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Name Type (Classe DayZ)</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="explosiveNameType" required>
+                                <button class="btn btn-outline-secondary" type="button" id="btnValidateExplosiveType">
+                                    <i class="fas fa-check"></i> Validar
+                                </button>
+                            </div>
+                            <div id="explosiveTypeValidationFeedback" class="form-text"></div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-2">
+                            <label>Width x Height</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="explosiveWidth" required min="1">
+                                <span class="input-group-text">x</span>
+                                <input type="number" class="form-control" id="explosiveHeight" required min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Slots (auto)</label>
+                            <input type="number" class="form-control" id="explosiveSlots" readonly>
+                        </div>
+                        <div class="col-md-12 mt-3">
+                            <label>Imagem (URL)</label>
+                            <input type="text" class="form-control" id="explosiveImg" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveExplosive">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Munição -->
+<div class="modal fade" id="ammunitionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Munição</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="ammunitionForm">
+                    <input type="hidden" id="ammunitionId">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Nome</label>
+                            <input type="text" class="form-control" id="ammunitionName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Name Type (Classe DayZ)</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="ammunitionNameType" required>
+                                <button class="btn btn-outline-secondary" type="button" id="btnValidateAmmunitionType">
+                                    <i class="fas fa-check"></i> Validar
+                                </button>
+                            </div>
+                            <div id="ammunitionTypeValidationFeedback" class="form-text"></div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-4">
+                            <label>Calibre</label>
+                            <select class="form-select" id="ammunitionCaliberId" required>
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Width x Height</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="ammunitionWidth" required min="1">
+                                <span class="input-group-text">x</span>
+                                <input type="number" class="form-control" id="ammunitionHeight" required min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Slots (auto)</label>
+                            <input type="number" class="form-control" id="ammunitionSlots" readonly>
+                        </div>
+                        <div class="col-md-12 mt-3">
+                            <label>Imagem (URL)</label>
+                            <input type="text" class="form-control" id="ammunitionImg" required>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Armas Compatíveis</h6>
+                    <div class="selected-items mb-3" id="selectedAmmunitionWeapons">
+                        <h6>Selecionadas:</h6>
+                        <div class="selected-items-grid"></div>
+                    </div>
+                    <input type="text" class="form-control mb-2" id="ammunitionWeaponSearch" placeholder="Buscar arma...">
+                    <div id="ammunitionWeaponGrid" class="relationship-grid"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveAmmunition">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Magazine -->
+<div class="modal fade" id="magazineModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Magazine</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="magazineForm">
+                    <input type="hidden" id="magazineId">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Nome</label>
+                            <input type="text" class="form-control" id="magazineName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Name Type (Classe DayZ)</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="magazineNameType" required>
+                                <button class="btn btn-outline-secondary" type="button" id="btnValidateMagazineType">
+                                    <i class="fas fa-check"></i> Validar
+                                </button>
+                            </div>
+                            <div id="magazineTypeValidationFeedback" class="form-text"></div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-3">
+                            <label>Capacidade</label>
+                            <input type="number" class="form-control" id="magazineCapacity" required min="1">
+                        </div>
+                        <div class="col-md-2">
+                            <label>Width x Height</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="magazineWidth" required min="1">
+                                <span class="input-group-text">x</span>
+                                <input type="number" class="form-control" id="magazineHeight" required min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Slots (auto)</label>
+                            <input type="number" class="form-control" id="magazineSlots" readonly>
+                        </div>
+                        <div class="col-md-12 mt-3">
+                            <label>Imagem (URL)</label>
+                            <input type="text" class="form-control" id="magazineImg" required>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Armas Compatíveis</h6>
+                    <div class="selected-items mb-3" id="selectedMagazineWeapons">
+                        <h6>Selecionadas:</h6>
+                        <div class="selected-items-grid"></div>
+                    </div>
+                    <input type="text" class="form-control mb-2" id="magazineWeaponSearch" placeholder="Buscar arma...">
+                    <div id="magazineWeaponGrid" class="relationship-grid"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveMagazine">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edição de Attachment -->
+<div class="modal fade" id="attachmentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Attachment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="attachmentForm">
+                    <input type="hidden" id="attachmentId">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Nome</label>
+                            <input type="text" class="form-control" id="attachmentName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Name Type (Classe DayZ)</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="attachmentNameType" required>
+                                <button class="btn btn-outline-secondary" type="button" id="btnValidateAttachmentType">
+                                    <i class="fas fa-check"></i> Validar
+                                </button>
+                            </div>
+                            <div id="attachmentTypeValidationFeedback" class="form-text"></div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-3">
+                            <label>Tipo</label>
+                            <select class="form-select" id="attachmentType" required>
+                                <option value="">Selecione...</option>
+                                <option value="buttstock">Buttstock</option>
+                                <option value="compensator">Compensator</option>
+                                <option value="flashlight">Flashlight</option>
+                                <option value="ghillie">Ghillie</option>
+                                <option value="scope">Scope</option>
+                                <option value="handguard">Handguard</option>
+                                <option value="suppressor">Suppressor</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="attachmentBattery">
+                                <label class="form-check-label" for="attachmentBattery">
+                                    Possui Bateria
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label>Width x Height</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="attachmentWidth" required min="1">
+                                <span class="input-group-text">x</span>
+                                <input type="number" class="form-control" id="attachmentHeight" required min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Slots (auto)</label>
+                            <input type="number" class="form-control" id="attachmentSlots" readonly>
+                        </div>
+                        <div class="col-md-12 mt-3">
+                            <label>Imagem (URL)</label>
+                            <input type="text" class="form-control" id="attachmentImg" required>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Armas Compatíveis</h6>
+                    <div class="selected-items mb-3" id="selectedAttachmentWeapons">
+                        <h6>Selecionadas:</h6>
+                        <div class="selected-items-grid"></div>
+                    </div>
+                    <input type="text" class="form-control mb-2" id="attachmentWeaponSearch" placeholder="Buscar arma...">
+                    <div id="attachmentWeaponGrid" class="relationship-grid"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveAttachment">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir este item?</p>
+                <p class="text-danger"><strong>Esta ação não pode ser desfeita!</strong></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="btnConfirmDelete">Excluir</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="{{ url_for('static', filename='js/items_manage.js') }}"></script>
+{% endblock %}
+
+

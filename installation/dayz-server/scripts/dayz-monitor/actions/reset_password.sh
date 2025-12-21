@@ -57,11 +57,22 @@ handle_reset_password() {
         fi
 
         hash_escaped=$(echo "$hash" | sed "s/'/''/g")
-        sqlite3 "$PLAYERS_BECO_C1_DB" "UPDATE users SET Password = '$hash_escaped', MustChangePassword = 1 WHERE UserID = $UserID;"
-
-        if [[ $? -ne 0 ]]; then
-            echo "Erro: Falha ao atualizar senha no banco de dados"
-            echo "$player_id;[ERROR] Erro interno ao resetar senha (falha ao atualizar banco)" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
+        
+        # Publicar no RabbitMQ (toda lógica SQLite será feita no consumer)
+        local rabbitmq_payload
+        rabbitmq_payload=$(jq -n \
+            --arg action "update_password" \
+            --arg user_id "$UserID" \
+            --arg password_hash "$hash_escaped" \
+            --arg player_id "$player_id" \
+            --arg username "$login" \
+            '{action: $action, user_id: $user_id, password_hash: $password_hash, player_id: $player_id, username: $username}' 2>/dev/null)
+        
+        if [[ -n "$rabbitmq_payload" ]]; then
+            PUBLISH_TO_RABBITMQ "users.management" "$rabbitmq_payload"
+        else
+            echo "Erro: Falha ao criar payload RabbitMQ"
+            echo "$player_id;[ERROR] Erro interno ao resetar senha (falha ao criar payload)" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
             return
         fi
     else
@@ -90,11 +101,20 @@ handle_reset_password() {
         hash_escaped=$(echo "$hash" | sed "s/'/''/g")
         login_escaped=$(echo "$login" | sed "s/'/''/g")
 
-        sqlite3 "$PLAYERS_BECO_C1_DB" "INSERT INTO users (Username, Password, UserType, PlayerID, IsActive, MustChangePassword) VALUES ('$login_escaped', '$hash_escaped', 'player', '$player_id_escaped', 1, 1);"
-
-        if [[ $? -ne 0 ]]; then
-            echo "Erro: Falha ao criar usuário no banco de dados"
-            echo "$player_id;[ERROR] Erro interno ao resetar senha (falha ao criar usuário)" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
+        # Publicar no RabbitMQ (toda lógica SQLite será feita no consumer)
+        local rabbitmq_payload
+        rabbitmq_payload=$(jq -n \
+            --arg action "create_user" \
+            --arg username "$login_escaped" \
+            --arg password_hash "$hash_escaped" \
+            --arg player_id "$player_id_escaped" \
+            '{action: $action, username: $username, password_hash: $password_hash, player_id: $player_id, user_type: "player", is_active: 1, must_change_password: 1}' 2>/dev/null)
+        
+        if [[ -n "$rabbitmq_payload" ]]; then
+            PUBLISH_TO_RABBITMQ "users.management" "$rabbitmq_payload"
+        else
+            echo "Erro: Falha ao criar payload RabbitMQ"
+            echo "$player_id;[ERROR] Erro interno ao resetar senha (falha ao criar payload)" >> "$DayzServerFolder/$DayzMessagesPrivateToSendoFile"
             return
         fi
     fi

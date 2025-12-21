@@ -2161,3 +2161,59 @@ void SendPlayersPositions(array<Man> players = null)
     WriteToLog("SendPlayersPositions(): Processamento concluído - " + processedCount.ToString() + " processados de " + playersToProcess.Count().ToString() + " encontrados - Tempo=" + elapsedMs.ToString() + "ms", LogFile.INIT, false, LogType.DEBUG);
     WriteToLog("SendPlayersPositions(): Posições de " + processedCount.ToString() + " jogadores enviadas via ExternalAction - Tempo=" + elapsedMs.ToString() + "ms", LogFile.INIT, false, LogType.DEBUG);
 }
+
+// Solicita backup de jogadores online vivos via ExternalAction
+void RequestPlayersBackup(array<Man> players = null)
+{
+    if (IsDeathmatchEnabled)
+        return;
+    
+    array<Man> playersToBackup;
+    
+    if (!players)
+    {
+        playersToBackup = new array<Man>;
+        GetGame().GetPlayers(playersToBackup);
+    }
+    else
+    {
+        playersToBackup = players;
+    }
+    
+    if (playersToBackup.Count() == 0)
+        return;
+    
+    string backupRequestJson = "";
+    int processedCount = 0;
+    
+    foreach (Man man : playersToBackup)
+    {
+        PlayerBase player = PlayerBase.Cast(man);
+        if (!player)
+            continue;
+        
+        PlayerIdentity identity = player.GetIdentity();
+        if (!identity)
+            continue;
+        
+        string playerId = identity.GetId();
+        if (playerId == "")
+            continue;
+        
+        if (!player.IsAlive())
+            continue;
+        
+        if (backupRequestJson != "")
+            backupRequestJson += ",";
+        
+        backupRequestJson += "\"" + playerId + "\"";
+        processedCount++;
+    }
+    
+    if (processedCount > 0)
+    {
+        string jsonAction = "{\"action\":\"players_backup_request\",\"player_ids\":[" + backupRequestJson + "]}";
+        AppendExternalAction(jsonAction, false);
+        WriteToLog("RequestPlayersBackup(): Solicitado backup para " + processedCount.ToString() + " jogadores", LogFile.INIT, false, LogType.DEBUG);
+    }
+}

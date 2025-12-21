@@ -1,0 +1,55 @@
+{
+  "RabbitMQ": {
+    "Host": "localhost",
+    "Port": 5672,
+    "Username": "dayz_consumer",
+    "Password": "secure_password",
+    "VHost": "dayz",
+    "Exchange": "dayz.events",
+    "Enabled": true
+  },
+  "App": {
+    "Description": "Servidor de Monitoramento DayZ - Beco Gaming",
+    "Version": "1.0.0"
+  },
+  "Flask": {
+    "Host": "0.0.0.0",
+    "Port": 5000,
+    "Debug": false,
+    "SecretKey": "dayz-beco-c1-secret-key-2024-change-me"
+  },
+  "Admin": {
+    "Username": "admin",
+    "Password": "dayz_beco_2024"
+  },
+  "Discord": {
+    "Desactive": "0",
+    "WebhookLogs": "https://discord.com/api/webhooks/1111111111111111111/abcdefghijklmnopqrstuvwxyz1234567890",
+    "WebhookLogsAdmin": "https://discord.com/api/webhooks/1111111111111111111/abcdefghijklmnopqrstuvwxyz1234567890",
+    "ChannelPlayersOnline": {
+      "ChannelId": "1111111111111111111",
+      "MessageId": "1111111111111111111",
+      "BotToken": "abcdefghijklmnopqrstuvwxyz1234567890"
+    },
+    "ChannelPlayersStats": {
+      "ChannelId": "1111111111111111111",
+      "MessageId": "1111111111111111111",
+      "BotToken": "abcdefghijklmnopqrstuvwxyz1234567890"
+    }
+  },
+  "DayZServer": {
+    "SSH": {
+      "Host": "",
+      "Port": 22,
+      "User": "",
+      "KeyPath": "",
+      "Password": "",
+      "CommandsFile": "",
+      "ResultsFile": "",
+      "Timeout": 5,
+      "ConnectionPoolSize": 3,
+      "ConnectionTTL": 30
+    }
+  }
+}
+

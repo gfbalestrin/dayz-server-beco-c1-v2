@@ -1,0 +1,5 @@
+# Requisitos Python para servidor DayZ (apenas producer RabbitMQ)
+# Instalar com: pip3 install -r requirements_dayz.txt
+
+pika==1.3.2
+

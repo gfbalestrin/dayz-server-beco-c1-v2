@@ -1,0 +1,26 @@
+[Unit]
+Description=DayZ RabbitMQ Consumers (Logs and Positions)
+After=network.target rabbitmq-server.service
+Requires=rabbitmq-server.service
+
+[Service]
+Type=simple
+User=dayzadmin
+Group=dayzadmin
+WorkingDirectory=/home/dayzadmin/scripts/consumers
+ExecStart=/home/dayzadmin/scripts/venv/bin/python3 /home/dayzadmin/scripts/consumers/consumer_manager.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Limites de recursos
+LimitNOFILE=65536
+MemoryLimit=2G
+
+# Variáveis de ambiente
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target
+

@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # Carrega as variáveis
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PARENT_DIR"
@@ -10,219 +9,227 @@ source ./config.sh
 ScriptName=$(basename "$0")
 
 COMMAND_FILE="$DayzServerFolder/$DayzActionsToExecuteFile"
-DB_FILENAME="$DayzServerFolder/$DayzPlayerDbFile"
-PLAYERS_BECO_C1_DB="$AppFolder/$AppPlayerBecoC1DbFile"
 
 echo "Monitorando comandos do DayZ em $COMMAND_FILE..."
 INSERT_CUSTOM_LOG "Monitorando arquivo: $COMMAND_FILE" "INFO" "$ScriptName"
 
 echo > "$COMMAND_FILE"
 
-format_bool_log() {
-    local value="$1"
-    if [[ "$value" == "1" ]]; then
-        echo "Sim"
-    elif [[ "$value" == "0" ]]; then
-        echo "Não"
-    else
-        echo "Desconhecido"
-    fi
-}
-
-format_coord() {
-    local value="$1"
-    if [[ -z "$value" ]]; then
-        echo ""
-        return
-    fi
-
-    awk -v val="$value" 'BEGIN { printf("%.3f", val + 0) }'
-}
-
-ACTIONS_DIR="$SCRIPT_DIR/actions"
-if [[ -d "$ACTIONS_DIR" ]]; then
-    for action_file in "$ACTIONS_DIR"/*.sh; do
-        [[ -e "$action_file" ]] || continue
-        source "$action_file"
-    done
-fi
-
-# Diretório para locks de ações
-LOCK_DIR="/tmp/dayz_action_locks"
-mkdir -p "$LOCK_DIR"
-
-# Função para adquirir lock por tipo de ação
-acquire_lock() {
-    local action_type="$1"
-    local lock_file="$LOCK_DIR/${action_type}.lock"
-    local timeout=300  # 5 minutos de timeout (em segundos)
-    local check_interval=0.1
-    local max_iterations
-    max_iterations=$((timeout * 10))  # timeout / check_interval
-    local iteration=0
+# Função para processar backup de players em batch
+process_players_backup_batch() {
+    local player_ids_json="$1"
     
-    while [[ -f "$lock_file" ]]; do
-        # Verificar se o lock está travado (processo não existe mais)
-        local lock_pid
-        lock_pid=$(cat "$lock_file" 2>/dev/null)
-        if [[ -n "$lock_pid" ]] && ! kill -0 "$lock_pid" 2>/dev/null; then
-            # Processo não existe mais, remover lock órfão
-            rm -f "$lock_file"
-            break
+    INSERT_CUSTOM_LOG "process_players_backup_batch(): Iniciando processamento" "INFO" "$ScriptName"
+    
+    # Extrair array de player_ids do JSON
+    local player_ids=$(echo "$player_ids_json" | jq -r '.player_ids[]?' 2>/dev/null)
+    
+    if [[ -z "$player_ids" ]]; then
+        INSERT_CUSTOM_LOG "process_players_backup_batch(): Nenhum player_id encontrado no JSON" "WARNING" "$ScriptName"
+        INSERT_CUSTOM_LOG "process_players_backup_batch(): JSON recebido: ${player_ids_json:0:200}" "DEBUG" "$ScriptName"
+        return 1
+    fi
+    
+    # Construir lista de placeholders para SQL IN clause
+    local player_ids_array=()
+    while IFS= read -r player_id; do
+        if [[ -n "$player_id" && ${#player_id} -eq 44 ]]; then
+            player_ids_array+=("'$player_id'")
+        fi
+    done <<< "$player_ids"
+    
+    if [[ ${#player_ids_array[@]} -eq 0 ]]; then
+        INSERT_CUSTOM_LOG "process_players_backup_batch(): Nenhum player_id válido encontrado" "WARNING" "$ScriptName"
+        return 1
+    fi
+    
+    local ids_list=$(IFS=','; echo "${player_ids_array[*]}")
+    
+    # Fazer SELECT em batch do players.db
+    local backup_results=$(sqlite3 -separator '|' "$DayzServerFolder/$DayzPlayerDbFile" "SELECT UID, hex(Data) FROM Players WHERE UID IN ($ids_list);" 2>/dev/null)
+    
+    if [[ -z "$backup_results" ]]; then
+        INSERT_CUSTOM_LOG "process_players_backup_batch(): Nenhum backup encontrado no banco" "WARNING" "$ScriptName"
+        return 1
+    fi
+    
+    local processed_count=0
+    local failed_count=0
+    
+    # Processar cada resultado
+    while IFS='|' read -r player_id backup_hex; do
+        if [[ -z "$player_id" || -z "$backup_hex" ]]; then
+            ((failed_count++))
+            continue
         fi
         
-        # Verificar timeout
-        if [[ $iteration -ge $max_iterations ]]; then
-            echo ">> Aviso: Timeout ao aguardar lock para $action_type (removendo lock travado)" >&2
-            rm -f "$lock_file"
-            break
+        # Extrair posições X, Y, Z do BLOB (mesma lógica do monitor_all_players.sh)
+        local hex_position_x=${backup_hex:4:8}
+        local coord_x=$(echo "$hex_position_x" | xxd -r -p | od -An -t fF | tr -d ' ' 2>/dev/null)
+        
+        local hex_position_z=${backup_hex:12:8}
+        local coord_z=$(echo "$hex_position_z" | xxd -r -p | od -An -t fF | tr -d ' ' 2>/dev/null)
+        
+        local hex_position_y=${backup_hex:20:8}
+        local coord_y=$(echo "$hex_position_y" | xxd -r -p | od -An -t fF | tr -d ' ' 2>/dev/null)
+        
+        # Validar coordenadas
+        if [[ -z "$coord_x" || -z "$coord_y" || -z "$coord_z" ]]; then
+            INSERT_CUSTOM_LOG "process_players_backup_batch(): Coordenadas inválidas para $player_id" "WARNING" "$ScriptName"
+            ((failed_count++))
+            continue
         fi
         
-        sleep "$check_interval"
-        iteration=$((iteration + 1))
-    done
-    
-    # Criar lock com PID do processo atual
-    echo $$ > "$lock_file"
-}
-
-# Função para liberar lock
-release_lock() {
-    local action_type="$1"
-    local lock_file="$LOCK_DIR/${action_type}.lock"
-    rm -f "$lock_file"
-}
-
-# Função para processar ação em background com lock
-process_action_async() {
-    local action_type="$1"
-    local line="$2"
-    local timestamp="$3"
-    
-    # Executar em subshell para não bloquear o loop principal
-    (
-        # Adquirir lock para este tipo de ação
-        acquire_lock "$action_type"
+        # Converter backup hex para base64
+        local backup_base64=$(echo "$backup_hex" | xxd -r -p | base64 -w 0 2>/dev/null)
         
-        # Capturar timestamp de início (após adquirir lock, antes de processar)
-        local start_time
-        start_time=$(date +%s.%N 2>/dev/null || date +%s)
-        local start_time_readable
-        start_time_readable=$(date "+%Y-%m-%d %H:%M:%S")
+        if [[ -z "$backup_base64" ]]; then
+            INSERT_CUSTOM_LOG "process_players_backup_batch(): Falha ao converter backup para base64 para $player_id" "ERROR" "$ScriptName"
+            ((failed_count++))
+            continue
+        fi
         
-        # Processar ação baseado no tipo
-        case "$action_type" in
-            reset_password)
-                handle_reset_password "$line"
-                ;;
-            active_loadout)
-                handle_active_loadout "$line"
-                ;;
-            restart_server)
-                handle_restart_server "$line"
-                ;;
-            update_player)
-                handle_update_player "$line"
-                ;;
-            player_connected)
-                handle_player_connected "$line"
-                ;;
-            player_disconnected)
-                handle_player_disconnected "$line"
-                ;;
-            player_respawned)
-                handle_player_respawned "$line"
-                ;;
-            event_restarting)
-                handle_event_restarting "$line"
-                ;;
-            event_start_finished)
-                handle_event_start_finished "$line"
-                ;;
-            event_minutes_to_restart)
-                handle_event_minutes_to_restart "$line"
-                ;;
-            send_log_discord)
-                handle_send_log_discord "$line"
-                ;;
-            players_positions)
-                handle_players_positions "$line" "$timestamp"
-                ;;
-            vehicles_positions)
-                handle_vehicles_positions "$line" "$timestamp"
-                ;;
-            containers_positions)
-                handle_containers_positions "$line" "$timestamp"
-                ;;
-            fences_positions)
-                handle_fences_positions "$line" "$timestamp"
-                ;;
-            watchtowers_positions)
-                handle_watchtowers_positions "$line" "$timestamp"
-                ;;
-            flags_positions)
-                handle_flags_positions "$line" "$timestamp"
-                ;;
-            *)
-                echo ">> Ação desconhecida: $action_type"
-                ;;
-        esac
+        # Montar JSON para envio
+        local backup_json=$(jq -n \
+            --arg player_id "$player_id" \
+            --arg backup_data "$backup_base64" \
+            --arg coord_x "$coord_x" \
+            --arg coord_z "$coord_z" \
+            --arg coord_y "$coord_y" \
+            --arg timestamp "$(date '+%Y-%m-%d %H:%M:%S')" \
+            '{
+                action: "players_backup_data",
+                player_id: $player_id,
+                backup_data: $backup_data,
+                coord_x: ($coord_x | tonumber),
+                coord_z: ($coord_z | tonumber),
+                coord_y: ($coord_y | tonumber),
+                timestamp: $timestamp
+            }' 2>/dev/null)
         
-        # Capturar timestamp de fim
-        local end_time
-        end_time=$(date +%s.%N 2>/dev/null || date +%s)
-        local end_time_readable
-        end_time_readable=$(date "+%Y-%m-%d %H:%M:%S")
+        if [[ -z "$backup_json" ]]; then
+            INSERT_CUSTOM_LOG "process_players_backup_batch(): Falha ao montar JSON para $player_id" "ERROR" "$ScriptName"
+            ((failed_count++))
+            continue
+        fi
         
-        # Calcular tempo de execução em milissegundos
-        local elapsed_ms
-        if command -v awk >/dev/null 2>&1; then
-            elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($end_time - $start_time) * 1000}")
+        # Publicar no RabbitMQ
+        INSERT_CUSTOM_LOG "process_players_backup_batch(): Publicando backup para $player_id na fila data.players.backups" "INFO" "$ScriptName"
+        
+        # Verificar tamanho do JSON (para debug)
+        local json_size=${#backup_json}
+        INSERT_CUSTOM_LOG "process_players_backup_batch(): Tamanho do JSON: $json_size bytes para $player_id" "DEBUG" "$ScriptName"
+        
+        # Publicar no RabbitMQ
+        if PUBLISH_TO_RABBITMQ "data.players.backups" "$backup_json"; then
+            INSERT_CUSTOM_LOG "process_players_backup_batch(): Backup publicado com sucesso para $player_id" "INFO" "$ScriptName"
+            ((processed_count++))
         else
-            # Fallback se awk não estiver disponível (usar segundos)
-            local elapsed_seconds
-            elapsed_seconds=$(echo "$end_time - $start_time" | bc -l 2>/dev/null || echo "0")
-            elapsed_ms=$(echo "$elapsed_seconds * 1000" | bc -l 2>/dev/null | cut -d. -f1 || echo "0")
+            INSERT_CUSTOM_LOG "process_players_backup_batch(): Falha ao publicar backup para $player_id" "ERROR" "$ScriptName"
+            INSERT_CUSTOM_LOG "process_players_backup_batch(): Verifique o log: ${DayzServerFolder:-/tmp}/profiles/rabbitmq_producer_errors.log" "ERROR" "$ScriptName"
+            ((failed_count++))
         fi
-        
-        # Garantir que elapsed_ms é um número inteiro
-        elapsed_ms=$(echo "$elapsed_ms" | awk '{printf "%.0f", $1}' 2>/dev/null || echo "0")
-        
-        # Determinar nível de log baseado no tempo de execução (> 5000ms = 5 segundos)
-        local log_level="INFO"
-        if [[ -n "$elapsed_ms" ]] && [[ "$elapsed_ms" =~ ^[0-9]+$ ]] && [[ $elapsed_ms -gt 5000 ]]; then
-            log_level="WARNING"
-        fi
-        
-        # Registrar log de performance
-        local log_message
-        log_message="Ação [$action_type] executada em ${elapsed_ms}ms (início: $start_time_readable, fim: $end_time_readable)"
-        INSERT_CUSTOM_LOG "$log_message" "$log_level" "$ScriptName"
-        
-        # Liberar lock após processamento
-        release_lock "$action_type"
-    ) &
+    done <<< "$backup_results"
+    
+    INSERT_CUSTOM_LOG "process_players_backup_batch(): Processados $processed_count backups, $failed_count falhas" "INFO" "$ScriptName"
+    
+    return 0
 }
 
-tail -F "$COMMAND_FILE" | while read -r line; do
-    # Valida se é um JSON válido
-    if ! echo "$line" | jq empty 2>/dev/null; then
-        echo ">> Linha inválida (não é JSON): $line"
+# Mapeamento de action -> queue RabbitMQ
+# Todas as ações são publicadas diretamente no RabbitMQ sem processamento local
+get_rabbitmq_queue() {
+    local action="$1"
+    case "$action" in
+        players_positions)
+            echo "data.players.positions"
+            ;;
+        vehicles_positions)
+            echo "data.vehicles.positions"
+            ;;
+        containers_positions)
+            echo "data.containers.positions"
+            ;;
+        fences_positions|watchtowers_positions|flags_positions)
+            echo "data.structures.positions"
+            ;;
+        reset_password)
+            echo "users.management"
+            ;;
+        player_connected|player_disconnected|player_respawned)
+            echo "events.players"
+            ;;
+        players_backup_request)
+            # Esta ação é processada localmente, retornar vazio
+            echo ""
+            ;;
+        active_loadout|update_player|restart_server|event_restarting|event_start_finished|event_minutes_to_restart|send_log_discord)
+            echo "events.server"
+            ;;
+        *)
+            echo "events.unknown"
+            ;;
+    esac
+}
+
+tail -F "$COMMAND_FILE" 2>/dev/null | while IFS= read -r line || [[ -n "$line" ]]; do
+    # Remove espaços em branco do início e fim usando substituição de padrão do bash
+    line_trimmed="${line#"${line%%[![:space:]]*}"}"
+    line_trimmed="${line_trimmed%"${line_trimmed##*[![:space:]]}"}"
+    if [[ -z "$line_trimmed" ]]; then
         continue
     fi
-
-    # Capturar timestamp no momento da leitura (antes do processamento)
-    captured_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
-    CurrentDate=$(date "+%d/%m/%Y %H:%M:%S")
-
-    # Extrai o campo "action"
-    action=$(echo "$line" | jq -r '.action')
     
-    if [[ -z "$action" || "$action" == "null" ]]; then
-        echo ">> Ação não encontrada no JSON: $line"
+    # Extrai o campo "action" com validação do JSON
+    action=""
+    
+    # Primeiro, verificar se o JSON é válido
+    if echo "$line_trimmed" | jq empty 2>/dev/null; then
+        # JSON válido, usar jq para extrair action
+        action=$(echo "$line_trimmed" | jq -r '.action // empty' 2>/dev/null)
+    else
+        # JSON inválido ou jq falhou, tentar extrair action manualmente
+        action=$(echo "$line_trimmed" | grep -o '"action"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 2>/dev/null)
+        
+        # Se ainda não encontrou e contém players_backup_request, forçar
+        if [[ -z "$action" ]] && echo "$line_trimmed" | grep -q "players_backup_request"; then
+            INSERT_CUSTOM_LOG "DEBUG: JSON inválido mas contém players_backup_request. Forçando action." "WARNING" "$ScriptName"
+            action="players_backup_request"
+        fi
+    fi
+    
+    # Fallback final: se action ainda estiver vazio mas JSON contém players_backup_request
+    if [[ -z "$action" ]] && echo "$line_trimmed" | grep -q "players_backup_request"; then
+        INSERT_CUSTOM_LOG "DEBUG: action vazio mas JSON contém players_backup_request. Forçando action." "WARNING" "$ScriptName"
+        action="players_backup_request"
+    fi
+    
+    # Processar players_backup_request localmente
+    if [[ "$action" == "players_backup_request" ]]; then
+        INSERT_CUSTOM_LOG "Interceptando players_backup_request para processamento local" "INFO" "$ScriptName"
+        process_players_backup_batch "$line_trimmed" &
         continue
     fi
-
-    # Processar ação em background com lock
-    process_action_async "$action" "$line" "$captured_timestamp"
+    
+    # Obter queue RabbitMQ para esta ação
+    queue=$(get_rabbitmq_queue "$action")
+    
+    # Se queue vazio, pular
+    if [[ -z "$queue" ]]; then
+        continue
+    fi
+    
+    # Adicionar timestamp ao JSON se não existir
+    payload=$(echo "$line_trimmed" | jq --arg timestamp "$(date '+%Y-%m-%d %H:%M:%S')" '. + {captured_timestamp: $timestamp}' 2>/dev/null)
+    
+    if [[ -z "$payload" ]]; then
+        payload="$line_trimmed"
+    fi
+    
+    # Publicar diretamente no RabbitMQ (não bloqueia, executa em background)
+    if PUBLISH_TO_RABBITMQ "$queue" "$payload"; then
+        INSERT_CUSTOM_LOG "Ação [$action] publicada na fila [$queue]" "INFO" "$ScriptName"
+    else
+        INSERT_CUSTOM_LOG "Falha ao publicar ação [$action] na fila [$queue]" "ERROR" "$ScriptName"
+    fi
 done

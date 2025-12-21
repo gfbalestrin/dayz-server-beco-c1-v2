@@ -146,3 +146,43 @@ if not RCON_PASSWORD:
     logger = logging.getLogger(__name__)
     logger.warning("RCON_PASSWORD não está configurada. Comandos RCON podem falhar.")
     warnings.warn("RCON_PASSWORD não está configurada. Comandos RCON podem falhar.")
+
+# Configurações RabbitMQ - lendo do config.json
+if os.path.exists(CONFIG_JSON_PATH):
+    try:
+        with open(CONFIG_JSON_PATH, 'r', encoding='utf-8') as f:
+            config_data = json.load(f)
+            rabbitmq_config = config_data.get('RabbitMQ', {})
+            
+            RABBITMQ_HOST = rabbitmq_config.get('Host', 'localhost')
+            RABBITMQ_PORT = rabbitmq_config.get('Port', 5672)
+            RABBITMQ_USERNAME = rabbitmq_config.get('Username', 'guest')
+            RABBITMQ_PASSWORD = rabbitmq_config.get('Password', 'guest')
+            RABBITMQ_VHOST = rabbitmq_config.get('VHost', '/')
+            RABBITMQ_EXCHANGE = rabbitmq_config.get('Exchange', 'dayz.events')
+            RABBITMQ_ENABLED = rabbitmq_config.get('Enabled', False)
+            
+            logger.debug(f"RabbitMQ configurado: HOST={RABBITMQ_HOST}, PORT={RABBITMQ_PORT}, VHOST={RABBITMQ_VHOST}, ENABLED={RABBITMQ_ENABLED}")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Erro ao ler configuração RabbitMQ do config.json: {str(e)}")
+        RABBITMQ_HOST = 'localhost'
+        RABBITMQ_PORT = 5672
+        RABBITMQ_USERNAME = 'guest'
+        RABBITMQ_PASSWORD = 'guest'
+        RABBITMQ_VHOST = '/'
+        RABBITMQ_EXCHANGE = 'dayz.events'
+        RABBITMQ_ENABLED = False
+else:
+    # Valores padrão se config.json não existir
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning(f"config.json não encontrado em: {CONFIG_JSON_PATH}")
+    RABBITMQ_HOST = 'localhost'
+    RABBITMQ_PORT = 5672
+    RABBITMQ_USERNAME = 'guest'
+    RABBITMQ_PASSWORD = 'guest'
+    RABBITMQ_VHOST = '/'
+    RABBITMQ_EXCHANGE = 'dayz.events'
+    RABBITMQ_ENABLED = False
