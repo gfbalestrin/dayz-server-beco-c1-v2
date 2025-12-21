@@ -13,6 +13,7 @@ import os
 import time
 import re
 import math
+import base64
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Tuple, Optional
 
@@ -66,6 +67,7 @@ class PositionsConsumer:
             'data.vehicles.positions': config.DB_VEHICLES,
             'data.players.positions': config.DB_PLAYERS,
             'data.structures.positions': config.DB_STRUCTURES,
+            'data.players.backups': config.DB_PLAYERS,
         }
         
     def connect(self):
@@ -3077,6 +3079,187 @@ class PositionsConsumer:
         logger.error(f"Falha ao inserir players após {max_retries} tentativas")
         return False
     
+    # ==================== PLAYERS BACKUP ====================
+    
+    def process_players_backup_data(self, db_path: str, data: Dict[str, Any]) -> bool:
+        """
+        Processa dados de backup de jogadores e insere no banco SQLite
+        Insere coordenadas em players_coord e backup BLOB em players_coord_backup
+        """
+        max_retries = 5
+        base_retry_delay = 0.5
+        
+        # Validar entrada - verificar se é mensagem de backup
+        action = data.get('action')
+        if action != 'players_backup_data':
+            logger.warning(f"Mensagem de backup com action inválida: {action}")
+            return False
+        
+        # Extrair dados da mensagem
+        player_id = data.get('player_id')
+        backup_data_base64 = data.get('backup_data')
+        coord_x = data.get('coord_x')
+        coord_z = data.get('coord_z')
+        coord_y = data.get('coord_y')
+        timestamp_str = data.get('timestamp')
+        
+        # Validar dados obrigatórios
+        if not player_id or not isinstance(player_id, str) or not player_id.strip():
+            logger.warning("player_id inválido ou ausente na mensagem de backup")
+            return False
+        
+        if not backup_data_base64 or not isinstance(backup_data_base64, str):
+            logger.warning(f"backup_data inválido ou ausente para {player_id}")
+            return False
+        
+        if coord_x is None or coord_z is None or coord_y is None:
+            logger.warning(f"Coordenadas ausentes na mensagem de backup para {player_id}")
+            return False
+        
+        # Converter coordenadas para float
+        try:
+            coord_x_float = float(coord_x)
+            coord_z_float = float(coord_z)
+            coord_y_float = float(coord_y)
+        except (TypeError, ValueError) as e:
+            logger.warning(f"Erro ao converter coordenadas para {player_id}: {e}")
+            return False
+        
+        # Decodificar base64 para bytes (BLOB)
+        try:
+            backup_blob = base64.b64decode(backup_data_base64)
+        except Exception as e:
+            logger.error(f"Erro ao decodificar base64 para {player_id}: {e}")
+            return False
+        
+        # Usar timestamp da mensagem ou atual
+        if not timestamp_str:
+            timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            # Validar formato do timestamp
+            try:
+                datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
+            except (ValueError, TypeError):
+                logger.warning(f"Timestamp inválido para {player_id}, usando timestamp atual")
+                timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Preparar dados para _ensure_players_in_database
+        original_player_data = [{
+            'player_id': player_id.strip(),
+            'player_name': None,
+            'steam_id': None
+        }]
+        
+        # Retry logic
+        conn = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                conn = sqlite3.connect(db_path, timeout=10.0)
+                cursor = conn.cursor()
+                
+                # Configurar PRAGMAs
+                self._configure_sqlite_pragmas(cursor)
+                
+                # Iniciar transação
+                cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+                
+                # Garantir que PlayerID existe em players_database
+                if not self._ensure_players_in_database(cursor, original_player_data):
+                    conn.rollback()
+                    conn.close()
+                    logger.error(f"Falha ao garantir PlayerID em players_database para {player_id} (tentativa {attempt}/{max_retries})")
+                    if attempt < max_retries:
+                        retry_delay = base_retry_delay * (2 ** (attempt - 1))
+                        time.sleep(retry_delay)
+                        continue
+                    return False
+                
+                # Inserir novo registro na tabela players_coord (apenas coordenadas)
+                cursor.execute("""
+                    INSERT INTO players_coord (PlayerID, CoordX, CoordZ, CoordY, Data)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (player_id.strip(), coord_x_float, coord_z_float, coord_y_float, timestamp_str))
+                
+                # Capturar PlayerCoordId gerado
+                player_coord_id = cursor.lastrowid
+                
+                if not player_coord_id:
+                    conn.rollback()
+                    conn.close()
+                    logger.error(f"Falha ao obter PlayerCoordId após INSERT para {player_id} (tentativa {attempt}/{max_retries})")
+                    if attempt < max_retries:
+                        retry_delay = base_retry_delay * (2 ** (attempt - 1))
+                        time.sleep(retry_delay)
+                        continue
+                    return False
+                
+                # Inserir backup na tabela players_coord_backup
+                cursor.execute("""
+                    INSERT INTO players_coord_backup (PlayerCoordId, Backup, TimeStamp)
+                    VALUES (?, ?, ?)
+                """, (player_coord_id, backup_blob, timestamp_str))
+                
+                # Commit transação
+                conn.commit()
+                conn.close()
+                
+                logger.info(f"Backup inserido com sucesso para {player_id} (PlayerCoordId: {player_coord_id})")
+                return True
+                
+            except sqlite3.OperationalError as e:
+                error_msg = str(e)
+                if conn:
+                    try:
+                        conn.rollback()
+                        conn.close()
+                    except:
+                        pass
+                
+                if "database is locked" in error_msg.lower():
+                    if attempt < max_retries:
+                        retry_delay = base_retry_delay * (2 ** (attempt - 1))
+                        logger.warning(f"Banco bloqueado ao inserir backup para {player_id}, tentando novamente em {retry_delay}s (tentativa {attempt}/{max_retries})")
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        logger.error(f"Banco bloqueado após {max_retries} tentativas para {player_id}")
+                        return False
+                else:
+                    logger.error(f"Erro SQLite operacional ao inserir backup para {player_id} (tentativa {attempt}/{max_retries}): {e}")
+                    if attempt < max_retries:
+                        retry_delay = base_retry_delay * (2 ** (attempt - 1))
+                        time.sleep(retry_delay)
+                        continue
+                    return False
+                    
+            except sqlite3.IntegrityError as e:
+                if conn:
+                    try:
+                        conn.rollback()
+                        conn.close()
+                    except:
+                        pass
+                logger.error(f"Erro de integridade SQLite ao inserir backup para {player_id} (tentativa {attempt}/{max_retries}): {e}")
+                # Integrity errors geralmente não são recuperáveis
+                return False
+                
+            except Exception as e:
+                if conn:
+                    try:
+                        conn.rollback()
+                        conn.close()
+                    except:
+                        pass
+                logger.error(f"Erro inesperado ao processar backup para {player_id} (tentativa {attempt}/{max_retries}): {e}")
+                if attempt < max_retries:
+                    retry_delay = base_retry_delay * (2 ** (attempt - 1))
+                    time.sleep(retry_delay)
+                    continue
+                return False
+        
+        logger.error(f"Falha ao inserir backup para {player_id} após {max_retries} tentativas")
+        return False
+    
     # ==================== STRUCTURES ====================
     
     def _validate_fence_data(self, fence: Dict[str, Any]) -> bool:
@@ -3899,6 +4082,8 @@ class PositionsConsumer:
             return self.process_players_data(db_path, data)
         elif queue_name == 'data.structures.positions':
             return self.process_structures_data(db_path, data)
+        elif queue_name == 'data.players.backups':
+            return self.process_players_backup_data(db_path, data)
         else:
             logger.error(f"Tipo de dados não suportado: {queue_name}")
             return False
@@ -4258,6 +4443,34 @@ class PositionsConsumer:
                     else:
                         logger.warning(f"Nenhuma estrutura encontrada no batch de {queue_name}")
                         fail_count += len(items)
+                
+                elif queue_name == 'data.players.backups':
+                    # Para backups, processar cada mensagem individualmente (não combinar)
+                    logger.info(f"Processando {len(items)} mensagens de backup da fila {queue_name}")
+                    
+                    for item_idx, item_data in enumerate(items):
+                        # Se item_data é uma string JSON, fazer parse
+                        if isinstance(item_data, str):
+                            try:
+                                item_data = json.loads(item_data)
+                            except (json.JSONDecodeError, TypeError) as e:
+                                logger.warning(f"Item_data de backup é string mas não é JSON válido: {e}. Primeiros 100 chars: {item_data[:100]}")
+                                fail_count += 1
+                                continue
+                        
+                        # Verificar se é um dicionário válido
+                        if not isinstance(item_data, dict):
+                            logger.warning(f"Item_data de backup não é um dicionário após parse: {type(item_data)}. Valor: {str(item_data)[:200]}")
+                            fail_count += 1
+                            continue
+                        
+                        # Processar mensagem individual
+                        if self.process_message(queue_name, item_data):
+                            success_count += 1
+                            logger.debug(f"Backup processado com sucesso (mensagem {item_idx + 1}/{len(items)})")
+                        else:
+                            fail_count += 1
+                            logger.warning(f"Falha ao processar backup (mensagem {item_idx + 1}/{len(items)})")
                 
                 else:
                     # Para outros tipos, manter comportamento original

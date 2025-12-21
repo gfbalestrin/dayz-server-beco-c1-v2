@@ -42,7 +42,7 @@ O mapeamento está definido em `dayz_command_watcher.sh` na função `get_rabbit
 
 ## Backups de Players
 
-A lógica de backups de players foi movida para um consumer separado:
-- `players_backup_consumer.py` - Consome `data.players.positions` e faz backups localmente
-- `players_backup_consumer.sh` - Wrapper shell para iniciar o consumer
+A lógica de backups de players é processada pelo `positions_consumer.py` no servidor cliente:
+- O `dayz_command_watcher.sh` publica mensagens de backup na fila `data.players.backups`
+- O `positions_consumer.py` consome essas mensagens e insere em `players_coord` e `players_coord_backup`
 
