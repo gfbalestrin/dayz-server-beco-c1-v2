@@ -295,31 +295,15 @@ function updatePositions(data) {
                 MapState.map.removeLayer(MapState.playerMarkers[playerId]);
                 delete MapState.playerMarkers[playerId];
             }
-            // Remover trail se existir
-            if (MapState.playerTrails[playerId]) {
-                const trail = MapState.playerTrails[playerId];
-                if (Array.isArray(trail)) {
-                    trail.forEach(item => MapState.map.removeLayer(item));
-                } else {
-                    MapState.map.removeLayer(trail);
-                }
-                delete MapState.playerTrails[playerId];
-            }
+            // Remover trail e marcadores de backup se existirem
+            removePlayerTrailAndBackups(playerId);
             return;
         }
         
         // Verificar filtro de exclusão (apenas se não houver filtro de inclusão ativo)
         if (MapState.selectedPlayerFilters.length === 0 && MapState.excludedPlayerFilters.includes(playerId)) {
-            // Remover trail se existir (marcador permanece, apenas trail é ocultado)
-            if (MapState.playerTrails[playerId]) {
-                const trail = MapState.playerTrails[playerId];
-                if (Array.isArray(trail)) {
-                    trail.forEach(item => MapState.map.removeLayer(item));
-                } else {
-                    MapState.map.removeLayer(trail);
-                }
-                delete MapState.playerTrails[playerId];
-            }
+            // Remover trail e marcadores de backup se existirem (marcador permanece, apenas trail é ocultado)
+            removePlayerTrailAndBackups(playerId);
             // Continuar processando o jogador (marcador permanece visível)
         }
         
@@ -331,16 +315,8 @@ function updatePositions(data) {
                 MapState.map.removeLayer(MapState.playerMarkers[playerId]);
                 delete MapState.playerMarkers[playerId];
             }
-            // Remover trail se existir
-            if (MapState.playerTrails[playerId]) {
-                const trail = MapState.playerTrails[playerId];
-                if (Array.isArray(trail)) {
-                    trail.forEach(item => MapState.map.removeLayer(item));
-                } else {
-                    MapState.map.removeLayer(trail);
-                }
-                delete MapState.playerTrails[playerId];
-            }
+            // Remover trail e marcadores de backup se existirem
+            removePlayerTrailAndBackups(playerId);
             return; // Não processar jogador offline quando filtro está ativo
         }
         
@@ -492,15 +468,8 @@ function updatePositions(data) {
                 MapState.map.removeLayer(MapState.playerMarkers[playerId]);
                 delete MapState.playerMarkers[playerId];
                 // Remover trail também
-                if (MapState.playerTrails[playerId]) {
-                    const trail = MapState.playerTrails[playerId];
-                    if (Array.isArray(trail)) {
-                        trail.forEach(item => MapState.map.removeLayer(item));
-                    } else {
-                        MapState.map.removeLayer(trail);
-                    }
-                    delete MapState.playerTrails[playerId];
-                }
+                // Remover trail e marcadores de backup
+                removePlayerTrailAndBackups(playerId);
                 // Limpar dados do jogador de MapState.playersData se não está mais na resposta
                 // (especialmente importante quando filtro "Apenas online" está ativo)
                 if (onlineOnlyFilterActive) {
@@ -516,15 +485,8 @@ function updatePositions(data) {
                     MapState.map.removeLayer(MapState.playerMarkers[playerId]);
                     delete MapState.playerMarkers[playerId];
                 }
-                if (MapState.playerTrails[playerId]) {
-                    const trail = MapState.playerTrails[playerId];
-                    if (Array.isArray(trail)) {
-                        trail.forEach(item => MapState.map.removeLayer(item));
-                    } else {
-                        MapState.map.removeLayer(trail);
-                    }
-                    delete MapState.playerTrails[playerId];
-                }
+                // Remover trail e marcadores de backup
+                removePlayerTrailAndBackups(playerId);
             }
         }
     });
@@ -722,12 +684,7 @@ function loadPlayerTrail(playerId) {
         // Jogador está excluído, não carregar trail
         if (MapState.playerTrails[playerId]) {
             const trail = MapState.playerTrails[playerId];
-            if (Array.isArray(trail)) {
-                trail.forEach(item => MapState.map.removeLayer(item));
-            } else {
-                MapState.map.removeLayer(trail);
-            }
-            delete MapState.playerTrails[playerId];
+            removePlayerTrailAndBackups(playerId);
         }
         return;
     }
@@ -738,16 +695,8 @@ function loadPlayerTrail(playerId) {
         // Verificar se jogador está online
         const playerData = MapState.playersData[playerId];
         if (!playerData || !playerData.isOnline) {
-            // Jogador está offline e filtro está ativo, remover trail se existir
-            if (MapState.playerTrails[playerId]) {
-                const trail = MapState.playerTrails[playerId];
-                if (Array.isArray(trail)) {
-                    trail.forEach(item => MapState.map.removeLayer(item));
-                } else {
-                    MapState.map.removeLayer(trail);
-                }
-                delete MapState.playerTrails[playerId];
-            }
+            // Jogador está offline e filtro está ativo, remover trail e marcadores de backup se existirem
+            removePlayerTrailAndBackups(playerId);
             return; // Não carregar trail de jogador offline quando filtro está ativo
         }
     }
@@ -804,17 +753,40 @@ function loadPlayerTrail(playerId) {
 /**
  * Desenhar trail de um jogador
  */
-function drawTrail(playerId, trail) {
-    // Remover trail antigo se existir
+/**
+ * Remover trail e marcadores de backup de um jogador específico
+ * @param {string} playerId - ID do jogador
+ */
+function removePlayerTrailAndBackups(playerId) {
+    // Remover trail
     if (MapState.playerTrails[playerId]) {
-        if (Array.isArray(MapState.playerTrails[playerId])) {
-            MapState.playerTrails[playerId].forEach(item => MapState.map.removeLayer(item));
+        const trail = MapState.playerTrails[playerId];
+        if (Array.isArray(trail)) {
+            trail.forEach(item => MapState.map.removeLayer(item));
         } else {
-            MapState.map.removeLayer(MapState.playerTrails[playerId]);
+            MapState.map.removeLayer(trail);
         }
+        delete MapState.playerTrails[playerId];
     }
     
+    // Remover marcadores de backup
+    if (MapState.playerBackupMarkers[playerId]) {
+        const backupMarkers = MapState.playerBackupMarkers[playerId];
+        if (Array.isArray(backupMarkers)) {
+            backupMarkers.forEach(item => MapState.map.removeLayer(item));
+        } else {
+            MapState.map.removeLayer(backupMarkers);
+        }
+        delete MapState.playerBackupMarkers[playerId];
+    }
+}
+
+function drawTrail(playerId, trail) {
+    // Remover trail e marcadores de backup antigos
+    removePlayerTrailAndBackups(playerId);
+    
     MapState.playerTrails[playerId] = [];
+    MapState.playerBackupMarkers[playerId] = [];
     
     if (trail.length === 0) {
         // Se há filtro de data ativo e trail está vazio, ocultar marcador
@@ -829,25 +801,39 @@ function drawTrail(playerId, trail) {
     // O backend já filtra os dados corretamente baseado em date_from e date_to
     // Não precisamos filtrar novamente no frontend
     
-    // Converter pontos para coordenadas do mapa
-    const processedTrail = [];
+    // Separar pontos normais de pontos com backup
+    const normalPoints = [];
+    const backupPoints = [];
+    
     trail.forEach(function(point) {
         const coords = convertToMapCoords(point.pixel_coords);
         if (coords) {
-            processedTrail.push({
+            const processedPoint = {
                 data: point,
                 mapCoords: coords
-            });
+            };
+            
+            if (point.has_backup) {
+                backupPoints.push(processedPoint);
+            } else {
+                normalPoints.push(processedPoint);
+            }
         }
     });
     
-    if (processedTrail.length === 0) {
+    // Desenhar marcadores de backup separadamente
+    if (backupPoints.length > 0) {
+        drawBackupMarkers(playerId, backupPoints, trail);
+    }
+    
+    // Se não há pontos normais, não criar trail
+    if (normalPoints.length === 0) {
         return;
     }
     
     // Inverter ordem dos pontos para mostrar do mais antigo para o mais recente
     // (os pontos vêm do servidor ordenados do mais recente para o mais antigo)
-    const reversedTrail = processedTrail.slice().reverse();
+    const reversedTrail = normalPoints.slice().reverse();
     const color = getPlayerColor(playerId);
     
     // Criar múltiplas polylines separadas quando houver mudança de is_alive
@@ -922,23 +908,17 @@ function drawTrail(playerId, trail) {
         }
     });
     
-    // Adicionar marcadores em cada ponto com cálculo de velocidade
-    for (let i = 0; i < processedTrail.length; i++) {
-        const point = processedTrail[i].data;
-        const pointLat = processedTrail[i].mapCoords[0];
-        const pointLng = processedTrail[i].mapCoords[1];
+    // Adicionar marcadores em cada ponto normal (sem backup) com cálculo de velocidade
+    for (let i = 0; i < normalPoints.length; i++) {
+        const point = normalPoints[i].data;
+        const pointLat = normalPoints[i].mapCoords[0];
+        const pointLng = normalPoints[i].mapCoords[1];
         const playerName = MapState.playersData[playerId]?.name || 'Jogador';
         const steamName = MapState.playersData[playerId]?.steamName || '';
         let tooltipText = `<strong>👤 ${playerName}${steamName ? ` (${steamName})` : ''}</strong><br>`;
-        tooltipText += `<strong>📍 Ponto ${processedTrail.length - i}</strong><br>`;
+        tooltipText += `<strong>📍 Ponto ${normalPoints.length - i}</strong><br>`;
         tooltipText += `⏰ Tempo: <span class="value">${formatTimestampBR(point.timestamp)}</span><br>`;
         tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
-        
-        // Indicador de backup
-        if (point.has_backup) {
-            tooltipText += `<br>💾 <span class="value" style="color: #4caf50;">Backup disponível</span>`;
-            tooltipText += `<br><br><span style="color: #4caf50; font-weight: bold;">🖱️ Clique para restaurar backup</span>`;
-        }
         
         let speed = null;
         let distance = null;
@@ -947,7 +927,7 @@ function drawTrail(playerId, trail) {
         
         // Calcular velocidade se houver ponto anterior
         if (i > 0) {
-            const prevPoint = processedTrail[i - 1].data;
+            const prevPoint = normalPoints[i - 1].data;
             
             // Calcular distância em metros (Pitágoras)
             const dx = point.coord_x - prevPoint.coord_x;
@@ -977,15 +957,12 @@ function drawTrail(playerId, trail) {
             }
         }
         
-        // Aumentar raio se houver backup
-        const markerRadius = point.has_backup ? 7 : 5;
-        
         // Criar marcador no ponto - usar caveira se jogador estiver morto
         let pointMarker;
         if (point.is_alive === false) {
-            // Jogador morto - usar ícone de caveira vermelha (tamanho maior para melhor visibilidade)
-            const skullSize = point.has_backup ? 24 : 20;
-            const skullFontSize = point.has_backup ? 14 : 12;
+            // Jogador morto - usar ícone de caveira vermelha
+            const skullSize = 20;
+            const skullFontSize = 12;
             const skullIcon = L.divIcon({
                 className: 'trail-point-marker',
                 html: `<div style="background-color: #dc3545; border: 2px solid white; width: ${skullSize}px; height: ${skullSize}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
@@ -994,18 +971,18 @@ function drawTrail(playerId, trail) {
                 iconSize: [skullSize, skullSize],
                 iconAnchor: [skullSize / 2, skullSize / 2]
             });
-            pointMarker = L.marker(processedTrail[i].mapCoords, {
+            pointMarker = L.marker(normalPoints[i].mapCoords, {
                 icon: skullIcon
             }).addTo(MapState.map);
         } else {
             // Jogador vivo - usar circleMarker padrão
             pointMarker = L.circleMarker(
-                processedTrail[i].mapCoords,
+                normalPoints[i].mapCoords,
                 {
-                    radius: markerRadius,
+                    radius: 5,
                     fillColor: pointColor,
-                    color: point.has_backup ? '#4caf50' : 'white',
-                    weight: point.has_backup ? 2 : 1,
+                    color: 'white',
+                    weight: 1,
                     opacity: 1,
                     fillOpacity: 1.0
                 }
@@ -1067,6 +1044,102 @@ function drawTrail(playerId, trail) {
         
         MapState.playerTrails[playerId].push(pointMarker);
     }
+}
+
+/**
+ * Desenhar marcadores de backup separados do trail
+ * @param {string} playerId - ID do jogador
+ * @param {Array} backupPoints - Array de pontos com backup (já processados com mapCoords)
+ * @param {Array} fullTrail - Trail completo (para encontrar índices corretos)
+ */
+function drawBackupMarkers(playerId, backupPoints, fullTrail) {
+    const playerName = MapState.playersData[playerId]?.name || 'Jogador';
+    const steamName = MapState.playersData[playerId]?.steamName || '';
+    
+    backupPoints.forEach(function(backupPoint) {
+        const point = backupPoint.data;
+        const pointLat = backupPoint.mapCoords[0];
+        const pointLng = backupPoint.mapCoords[1];
+        
+        // Tooltip para backup
+        let tooltipText = `<strong>👤 ${playerName}${steamName ? ` (${steamName})` : ''}</strong><br>`;
+        tooltipText += `<strong>💾 Ponto de Backup</strong><br>`;
+        tooltipText += `⏰ Tempo: <span class="value">${formatTimestampBR(point.timestamp)}</span><br>`;
+        tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
+        tooltipText += `<br><br><span style="color: #4caf50; font-weight: bold;">💾 Backup disponível</span>`;
+        tooltipText += `<br><span style="color: #4caf50; font-weight: bold;">🖱️ Clique para restaurar backup</span>`;
+        tooltipText += `<br><br><span style="color: #ff9800; font-size: 11px;">⚠️ Timestamp aproximado (pode ter até 3min de imprecisão)</span>`;
+        
+        // Criar marcador especial para backup (ícone de disco)
+        const backupIconSize = 28;
+        const backupIcon = L.divIcon({
+            className: 'backup-marker',
+            html: `<div style="background-color: #4caf50; border: 3px solid white; width: ${backupIconSize}px; height: ${backupIconSize}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 6px rgba(0,0,0,0.4);">
+                     <i class="fas fa-database" style="color: white; font-size: 14px;"></i>
+                   </div>`,
+            iconSize: [backupIconSize, backupIconSize],
+            iconAnchor: [backupIconSize / 2, backupIconSize / 2]
+        });
+        
+        const backupMarker = L.marker(backupPoint.mapCoords, {
+            icon: backupIcon
+        }).addTo(MapState.map);
+        
+        // Adicionar evento de clique para restaurar backup
+        backupMarker.on('click', function() {
+            // Encontrar índice do ponto no trail completo
+            let pointIndexInFullTrail = -1;
+            
+            // Tentar encontrar pelo player_coord_id primeiro
+            if (point.player_coord_id) {
+                for (let j = 0; j < fullTrail.length; j++) {
+                    if (fullTrail[j].player_coord_id === point.player_coord_id) {
+                        pointIndexInFullTrail = j;
+                        break;
+                    }
+                }
+            }
+            
+            // Se não encontrou, tentar por coordenadas e timestamp
+            if (pointIndexInFullTrail === -1) {
+                for (let j = 0; j < fullTrail.length; j++) {
+                    const trailPoint = fullTrail[j];
+                    const coordMatch = Math.abs(trailPoint.coord_x - point.coord_x) < 0.1 &&
+                                     Math.abs(trailPoint.coord_y - point.coord_y) < 0.1;
+                    const timeMatch = trailPoint.timestamp === point.timestamp;
+                    
+                    if (coordMatch && timeMatch) {
+                        pointIndexInFullTrail = j;
+                        break;
+                    }
+                }
+            }
+            
+            // Se ainda não encontrou, usar índice no trail filtrado como fallback
+            if (pointIndexInFullTrail === -1) {
+                pointIndexInFullTrail = fullTrail.indexOf(point);
+            }
+            
+            showPointActionsMenu(playerId, point, 0, pointIndexInFullTrail, fullTrail);
+        });
+        
+        // Adicionar cursor pointer
+        if (backupMarker.getElement) {
+            backupMarker.getElement().style.cursor = 'pointer';
+        }
+        
+        // Adicionar tooltip
+        const tooltipDirection = getTooltipDirectionForPoint(pointLat, pointLng);
+        
+        backupMarker.bindTooltip(tooltipText, {
+            permanent: false,
+            direction: tooltipDirection,
+            className: 'backup-tooltip'
+        });
+        
+        // Armazenar marcador
+        MapState.playerBackupMarkers[playerId].push(backupMarker);
+    });
 }
 
 /**
@@ -1157,6 +1230,17 @@ function disableTrails() {
             }
         });
         MapState.playerTrails = {};
+        
+        // Remover todos os marcadores de backup
+        Object.keys(MapState.playerBackupMarkers).forEach(function(key) {
+            const backupMarkers = MapState.playerBackupMarkers[key];
+            if (Array.isArray(backupMarkers)) {
+                backupMarkers.forEach(item => MapState.map.removeLayer(item));
+            } else {
+                MapState.map.removeLayer(backupMarkers);
+            }
+        });
+        MapState.playerBackupMarkers = {};
     }
 }
 
@@ -1523,17 +1607,9 @@ function addPlayerToExclusion(playerId) {
     // Atualizar UI
     updateExcludedPlayersBadges();
     
-    // Remover trail do jogador excluído (se não houver filtro de inclusão ativo)
+    // Remover trail e marcadores de backup do jogador excluído (se não houver filtro de inclusão ativo)
     if (MapState.selectedPlayerFilters.length === 0 && MapState.showTrails) {
-        if (MapState.playerTrails[playerId]) {
-            const trail = MapState.playerTrails[playerId];
-            if (Array.isArray(trail)) {
-                trail.forEach(item => MapState.map.removeLayer(item));
-            } else {
-                MapState.map.removeLayer(trail);
-            }
-            delete MapState.playerTrails[playerId];
-        }
+        removePlayerTrailAndBackups(playerId);
     }
     
     // Aplicar filtro
@@ -1638,15 +1714,7 @@ function filterPlayers() {
         // Remover trails de jogadores excluídos (se não houver filtro de inclusão ativo)
         if (MapState.selectedPlayerFilters.length === 0 && MapState.excludedPlayerFilters.length > 0) {
             MapState.excludedPlayerFilters.forEach(function(playerId) {
-                if (MapState.playerTrails[playerId]) {
-                    const trail = MapState.playerTrails[playerId];
-                    if (Array.isArray(trail)) {
-                        trail.forEach(item => MapState.map.removeLayer(item));
-                    } else {
-                        MapState.map.removeLayer(trail);
-                    }
-                    delete MapState.playerTrails[playerId];
-                }
+                removePlayerTrailAndBackups(playerId);
             });
         }
     }

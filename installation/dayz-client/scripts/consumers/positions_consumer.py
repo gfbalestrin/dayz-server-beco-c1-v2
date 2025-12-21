@@ -3132,17 +3132,6 @@ class PositionsConsumer:
             logger.error(f"Erro ao decodificar base64 para {player_id}: {e}")
             return False
         
-        # Usar timestamp da mensagem ou atual
-        if not timestamp_str:
-            timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        else:
-            # Validar formato do timestamp
-            try:
-                datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
-            except (ValueError, TypeError):
-                logger.warning(f"Timestamp inválido para {player_id}, usando timestamp atual")
-                timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
         # Preparar dados para _ensure_players_in_database
         original_player_data = [{
             'player_id': player_id.strip(),
@@ -3173,6 +3162,76 @@ class PositionsConsumer:
                         time.sleep(retry_delay)
                         continue
                     return False
+                
+                # Buscar último timestamp de players_coord para este player_id
+                # Isso garante que o timestamp do backup corresponda ao momento real da captura das coordenadas
+                cursor.execute("""
+                    SELECT Data 
+                    FROM players_coord 
+                    WHERE PlayerID = ? 
+                    ORDER BY datetime(Data) DESC 
+                    LIMIT 1
+                """, (player_id.strip(),))
+                
+                last_position_result = cursor.fetchone()
+                last_position_timestamp = None
+                
+                if last_position_result:
+                    last_position_timestamp = last_position_result[0]
+                    # Verificar se o timestamp é recente (últimos 5 minutos)
+                    try:
+                        if isinstance(last_position_timestamp, str):
+                            # Tentar parsear com milissegundos primeiro
+                            try:
+                                last_dt = datetime.strptime(last_position_timestamp, '%Y-%m-%d %H:%M:%S.%f')
+                            except ValueError:
+                                last_dt = datetime.strptime(last_position_timestamp, '%Y-%m-%d %H:%M:%S')
+                        else:
+                            last_dt = None
+                        
+                        if last_dt:
+                            time_diff = datetime.now() - last_dt
+                            # Se o último registro é recente (últimos 5 minutos), usar esse timestamp
+                            if time_diff.total_seconds() <= 300:  # 5 minutos = 300 segundos
+                                timestamp_str = last_position_timestamp
+                                # Normalizar formato (garantir milissegundos)
+                                try:
+                                    dt = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S.%f')
+                                    timestamp_str = dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                                except ValueError:
+                                    dt = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
+                                    timestamp_str = dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                                logger.info(f"Usando timestamp da última posição para {player_id}: {timestamp_str}")
+                            else:
+                                logger.debug(f"Última posição de {player_id} é muito antiga ({time_diff.total_seconds():.0f}s), usando timestamp da mensagem")
+                                last_position_timestamp = None
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Erro ao processar timestamp da última posição para {player_id}: {e}")
+                        last_position_timestamp = None
+                
+                # Se não encontrou timestamp recente, usar timestamp da mensagem ou atual
+                if not last_position_timestamp:
+                    # IMPORTANTE: Sempre formatar com milissegundos para manter consistência com players normais
+                    if not timestamp_str:
+                        # Se não fornecido, usar timestamp atual com milissegundos
+                        timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                    else:
+                        # Validar e normalizar formato do timestamp
+                        # Aceitar tanto formato com milissegundos quanto sem
+                        try:
+                            # Tentar parsear com milissegundos primeiro
+                            dt = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S.%f')
+                            # Já tem milissegundos, formatar no padrão (3 dígitos)
+                            timestamp_str = dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                        except (ValueError, TypeError):
+                            try:
+                                # Tentar parsear sem milissegundos
+                                dt = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
+                                # Adicionar milissegundos (.000) para manter consistência
+                                timestamp_str = dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                            except (ValueError, TypeError):
+                                logger.warning(f"Timestamp inválido para {player_id} ({timestamp_str}), usando timestamp atual")
+                                timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
                 
                 # Inserir novo registro na tabela players_coord (apenas coordenadas)
                 cursor.execute("""

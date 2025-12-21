@@ -27,6 +27,7 @@ const MapState = {
     
     // Trails
     playerTrails: {},
+    playerBackupMarkers: {}, // Marcadores de backup separados do trail
     vehicleTrails: {},
     containerTrails: {},
     fenceTrails: {},
