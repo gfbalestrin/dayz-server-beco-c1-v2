@@ -54,8 +54,12 @@ if not PLAYERS_BECO_C1_DB:
 def process_message(ch, method, properties, body):
     """Processa mensagem recebida do RabbitMQ."""
     try:
+        print(f"DEBUG: Mensagem recebida na fila data.players.backups (tamanho: {len(body)} bytes)", file=sys.stderr)
+        
         # Decodificar mensagem
         message_str = body.decode('utf-8')
+        
+        print(f"DEBUG: Mensagem decodificada (primeiros 200 chars): {message_str[:200]}", file=sys.stderr)
         
         # A mensagem pode vir em dois formatos:
         # 1. JSON direto: {"action": "players_backup_data", ...}
@@ -83,9 +87,15 @@ def process_message(ch, method, properties, body):
             return
         
         # Verificar se é mensagem de backup
-        if message.get('action') != 'players_backup_data':
+        action_received = message.get('action', 'N/A')
+        print(f"DEBUG: Action recebida: {action_received}", file=sys.stderr)
+        
+        if action_received != 'players_backup_data':
+            print(f"DEBUG: Mensagem ignorada - action '{action_received}' não é 'players_backup_data'", file=sys.stderr)
             ch.basic_ack(delivery_tag=method.delivery_tag)
             return
+        
+        print(f"DEBUG: Processando mensagem de backup...", file=sys.stderr)
         
         # Extrair dados da mensagem
         player_id = message.get('player_id')
@@ -170,6 +180,15 @@ def process_message(ch, method, properties, body):
 
 def main():
     """Função principal do consumer."""
+    print("=" * 60, file=sys.stderr)
+    print("Iniciando players_backup_consumer.py", file=sys.stderr)
+    print(f"RabbitMQ Host: {RABBITMQ_HOST}:{RABBITMQ_PORT}", file=sys.stderr)
+    print(f"Exchange: {RABBITMQ_EXCHANGE}", file=sys.stderr)
+    print(f"Fila: data.players.backups", file=sys.stderr)
+    print(f"Database: {PLAYERS_BECO_C1_DB}", file=sys.stderr)
+    print(f"Deathmatch: {DAYZ_DEATHMATCH}", file=sys.stderr)
+    print("=" * 60, file=sys.stderr)
+    
     try:
         # Conectar ao RabbitMQ
         credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
@@ -199,8 +218,9 @@ def main():
         # Configurar consumer
         channel.basic_consume(queue=queue_name, on_message_callback=process_message)
         
-        print(f"Consumindo mensagens da fila '{queue_name}'...")
-        print("Pressione CTRL+C para sair")
+        print(f"Consumindo mensagens da fila '{queue_name}'...", file=sys.stderr)
+        print(f"Exchange: {RABBITMQ_EXCHANGE}, Routing Key: {queue_name}", file=sys.stderr)
+        print("Pressione CTRL+C para sair", file=sys.stderr)
         
         # Iniciar consumo
         channel.start_consuming()
