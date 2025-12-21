@@ -2652,14 +2652,24 @@ class PositionsConsumer:
         Atualiza tabela players_online baseado em jogadores conectados/desconectados
         Compara lista atual com lista anterior e executa INSERT/DELETE conforme necessário
         """
+        logger.info(f"_update_players_online: chamado com {len(current_player_ids) if current_player_ids else 0} player_ids. previous_players tem {len(self.previous_players)} players")
+        
         if not current_player_ids:
+            logger.debug("_update_players_online: lista de player_ids vazia, retornando sem processar")
             return True  # Nenhum player para processar
         
         current_set = set(current_player_ids)
         connect_players = current_set - self.previous_players
         disconnect_players = self.previous_players - current_set
         
+        logger.info(f"_update_players_online: current_set={len(current_set)} players, previous_players={len(self.previous_players)} players, connect_players={len(connect_players)}, disconnect_players={len(disconnect_players)}")
+        if connect_players:
+            logger.info(f"_update_players_online: players para conectar: {list(connect_players)[:5]}{'...' if len(connect_players) > 5 else ''}")
+        if disconnect_players:
+            logger.info(f"_update_players_online: players para desconectar: {list(disconnect_players)[:5]}{'...' if len(disconnect_players) > 5 else ''}")
+        
         if not connect_players and not disconnect_players:
+            logger.debug(f"_update_players_online: nenhuma mudança detectada. current_set={current_set}, previous_players={self.previous_players}")
             return True  # Nenhuma mudança
         
         max_retries = 5
@@ -2727,21 +2737,27 @@ class PositionsConsumer:
                 
                 # Processar conectados (INSERT OR REPLACE)
                 if connect_players:
+                    logger.info(f"Processando {len(connect_players)} jogadores para conectar na tabela players_online")
                     connect_values = [(player_id, timestamp_str) for player_id in connect_players]
                     cursor.executemany(
                         "INSERT OR REPLACE INTO players_online (PlayerID, DataConnect) VALUES (?, ?)",
                         connect_values
                     )
                     logger.info(f"Atualizados {len(connect_players)} jogadores como conectados: {list(connect_players)[:5]}{'...' if len(connect_players) > 5 else ''}")
+                else:
+                    logger.debug("Nenhum jogador para conectar")
                 
                 # Processar desconectados (DELETE)
                 if disconnect_players:
+                    logger.info(f"Processando {len(disconnect_players)} jogadores para desconectar da tabela players_online")
                     disconnect_values = [(player_id,) for player_id in disconnect_players]
                     cursor.executemany(
                         "DELETE FROM players_online WHERE PlayerID = ?",
                         disconnect_values
                     )
                     logger.info(f"Removidos {len(disconnect_players)} jogadores como desconectados: {list(disconnect_players)[:5]}{'...' if len(disconnect_players) > 5 else ''}")
+                else:
+                    logger.debug("Nenhum jogador para desconectar")
                 
                 # Commit transação
                 conn.commit()
@@ -2824,7 +2840,9 @@ class PositionsConsumer:
                 conn.close()
                 
                 # Atualizar estado apenas após sucesso
+                logger.info(f"_update_players_online: atualizando previous_players de {len(self.previous_players)} para {len(current_set)} players")
                 self.previous_players = current_set
+                logger.debug(f"_update_players_online: previous_players atualizado para: {list(self.previous_players)[:5]}{'...' if len(self.previous_players) > 5 else ''}")
                 
                 return True
                 
@@ -2993,10 +3011,14 @@ class PositionsConsumer:
                 
                 # Atualizar tabela players_online (conectados/desconectados)
                 # Não bloquear o processamento principal se falhar
+                logger.info(f"Chamando _update_players_online com {len(player_ids)} player_ids: {player_ids[:3]}{'...' if len(player_ids) > 3 else ''}")
                 try:
-                    self._update_players_online(player_ids, base_timestamp)
+                    result = self._update_players_online(player_ids, base_timestamp)
+                    logger.info(f"_update_players_online retornou: {result}")
                 except Exception as e:
+                    import traceback
                     logger.warning(f"Erro ao atualizar players_online (não crítico): {e}")
+                    logger.warning(f"Traceback completo: {traceback.format_exc()}")
                 
                 return True
                 
