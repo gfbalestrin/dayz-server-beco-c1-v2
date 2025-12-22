@@ -1120,7 +1120,15 @@ function drawBackupMarkers(playerId, backupPoints, fullTrail) {
                 pointIndexInFullTrail = fullTrail.indexOf(point);
             }
             
-            showPointActionsMenu(playerId, point, 0, pointIndexInFullTrail, fullTrail);
+            // Calcular número do ponto baseado na posição no fullTrail
+            // fullTrail está ordenado do mais recente (índice 0) para o mais antigo (índice N)
+            // O número do ponto é fullTrail.length - pointIndexInFullTrail
+            let pointNumber = 0;
+            if (pointIndexInFullTrail !== -1 && fullTrail.length > 0) {
+                pointNumber = fullTrail.length - pointIndexInFullTrail;
+            }
+            
+            showPointActionsMenu(playerId, point, pointNumber, pointIndexInFullTrail, fullTrail);
         });
         
         // Adicionar cursor pointer

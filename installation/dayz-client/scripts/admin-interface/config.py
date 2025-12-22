@@ -88,6 +88,10 @@ if os.path.exists(CONFIG_JSON_PATH):
             DAYZ_SERVER_SSH_CONNECTION_POOL_SIZE = int(os.getenv('DAYZ_SSH_POOL_SIZE', ssh_config.get('ConnectionPoolSize', 3)))
             DAYZ_SERVER_SSH_CONNECTION_TTL = int(os.getenv('DAYZ_SSH_CONNECTION_TTL', ssh_config.get('ConnectionTTL', 30)))
             
+            # Configurações de script de restauração de backup
+            RESTORE_BACKUP_SCRIPT = os.getenv('RESTORE_BACKUP_SCRIPT') or dayz_server_config.get('RestoreBackupScript') or '/home/dayzadmin/servers/dayz-server/scripts/player_restore_backup.sh'
+            RESTORE_BACKUP_WORKDIR = os.getenv('RESTORE_BACKUP_WORKDIR') or dayz_server_config.get('RestoreBackupWorkdir') or '/home/dayzadmin/servers/dayz-server/scripts'
+            
             logger = logging.getLogger(__name__)
             logger.debug(f"RabbitMQ configurado: HOST={RABBITMQ_HOST}, PORT={RABBITMQ_PORT}, VHOST={RABBITMQ_VHOST}, ENABLED={RABBITMQ_ENABLED}")
             logger.debug(f"Discord configurado: DESACTIVE={DISCORD_DESACTIVE}, WEBHOOK_LOGS={'***' if DISCORD_WEBHOOK_LOGS else ''}, CHANNEL_ID={'***' if DISCORD_CHANNEL_PLAYERS_ONLINE_CHANNEL_ID else ''}")
@@ -128,6 +132,9 @@ if os.path.exists(CONFIG_JSON_PATH):
         DAYZ_SERVER_SSH_TIMEOUT = int(os.getenv('DAYZ_SSH_TIMEOUT', 5))
         DAYZ_SERVER_SSH_CONNECTION_POOL_SIZE = int(os.getenv('DAYZ_SSH_POOL_SIZE', 3))
         DAYZ_SERVER_SSH_CONNECTION_TTL = int(os.getenv('DAYZ_SSH_CONNECTION_TTL', 30))
+        # Configurações de script de restauração de backup
+        RESTORE_BACKUP_SCRIPT = os.getenv('RESTORE_BACKUP_SCRIPT') or '/home/dayzadmin/servers/dayz-server/scripts/player_restore_backup.sh'
+        RESTORE_BACKUP_WORKDIR = os.getenv('RESTORE_BACKUP_WORKDIR') or '/home/dayzadmin/servers/dayz-server/scripts'
 else:
     # Valores padrão se config.json não existir
     logger = logging.getLogger(__name__)
@@ -163,6 +170,9 @@ else:
     DAYZ_SERVER_SSH_TIMEOUT = int(os.getenv('DAYZ_SSH_TIMEOUT', 5))
     DAYZ_SERVER_SSH_CONNECTION_POOL_SIZE = int(os.getenv('DAYZ_SSH_POOL_SIZE', 3))
     DAYZ_SERVER_SSH_CONNECTION_TTL = int(os.getenv('DAYZ_SSH_CONNECTION_TTL', 30))
+    # Configurações de script de restauração de backup
+    RESTORE_BACKUP_SCRIPT = os.getenv('RESTORE_BACKUP_SCRIPT') or '/home/dayzadmin/servers/dayz-server/scripts/player_restore_backup.sh'
+    RESTORE_BACKUP_WORKDIR = os.getenv('RESTORE_BACKUP_WORKDIR') or '/home/dayzadmin/servers/dayz-server/scripts'
 
 # Validação de configurações obrigatórias
 logger = logging.getLogger(__name__)

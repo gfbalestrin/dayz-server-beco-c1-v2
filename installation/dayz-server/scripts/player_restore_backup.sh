@@ -4,11 +4,12 @@ source ./config.sh
 
 PlayerId=$1
 PlayerCoordId=$2
+BackupHex=$3
 
 # Validação de parâmetros
 if [[ -z "$PlayerId" || -z "$PlayerCoordId" ]]; then
     echo "Erro: Os parâmetros PlayerId e PlayerCoordId são obrigatórios."
-    echo "Uso: $0 <PlayerId> <PlayerCoordId>"
+    echo "Uso: $0 <PlayerId> <PlayerCoordId> [BackupHex]"
     exit 1
 fi
 
@@ -24,18 +25,26 @@ if ! [[ "$PlayerCoordId" =~ ^[1-9][0-9]*$ ]]; then
     exit 1
 fi
 
-PlayerCoordBackup=$(sqlite3 -separator "|" "$AppFolder/$AppPlayerBecoC1DbFile" "SELECT Backup,TimeStamp FROM players_coord_backup WHERE PlayerCoordId = '$PlayerCoordId' LIMIT 1;")
-if [[ -z "$PlayerCoordBackup" ]]; then
-    echo "Erro: PlayerCoordId não encontrado no banco de dados."
-    exit 1
-fi
-
-Backup=$(echo "$PlayerCoordBackup" | cut -d'|' -f1)
-TimeStamp=$(echo "$PlayerCoordBackup" | cut -d'|' -f2)
-
-if [[ -z "$Backup" ]]; then
-    echo "Erro: Backup está vazio."
-    exit 1
+# Se BackupHex foi fornecido, usar diretamente
+if [[ -n "$BackupHex" ]]; then
+    Backup="$BackupHex"
+    echo "Usando backup fornecido como parâmetro (tamanho hex: ${#BackupHex} caracteres)"
+else
+    # Se não foi fornecido, buscar no banco de dados local (compatibilidade retroativa)
+    echo "Backup não fornecido como parâmetro, buscando no banco de dados local..."
+    PlayerCoordBackup=$(sqlite3 -separator "|" "$AppFolder/$AppPlayerBecoC1DbFile" "SELECT hex(Backup),TimeStamp FROM players_coord_backup WHERE PlayerCoordId = '$PlayerCoordId' LIMIT 1;")
+    if [[ -z "$PlayerCoordBackup" ]]; then
+        echo "Erro: PlayerCoordId não encontrado no banco de dados."
+        exit 1
+    fi
+    
+    Backup=$(echo "$PlayerCoordBackup" | cut -d'|' -f1)
+    TimeStamp=$(echo "$PlayerCoordBackup" | cut -d'|' -f2)
+    
+    if [[ -z "$Backup" ]]; then
+        echo "Erro: Backup está vazio."
+        exit 1
+    fi
 fi
 echo "Realizando backup do estado atual do jogador $PlayerId..."
 PlayerBackup=$(GET_DAYZ_PLAYER_DATA $PlayerId)

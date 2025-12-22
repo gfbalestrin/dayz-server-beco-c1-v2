@@ -365,6 +365,59 @@ def test_ssh_connection() -> bool:
         return False
 
 
+def execute_remote_command(command: str, timeout: int = 30, cwd: Optional[str] = None) -> Tuple[int, str, str]:
+    """
+    Executa um comando remoto via SSH
+    
+    Args:
+        command: Comando a ser executado
+        timeout: Timeout em segundos
+        cwd: Diretório de trabalho (opcional)
+    
+    Returns:
+        Tupla (exit_code, stdout, stderr)
+    """
+    if not config:
+        error_msg = "Config não disponível"
+        logger.error(error_msg)
+        return 1, "", error_msg
+    
+    if not getattr(config, 'DAYZ_SERVER_SSH_HOST', None):
+        error_msg = "Configuração SSH não encontrada"
+        logger.error(error_msg)
+        return 1, "", error_msg
+    
+    conn = _connection_pool.get_connection()
+    if not conn:
+        error_msg = "Não foi possível obter conexão SSH"
+        logger.error(error_msg)
+        return 1, "", error_msg
+    
+    try:
+        with conn.lock:
+            # Mudar para o diretório de trabalho se especificado
+            if cwd:
+                command = f"cd {cwd} && {command}"
+            
+            stdin, stdout, stderr = conn.client.exec_command(command, timeout=timeout)
+            exit_status = stdout.channel.recv_exit_status()
+            stdout_text = stdout.read().decode('utf-8', errors='replace')
+            stderr_text = stderr.read().decode('utf-8', errors='replace')
+            
+            logger.debug(f"Comando executado via SSH: {command}, exit_code: {exit_status}")
+            return exit_status, stdout_text, stderr_text
+            
+    except Exception as e:
+        error_msg = f"Erro ao executar comando via SSH: {str(e)}"
+        logger.error(error_msg)
+        # Tentar fechar conexão problemática
+        try:
+            conn.client.close()
+        except Exception:
+            pass
+        return 1, "", error_msg
+
+
 def close_all_connections():
     """Fecha todas as conexões SSH (útil para shutdown)"""
     _connection_pool.close_all()

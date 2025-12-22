@@ -3669,6 +3669,31 @@ def get_backup_info(player_coord_id: int) -> Dict:
         result = cursor.fetchone()
         return dict(result) if result else None
 
+def get_backup_blob_hex(player_coord_id: int) -> Optional[str]:
+    """
+    Busca o backup BLOB do banco de dados e retorna em formato hexadecimal
+    (formato esperado pelo script player_restore_backup.sh)
+    
+    Args:
+        player_coord_id: ID da coordenada do jogador
+        
+    Returns:
+        String hexadecimal do backup ou None se não encontrado
+    """
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        # Usar hex() do SQLite para converter BLOB diretamente para hex
+        cursor.execute("""
+            SELECT hex(Backup) as backup_hex
+            FROM players_coord_backup
+            WHERE PlayerCoordId = ?
+            LIMIT 1
+        """, (player_coord_id,))
+        result = cursor.fetchone()
+        if result and result['backup_hex']:
+            return result['backup_hex']
+        return None
+
 def get_online_players() -> List[Dict]:
     """Retorna lista de jogadores online com informações completas"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:

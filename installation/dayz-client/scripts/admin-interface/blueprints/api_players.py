@@ -13,13 +13,19 @@ from database import (
     get_online_players, check_backup_exists_any_player,
     search_players, get_item_details_from_items_db,
     get_all_players_with_status, get_player_by_id, get_player_events,
-    insert_player_event, is_player_online
+    insert_player_event, is_player_online, get_backup_blob_hex
 )
 from blueprints.auth import admin_required, audit_action
 from blueprints.helpers import write_command_to_file
 
 api_players_bp = Blueprint('api_players', __name__)
 logger = logging.getLogger(__name__)
+
+try:
+    from ssh_client import execute_remote_command
+except ImportError:
+    logger.warning("ssh_client não disponível, restauração de backup não funcionará")
+    execute_remote_command = None
 
 
 def steamid_exists_in_ban_file(steam_id):
@@ -350,90 +356,181 @@ def api_search_players():
 @audit_action('RESTORE_BACKUP')
 def api_restore_backup(player_id):
     """API para restaurar backup de um jogador"""
+    logger.info(f"[RESTORE_BACKUP] Iniciando restauração de backup para player_id={player_id}")
+    
     try:
+        # Log de parâmetros recebidos
+        data = request.get_json()
+        player_coord_id = data.get('player_coord_id') if data else None
+        logger.info(f"[RESTORE_BACKUP] Parâmetros recebidos: player_id={player_id}, player_coord_id={player_coord_id}, data={data}")
+        
         # Verificar se jogador está online
-        online_players = get_online_players()
-        online_ids = [p['PlayerID'] for p in online_players]
+        logger.debug(f"[RESTORE_BACKUP] Verificando se jogador está online: {player_id}")
+        try:
+            online_players = get_online_players()
+            online_ids = [p['PlayerID'] for p in online_players]
+            logger.debug(f"[RESTORE_BACKUP] Jogadores online: {len(online_ids)}")
+        except Exception as e:
+            logger.error(f"[RESTORE_BACKUP] Erro ao obter lista de jogadores online: {str(e)}")
+            raise
         
         if player_id in online_ids:
-            logger.warning(f"Tentativa de restaurar/clonar para jogador online: {player_id}")
+            logger.warning(f"[RESTORE_BACKUP] Tentativa de restaurar/clonar para jogador online: {player_id}")
             return jsonify({
                 'success': False,
                 'message': 'Não é possível restaurar/clonar para jogador online. Aguarde o jogador desconectar.'
             }), 400
         
-        data = request.get_json()
-        player_coord_id = data.get('player_coord_id')
+        logger.debug(f"[RESTORE_BACKUP] Jogador não está online, prosseguindo com restauração")
         
-        logger.debug(f"Restore backup request: player_id={player_id}, player_coord_id={player_coord_id}")
-        
+        # Validar player_coord_id
         if not player_coord_id:
+            logger.error(f"[RESTORE_BACKUP] PlayerCoordId não fornecido no request")
             return jsonify({'success': False, 'message': 'PlayerCoordId não fornecido'}), 400
         
+        logger.info(f"[RESTORE_BACKUP] PlayerCoordId validado: {player_coord_id}")
+        
         # Validar se o backup existe (sem verificar dono, pois pode ser clonagem)
-        backup_exists = check_backup_exists_any_player(player_coord_id)
+        logger.debug(f"[RESTORE_BACKUP] Verificando se backup existe: coord_id={player_coord_id}")
+        try:
+            backup_exists = check_backup_exists_any_player(player_coord_id)
+            logger.debug(f"[RESTORE_BACKUP] Resultado da verificação de backup: {backup_exists}")
+        except Exception as e:
+            logger.error(f"[RESTORE_BACKUP] Erro ao verificar se backup existe: {str(e)}")
+            raise
+        
         if not backup_exists:
-            logger.warning(f"Backup não encontrado: coord_id={player_coord_id}")
+            logger.warning(f"[RESTORE_BACKUP] Backup não encontrado: coord_id={player_coord_id}")
             return jsonify({'success': False, 'message': 'Backup não encontrado'}), 404
         
-        # Executar script de restauração
-        script_path = config.RESTORE_BACKUP_SCRIPT
+        logger.info(f"[RESTORE_BACKUP] Backup encontrado e validado")
         
-        # Verificar se script existe
-        if not os.path.exists(script_path):
-            logger.error(f"Script não encontrado: {script_path}")
+        # Buscar backup BLOB do banco do cliente e converter para hex
+        logger.debug(f"[RESTORE_BACKUP] Buscando backup BLOB do banco do cliente: coord_id={player_coord_id}")
+        try:
+            backup_hex = get_backup_blob_hex(player_coord_id)
+            if not backup_hex:
+                logger.error(f"[RESTORE_BACKUP] Backup BLOB não encontrado no banco do cliente: coord_id={player_coord_id}")
+                return jsonify({
+                    'success': False,
+                    'message': 'Backup BLOB não encontrado no banco de dados'
+                }), 404
+            logger.info(f"[RESTORE_BACKUP] Backup BLOB obtido do banco do cliente (tamanho hex: {len(backup_hex)} caracteres)")
+        except Exception as e:
+            logger.error(f"[RESTORE_BACKUP] Erro ao buscar backup BLOB: {str(e)}")
+            logger.exception("[RESTORE_BACKUP] Stack trace completo:")
             return jsonify({
                 'success': False,
-                'message': f'Script de restauração não encontrado: {script_path}'
+                'message': f'Erro ao buscar backup do banco de dados: {str(e)}'
             }), 500
         
-        # Verificar se script é executável
-        if not os.access(script_path, os.X_OK):
-            logger.error(f"Script sem permissão de execução: {script_path}")
+        # Verificar disponibilidade do SSH client
+        if not execute_remote_command:
+            logger.error("[RESTORE_BACKUP] SSH client não disponível para executar script de restauração")
             return jsonify({
                 'success': False,
-                'message': 'Script de restauração sem permissão de execução'
+                'message': 'SSH client não disponível. Configure a conexão SSH no config.json'
             }), 500
         
-        logger.info(f"Executando script: {script_path} {player_id} {player_coord_id}")
+        logger.debug("[RESTORE_BACKUP] SSH client disponível")
         
-        result = subprocess.run(
-            [script_path, player_id, str(player_coord_id)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            cwd=config.RESTORE_BACKUP_WORKDIR
-        )
+        # Obter configurações
+        try:
+            script_path = config.RESTORE_BACKUP_SCRIPT
+            workdir = config.RESTORE_BACKUP_WORKDIR
+            logger.info(f"[RESTORE_BACKUP] Configurações: script_path={script_path}, workdir={workdir}")
+            
+            if not script_path:
+                raise ValueError("RESTORE_BACKUP_SCRIPT não configurado")
+            if not workdir:
+                raise ValueError("RESTORE_BACKUP_WORKDIR não configurado")
+        except AttributeError as e:
+            logger.error(f"[RESTORE_BACKUP] Erro ao acessar configurações: {str(e)}")
+            logger.error(f"[RESTORE_BACKUP] Config disponível: RESTORE_BACKUP_SCRIPT={hasattr(config, 'RESTORE_BACKUP_SCRIPT')}, RESTORE_BACKUP_WORKDIR={hasattr(config, 'RESTORE_BACKUP_WORKDIR')}")
+            return jsonify({
+                'success': False,
+                'message': f'Configuração não encontrada: {str(e)}. Verifique config.json -> DayZServer -> RestoreBackupScript e RestoreBackupWorkdir'
+            }), 500
+        except ValueError as e:
+            logger.error(f"[RESTORE_BACKUP] Configuração inválida: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': f'Configuração inválida: {str(e)}'
+            }), 500
         
-        logger.debug(f"Script return code: {result.returncode}")
-        logger.debug(f"Script stdout: {result.stdout}")
-        logger.debug(f"Script stderr: {result.stderr}")
+        # Montar comando para executar no servidor remoto
+        # Passar backup como terceiro parâmetro (PlayerId, PlayerCoordId, BackupHex)
+        # Escapar o backup hex para evitar problemas com caracteres especiais no shell
+        backup_hex_escaped = backup_hex.replace("'", "'\\''")
+        command = f"{script_path} '{player_id}' '{str(player_coord_id)}' '{backup_hex_escaped}'"
+        logger.info(f"[RESTORE_BACKUP] Comando montado: {script_path} '{player_id}' '{str(player_coord_id)}' '<backup_hex>...' (backup hex length: {len(backup_hex)})")
+        logger.info(f"[RESTORE_BACKUP] Executando script via SSH (timeout=30s, cwd={workdir})")
         
-        if result.returncode == 0:
+        # Executar comando via SSH
+        try:
+            exit_code, stdout, stderr = execute_remote_command(
+                command,
+                timeout=30,
+                cwd=workdir
+            )
+            logger.info(f"[RESTORE_BACKUP] Script executado: exit_code={exit_code}")
+            logger.info(f"[RESTORE_BACKUP] Script stdout (primeiros 500 chars): {stdout[:500] if stdout else '(vazio)'}")
+            logger.info(f"[RESTORE_BACKUP] Script stderr (primeiros 500 chars): {stderr[:500] if stderr else '(vazio)'}")
+        except TimeoutError as e:
+            logger.error(f"[RESTORE_BACKUP] Timeout ao executar comando SSH: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': 'Timeout ao executar script de restauração (30s). O script pode estar demorando mais que o esperado.'
+            }), 500
+        except Exception as e:
+            logger.error(f"[RESTORE_BACKUP] Erro ao executar comando SSH: {str(e)}")
+            logger.exception("[RESTORE_BACKUP] Stack trace completo:")
+            error_type = type(e).__name__
+            return jsonify({
+                'success': False,
+                'message': f'Erro ao executar script via SSH: {error_type} - {str(e)}'
+            }), 500
+        
+        # Processar resultado
+        if exit_code == 0:
+            logger.info(f"[RESTORE_BACKUP] Restauração concluída com sucesso para player_id={player_id}")
             return jsonify({
                 'success': True,
                 'message': 'Backup restaurado com sucesso!',
-                'output': result.stdout
+                'output': stdout
             })
         else:
+            logger.error(f"[RESTORE_BACKUP] Script retornou código de erro: {exit_code}")
+            logger.error(f"[RESTORE_BACKUP] stderr completo: {stderr}")
+            logger.error(f"[RESTORE_BACKUP] stdout completo: {stdout}")
             return jsonify({
                 'success': False,
                 'message': 'Erro ao restaurar backup',
-                'error': result.stderr,
-                'stdout': result.stdout
+                'error': stderr,
+                'stdout': stdout
             }), 500
             
-    except subprocess.TimeoutExpired:
-        logger.error("Timeout ao executar script")
+    except KeyError as e:
+        logger.error(f"[RESTORE_BACKUP] Chave não encontrada no request: {str(e)}")
         return jsonify({
             'success': False,
-            'message': 'Timeout ao executar script de restauração'
-        }), 500
+            'message': f'Dados inválidos no request: {str(e)}'
+        }), 400
+    except ValueError as e:
+        logger.error(f"[RESTORE_BACKUP] Valor inválido: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Valor inválido: {str(e)}'
+        }), 400
     except Exception as e:
-        logger.exception("Erro inesperado ao restaurar backup")
+        logger.exception(f"[RESTORE_BACKUP] Erro inesperado ao restaurar backup para player_id={player_id}")
+        logger.error(f"[RESTORE_BACKUP] Tipo de exceção: {type(e).__name__}")
+        logger.error(f"[RESTORE_BACKUP] Mensagem de erro: {str(e)}")
+        error_type = type(e).__name__
+        error_msg = str(e)
         return jsonify({
             'success': False,
-            'message': f'Erro ao executar restauração: {str(e)}'
+            'message': f'Erro inesperado ao executar restauração: {error_type} - {error_msg}'
         }), 500
 
 
