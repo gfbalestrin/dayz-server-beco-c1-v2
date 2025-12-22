@@ -11,6 +11,12 @@ from typing import List, Dict, Optional, Tuple, Set
 import config
 import bcrypt
 
+# Importar ssh_client para acesso a arquivos remotos
+try:
+    from ssh_client import read_remote_file
+except ImportError:
+    read_remote_file = None
+
 # Cache para schema de tabelas (PRAGMA table_info)
 _schema_cache: Dict[str, List[str]] = {}
 
@@ -6674,22 +6680,67 @@ def get_items_for_player_loadout(type_id: int = None, search: str = None, limit:
 # FUNÇÕES DE ADMINISTRADORES
 # ============================================================================
 
-def get_admin_ids() -> List[str]:
-    """Retorna lista de Player IDs dos administradores do arquivo admin_ids.txt"""
+def _write_remote_file(file_path: str, content: str) -> bool:
+    """
+    Escreve conteúdo em arquivo remoto via SFTP
+    
+    Args:
+        file_path: Caminho do arquivo no servidor remoto
+        content: Conteúdo a escrever (string)
+    
+    Returns:
+        bool: True se escrito com sucesso, False caso contrário
+    """
     try:
-        if not os.path.exists(config.ADMIN_IDS_FILE):
+        from ssh_client import _connection_pool
+    except ImportError:
+        logging.warning("ssh_client não disponível, não é possível escrever arquivo remoto")
+        return False
+    
+    conn = _connection_pool.get_connection()
+    if not conn:
+        logging.error("Não foi possível obter conexão SSH")
+        return False
+    
+    try:
+        with conn.lock:
+            sftp = conn.client.open_sftp()
+            try:
+                # Escrever conteúdo no arquivo
+                with sftp.open(file_path, 'w') as f:
+                    f.write(content.encode('utf-8'))
+                logging.debug(f"Arquivo escrito via SSH: {file_path}")
+                return True
+            finally:
+                sftp.close()
+    except Exception as e:
+        logging.error(f"Erro ao escrever arquivo via SSH: {str(e)}")
+        return False
+
+
+def get_admin_ids() -> List[str]:
+    """Retorna lista de Player IDs dos administradores do arquivo admin_ids.txt (via SSH)"""
+    try:
+        if not read_remote_file:
+            logging.warning("ssh_client não disponível, não é possível ler admin_ids.txt")
+            return []
+        
+        # Ler arquivo remoto via SSH
+        file_content = read_remote_file(config.ADMIN_IDS_FILE)
+        
+        if file_content is None:
+            # Arquivo não existe ou erro ao ler
             return []
         
         admin_ids = []
-        with open(config.ADMIN_IDS_FILE, 'r') as f:
-            for line in f:
-                player_id = line.strip()
-                if player_id:
-                    admin_ids.append(player_id)
+        for line in file_content.splitlines():
+            player_id = line.strip()
+            if player_id:
+                admin_ids.append(player_id)
         
         return admin_ids
     except Exception as e:
-        print(f"Erro ao ler admin_ids.txt: {str(e)}")
+        logging.error(f"Erro ao ler admin_ids.txt: {str(e)}")
         return []
 
 def get_admins_with_player_info() -> List[Dict]:
@@ -6737,10 +6788,12 @@ def get_admins_with_player_info() -> List[Dict]:
     return admins
 
 def add_admin_id(player_id: str) -> bool:
-    """Adiciona um Player ID ao arquivo admin_ids.txt (com lock de arquivo)"""
-    import fcntl
-    
+    """Adiciona um Player ID ao arquivo admin_ids.txt (via SSH)"""
     if not player_id or not player_id.strip():
+        return False
+    
+    if not read_remote_file:
+        logging.warning("ssh_client não disponível, não é possível adicionar admin ID")
         return False
     
     player_id = player_id.strip()
@@ -6751,28 +6804,38 @@ def add_admin_id(player_id: str) -> bool:
         return False
     
     try:
-        # Criar diretório se não existir
-        os.makedirs(os.path.dirname(config.ADMIN_IDS_FILE), exist_ok=True)
+        # Ler arquivo remoto via SSH
+        file_content = read_remote_file(config.ADMIN_IDS_FILE)
         
-        with open(config.ADMIN_IDS_FILE, 'a') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                f.write(f"{player_id}\n")
-                f.flush()
-                os.fsync(f.fileno())
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        # Se arquivo não existe, criar novo
+        if file_content is None:
+            new_content = f"{player_id}\n"
+        else:
+            # Adiciona o Player ID ao final do arquivo
+            # Verifica se termina com quebra de linha
+            if file_content and not file_content.endswith('\n'):
+                new_content = file_content + '\n' + f"{player_id}\n"
+            else:
+                new_content = file_content + f"{player_id}\n"
         
-        return True
+        # Escrever arquivo remoto via SSH
+        if _write_remote_file(config.ADMIN_IDS_FILE, new_content):
+            logging.info(f"Admin ID {player_id} adicionado ao arquivo admin_ids.txt")
+            return True
+        else:
+            logging.error(f"Falha ao escrever arquivo admin_ids.txt via SSH")
+            return False
     except Exception as e:
-        print(f"Erro ao adicionar admin ID: {str(e)}")
+        logging.error(f"Erro ao adicionar admin ID: {str(e)}")
         return False
 
 def remove_admin_id(player_id: str) -> bool:
-    """Remove um Player ID do arquivo admin_ids.txt (com lock de arquivo)"""
-    import fcntl
-    
+    """Remove um Player ID do arquivo admin_ids.txt (via SSH)"""
     if not player_id or not player_id.strip():
+        return False
+    
+    if not read_remote_file:
+        logging.warning("ssh_client não disponível, não é possível remover admin ID")
         return False
     
     player_id = player_id.strip()
@@ -6787,19 +6850,20 @@ def remove_admin_id(player_id: str) -> bool:
     admin_ids.remove(player_id)
     
     try:
-        with open(config.ADMIN_IDS_FILE, 'w') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                for admin_id in admin_ids:
-                    f.write(f"{admin_id}\n")
-                f.flush()
-                os.fsync(f.fileno())
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        # Construir novo conteúdo do arquivo
+        new_content = '\n'.join(admin_ids)
+        if new_content:  # Se ainda há IDs, adicionar quebra de linha final
+            new_content += '\n'
         
-        return True
+        # Escrever arquivo remoto via SSH
+        if _write_remote_file(config.ADMIN_IDS_FILE, new_content):
+            logging.info(f"Admin ID {player_id} removido do arquivo admin_ids.txt")
+            return True
+        else:
+            logging.error(f"Falha ao escrever arquivo admin_ids.txt via SSH")
+            return False
     except Exception as e:
-        print(f"Erro ao remover admin ID: {str(e)}")
+        logging.error(f"Erro ao remover admin ID: {str(e)}")
         return False
 
 # ============================================================================

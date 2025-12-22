@@ -23,15 +23,16 @@ api_players_bp = Blueprint('api_players', __name__)
 logger = logging.getLogger(__name__)
 
 try:
-    from ssh_client import execute_remote_command
+    from ssh_client import execute_remote_command, read_remote_file
 except ImportError:
     logger.warning("ssh_client não disponível, restauração de backup não funcionará")
     execute_remote_command = None
+    read_remote_file = None
 
 
 def steamid_exists_in_ban_file(steam_id):
     """
-    Verifica se um SteamID já existe no arquivo ban.txt
+    Verifica se um SteamID já existe no arquivo ban.txt (via SSH)
     
     Args:
         steam_id: SteamID a verificar (string)
@@ -42,36 +43,79 @@ def steamid_exists_in_ban_file(steam_id):
     if not steam_id or not steam_id.strip():
         return False
     
+    if not read_remote_file:
+        logger.warning("ssh_client não disponível, não é possível verificar ban.txt")
+        return False
+    
     ban_file_path = config.BAN_FILE_PATH
     
-    if not os.path.exists(ban_file_path):
+    try:
+        # Ler arquivo remoto via SSH
+        file_content = read_remote_file(ban_file_path)
+        
+        if file_content is None:
+            # Arquivo não existe ou erro ao ler
+            return False
+        
+        # Processar conteúdo do arquivo
+        for line in file_content.splitlines():
+            # Remove espaços e quebras de linha
+            line = line.strip()
+            # Ignora comentários e linhas vazias
+            if not line or line.startswith('//'):
+                continue
+            # Compara SteamID (pode ter comentário após o ID)
+            steam_id_part = line.split('//')[0].strip()
+            if steam_id_part == steam_id:
+                return True
+        
+        return False
+    except Exception as e:
+        logger.error(f"Erro ao verificar SteamID no arquivo ban.txt via SSH: {str(e)}")
+        return False
+
+
+def _write_remote_file(file_path, content):
+    """
+    Escreve conteúdo em arquivo remoto via SFTP
+    
+    Args:
+        file_path: Caminho do arquivo no servidor remoto
+        content: Conteúdo a escrever (string)
+    
+    Returns:
+        bool: True se escrito com sucesso, False caso contrário
+    """
+    try:
+        from ssh_client import _connection_pool
+    except ImportError:
+        logger.warning("ssh_client não disponível, não é possível escrever arquivo remoto")
+        return False
+    
+    conn = _connection_pool.get_connection()
+    if not conn:
+        logger.error("Não foi possível obter conexão SSH")
         return False
     
     try:
-        with open(ban_file_path, 'r', encoding='utf-8') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_SH)  # Lock compartilhado para leitura
+        with conn.lock:
+            sftp = conn.client.open_sftp()
             try:
-                for line in f:
-                    # Remove espaços e quebras de linha
-                    line = line.strip()
-                    # Ignora comentários e linhas vazias
-                    if not line or line.startswith('//'):
-                        continue
-                    # Compara SteamID (pode ter comentário após o ID)
-                    steam_id_part = line.split('//')[0].strip()
-                    if steam_id_part == steam_id:
-                        return True
+                # Escrever conteúdo no arquivo
+                with sftp.open(file_path, 'w') as f:
+                    f.write(content.encode('utf-8'))
+                logger.debug(f"Arquivo escrito via SSH: {file_path}")
+                return True
             finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-        return False
+                sftp.close()
     except Exception as e:
-        logger.error(f"Erro ao verificar SteamID no arquivo ban.txt: {str(e)}")
+        logger.error(f"Erro ao escrever arquivo via SSH: {str(e)}")
         return False
 
 
 def add_steamid_to_ban_file(steam_id):
     """
-    Adiciona um SteamID ao arquivo ban.txt se não existir
+    Adiciona um SteamID ao arquivo ban.txt se não existir (via SSH)
     
     Args:
         steam_id: SteamID a adicionar (string)
@@ -83,6 +127,10 @@ def add_steamid_to_ban_file(steam_id):
         logger.warning("SteamID vazio ou inválido para adicionar ao ban.txt")
         return False
     
+    if not read_remote_file or not execute_remote_command:
+        logger.warning("ssh_client não disponível, não é possível adicionar ao ban.txt")
+        return False
+    
     # Verifica se já existe
     if steamid_exists_in_ban_file(steam_id):
         logger.info(f"SteamID {steam_id} já existe no arquivo ban.txt")
@@ -91,43 +139,34 @@ def add_steamid_to_ban_file(steam_id):
     ban_file_path = config.BAN_FILE_PATH
     
     try:
-        # Cria o arquivo se não existir
-        if not os.path.exists(ban_file_path):
-            os.makedirs(os.path.dirname(ban_file_path), exist_ok=True)
-            # Cria arquivo com cabeçalho padrão
-            with open(ban_file_path, 'w', encoding='utf-8') as f:
-                f.write('//Players added to the ban.txt won\'t be able to connect to this server.\n')
-                f.write('//Bans can be added/removed while the server is running and will come in effect immediately, kicking the player.\n')
-                f.write('//-----------------------------------------------------------------------------------------------------\n')
-                f.write('//To ban a player, add his player ID (44 characters long ID) which can be found in the admin log file (.ADM).\n')
-                f.write('//-----------------------------------------------------------------------------------------------------\n')
-                f.write('//For comments use the // prefix. It can be used after an inserted ID, to easily mark it.\n')
-                f.write('\n')
+        # Ler arquivo remoto via SSH
+        file_content = read_remote_file(ban_file_path)
         
-        # Adiciona o SteamID ao final do arquivo
-        # Primeiro, verifica se o arquivo termina com quebra de linha
-        with open(ban_file_path, 'rb+') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)  # Lock exclusivo para escrita
-            try:
-                # Move para o final do arquivo
-                f.seek(0, 2)  # 2 = SEEK_END
-                file_size = f.tell()
-                
-                # Se o arquivo não está vazio, verifica se termina com quebra de linha
-                if file_size > 0:
-                    # Lê o último byte
-                    f.seek(-1, 2)  # Move para o último byte
-                    last_byte = f.read(1)
-                    # Se não termina com \n, adiciona antes do novo SteamID
-                    if last_byte != b'\n':
-                        f.write(b'\n')
-                
-                # Adiciona o SteamID em uma nova linha
-                f.write(f'{steam_id}\n'.encode('utf-8'))
-                logger.info(f"SteamID {steam_id} adicionado ao arquivo ban.txt")
-                return True
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        # Se arquivo não existe, criar com cabeçalho padrão
+        if file_content is None:
+            header = '//Players added to the ban.txt won\'t be able to connect to this server.\n'
+            header += '//Bans can be added/removed while the server is running and will come in effect immediately, kicking the player.\n'
+            header += '//-----------------------------------------------------------------------------------------------------\n'
+            header += '//To ban a player, add his player ID (44 characters long ID) which can be found in the admin log file (.ADM).\n'
+            header += '//-----------------------------------------------------------------------------------------------------\n'
+            header += '//For comments use the // prefix. It can be used after an inserted ID, to easily mark it.\n'
+            header += '\n'
+            new_content = header + f'{steam_id}\n'
+        else:
+            # Adiciona o SteamID ao final do arquivo
+            # Verifica se termina com quebra de linha
+            if file_content and not file_content.endswith('\n'):
+                new_content = file_content + '\n' + f'{steam_id}\n'
+            else:
+                new_content = file_content + f'{steam_id}\n'
+        
+        # Escrever arquivo remoto via SSH
+        if _write_remote_file(ban_file_path, new_content):
+            logger.info(f"SteamID {steam_id} adicionado ao arquivo ban.txt")
+            return True
+        else:
+            logger.error(f"Falha ao escrever arquivo ban.txt via SSH")
+            return False
                 
     except Exception as e:
         logger.error(f"Erro ao adicionar SteamID ao arquivo ban.txt: {str(e)}")
@@ -136,7 +175,7 @@ def add_steamid_to_ban_file(steam_id):
 
 def remove_steamid_from_ban_file(steam_id):
     """
-    Remove um SteamID do arquivo ban.txt se existir
+    Remove um SteamID do arquivo ban.txt se existir (via SSH)
     
     Args:
         steam_id: SteamID a remover (string)
@@ -148,20 +187,24 @@ def remove_steamid_from_ban_file(steam_id):
         logger.warning("SteamID vazio ou inválido para remover do ban.txt")
         return False
     
-    ban_file_path = config.BAN_FILE_PATH
-    
-    if not os.path.exists(ban_file_path):
-        logger.info(f"Arquivo ban.txt não existe: {ban_file_path}")
+    if not read_remote_file or not execute_remote_command:
+        logger.warning("ssh_client não disponível, não é possível remover do ban.txt")
         return False
     
+    ban_file_path = config.BAN_FILE_PATH
+    
     try:
-        # Lê todas as linhas do arquivo
-        with open(ban_file_path, 'r', encoding='utf-8') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)  # Lock exclusivo
-            try:
-                lines = f.readlines()
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        # Ler arquivo remoto via SSH
+        file_content = read_remote_file(ban_file_path)
+        
+        if file_content is None:
+            logger.info(f"Arquivo ban.txt não existe: {ban_file_path}")
+            return False
+        
+        # Processar linhas do arquivo
+        lines = file_content.splitlines(keepends=True)
+        if not lines:
+            lines = [line + '\n' for line in file_content.splitlines()]
         
         # Filtra as linhas, removendo o SteamID (preserva comentários e formatação)
         modified = False
@@ -187,13 +230,12 @@ def remove_steamid_from_ban_file(steam_id):
         
         # Reescreve o arquivo apenas se houve modificação
         if modified:
-            with open(ban_file_path, 'w', encoding='utf-8') as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                try:
-                    f.writelines(filtered_lines)
-                finally:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-            return True
+            new_content = ''.join(filtered_lines)
+            if _write_remote_file(ban_file_path, new_content):
+                return True
+            else:
+                logger.error(f"Falha ao escrever arquivo ban.txt via SSH")
+                return False
         else:
             logger.info(f"SteamID {steam_id} não encontrado no arquivo ban.txt")
             return False

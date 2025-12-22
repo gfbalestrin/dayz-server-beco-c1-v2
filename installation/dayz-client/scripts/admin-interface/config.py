@@ -92,6 +92,12 @@ if os.path.exists(CONFIG_JSON_PATH):
             RESTORE_BACKUP_SCRIPT = os.getenv('RESTORE_BACKUP_SCRIPT') or dayz_server_config.get('RestoreBackupScript') or '/home/dayzadmin/servers/dayz-server/scripts/player_restore_backup.sh'
             RESTORE_BACKUP_WORKDIR = os.getenv('RESTORE_BACKUP_WORKDIR') or dayz_server_config.get('RestoreBackupWorkdir') or '/home/dayzadmin/servers/dayz-server/scripts'
             
+            # Caminho do arquivo ban.txt no servidor remoto
+            BAN_FILE_PATH = os.getenv('BAN_FILE_PATH') or dayz_server_config.get('BanFilePath') or '/home/dayzadmin/servers/dayz-server/ban.txt'
+            
+            # Caminho do arquivo admin_ids.txt no servidor remoto
+            ADMIN_IDS_FILE = os.getenv('ADMIN_IDS_FILE') or dayz_server_config.get('AdminIdsFile') or '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/admin_ids.txt'
+            
             # Configurações RCON - lendo do config.json
             # Aceitar tanto "DayZ" quanto "Dayz" (case-insensitive)
             dayz_config = config_data.get('DayZ') or config_data.get('Dayz') or {}
@@ -148,6 +154,10 @@ if os.path.exists(CONFIG_JSON_PATH):
         # Configurações de script de restauração de backup
         RESTORE_BACKUP_SCRIPT = os.getenv('RESTORE_BACKUP_SCRIPT') or '/home/dayzadmin/servers/dayz-server/scripts/player_restore_backup.sh'
         RESTORE_BACKUP_WORKDIR = os.getenv('RESTORE_BACKUP_WORKDIR') or '/home/dayzadmin/servers/dayz-server/scripts'
+        # Caminho do arquivo ban.txt no servidor remoto
+        BAN_FILE_PATH = os.getenv('BAN_FILE_PATH') or '/home/dayzadmin/servers/dayz-server/ban.txt'
+        # Caminho do arquivo admin_ids.txt no servidor remoto
+        ADMIN_IDS_FILE = os.getenv('ADMIN_IDS_FILE') or '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/admin_ids.txt'
         # Configurações RCON - valores padrão em caso de erro
         RCON_IP = '127.0.0.1'
         RCON_PORT = '2305'
@@ -191,6 +201,10 @@ else:
     # Configurações de script de restauração de backup
     RESTORE_BACKUP_SCRIPT = os.getenv('RESTORE_BACKUP_SCRIPT') or '/home/dayzadmin/servers/dayz-server/scripts/player_restore_backup.sh'
     RESTORE_BACKUP_WORKDIR = os.getenv('RESTORE_BACKUP_WORKDIR') or '/home/dayzadmin/servers/dayz-server/scripts'
+    # Caminho do arquivo ban.txt no servidor remoto
+    BAN_FILE_PATH = os.getenv('BAN_FILE_PATH') or '/home/dayzadmin/servers/dayz-server/ban.txt'
+    # Caminho do arquivo admin_ids.txt no servidor remoto
+    ADMIN_IDS_FILE = os.getenv('ADMIN_IDS_FILE') or '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/admin_ids.txt'
     # Configurações RCON - valores padrão se config.json não existir
     RCON_IP = '127.0.0.1'
     RCON_PORT = '2305'
