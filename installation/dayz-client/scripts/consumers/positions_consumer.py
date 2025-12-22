@@ -2670,9 +2670,11 @@ class PositionsConsumer:
         if disconnect_players:
             logger.info(f"_update_players_online: players para desconectar: {list(disconnect_players)[:5]}{'...' if len(disconnect_players) > 5 else ''}")
         
-        if not connect_players and not disconnect_players:
-            logger.debug(f"_update_players_online: nenhuma mudança detectada. current_set={current_set}, previous_players={self.previous_players}")
-            return True  # Nenhuma mudança
+        # SEMPRE sincronizar o banco, mesmo quando não há mudanças detectadas
+        # Isso garante que DataConnect seja atualizado e players órfãos sejam removidos
+        has_changes = bool(connect_players or disconnect_players)
+        if not has_changes:
+            logger.debug(f"_update_players_online: nenhuma mudança detectada, mas sincronizando banco para garantir consistência")
         
         max_retries = 5
         base_retry_delay = 0.5
@@ -2696,7 +2698,8 @@ class PositionsConsumer:
                 connect_players_data = {}
                 disconnect_players_data = {}
                 
-                if connect_players or disconnect_players:
+                # Buscar dados apenas se há mudanças (para eventos Discord)
+                if has_changes:
                     # Buscar dados de players_database para conectados
                     if connect_players:
                         placeholders = ','.join(['?'] * len(connect_players))
@@ -2737,19 +2740,18 @@ class PositionsConsumer:
                                 'ping': row[9]
                             }
                 
-                # Processar conectados (INSERT OR REPLACE)
-                if connect_players:
-                    logger.info(f"Processando {len(connect_players)} jogadores para conectar na tabela players_online")
-                    connect_values = [(player_id, timestamp_str) for player_id in connect_players]
+                # SEMPRE atualizar todos os players atuais (INSERT OR REPLACE atualiza DataConnect)
+                # Isso garante que DataConnect seja atualizado mesmo quando não há mudanças
+                if current_set:
+                    logger.debug(f"Sincronizando {len(current_set)} jogadores atuais na tabela players_online")
+                    all_current_values = [(player_id, timestamp_str) for player_id in current_set]
                     cursor.executemany(
                         "INSERT OR REPLACE INTO players_online (PlayerID, DataConnect) VALUES (?, ?)",
-                        connect_values
+                        all_current_values
                     )
-                    logger.info(f"Atualizados {len(connect_players)} jogadores como conectados: {list(connect_players)[:5]}{'...' if len(connect_players) > 5 else ''}")
-                else:
-                    logger.debug("Nenhum jogador para conectar")
+                    logger.debug(f"Atualizados {len(current_set)} jogadores como conectados (sincronização completa)")
                 
-                # Processar desconectados (DELETE)
+                # Processar desconectados (DELETE apenas dos que saíram)
                 if disconnect_players:
                     logger.info(f"Processando {len(disconnect_players)} jogadores para desconectar da tabela players_online")
                     disconnect_values = [(player_id,) for player_id in disconnect_players]
@@ -2758,8 +2760,21 @@ class PositionsConsumer:
                         disconnect_values
                     )
                     logger.info(f"Removidos {len(disconnect_players)} jogadores como desconectados: {list(disconnect_players)[:5]}{'...' if len(disconnect_players) > 5 else ''}")
-                else:
-                    logger.debug("Nenhum jogador para desconectar")
+                
+                # Limpeza de players órfãos: remover players que estão no banco mas não estão em current_set
+                # Buscar todos os players_online no banco
+                cursor.execute("SELECT PlayerID FROM players_online")
+                db_player_ids = {row[0] for row in cursor.fetchall()}
+                orphaned_players = db_player_ids - current_set
+                
+                if orphaned_players:
+                    logger.info(f"Removendo {len(orphaned_players)} jogadores órfãos que estão no banco mas não estão na lista atual")
+                    orphaned_values = [(player_id,) for player_id in orphaned_players]
+                    cursor.executemany(
+                        "DELETE FROM players_online WHERE PlayerID = ?",
+                        orphaned_values
+                    )
+                    logger.info(f"Removidos {len(orphaned_players)} jogadores órfãos: {list(orphaned_players)[:5]}{'...' if len(orphaned_players) > 5 else ''}")
                 
                 # Commit transação
                 conn.commit()
