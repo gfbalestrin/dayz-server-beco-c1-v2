@@ -8,6 +8,7 @@ import fcntl
 import os
 import subprocess
 import json
+from datetime import datetime, timezone, timedelta
 import config
 from database import (
     get_online_players, check_backup_exists_any_player,
@@ -1089,7 +1090,7 @@ def api_player_chat(player_id):
         )
         
         # Filtrar apenas eventos de chat
-        chat_events = [e for e in events if e.get('EventType') in ['chat_command', 'admin_message']]
+        chat_events = [e for e in events if e.get('EventType') in ['chat_command', 'chat_message', 'admin_message']]
         
         # Processar eventos e extrair mensagens
         messages = []
@@ -1097,21 +1098,62 @@ def api_player_chat(player_id):
             try:
                 event_type = event.get('EventType', '')
                 details = json.loads(event.get('Details', '{}'))
-                message_text = details.get('message', '')
+                
+                # Buscar mensagem em 'message' ou 'chat_message' (compatibilidade)
+                message_text = details.get('message', '') or details.get('chat_message', '')
                 
                 # Determinar tipo de mensagem baseado no tipo de evento
                 if event_type == 'chat_command':
-                    command_name = details.get('command_name', '')
+                    command_name = details.get('command_name', '') or details.get('command', '')
                     msg_type = 'player_message'
+                elif event_type == 'chat_message':
+                    # Mensagem normal do jogador (sem comando)
+                    msg_type = 'player_message'
+                    command_name = ''
                 elif event_type == 'admin_message':
                     msg_type = 'admin_message'
                     command_name = ''
                 else:
                     continue  # Ignorar outros tipos de evento
                 
+                # Converter timestamp de UTC para America/Sao_Paulo (UTC-3)
+                event_timestamp = event.get('TimeStamp')
+                if event_timestamp:
+                    # Se for string, converter para datetime
+                    if isinstance(event_timestamp, str):
+                        try:
+                            # Tentar parsear como ISO format
+                            dt = datetime.fromisoformat(event_timestamp.replace('Z', '+00:00'))
+                        except ValueError:
+                            # Tentar parsear outros formatos comuns
+                            try:
+                                dt = datetime.strptime(event_timestamp, '%Y-%m-%d %H:%M:%S')
+                                # Assumir UTC se não tiver timezone
+                                dt = dt.replace(tzinfo=timezone.utc)
+                            except ValueError:
+                                logger.warning(f"Formato de timestamp não reconhecido: {event_timestamp}")
+                                dt = None
+                    else:
+                        # Se já for datetime, usar diretamente
+                        dt = event_timestamp
+                        if dt.tzinfo is None:
+                            # Se não tiver timezone, assumir UTC
+                            dt = dt.replace(tzinfo=timezone.utc)
+                    
+                    if dt:
+                        # Converter de UTC para America/Sao_Paulo (UTC-3)
+                        sao_paulo_tz = timezone(timedelta(hours=-3))
+                        dt_sao_paulo = dt.astimezone(sao_paulo_tz)
+                        # Converter de volta para string ISO para o frontend
+                        timestamp_str = dt_sao_paulo.isoformat()
+                    else:
+                        timestamp_str = event_timestamp
+                else:
+                    timestamp_str = event_timestamp
+                
                 messages.append({
                     'id': event.get('EventId'),
-                    'timestamp': event.get('TimeStamp'),
+                    'timestamp': timestamp_str,
                     'message': message_text,
                     'command_name': command_name,
                     'type': msg_type

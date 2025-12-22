@@ -10,7 +10,8 @@
   },
   "App": {
     "Description": "Servidor de Monitoramento DayZ - Beco Gaming",
-    "Version": "1.0.0"
+    "Version": "1.0.0",
+    "RconBinFile": "bercon-cli"
   },
   "Flask": {
     "Host": "0.0.0.0",
@@ -36,6 +37,11 @@
       "MessageId": "1111111111111111111",
       "BotToken": "abcdefghijklmnopqrstuvwxyz1234567890"
     }
+  },
+  "DayZ": {
+    "RConIP": "127.0.0.1",
+    "RConPort": "2305",
+    "RConPassword": ""
   },
   "DayZServer": {
     "SSH": {

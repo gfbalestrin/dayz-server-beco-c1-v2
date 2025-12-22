@@ -532,8 +532,16 @@ function sendChatMessage(playerId) {
             return;
         }
         
-    // Desabilitar botão durante envio
-    $('#chatSendBtn').prop('disabled', true);
+    // Salvar HTML original do botão
+    const sendBtn = $('#chatSendBtn');
+    const originalBtnHtml = sendBtn.html();
+    
+    // Desabilitar botão e campo de input durante envio
+    sendBtn.prop('disabled', true);
+    $('#chatMessageInput').prop('disabled', true);
+    
+    // Mostrar loading no botão
+    sendBtn.html('<i class="fas fa-spinner fa-spin me-2"></i>Enviando...');
     
     $.ajax({
         url: `/api/players/${encodeURIComponent(playerId)}/send-message`,
@@ -551,12 +559,16 @@ function sendChatMessage(playerId) {
             } else {
                 showToast('Erro', response.message || 'Erro ao enviar mensagem', 'error');
             }
-            $('#chatSendBtn').prop('disabled', false);
+            // Restaurar estado do botão e campo
+            sendBtn.prop('disabled', false).html(originalBtnHtml);
+            $('#chatMessageInput').prop('disabled', false);
         },
         error: function(xhr) {
             const error = xhr.responseJSON || {};
             showToast('Erro', error.message || 'Erro ao enviar mensagem', 'error');
-            $('#chatSendBtn').prop('disabled', false);
+            // Restaurar estado do botão e campo
+            sendBtn.prop('disabled', false).html(originalBtnHtml);
+            $('#chatMessageInput').prop('disabled', false);
         }
     });
 }

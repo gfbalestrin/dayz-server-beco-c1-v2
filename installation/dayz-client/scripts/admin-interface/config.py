@@ -92,12 +92,25 @@ if os.path.exists(CONFIG_JSON_PATH):
             RESTORE_BACKUP_SCRIPT = os.getenv('RESTORE_BACKUP_SCRIPT') or dayz_server_config.get('RestoreBackupScript') or '/home/dayzadmin/servers/dayz-server/scripts/player_restore_backup.sh'
             RESTORE_BACKUP_WORKDIR = os.getenv('RESTORE_BACKUP_WORKDIR') or dayz_server_config.get('RestoreBackupWorkdir') or '/home/dayzadmin/servers/dayz-server/scripts'
             
+            # Configurações RCON - lendo do config.json
+            # Aceitar tanto "DayZ" quanto "Dayz" (case-insensitive)
+            dayz_config = config_data.get('DayZ') or config_data.get('Dayz') or {}
+            app_config = config_data.get('App', {})
+            
+            RCON_IP = dayz_config.get('RConIP', '127.0.0.1')
+            RCON_PORT = dayz_config.get('RConPort', '2305')
+            RCON_PASSWORD = dayz_config.get('RConPassword', '')
+            RCON_BIN = app_config.get('RconBinFile', 'bercon-cli')
+            # Caminho completo do binário RCON (assumindo que está no PATH ou no diretório de scripts)
+            RCON_BIN_PATH = RCON_BIN if os.path.isabs(RCON_BIN) or '/' in RCON_BIN else RCON_BIN
+            
             logger = logging.getLogger(__name__)
             logger.debug(f"RabbitMQ configurado: HOST={RABBITMQ_HOST}, PORT={RABBITMQ_PORT}, VHOST={RABBITMQ_VHOST}, ENABLED={RABBITMQ_ENABLED}")
             logger.debug(f"Discord configurado: DESACTIVE={DISCORD_DESACTIVE}, WEBHOOK_LOGS={'***' if DISCORD_WEBHOOK_LOGS else ''}, CHANNEL_ID={'***' if DISCORD_CHANNEL_PLAYERS_ONLINE_CHANNEL_ID else ''}")
             logger.debug(f"Flask configurado: HOST={HOST}, PORT={PORT}, DEBUG={DEBUG}")
             logger.debug(f"Admin configurado: USERNAME={ADMIN_USERNAME}")
             logger.debug(f"SSH configurado: HOST={'***' if DAYZ_SERVER_SSH_HOST else 'não configurado'}, PORT={DAYZ_SERVER_SSH_PORT}, USER={'***' if DAYZ_SERVER_SSH_USER else 'não configurado'}, AUTH={'chave' if DAYZ_SERVER_SSH_KEY_PATH else 'senha' if DAYZ_SERVER_SSH_PASSWORD else 'não configurado'}")
+            logger.debug(f"RCON configurado: IP={RCON_IP}, PORT={RCON_PORT}, BIN={RCON_BIN_PATH}, PASSWORD={'*' * len(RCON_PASSWORD) if RCON_PASSWORD else 'VAZIA'}")
     except Exception as e:
         logger = logging.getLogger(__name__)
         logger.error(f"Erro ao ler configuração do config.json: {str(e)}")
@@ -135,6 +148,11 @@ if os.path.exists(CONFIG_JSON_PATH):
         # Configurações de script de restauração de backup
         RESTORE_BACKUP_SCRIPT = os.getenv('RESTORE_BACKUP_SCRIPT') or '/home/dayzadmin/servers/dayz-server/scripts/player_restore_backup.sh'
         RESTORE_BACKUP_WORKDIR = os.getenv('RESTORE_BACKUP_WORKDIR') or '/home/dayzadmin/servers/dayz-server/scripts'
+        # Configurações RCON - valores padrão em caso de erro
+        RCON_IP = '127.0.0.1'
+        RCON_PORT = '2305'
+        RCON_PASSWORD = ''
+        RCON_BIN_PATH = 'bercon-cli'
 else:
     # Valores padrão se config.json não existir
     logger = logging.getLogger(__name__)
@@ -173,6 +191,11 @@ else:
     # Configurações de script de restauração de backup
     RESTORE_BACKUP_SCRIPT = os.getenv('RESTORE_BACKUP_SCRIPT') or '/home/dayzadmin/servers/dayz-server/scripts/player_restore_backup.sh'
     RESTORE_BACKUP_WORKDIR = os.getenv('RESTORE_BACKUP_WORKDIR') or '/home/dayzadmin/servers/dayz-server/scripts'
+    # Configurações RCON - valores padrão se config.json não existir
+    RCON_IP = '127.0.0.1'
+    RCON_PORT = '2305'
+    RCON_PASSWORD = ''
+    RCON_BIN_PATH = 'bercon-cli'
 
 # Validação de configurações obrigatórias
 logger = logging.getLogger(__name__)
@@ -198,10 +221,13 @@ if not ADMIN_PASSWORD:
 if DEBUG is None:
     DEBUG = False
 
+# Validar se a senha RCON foi configurada (apenas warning, não bloqueia)
+if not RCON_PASSWORD:
+    logger.warning("RCON_PASSWORD não está configurada. Comandos RCON podem falhar.")
+
 # Nota: As seguintes configurações não são necessárias no servidor de monitoramento:
-# - RCON (não há servidor DayZ local)
-# - Arquivos de comandos do DayZ
-# - Arquivos de mensagens do DayZ
+# - Arquivos de comandos do DayZ (usamos RCON diretamente)
+# - Arquivos de mensagens do DayZ (usamos RCON diretamente)
 # - Arquivos de configuração do servidor DayZ
 # - Arquivos XML (types.xml, events.xml)
 # - Caminhos de logs do servidor DayZ
