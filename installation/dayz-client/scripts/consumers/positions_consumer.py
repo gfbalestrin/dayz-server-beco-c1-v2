@@ -662,6 +662,28 @@ class PositionsConsumer:
                 else:
                     vehicle_tracking_map = {}
                 
+                # Verificar veículos que devem ser marcados como destruídos
+                # Comparar veículos ativos no banco com a lista recebida
+                active_vehicle_ids = self._fetch_all_active_vehicle_ids(cursor)
+                received_vehicle_ids_set = set(vehicle_ids)
+                
+                # Veículos que estão ativos no banco mas não estão na lista recebida
+                vehicles_to_mark_destroyed = active_vehicle_ids - received_vehicle_ids_set
+                
+                if vehicles_to_mark_destroyed:
+                    vehicles_to_mark_destroyed_list = list(vehicles_to_mark_destroyed)
+                    logger.info(f"Encontrados {len(vehicles_to_mark_destroyed_list)} veículos ativos no banco que não estão na lista recebida - marcando como destruídos")
+                    
+                    # Marcar veículos como destruídos dentro de uma transação
+                    cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+                    destroyed_count = self._mark_vehicles_as_destroyed(cursor, vehicles_to_mark_destroyed_list, base_timestamp)
+                    conn.commit()
+                    
+                    if destroyed_count > 0:
+                        logger.info(f"Marcados {destroyed_count} registros de {len(vehicles_to_mark_destroyed_list)} veículos como destruídos")
+                else:
+                    logger.debug("Nenhum veículo precisa ser marcado como destruído")
+                
                 conn.close()
                 
                 # Log sucesso
@@ -1496,6 +1518,101 @@ class PositionsConsumer:
             logger.warning(f"Erro ao buscar vehicles anteriores: {e}")
         
         return prev_vehicles
+    
+    def _fetch_all_active_vehicle_ids(self, cursor: sqlite3.Cursor) -> set:
+        """
+        Busca todos os VehicleId únicos que estão ativos no banco (IsDestroyed = 0 ou NULL)
+        Retorna um set de IDs para comparação eficiente
+        """
+        active_vehicle_ids = set()
+        
+        try:
+            # Verificar se coluna IsDestroyed existe
+            cursor.execute("SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='IsDestroyed'")
+            has_is_destroyed = cursor.fetchone()[0] > 0
+            
+            if has_is_destroyed:
+                sql_query = """
+                SELECT DISTINCT VehicleId
+                FROM vehicles_tracking
+                WHERE (IsDestroyed = 0 OR IsDestroyed IS NULL)
+                """
+            else:
+                # Se não tem coluna IsDestroyed, retornar todos os veículos únicos
+                sql_query = """
+                SELECT DISTINCT VehicleId
+                FROM vehicles_tracking
+                """
+            
+            cursor.execute(sql_query)
+            results = cursor.fetchall()
+            
+            for row in results:
+                vehicle_id = row[0]
+                if vehicle_id:
+                    active_vehicle_ids.add(vehicle_id)
+            
+            logger.debug(f"Encontrados {len(active_vehicle_ids)} veículos ativos no banco")
+        except Exception as e:
+            logger.warning(f"Erro ao buscar todos os veículos ativos: {e}")
+        
+        return active_vehicle_ids
+    
+    def _mark_vehicles_as_destroyed(self, cursor: sqlite3.Cursor, vehicle_ids: List[str], timestamp: datetime) -> int:
+        """
+        Marca todos os registros de veículos como destruídos
+        Define IsDestroyed = 1 e DestroyedAt = timestamp para todos os registros desses veículos
+        Retorna o número de registros atualizados
+        """
+        if not vehicle_ids:
+            return 0
+        
+        try:
+            # Verificar se coluna IsDestroyed existe
+            cursor.execute("SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='IsDestroyed'")
+            has_is_destroyed = cursor.fetchone()[0] > 0
+            
+            if not has_is_destroyed:
+                logger.warning("Coluna IsDestroyed não existe na tabela vehicles_tracking, não é possível marcar veículos como destruídos")
+                return 0
+            
+            # Verificar se coluna DestroyedAt existe
+            cursor.execute("SELECT COUNT(*) FROM pragma_table_info('vehicles_tracking') WHERE name='DestroyedAt'")
+            has_destroyed_at = cursor.fetchone()[0] > 0
+            
+            timestamp_str = timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+            
+            placeholders = ','.join(['?'] * len(vehicle_ids))
+            
+            if has_destroyed_at:
+                sql_query = f"""
+                UPDATE vehicles_tracking
+                SET IsDestroyed = 1, DestroyedAt = ?
+                WHERE VehicleId IN ({placeholders})
+                AND (IsDestroyed = 0 OR IsDestroyed IS NULL)
+                """
+                params = [timestamp_str] + vehicle_ids
+            else:
+                sql_query = f"""
+                UPDATE vehicles_tracking
+                SET IsDestroyed = 1
+                WHERE VehicleId IN ({placeholders})
+                AND (IsDestroyed = 0 OR IsDestroyed IS NULL)
+                """
+                params = vehicle_ids
+            
+            cursor.execute(sql_query, params)
+            updated_count = cursor.rowcount
+            
+            if updated_count > 0:
+                logger.info(f"Marcados {updated_count} registros de {len(vehicle_ids)} veículos como destruídos (DestroyedAt: {timestamp_str})")
+            else:
+                logger.debug(f"Nenhum registro foi atualizado para {len(vehicle_ids)} veículos (já estavam marcados como destruídos ou não existem)")
+            
+            return updated_count
+        except Exception as e:
+            logger.error(f"Erro ao marcar veículos como destruídos: {e}")
+            return 0
     
     def _fetch_previous_containers(self, cursor: sqlite3.Cursor, db_path: str, container_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         """
