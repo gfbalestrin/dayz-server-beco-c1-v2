@@ -204,10 +204,15 @@ class CustomMission: MissionServer
 	override void OnUpdate(float timeslice)
 	{
 		super.OnUpdate(timeslice);
+		if (!MonitorMode)
+		{
+			return;
+		}
 		m_AdminCheckTimer10 += timeslice;
 		m_AdminCheckTimer60 += timeslice;
 		m_AdminCheckTimer600 += timeslice;
 
+		// Timer de 10 segundos para envio de posições
 		if (m_AdminCheckTimer10 >= m_AdminCheckCooldown10)
 		{
 			m_AdminCheckTimer10 = 0.0;
