@@ -10,6 +10,7 @@ string AdminIdsFile = "$mission:admin/files/admin_ids.txt";
 string CommandsResultsFile = "$mission:admin/files/commands_results.txt";
 string UrlAppPython = "http://beco.servegame.com:54321/";
 bool IsDeathmatchEnabled = false;
+bool MonitorMode = false;
 
 enum MessageColor
 {
