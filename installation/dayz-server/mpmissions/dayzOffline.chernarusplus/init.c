@@ -134,7 +134,7 @@ class CustomMission: MissionServer
 	override void OnInit()
     {
         super.OnInit();		
-		if (!IsDeathmatchEnabled && MonitorMode)
+		if (!IsDeathmatchEnabled)
 		{
 			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitWorldTracking, 5000, false);
 		}
