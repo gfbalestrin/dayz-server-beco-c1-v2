@@ -204,6 +204,10 @@ class CustomMission: MissionServer
 	override void OnUpdate(float timeslice)
 	{
 		super.OnUpdate(timeslice);
+		if (!IsDeathmatchEnabled && !MonitorMode)
+		{
+			return;
+		}
 		m_AdminCheckTimer10 += timeslice;
 		m_AdminCheckTimer60 += timeslice;
 		m_AdminCheckTimer600 += timeslice;
