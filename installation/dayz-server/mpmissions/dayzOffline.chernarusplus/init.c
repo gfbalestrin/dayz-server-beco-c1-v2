@@ -206,6 +206,9 @@ class CustomMission: MissionServer
 		super.OnUpdate(timeslice);
 		if (!IsDeathmatchEnabled && !MonitorMode)
 		{
+			m_AdminCheckTimer10 = 0.0;
+			m_AdminCheckTimer60 = 0.0;
+			m_AdminCheckTimer600 = 0.0;
 			return;
 		}
 		m_AdminCheckTimer10 += timeslice;
