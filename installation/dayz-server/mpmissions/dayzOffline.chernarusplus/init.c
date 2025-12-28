@@ -217,7 +217,7 @@ class CustomMission: MissionServer
 			GetGame().GetPlayers(players);
 
 			// Passar para SendPlayersPositions
-			if (!IsDeathmatchEnabled)
+			if (!IsDeathmatchEnabled && MonitorMode)
 			{
 				SendPlayersPositions(players);	
 			}				
