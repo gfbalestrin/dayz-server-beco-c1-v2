@@ -225,7 +225,7 @@ class CustomMission: MissionServer
 			GetGame().GetPlayers(players);
 
 			// Passar para SendPlayersPositions
-			if (!IsDeathmatchEnabled && MonitorMode)
+			if (!IsDeathmatchEnabled)
 			{
 				SendPlayersPositions(players);	
 			}				
@@ -320,7 +320,7 @@ class CustomMission: MissionServer
 				}
 				CleanUpDeadEntitiesNearPlayers();
 			} 
-			if (!IsDeathmatchEnabled && MonitorMode)
+			if (!IsDeathmatchEnabled)
 			{
 				//LogVehiclesPositionsSimple(); // Loga coordenadas dos veículos para análise de performance
 				CleanTrackedVehicles(); // Limpa veículos destruídos do array
@@ -349,7 +349,7 @@ class CustomMission: MissionServer
 		{
 			m_AdminCheckTimer600 = 0.0;
 
-			if (!IsDeathmatchEnabled && MonitorMode)
+			if (!IsDeathmatchEnabled)
 			{
 				// Obter players UMA vez para reutilizar
 				array<Man> players600 = new array<Man>;
