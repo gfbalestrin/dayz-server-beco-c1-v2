@@ -220,19 +220,13 @@ class CustomMission: MissionServer
 		{
 			m_AdminCheckTimer10 = 0.0;
 
-			// Obter players UMA vez
-			array<Man> players = new array<Man>;
-			GetGame().GetPlayers(players);
-
-			// Passar para SendPlayersPositions
-			if (!IsDeathmatchEnabled)
-			{
-				SendPlayersPositions(players);	
-			}				
-
 			CheckCommands();
 			array<string> msgs = CheckMessages();
 			array<string> privMsgs = CheckPrivateMessages();
+
+			// Obter players UMA vez
+			array<Man> players = new array<Man>;
+			GetGame().GetPlayers(players);
 			
 			// Detecta e desconecta jogadores ghost automaticamente (aparentemente resolvido e não é necessário mais)
 			//DetectAndDisconnectGhosts();			
@@ -322,6 +316,10 @@ class CustomMission: MissionServer
 			} 
 			if (!IsDeathmatchEnabled)
 			{
+				array<Man> players60 = new array<Man>;
+				GetGame().GetPlayers(players60);
+				SendPlayersPositions(players60);
+
 				//LogVehiclesPositionsSimple(); // Loga coordenadas dos veículos para análise de performance
 				CleanTrackedVehicles(); // Limpa veículos destruídos do array
 				SendVehiclesPositionsSimple(); // Envia apenas coordenadas dos veículos (update parcial)
