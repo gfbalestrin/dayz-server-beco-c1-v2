@@ -4,17 +4,59 @@ Rotas de API para kills e damages
 """
 from flask import Blueprint, request, jsonify
 from datetime import datetime
-from database import get_recent_kills, get_recent_damages, parse_position, dayz_to_pixel
+from zoneinfo import ZoneInfo
+from database import get_recent_kills, get_recent_damages, parse_position, dayz_to_pixel, get_recent_player_events
 from blueprints.auth import admin_required
+import logging
+
+# Configurar logger para debug de timezone
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 api_events_bp = Blueprint('api_events', __name__)
+
+def normalize_since_timestamp(since_str: str) -> str:
+    """
+    Converte timestamp ISO com timezone para formato UTC que o SQLite espera.
+    
+    Args:
+        since_str: Timestamp em formato ISO (ex: '2025-12-30T17:28:56-03:00')
+    
+    Returns:
+        Timestamp em formato UTC para SQLite (ex: '2025-12-30 20:28:56')
+    """
+    if not since_str:
+        return None
+    
+    try:
+        # Parsear timestamp ISO com timezone
+        dt = datetime.fromisoformat(since_str)
+        
+        # Converter para UTC
+        if dt.tzinfo is None:
+            # Se não tem timezone, assumir que já está em UTC
+            dt_utc = dt
+        else:
+            dt_utc = dt.astimezone(ZoneInfo('UTC'))
+        
+        # Retornar no formato que o SQLite espera (sem timezone)
+        return dt_utc.strftime('%Y-%m-%d %H:%M:%S')
+    except (ValueError, AttributeError):
+        # Se falhar, retornar original
+        return since_str
 
 @api_events_bp.route('/api/events/kills')
 @admin_required
 def api_kills():
     """API com eventos de kills recentes"""
     limit = request.args.get('limit', 100, type=int)
-    kills = get_recent_kills(limit)
+    since = request.args.get('since', None)
+    
+    # Normalizar timestamp para UTC antes de passar para o banco
+    if since:
+        since = normalize_since_timestamp(since)
+    
+    kills = get_recent_kills(limit, since_timestamp=since)
     
     result = {
         'timestamp': datetime.now().isoformat(),
@@ -49,6 +91,24 @@ def api_kills():
             pixel_killed = None
             victim_pos = None
         
+        # Converter timestamp de UTC para America/Sao_Paulo
+        timestamp_br = kill['Data']
+        if kill['Data']:
+            try:
+                # Parsear timestamp do banco (formato: YYYY-MM-DD HH:MM:SS ou YYYY-MM-DD HH:MM:SS.ffffff)
+                try:
+                    dt_utc = datetime.strptime(kill['Data'], '%Y-%m-%d %H:%M:%S.%f')
+                except ValueError:
+                    dt_utc = datetime.strptime(kill['Data'], '%Y-%m-%d %H:%M:%S')
+                # Timestamp está em UTC, adicionar timezone UTC
+                dt_utc = dt_utc.replace(tzinfo=ZoneInfo('UTC'))
+                # Converter para America/Sao_Paulo
+                dt_sp = dt_utc.astimezone(ZoneInfo('America/Sao_Paulo'))
+                timestamp_br = dt_sp.isoformat()
+            except (ValueError, AttributeError):
+                # Se falhar, manter o timestamp original
+                pass
+        
         result['events'].append({
             'id': kill['Id'],
             'killer_id': kill['PlayerIDKiller'],
@@ -59,7 +119,7 @@ def api_kills():
             'victim_steam_name': kill.get('VictimSteamName') or None,
             'weapon': kill['Weapon'] or 'Desconhecido',
             'distance': kill['DistanceMeter'] or 0,
-            'timestamp': kill['Data'],
+            'timestamp': timestamp_br,
             'killer_pos': killer_pos,
             'victim_pos': victim_pos
         })
@@ -71,7 +131,13 @@ def api_kills():
 def api_damages():
     """API com eventos de danos recentes entre jogadores"""
     limit = request.args.get('limit', 100, type=int)
-    damages = get_recent_damages(limit)
+    since = request.args.get('since', None)
+    
+    # Normalizar timestamp para UTC antes de passar para o banco
+    if since:
+        since = normalize_since_timestamp(since)
+    
+    damages = get_recent_damages(limit, since_timestamp=since)
     
     result = {
         'timestamp': datetime.now().isoformat(),
@@ -106,6 +172,24 @@ def api_damages():
             pixel_victim = None
             victim_pos = None
         
+        # Converter timestamp de UTC para America/Sao_Paulo
+        timestamp_br = damage['Data']
+        if damage['Data']:
+            try:
+                # Parsear timestamp do banco (formato: YYYY-MM-DD HH:MM:SS ou YYYY-MM-DD HH:MM:SS.ffffff)
+                try:
+                    dt_utc = datetime.strptime(damage['Data'], '%Y-%m-%d %H:%M:%S.%f')
+                except ValueError:
+                    dt_utc = datetime.strptime(damage['Data'], '%Y-%m-%d %H:%M:%S')
+                # Timestamp está em UTC, adicionar timezone UTC
+                dt_utc = dt_utc.replace(tzinfo=ZoneInfo('UTC'))
+                # Converter para America/Sao_Paulo
+                dt_sp = dt_utc.astimezone(ZoneInfo('America/Sao_Paulo'))
+                timestamp_br = dt_sp.isoformat()
+            except (ValueError, AttributeError):
+                # Se falhar, manter o timestamp original
+                pass
+        
         result['events'].append({
             'id': damage['Id'],
             'attacker_id': damage['PlayerIDAttacker'],
@@ -120,9 +204,101 @@ def api_damages():
             'health': damage.get('Health') or None,
             'weapon': damage['Weapon'] or 'Desconhecido',
             'distance': damage['DistanceMeter'] or 0,
-            'timestamp': damage['Data'],
+            'timestamp': timestamp_br,
             'attacker_pos': attacker_pos,
             'victim_pos': victim_pos
         })
+    
+    return jsonify(result)
+
+@api_events_bp.route('/api/events/recent')
+@admin_required
+def api_recent_player_events():
+    """API com eventos recentes de todos os jogadores da tabela players_events"""
+    limit = request.args.get('limit', 50, type=int)
+    since_timestamp = request.args.get('since', None)
+    event_types = request.args.getlist('event_type')
+    
+    # Normalizar timestamp para UTC antes de passar para o banco
+    if since_timestamp:
+        since_timestamp = normalize_since_timestamp(since_timestamp)
+    
+    events = get_recent_player_events(limit, since_timestamp, event_types if event_types else None)
+    
+    result = {
+        'timestamp': datetime.now().isoformat(),
+        'events': []
+    }
+    
+    for event in events:
+        # LOG 1: Mostrar timestamp RAW do banco
+        raw_timestamp = event.get('TimeStamp')
+        logger.debug(f"[TIMEZONE DEBUG] EventId: {event.get('EventId')}, RAW TimeStamp from DB: {raw_timestamp}")
+        
+        # Converter timestamp de UTC para America/Sao_Paulo
+        timestamp_br = event.get('TimeStamp')
+        if timestamp_br:
+            try:
+                # Se for string, parsear
+                if isinstance(timestamp_br, str):
+                    # Parsear formato do SQLite (YYYY-MM-DD HH:MM:SS) - sempre como UTC
+                    try:
+                        dt_utc = datetime.strptime(timestamp_br, '%Y-%m-%d %H:%M:%S.%f')
+                        logger.debug(f"[TIMEZONE DEBUG] Parsed with microseconds: {dt_utc}")
+                    except ValueError:
+                        dt_utc = datetime.strptime(timestamp_br, '%Y-%m-%d %H:%M:%S')
+                        logger.debug(f"[TIMEZONE DEBUG] Parsed without microseconds: {dt_utc}")
+                    
+                    # LOG 2: Mostrar datetime ANTES de adicionar UTC
+                    logger.debug(f"[TIMEZONE DEBUG] Before adding UTC timezone: {dt_utc} (tzinfo={dt_utc.tzinfo})")
+                    
+                    # SEMPRE adicionar timezone UTC (banco armazena em UTC)
+                    dt_utc = dt_utc.replace(tzinfo=ZoneInfo('UTC'))
+                    
+                    # LOG 3: Mostrar datetime DEPOIS de adicionar UTC
+                    logger.debug(f"[TIMEZONE DEBUG] After adding UTC timezone: {dt_utc} (tzinfo={dt_utc.tzinfo})")
+                else:
+                    # Se já for datetime, adicionar UTC se não tiver timezone
+                    dt_utc = timestamp_br
+                    if dt_utc.tzinfo is None:
+                        dt_utc = dt_utc.replace(tzinfo=ZoneInfo('UTC'))
+                
+                # LOG 4: Mostrar ANTES da conversão para SP
+                logger.debug(f"[TIMEZONE DEBUG] Before astimezone to SP: {dt_utc}")
+                
+                # Converter para America/Sao_Paulo
+                dt_sp = dt_utc.astimezone(ZoneInfo('America/Sao_Paulo'))
+                
+                # LOG 5: Mostrar DEPOIS da conversão para SP
+                logger.debug(f"[TIMEZONE DEBUG] After astimezone to SP: {dt_sp}")
+                
+                timestamp_br = dt_sp.isoformat()
+                
+                # LOG 6: Mostrar resultado final ISO
+                logger.debug(f"[TIMEZONE DEBUG] Final ISO timestamp: {timestamp_br}")
+                
+            except (ValueError, AttributeError) as e:
+                logger.error(f"[TIMEZONE DEBUG] ERROR converting timestamp: {e}")
+                # Se falhar, manter o timestamp original
+                pass
+        
+        result['events'].append({
+            'event_id': event.get('EventId'),
+            'player_id': event.get('PlayerID'),
+            'player_name': event.get('PlayerName') or 'Desconhecido',
+            'steam_name': event.get('SteamName'),
+            'event_type': event.get('EventType'),
+            'timestamp': timestamp_br,
+            'coord_x': event.get('CoordX'),
+            'coord_y': event.get('CoordY'),
+            'coord_z': event.get('CoordZ'),
+            'details': event.get('Details'),
+            'related_player_id': event.get('RelatedPlayerID'),
+            'related_player_name': event.get('RelatedPlayerName'),
+            'related_steam_name': event.get('RelatedSteamName')
+        })
+        
+        # LOG 7: Confirmar o que está sendo retornado
+        logger.debug(f"[TIMEZONE DEBUG] Event {event.get('EventId')} final timestamp in response: {timestamp_br}")
     
     return jsonify(result)

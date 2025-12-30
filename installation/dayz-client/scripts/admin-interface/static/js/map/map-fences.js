@@ -19,6 +19,7 @@ function detectFenceChanges(newData, oldData) {
             const structureName = structureType === 'watchtower' ? 'Watchtower' : (structureType === 'flag' ? 'Flag Pole' : 'Fence');
             changes.push({
                 type: 'new',
+                subtype: 'new',
                 fenceId: fenceId,
                 structureType: structureType,
                 message: `Nova construção: ${structureName}`
@@ -29,16 +30,26 @@ function detectFenceChanges(newData, oldData) {
         const changeMessages = [];
         const structureType = fence.structure_type || 'fence';
         
+        // Detectar mudança de posição
         if (oldFence.coord_x !== fence.coord_x || oldFence.coord_y !== fence.coord_y) {
-            changeMessages.push('mudou de posição');
+            changes.push({
+                type: 'change',
+                subtype: 'position',
+                fenceId: fenceId,
+                structureType: structureType,
+                message: `Construção mudou de posição`
+            });
         }
         
+        // Detectar destruição/restauração
         if (oldFence.is_destroyed !== fence.is_destroyed) {
-            if (fence.is_destroyed) {
-                changeMessages.push('foi destruída');
-            } else {
-                changeMessages.push('foi restaurada');
-            }
+            changes.push({
+                type: 'change',
+                subtype: 'destroyed',
+                fenceId: fenceId,
+                structureType: structureType,
+                message: `Construção ${fence.is_destroyed ? 'foi destruída' : 'foi restaurada'}`
+            });
         }
         
         if (structureType === 'fence') {
@@ -143,8 +154,11 @@ function updateFences(data) {
     if (Object.keys(MapState.previousFencesData).length > 0 && MapState.notificationsEnabled) {
         const fenceChanges = detectFenceChanges(data, MapState.previousFencesData);
         fenceChanges.forEach(function(change) {
-            showToast('Construção', change.message, 'info');
-            addNotificationToLog('info', `Construção: ${change.message}`);
+            // Verificar se deve notificar baseado nas configurações
+            if (shouldNotify('fences', change.subtype)) {
+                showToast('Construção', change.message, 'info');
+                addNotificationToLog('info', `Construção: ${change.message}`);
+            }
         });
     }
     

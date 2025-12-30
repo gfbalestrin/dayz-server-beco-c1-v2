@@ -45,7 +45,15 @@ function detectDamageChanges(newData, oldData) {
  * Carregar eventos de kill
  */
 function loadKills() {
-    $.get('/api/events/kills', { limit: 50 })
+    const params = { limit: 50 };
+    
+    // Adicionar filtro de período se configurado
+    const startTime = getMonitoringStartTimestamp();
+    if (startTime) {
+        params.since = startTime;
+    }
+    
+    $.get('/api/events/kills', params)
         .done(function(data) {
             updateKills(data);
         })
@@ -62,13 +70,17 @@ function updateKills(data) {
     if (MapState.previousKillsData.length > 0 && MapState.notificationsEnabled) {
         const newKills = detectKillChanges(data, MapState.previousKillsData);
         newKills.forEach(function(kill) {
-            const killerName = kill.killer_name || 'Desconhecido';
-            const victimName = kill.victim_name || 'Desconhecido';
-            const weapon = kill.weapon || 'Desconhecida';
-            const distance = kill.distance ? `${kill.distance.toFixed(0)}m` : 'N/A';
-            const message = `${killerName} matou ${victimName} com ${weapon} (${distance})`;
-            showToast('Kill', message, 'danger');
-            addNotificationToLog('danger', `Kill: ${message}`);
+            // Verificar se deve notificar baseado nas configurações
+            if (shouldNotify('kills')) {
+                const killerName = kill.killer_name || 'Desconhecido';
+                const victimName = kill.victim_name || 'Desconhecido';
+                const weapon = kill.weapon || 'Desconhecida';
+                const distance = kill.distance ? `${kill.distance.toFixed(0)}m` : 'N/A';
+                const message = `${killerName} matou ${victimName} com ${weapon} (${distance})`;
+                const killTimestamp = kill.timestamp ? new Date(kill.timestamp) : new Date();
+                showToast('Kill', message, 'danger');
+                addNotificationToLog('danger', `Kill: ${message}`, killTimestamp);
+            }
         });
     }
     
@@ -306,7 +318,15 @@ function toggleKills() {
  * Carregar eventos de danos
  */
 function loadDamages() {
-    $.get('/api/events/damages', { limit: 50 })
+    const params = { limit: 50 };
+    
+    // Adicionar filtro de período se configurado
+    const startTime = getMonitoringStartTimestamp();
+    if (startTime) {
+        params.since = startTime;
+    }
+    
+    $.get('/api/events/damages', params)
         .done(function(data) {
             updateDamages(data);
         })
@@ -323,14 +343,18 @@ function updateDamages(data) {
     if (MapState.previousDamagesData.length > 0 && MapState.notificationsEnabled) {
         const newDamages = detectDamageChanges(data, MapState.previousDamagesData);
         newDamages.forEach(function(damage) {
-            const attackerName = damage.attacker_name || 'Desconhecido';
-            const victimName = damage.victim_name || 'Desconhecido';
-            const weapon = damage.weapon || 'Desconhecida';
-            const distance = damage.distance ? `${damage.distance.toFixed(0)}m` : 'N/A';
-            const damageAmount = damage.damage ? damage.damage.toFixed(1) : 'N/A';
-            const message = `${attackerName} causou ${damageAmount} de dano em ${victimName} com ${weapon} (${distance})`;
-            showToast('Dano', message, 'warning');
-            addNotificationToLog('warning', `Dano: ${message}`);
+            // Verificar se deve notificar baseado nas configurações
+            if (shouldNotify('damages')) {
+                const attackerName = damage.attacker_name || 'Desconhecido';
+                const victimName = damage.victim_name || 'Desconhecido';
+                const weapon = damage.weapon || 'Desconhecida';
+                const distance = damage.distance ? `${damage.distance.toFixed(0)}m` : 'N/A';
+                const damageAmount = damage.damage ? damage.damage.toFixed(1) : 'N/A';
+                const message = `${attackerName} causou ${damageAmount} de dano em ${victimName} com ${weapon} (${distance})`;
+                const damageTimestamp = damage.timestamp ? new Date(damage.timestamp) : new Date();
+                showToast('Dano', message, 'warning');
+                addNotificationToLog('warning', `Dano: ${message}`, damageTimestamp);
+            }
         });
     }
     

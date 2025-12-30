@@ -17,6 +17,7 @@ function detectContainerChanges(newData, oldData) {
         if (!oldContainer) {
             changes.push({
                 type: 'new',
+                subtype: 'new',
                 containerId: containerId,
                 containerType: container.container_type,
                 message: `Novo container: ${container.container_type}`
@@ -24,32 +25,38 @@ function detectContainerChanges(newData, oldData) {
             return;
         }
         
-        const changeMessages = [];
-        
+        // Detectar mudança de posição
         if (oldContainer.coord_x !== container.coord_x || oldContainer.coord_y !== container.coord_y) {
-            changeMessages.push('mudou de posição');
+            changes.push({
+                type: 'change',
+                subtype: 'position',
+                containerId: containerId,
+                containerType: container.container_type,
+                message: `Container ${container.container_type}: mudou de posição`
+            });
         }
         
+        // Detectar destruição/restauração
         if (oldContainer.is_destroyed !== container.is_destroyed) {
-            if (container.is_destroyed) {
-                changeMessages.push('foi destruído');
-            } else {
-                changeMessages.push('foi restaurado');
-            }
+            changes.push({
+                type: 'change',
+                subtype: 'destroyed',
+                containerId: containerId,
+                containerType: container.container_type,
+                message: `Container ${container.container_type}: ${container.is_destroyed ? 'foi destruído' : 'foi restaurado'}`
+            });
         }
         
+        // Detectar mudança de itens
         const oldItemsCount = (oldContainer.items || []).length;
         const newItemsCount = (container.items || []).length;
         if (oldItemsCount !== newItemsCount) {
-            changeMessages.push(`itens: ${oldItemsCount} → ${newItemsCount}`);
-        }
-        
-        if (changeMessages.length > 0) {
             changes.push({
                 type: 'change',
+                subtype: 'items',
                 containerId: containerId,
                 containerType: container.container_type,
-                message: `Container ${container.container_type}: ${changeMessages.join(', ')}`
+                message: `Container ${container.container_type}: itens ${oldItemsCount} → ${newItemsCount}`
             });
         }
     });
@@ -96,8 +103,11 @@ function updateContainers(data) {
     if (Object.keys(MapState.previousContainersData).length > 0 && MapState.notificationsEnabled) {
         const containerChanges = detectContainerChanges(data, MapState.previousContainersData);
         containerChanges.forEach(function(change) {
-            showToast('Container', change.message, 'info');
-            addNotificationToLog('info', `Container: ${change.message}`);
+            // Verificar se deve notificar baseado nas configurações
+            if (shouldNotify('containers', change.subtype)) {
+                showToast('Container', change.message, 'info');
+                addNotificationToLog('info', `Container: ${change.message}`);
+            }
         });
     }
     

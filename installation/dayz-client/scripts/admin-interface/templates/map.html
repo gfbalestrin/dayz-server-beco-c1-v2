@@ -60,6 +60,10 @@
     border-bottom: 1px solid #dee2e6;
     cursor: pointer;
     transition: background-color 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
 }
 
 .sidebar-player-item:last-child {
@@ -73,14 +77,17 @@
 .sidebar-player-name {
     font-weight: 500;
     font-size: 0.875rem;
-    display: block;
-    margin-bottom: 2px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .sidebar-player-actions {
     display: flex;
     gap: 4px;
-    margin-top: 4px;
+    flex-shrink: 0;
 }
 
 .sidebar-player-actions .btn {
@@ -152,21 +159,6 @@
                 </div>
             </div>
         </div>
-        
-        <!-- Log de Notificações -->
-        <div class="card mt-3" id="notificationLogCard" style="display: none;">
-            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                <div>
-                    <i class="fas fa-list-alt me-2"></i><strong>Log de Notificações</strong>
-                </div>
-                <button type="button" class="btn btn-sm btn-outline-light" id="clearNotificationLogBtn" onclick="clearNotificationLog()">
-                    <i class="fas fa-trash me-1"></i>Limpar
-                </button>
-            </div>
-            <div class="card-body p-2" style="max-height: 250px; overflow-y: auto; background-color: #f8f9fa;" id="notificationLogContent">
-                <div class="text-muted text-center small">Nenhuma notificação ainda</div>
-            </div>
-        </div>
     </div>
     
     <!-- Sidebar Direita com Controles -->
@@ -197,6 +189,34 @@
                     <div class="text-muted text-center small py-3">
                         Carregando jogadores...
                     </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Log de Notificações -->
+        <div class="card mb-2 card-notificacoes" id="notificationLogCard" style="display: none;">
+            <div class="card-header bg-dark text-dark d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-list-alt me-2"></i>Log de Notificações
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-light text-dark" onclick="openNotificationSettings()" style="font-size: 0.75rem; padding: 2px 8px;" title="Configurar Notificações">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-light text-dark" id="clearNotificationLogBtn" onclick="clearNotificationLog()" style="font-size: 0.75rem; padding: 2px 8px;">
+                        <i class="fas fa-trash me-1"></i>Limpar
+                    </button>
+                    <button class="btn btn-sm btn-link p-0 section-toggle text-dark" 
+                            data-section="notificacoes" 
+                            aria-label="Expandir/Recolher"
+                            type="button">
+                        <i class="fas fa-chevron-up"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-2 section-content" id="notificacoes-content">
+                <div style="max-height: 200px; overflow-y: auto; background-color: #f8f9fa; padding: 8px;" id="notificationLogContent">
+                    <div class="text-muted text-center small">Nenhuma notificação ainda</div>
                 </div>
             </div>
         </div>
@@ -1521,6 +1541,253 @@
                 </button>
                 <button type="button" class="btn btn-primary" id="applyContainerTrailFilterBtn">
                     <i class="fas fa-filter me-2"></i>Aplicar Filtro
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Configuração de Notificações -->
+<div class="modal fade" id="notificationSettingsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-bell me-2"></i>Configurações de Notificações
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Seção Combate -->
+                <div class="card mb-3">
+                    <div class="card-header bg-danger text-white">
+                        <i class="fas fa-skull-crossbones me-2"></i>Combate
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="notifKills" checked>
+                            <label class="form-check-label" for="notifKills">
+                                Kills (jogador matou outro jogador)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="notifDamages" checked>
+                            <label class="form-check-label" for="notifDamages">
+                                Damages (jogador causou dano)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Seção Veículos -->
+                <div class="card mb-3">
+                    <div class="card-header bg-success text-white">
+                        <i class="fas fa-car me-2"></i>Veículos
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifVehiclesNew" checked>
+                                    <label class="form-check-label" for="notifVehiclesNew">
+                                        Novo veículo detectado
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifVehiclesDestroyed" checked>
+                                    <label class="form-check-label" for="notifVehiclesDestroyed">
+                                        Veículo destruído/restaurado
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifVehiclesPosition">
+                                    <label class="form-check-label" for="notifVehiclesPosition">
+                                        Mudança de posição <small class="text-muted">(pode ser ruidoso)</small>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifVehiclesItems">
+                                    <label class="form-check-label" for="notifVehiclesItems">
+                                        Mudança de itens <small class="text-muted">(pode ser ruidoso)</small>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifVehiclesAttachments">
+                                    <label class="form-check-label" for="notifVehiclesAttachments">
+                                        Mudança de anexos <small class="text-muted">(pode ser ruidoso)</small>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifVehiclesHealth">
+                                    <label class="form-check-label" for="notifVehiclesHealth">
+                                        Mudança de saúde <small class="text-muted">(pode ser ruidoso)</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Seção Containers -->
+                <div class="card mb-3">
+                    <div class="card-header bg-info text-white">
+                        <i class="fas fa-box me-2"></i>Containers
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifContainersNew" checked>
+                                    <label class="form-check-label" for="notifContainersNew">
+                                        Novo container detectado
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifContainersDestroyed" checked>
+                                    <label class="form-check-label" for="notifContainersDestroyed">
+                                        Container destruído/restaurado
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifContainersPosition">
+                                    <label class="form-check-label" for="notifContainersPosition">
+                                        Mudança de posição <small class="text-muted">(pode ser ruidoso)</small>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifContainersItems">
+                                    <label class="form-check-label" for="notifContainersItems">
+                                        Mudança de itens <small class="text-muted">(pode ser ruidoso)</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Seção Construções -->
+                <div class="card mb-3">
+                    <div class="card-header bg-warning text-dark">
+                        <i class="fas fa-home me-2"></i>Construções
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifFencesNew" checked>
+                                    <label class="form-check-label" for="notifFencesNew">
+                                        Nova construção detectada
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifFencesDestroyed" checked>
+                                    <label class="form-check-label" for="notifFencesDestroyed">
+                                        Construção destruída/restaurada
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifFencesPosition">
+                                    <label class="form-check-label" for="notifFencesPosition">
+                                        Mudança de posição <small class="text-muted">(pode ser ruidoso)</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Seção Eventos de Jogadores -->
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <i class="fas fa-users me-2"></i>Eventos de Jogadores
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifLoadoutChanged" checked>
+                                    <label class="form-check-label" for="notifLoadoutChanged">
+                                        Mudança de loadout
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifPlayerRespawned" checked>
+                                    <label class="form-check-label" for="notifPlayerRespawned">
+                                        Jogador respawnou
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifPlayerDeath" checked>
+                                    <label class="form-check-label" for="notifPlayerDeath">
+                                        Morte (ambiente)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifPlayerUnconscious" checked>
+                                    <label class="form-check-label" for="notifPlayerUnconscious">
+                                        Jogador inconsciente
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifChatCommand">
+                                    <label class="form-check-label" for="notifChatCommand">
+                                        Comandos de chat <small class="text-muted">(muito ruidoso)</small>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifChatMessage">
+                                    <label class="form-check-label" for="notifChatMessage">
+                                        Mensagens de chat <small class="text-muted">(muito ruidoso)</small>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifAdminMessage" checked>
+                                    <label class="form-check-label" for="notifAdminMessage">
+                                        Mensagens de admin
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Seção Período de Monitoramento -->
+                <div class="card mb-3">
+                    <div class="card-header bg-secondary text-white">
+                        <i class="fas fa-clock me-2"></i>Período de Monitoramento
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="monitoringPeriod" class="form-label">Buscar eventos a partir de:</label>
+                            <select class="form-select" id="monitoringPeriod">
+                                <option value="new_only">Apenas novos eventos (padrão)</option>
+                                <option value="1h">Última 1 hora</option>
+                                <option value="6h">Últimas 6 horas</option>
+                                <option value="24h">Últimas 24 horas</option>
+                                <option value="all">Todos os eventos</option>
+                            </select>
+                            <small class="text-muted">Define desde quando os eventos serão monitorados ao ativar as notificações</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Dica:</strong> Desative notificações ruidosas para manter o log limpo e focado nos eventos importantes.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveNotificationSettingsFromModal()">
+                    <i class="fas fa-save me-1"></i>Salvar Configurações
                 </button>
             </div>
         </div>

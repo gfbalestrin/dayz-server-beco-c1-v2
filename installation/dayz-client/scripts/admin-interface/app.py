@@ -5,6 +5,17 @@ Refatorado para usar Blueprints Flask
 from flask import Flask, render_template
 import config
 from database import ensure_protected_loadouts_exist
+import logging
+
+# Configurar logging para console e arquivo
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('debug_timezone.log')
+    ]
+)
 
 # Importar todos os blueprints
 from blueprints import auth, views

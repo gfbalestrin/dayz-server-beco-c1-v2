@@ -17,6 +17,7 @@ function detectVehicleChanges(newData, oldData) {
         if (!oldVehicle) {
             changes.push({
                 type: 'new',
+                subtype: 'new',
                 vehicleId: vehicleId,
                 vehicleName: vehicle.vehicle_name,
                 message: `Novo veículo: ${vehicle.vehicle_name}`
@@ -24,46 +25,73 @@ function detectVehicleChanges(newData, oldData) {
             return;
         }
         
-        const changeMessages = [];
-        
+        // Detectar mudança de posição
         if (oldVehicle.coord_x !== vehicle.coord_x || oldVehicle.coord_y !== vehicle.coord_y) {
-            changeMessages.push('mudou de posição');
+            changes.push({
+                type: 'change',
+                subtype: 'position',
+                vehicleId: vehicleId,
+                vehicleName: vehicle.vehicle_name,
+                message: `Veículo ${vehicle.vehicle_name}: mudou de posição`
+            });
         }
         
+        // Detectar destruição/restauração
         if (oldVehicle.is_destroyed !== vehicle.is_destroyed) {
-            if (vehicle.is_destroyed) {
-                changeMessages.push('foi destruído');
-            } else {
-                changeMessages.push('foi restaurado');
-            }
+            changes.push({
+                type: 'change',
+                subtype: 'destroyed',
+                vehicleId: vehicleId,
+                vehicleName: vehicle.vehicle_name,
+                message: `Veículo ${vehicle.vehicle_name}: ${vehicle.is_destroyed ? 'foi destruído' : 'foi restaurado'}`
+            });
         }
         
+        // Detectar mudança de itens
         const oldItemsCount = (oldVehicle.items || []).length;
         const newItemsCount = (vehicle.items || []).length;
         if (oldItemsCount !== newItemsCount) {
-            changeMessages.push(`itens: ${oldItemsCount} → ${newItemsCount}`);
+            changes.push({
+                type: 'change',
+                subtype: 'items',
+                vehicleId: vehicleId,
+                vehicleName: vehicle.vehicle_name,
+                message: `Veículo ${vehicle.vehicle_name}: itens ${oldItemsCount} → ${newItemsCount}`
+            });
         }
         
+        // Detectar mudança de anexos
         const oldAttachmentsCount = (oldVehicle.attachments || []).length;
         const newAttachmentsCount = (vehicle.attachments || []).length;
         if (oldAttachmentsCount !== newAttachmentsCount) {
-            changeMessages.push(`anexos: ${oldAttachmentsCount} → ${newAttachmentsCount}`);
-        }
-        
-        if (oldVehicle.engine_health !== vehicle.engine_health) {
-            changeMessages.push(`motor: ${(oldVehicle.engine_health || 0).toFixed(1)} → ${(vehicle.engine_health || 0).toFixed(1)}`);
-        }
-        
-        if (oldVehicle.body_health !== vehicle.body_health) {
-            changeMessages.push(`carroceria: ${(oldVehicle.body_health || 0).toFixed(1)} → ${(vehicle.body_health || 0).toFixed(1)}`);
-        }
-        
-        if (changeMessages.length > 0) {
             changes.push({
                 type: 'change',
+                subtype: 'attachments',
                 vehicleId: vehicleId,
                 vehicleName: vehicle.vehicle_name,
-                message: `Veículo ${vehicle.vehicle_name}: ${changeMessages.join(', ')}`
+                message: `Veículo ${vehicle.vehicle_name}: anexos ${oldAttachmentsCount} → ${newAttachmentsCount}`
+            });
+        }
+        
+        // Detectar mudança de saúde do motor
+        if (oldVehicle.engine_health !== vehicle.engine_health) {
+            changes.push({
+                type: 'change',
+                subtype: 'health',
+                vehicleId: vehicleId,
+                vehicleName: vehicle.vehicle_name,
+                message: `Veículo ${vehicle.vehicle_name}: motor ${(oldVehicle.engine_health || 0).toFixed(1)} → ${(vehicle.engine_health || 0).toFixed(1)}`
+            });
+        }
+        
+        // Detectar mudança de saúde da carroceria
+        if (oldVehicle.body_health !== vehicle.body_health) {
+            changes.push({
+                type: 'change',
+                subtype: 'health',
+                vehicleId: vehicleId,
+                vehicleName: vehicle.vehicle_name,
+                message: `Veículo ${vehicle.vehicle_name}: carroceria ${(oldVehicle.body_health || 0).toFixed(1)} → ${(vehicle.body_health || 0).toFixed(1)}`
             });
         }
     });
@@ -106,8 +134,11 @@ function updateVehicles(data) {
     if (Object.keys(MapState.previousVehiclesData).length > 0 && MapState.notificationsEnabled) {
         const vehicleChanges = detectVehicleChanges(data, MapState.previousVehiclesData);
         vehicleChanges.forEach(function(change) {
-            showToast('Veículo', change.message, 'info');
-            addNotificationToLog('info', `Veículo: ${change.message}`);
+            // Verificar se deve notificar baseado nas configurações
+            if (shouldNotify('vehicles', change.subtype)) {
+                showToast('Veículo', change.message, 'info');
+                addNotificationToLog('info', `Veículo: ${change.message}`);
+            }
         });
     }
     

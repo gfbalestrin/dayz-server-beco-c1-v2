@@ -672,6 +672,21 @@ $(document).ready(function() {
     $('#sidebarPlayerSearch').on('input', function() {
         updateSidebarPlayersList();
     });
+    
+    // Iniciar polling de eventos de jogadores se notificações estiverem ativas
+    if (MapState.notificationsEnabled) {
+        startPlayerEventsPolling();
+    }
+    
+    // Event listener para alternar notificações
+    $('#notificationsCheck').on('change', function() {
+        toggleNotifications();
+        if ($(this).is(':checked')) {
+            startPlayerEventsPolling();
+        } else {
+            stopPlayerEventsPolling();
+        }
+    });
 });
 
 /**
@@ -684,6 +699,7 @@ function initializeSidebarCollapse() {
     // Estados padrão se não houver salvos
     const defaultStates = {
         'jogadores-online': 'expanded',
+        'notificacoes': 'collapsed',
         'modos': 'collapsed',
         'visualizar': 'expanded',
         'filtros': 'collapsed'

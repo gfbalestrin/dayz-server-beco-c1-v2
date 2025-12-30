@@ -4,6 +4,72 @@
  */
 
 /**
+ * Configuração padrão de notificações
+ */
+const DEFAULT_NOTIFICATION_SETTINGS = {
+    kills: true,
+    damages: true,
+    vehicles: {
+        new: true,
+        destroyed: true,
+        position: false,
+        items: false,
+        attachments: false,
+        health: false
+    },
+    containers: {
+        new: true,
+        destroyed: true,
+        position: false,
+        items: false
+    },
+    fences: {
+        new: true,
+        destroyed: true,
+        position: false
+    },
+    playerEvents: {
+        loadout_changed: true,
+        player_respawned: true,
+        player_death: true,
+        player_unconscious: true,
+        chat_command: false,
+        chat_message: false,
+        admin_message: true
+    },
+    monitoring_period: 'new_only'
+};
+
+/**
+ * Variáveis globais para polling de eventos
+ */
+let lastEventTimestamp = null;
+let playerEventsInterval = null;
+
+/**
+ * Calcular timestamp inicial para monitoramento baseado na configuração de período
+ * @returns {string|null} Timestamp ISO ou null
+ */
+function getMonitoringStartTimestamp() {
+    const settings = loadNotificationSettings();
+    const period = settings.monitoring_period || 'new_only';
+    
+    if (period === 'new_only' || period === 'all') {
+        return null;  // Sem filtro ou usar lógica incremental
+    }
+    
+    const now = new Date();
+    const hours = {
+        '1h': 1,
+        '6h': 6,
+        '24h': 24
+    };
+    
+    now.setHours(now.getHours() - hours[period]);
+    return now.toISOString();
+}
+
+/**
  * Toggle notificações
  */
 function toggleNotifications() {
@@ -105,5 +171,264 @@ function toggleNotificationLog() {
         logCard.hide();
         // Não limpa os logs ao desativar - apenas esconde o card para manter o histórico
     }
+}
+
+/**
+ * Carregar configurações de notificações do LocalStorage
+ */
+function loadNotificationSettings() {
+    const saved = localStorage.getItem('notificationSettings');
+    if (saved) {
+        try {
+            return JSON.parse(saved);
+        } catch (e) {
+            console.error('Erro ao carregar configurações de notificações:', e);
+            return DEFAULT_NOTIFICATION_SETTINGS;
+        }
+    }
+    return DEFAULT_NOTIFICATION_SETTINGS;
+}
+
+/**
+ * Salvar configurações de notificações no LocalStorage
+ */
+function saveNotificationSettings(settings) {
+    try {
+        localStorage.setItem('notificationSettings', JSON.stringify(settings));
+        return true;
+    } catch (e) {
+        console.error('Erro ao salvar configurações de notificações:', e);
+        return false;
+    }
+}
+
+/**
+ * Verificar se deve notificar baseado nas configurações
+ * @param {string} category - Categoria principal (kills, damages, vehicles, etc)
+ * @param {string} subcategory - Subcategoria opcional (new, destroyed, position, etc)
+ */
+function shouldNotify(category, subcategory = null) {
+    const settings = loadNotificationSettings();
+    
+    if (subcategory) {
+        return settings[category]?.[subcategory] === true;
+    }
+    return settings[category] === true;
+}
+
+/**
+ * Abrir modal de configurações de notificações
+ */
+function openNotificationSettings() {
+    const modal = new bootstrap.Modal(document.getElementById('notificationSettingsModal'));
+    
+    // Carregar configurações atuais
+    const settings = loadNotificationSettings();
+    
+    // Preencher checkboxes com valores atuais
+    $('#notifKills').prop('checked', settings.kills);
+    $('#notifDamages').prop('checked', settings.damages);
+    
+    // Veículos
+    $('#notifVehiclesNew').prop('checked', settings.vehicles.new);
+    $('#notifVehiclesDestroyed').prop('checked', settings.vehicles.destroyed);
+    $('#notifVehiclesPosition').prop('checked', settings.vehicles.position);
+    $('#notifVehiclesItems').prop('checked', settings.vehicles.items);
+    $('#notifVehiclesAttachments').prop('checked', settings.vehicles.attachments);
+    $('#notifVehiclesHealth').prop('checked', settings.vehicles.health);
+    
+    // Containers
+    $('#notifContainersNew').prop('checked', settings.containers.new);
+    $('#notifContainersDestroyed').prop('checked', settings.containers.destroyed);
+    $('#notifContainersPosition').prop('checked', settings.containers.position);
+    $('#notifContainersItems').prop('checked', settings.containers.items);
+    
+    // Construções
+    $('#notifFencesNew').prop('checked', settings.fences.new);
+    $('#notifFencesDestroyed').prop('checked', settings.fences.destroyed);
+    $('#notifFencesPosition').prop('checked', settings.fences.position);
+    
+    // Eventos de jogadores
+    $('#notifLoadoutChanged').prop('checked', settings.playerEvents.loadout_changed);
+    $('#notifPlayerRespawned').prop('checked', settings.playerEvents.player_respawned);
+    $('#notifPlayerDeath').prop('checked', settings.playerEvents.player_death);
+    $('#notifPlayerUnconscious').prop('checked', settings.playerEvents.player_unconscious);
+    $('#notifChatCommand').prop('checked', settings.playerEvents.chat_command);
+    $('#notifChatMessage').prop('checked', settings.playerEvents.chat_message);
+    $('#notifAdminMessage').prop('checked', settings.playerEvents.admin_message);
+    
+    // Carregar período de monitoramento
+    $('#monitoringPeriod').val(settings.monitoring_period || 'new_only');
+    
+    modal.show();
+}
+
+/**
+ * Salvar configurações do modal
+ */
+function saveNotificationSettingsFromModal() {
+    const settings = {
+        kills: $('#notifKills').is(':checked'),
+        damages: $('#notifDamages').is(':checked'),
+        vehicles: {
+            new: $('#notifVehiclesNew').is(':checked'),
+            destroyed: $('#notifVehiclesDestroyed').is(':checked'),
+            position: $('#notifVehiclesPosition').is(':checked'),
+            items: $('#notifVehiclesItems').is(':checked'),
+            attachments: $('#notifVehiclesAttachments').is(':checked'),
+            health: $('#notifVehiclesHealth').is(':checked')
+        },
+        containers: {
+            new: $('#notifContainersNew').is(':checked'),
+            destroyed: $('#notifContainersDestroyed').is(':checked'),
+            position: $('#notifContainersPosition').is(':checked'),
+            items: $('#notifContainersItems').is(':checked')
+        },
+        fences: {
+            new: $('#notifFencesNew').is(':checked'),
+            destroyed: $('#notifFencesDestroyed').is(':checked'),
+            position: $('#notifFencesPosition').is(':checked')
+        },
+        playerEvents: {
+            loadout_changed: $('#notifLoadoutChanged').is(':checked'),
+            player_respawned: $('#notifPlayerRespawned').is(':checked'),
+            player_death: $('#notifPlayerDeath').is(':checked'),
+            player_unconscious: $('#notifPlayerUnconscious').is(':checked'),
+            chat_command: $('#notifChatCommand').is(':checked'),
+            chat_message: $('#notifChatMessage').is(':checked'),
+            admin_message: $('#notifAdminMessage').is(':checked')
+        },
+        monitoring_period: $('#monitoringPeriod').val()
+    };
+    
+    if (saveNotificationSettings(settings)) {
+        showToast('Sucesso', 'Configurações de notificações salvas', 'success');
+        const modal = bootstrap.Modal.getInstance(document.getElementById('notificationSettingsModal'));
+        modal.hide();
+    } else {
+        showToast('Erro', 'Erro ao salvar configurações', 'danger');
+    }
+}
+
+/**
+ * Iniciar polling de eventos de jogadores
+ */
+function startPlayerEventsPolling() {
+    if (playerEventsInterval) return;
+    
+    // Poll a cada 10 segundos
+    playerEventsInterval = setInterval(fetchRecentPlayerEvents, 10000);
+    fetchRecentPlayerEvents(); // Primeira busca imediata
+}
+
+/**
+ * Parar polling de eventos de jogadores
+ */
+function stopPlayerEventsPolling() {
+    if (playerEventsInterval) {
+        clearInterval(playerEventsInterval);
+        playerEventsInterval = null;
+    }
+}
+
+/**
+ * Buscar eventos recentes de jogadores
+ */
+function fetchRecentPlayerEvents() {
+    if (!MapState.notificationsEnabled) return;
+    
+    const params = { limit: 20 };
+    const settings = loadNotificationSettings();
+    
+    if (settings.monitoring_period === 'new_only' && lastEventTimestamp) {
+        params.since = lastEventTimestamp;
+    } else if (settings.monitoring_period !== 'all') {
+        const startTime = getMonitoringStartTimestamp();
+        if (startTime) params.since = startTime;
+    }
+    
+    $.get('/api/events/recent', params)
+        .done(function(data) {
+            if (data.events && data.events.length > 0) {
+                processPlayerEvents(data.events);
+                // Atualizar timestamp do último evento processado
+                lastEventTimestamp = data.events[0].timestamp;
+            }
+        })
+        .fail(function(error) {
+            console.error('Erro ao buscar eventos recentes:', error);
+        });
+}
+
+/**
+ * Processar eventos de jogadores e criar notificações
+ */
+function processPlayerEvents(events) {
+    events.forEach(function(event) {
+        const eventType = event.event_type;
+        const playerName = event.player_name || 'Desconhecido';
+        const relatedPlayerName = event.related_player_name;
+        
+        // Verificar se deve notificar baseado nas configurações
+        if (!shouldNotify('playerEvents', eventType)) {
+            return;
+        }
+        
+        let message = '';
+        let type = 'info';
+        
+        try {
+            const details = event.details ? JSON.parse(event.details) : {};
+            
+            switch(eventType) {
+                case 'loadout_changed':
+                    const loadoutName = details.loadout_name || 'desconhecido';
+                    message = `${playerName} mudou para o loadout: ${loadoutName}`;
+                    type = 'info';
+                    break;
+                case 'player_respawned':
+                    message = `${playerName} respawnou`;
+                    type = 'success';
+                    break;
+                case 'player_death':
+                    const cause = details.cause || 'desconhecida';
+                    message = `${playerName} morreu (${cause})`;
+                    type = 'danger';
+                    break;
+                case 'player_unconscious':
+                    message = `${playerName} ficou inconsciente`;
+                    type = 'warning';
+                    break;
+                case 'chat_command':
+                    const command = details.command || '';
+                    message = `${playerName} executou comando: ${command}`;
+                    type = 'info';
+                    break;
+                case 'chat_message':
+                    const msg = details.message || '';
+                    message = `${playerName}: ${msg}`;
+                    type = 'info';
+                    break;
+                case 'admin_message':
+                    const adminMsg = details.message || '';
+                    message = `Admin para ${playerName}: ${adminMsg}`;
+                    type = 'info';
+                    break;
+                default:
+                    // Evento desconhecido, não notificar
+                    return;
+            }
+        } catch (e) {
+            console.error('Erro ao processar detalhes do evento:', e);
+            return;
+        }
+        
+        if (message) {
+            showToast('Evento', message, type);
+            // Parsear timestamp do evento
+            const eventTimestamp = event.timestamp ? new Date(event.timestamp) : new Date();
+            addNotificationToLog(type, message, eventTimestamp);
+        }
+    });
 }
 

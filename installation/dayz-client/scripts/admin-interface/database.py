@@ -3569,11 +3569,19 @@ def dayz_to_pixel(coord_x: float, coord_y: float) -> List[float]:
     # Leaflet CRS.Simple: [y, x] onde y=0 é o topo da imagem
     return [pixel_y, pixel_x]
 
-def get_recent_kills(limit: int = 100) -> List[Dict]:
+def get_recent_kills(limit: int = 100, since_timestamp: str = None) -> List[Dict]:
     """Retorna kills recentes com posições"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+        
+        where_clause = ""
+        params = []
+        
+        if since_timestamp:
+            where_clause = "WHERE k.Data > ?"
+            params.append(since_timestamp)
+        
+        query = f"""
             SELECT 
                 k.Id,
                 k.PlayerIDKiller,
@@ -3590,16 +3598,27 @@ def get_recent_kills(limit: int = 100) -> List[Dict]:
             FROM players_killfeed k
             LEFT JOIN players_database killer ON k.PlayerIDKiller = killer.PlayerID
             LEFT JOIN players_database victim ON k.PlayerIDKilled = victim.PlayerID
+            {where_clause}
             ORDER BY k.Data DESC
             LIMIT ?
-        """, (limit,))
+        """
+        params.append(limit)
+        cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
 
-def get_recent_damages(limit: int = 100) -> List[Dict]:
+def get_recent_damages(limit: int = 100, since_timestamp: str = None) -> List[Dict]:
     """Retorna danos recentes entre jogadores com posições"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+        
+        where_clause = ""
+        params = []
+        
+        if since_timestamp:
+            where_clause = "WHERE d.Data > ?"
+            params.append(since_timestamp)
+        
+        query = f"""
             SELECT 
                 d.Id,
                 d.PlayerIDAttacker,
@@ -3620,9 +3639,12 @@ def get_recent_damages(limit: int = 100) -> List[Dict]:
             FROM players_damage d
             LEFT JOIN players_database attacker ON d.PlayerIDAttacker = attacker.PlayerID
             LEFT JOIN players_database victim ON d.PlayerIDVictim = victim.PlayerID
+            {where_clause}
             ORDER BY d.Data DESC
             LIMIT ?
-        """, (limit,))
+        """
+        params.append(limit)
+        cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
 
 def parse_position(pos_string: str):
@@ -7494,6 +7516,58 @@ def insert_player_event(player_id: str, event_type: str, details: dict = None,
         logger = logging.getLogger(__name__)
         logger.exception(f"Erro ao inserir evento do jogador: {str(e)}")
         return None
+
+def get_recent_player_events(limit: int = 50, since_timestamp: str = None, event_types: list = None) -> List[Dict]:
+    """
+    Busca eventos recentes de players_events
+    
+    Args:
+        limit: Número máximo de eventos a retornar
+        since_timestamp: Retornar apenas eventos após este timestamp
+        event_types: Lista de tipos de eventos para filtrar (opcional)
+    
+    Returns:
+        Lista de dicionários com os eventos
+    """
+    try:
+        with DatabaseConnection(config.DB_PLAYERS) as conn:
+            cursor = conn.cursor()
+            
+            where_clauses = []
+            params = []
+            
+            if since_timestamp:
+                where_clauses.append("pe.TimeStamp > ?")
+                params.append(since_timestamp)
+            
+            if event_types and len(event_types) > 0:
+                placeholders = ','.join('?' * len(event_types))
+                where_clauses.append(f"pe.EventType IN ({placeholders})")
+                params.extend(event_types)
+            
+            where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+            
+            query = f"""
+                SELECT pe.EventId, pe.PlayerID, pe.EventType, pe.TimeStamp,
+                       pe.CoordX, pe.CoordY, pe.CoordZ, pe.Details, pe.RelatedPlayerID,
+                       p.PlayerName, p.SteamName,
+                       rp.PlayerName as RelatedPlayerName, rp.SteamName as RelatedSteamName
+                FROM players_events pe
+                LEFT JOIN players_database p ON pe.PlayerID = p.PlayerID
+                LEFT JOIN players_database rp ON pe.RelatedPlayerID = rp.PlayerID
+                {where_sql}
+                ORDER BY pe.TimeStamp DESC
+                LIMIT ?
+            """
+            params.append(limit)
+            
+            cursor.execute(query, params)
+            return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.exception(f"Erro ao buscar eventos recentes: {str(e)}")
+        return []
 
 def save_vehicle_check_data(vehicle_id: str, vehicle_name: str, position: dict, 
                             items: list, attachments: list, health_parts: dict) -> Optional[int]:
