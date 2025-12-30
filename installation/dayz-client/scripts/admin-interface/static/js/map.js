@@ -800,14 +800,14 @@ function updateSidebarPlayersList() {
                     🟢 ${playerName}${steamNameDisplay}${adminBadge}
                 </div>
                 <div class="sidebar-player-actions">
-                    <button class="btn btn-sm btn-outline-primary" 
-                            onclick="zoomToPlayerFromSidebar('${player.id}')" 
+                    <button class="btn btn-sm btn-outline-primary"
+                            onclick="zoomToPlayerFromSidebar('${player.id}')"
                             title="Zoom no jogador">
                         <i class="fas fa-search-location"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-info" 
-                            onclick="viewPlayerTrailFromSidebar('${player.id}')" 
-                            title="Ver trail">
+                    <button class="btn btn-sm ${MapState.selectedPlayerFilters.includes(player.id) ? 'btn-info' : 'btn-outline-info'}"
+                            onclick="viewPlayerTrailFromSidebar('${player.id}')"
+                            title="${MapState.selectedPlayerFilters.includes(player.id) ? 'Remover trail' : 'Ver trail'}">
                         <i class="fas fa-route"></i>
                     </button>
                 </div>
@@ -835,21 +835,61 @@ function zoomToPlayerFromSidebar(playerId) {
 }
 
 /**
+ * Expandir seção se estiver colapsada
+ */
+function expandSectionIfCollapsed(section) {
+    const $content = $('#' + section + '-content');
+    if ($content.hasClass('collapsed')) {
+        toggleSection(section);
+    }
+}
+
+/**
+ * Atualizar estado visual do botão de trail na sidebar
+ */
+function updateSidebarTrailButtonState(playerId, isActive) {
+    const $btn = $(`.sidebar-player-actions button[onclick*="viewPlayerTrailFromSidebar('${playerId}')"]`);
+    if (isActive) {
+        $btn.removeClass('btn-outline-info').addClass('btn-info');
+        $btn.attr('title', 'Remover trail');
+    } else {
+        $btn.removeClass('btn-info').addClass('btn-outline-info');
+        $btn.attr('title', 'Ver trail');
+    }
+}
+
+/**
  * Ver trail do jogador a partir da sidebar
  */
 function viewPlayerTrailFromSidebar(playerId) {
+    const isActive = MapState.selectedPlayerFilters.includes(playerId);
+
+    if (isActive) {
+        // Desativar trail do jogador
+        MapState.selectedPlayerFilters = MapState.selectedPlayerFilters.filter(id => id !== playerId);
+        updateSelectedPlayersBadges();
+        filterPlayers();
+        updateSidebarTrailButtonState(playerId, false);
+        return;
+    }
+
     // Ativar trails se não estiver ativo
     if (!MapState.showTrails) {
         $('#toggleTrailsBtn').click();
     }
-    
+
+    // Expandir seções "Filtros" e "Visualizar" se estiverem colapsadas
+    expandSectionIfCollapsed('filtros');
+    expandSectionIfCollapsed('visualizar');
+
+    // Aplicar filtro "Última Hora" por padrão
+    applyTrailFilterShortcut('1hour');
+
     // Adicionar jogador ao filtro
-    if (!MapState.selectedPlayerFilters.includes(playerId)) {
-        MapState.selectedPlayerFilters.push(playerId);
-        updateSelectedPlayersBadges();
-        filterPlayers();
-    }
-    
-    // Zoom no jogador
-    zoomToPlayerFromSidebar(playerId);
+    MapState.selectedPlayerFilters.push(playerId);
+    updateSelectedPlayersBadges();
+    filterPlayers();
+
+    // Atualizar estado visual do botão
+    updateSidebarTrailButtonState(playerId, true);
 }
