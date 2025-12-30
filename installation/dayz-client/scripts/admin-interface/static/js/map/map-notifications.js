@@ -47,6 +47,33 @@ let lastEventTimestamp = null;
 let playerEventsInterval = null;
 
 /**
+ * Controle de auto-scroll do log de notificações
+ * - true: scroll automático para novas notificações
+ * - false: usuário está navegando manualmente
+ */
+let notificationAutoScroll = true;
+let notificationScrollListenerInitialized = false;
+
+/**
+ * Inicializar listener de scroll para o log de notificações
+ */
+function initNotificationScrollListener() {
+    if (notificationScrollListenerInitialized) return;
+
+    const logContent = document.getElementById('notificationLogContent');
+    if (!logContent) return;
+
+    logContent.addEventListener('scroll', function() {
+        // Se o usuário está no final (ou muito próximo), reativar auto-scroll
+        // Se o usuário subiu, desativar auto-scroll
+        const isAtBottom = logContent.scrollHeight - logContent.scrollTop - logContent.clientHeight <= 5;
+        notificationAutoScroll = isAtBottom;
+    });
+
+    notificationScrollListenerInitialized = true;
+}
+
+/**
  * Calcular timestamp inicial para monitoramento baseado na configuração de período
  * @returns {string|null} Timestamp ISO ou null
  */
@@ -135,16 +162,16 @@ function addNotificationToLog(type, message, timestamp) {
         </div>
     `);
     
-    logContent.prepend(logEntry);
-    
-    // Remover logs antigos se exceder o limite de 50
+    logContent.append(logEntry);
+
+    // Remover logs antigos se exceder o limite de 50 (remove os mais antigos do topo)
     while (logContent.children().length > 50) {
-        logContent.children().last().remove();
+        logContent.children().first().remove();
     }
-    
-    // Scroll automático para o topo para mostrar o novo log
-    if (logContentElement) {
-        logContentElement.scrollTop = 0;
+
+    // Scroll automático para o final apenas se auto-scroll estiver ativo
+    if (logContentElement && notificationAutoScroll) {
+        logContentElement.scrollTop = logContentElement.scrollHeight;
     }
 }
 
@@ -154,6 +181,8 @@ function addNotificationToLog(type, message, timestamp) {
 function clearNotificationLog() {
     const logContent = $('#notificationLogContent');
     logContent.html('<div class="text-muted text-center small">Nenhuma notificação ainda</div>');
+    // Resetar auto-scroll ao limpar
+    notificationAutoScroll = true;
 }
 
 /**
@@ -161,9 +190,13 @@ function clearNotificationLog() {
  */
 function toggleNotificationLog() {
     const logCard = $('#notificationLogCard');
-    
+
     if (MapState.notificationsEnabled) {
         logCard.show();
+        // Inicializar listener de scroll (idempotente)
+        initNotificationScrollListener();
+        // Resetar auto-scroll ao mostrar
+        notificationAutoScroll = true;
     } else {
         logCard.hide();
         // Não limpa os logs ao desativar - apenas esconde o card para manter o histórico
@@ -358,7 +391,9 @@ function fetchRecentPlayerEvents() {
  * Processar eventos de jogadores e criar notificações
  */
 function processPlayerEvents(events) {
-    events.forEach(function(event) {
+    // Inverter ordem para processar os mais antigos primeiro (já que usamos append)
+    const sortedEvents = [...events].reverse();
+    sortedEvents.forEach(function(event) {
         const eventType = event.event_type;
         const playerName = event.player_name || 'Desconhecido';
         const relatedPlayerName = event.related_player_name;
@@ -399,7 +434,7 @@ function processPlayerEvents(events) {
                     type = 'info';
                     break;
                 case 'chat_message':
-                    const msg = details.message || '';
+                    const msg = details.chat_message || '';
                     message = `${playerName}: ${msg}`;
                     type = 'info';
                     break;

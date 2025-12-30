@@ -20,6 +20,41 @@ except ImportError:
 # Cache para schema de tabelas (PRAGMA table_info)
 _schema_cache: Dict[str, List[str]] = {}
 
+# Cache de admin IDs (carregado uma vez na inicialização)
+_admin_ids_cache: List[str] = []
+_admin_ids_loaded: bool = False
+
+
+def load_admin_ids_cache() -> bool:
+    """
+    Carrega admin_ids do servidor remoto para o cache.
+    Chamado uma vez na inicialização da aplicação.
+    """
+    global _admin_ids_cache, _admin_ids_loaded
+
+    try:
+        if not read_remote_file:
+            logging.warning("ssh_client não disponível, cache de admin_ids vazio")
+            _admin_ids_cache = []
+            _admin_ids_loaded = True
+            return False
+
+        file_content = read_remote_file(config.ADMIN_IDS_FILE)
+
+        if file_content is None:
+            _admin_ids_cache = []
+        else:
+            _admin_ids_cache = [line.strip() for line in file_content.splitlines() if line.strip()]
+
+        _admin_ids_loaded = True
+        logging.info(f"Cache de admin_ids carregado: {len(_admin_ids_cache)} administradores")
+        return True
+    except Exception as e:
+        logging.error(f"Erro ao carregar cache de admin_ids: {str(e)}")
+        _admin_ids_cache = []
+        _admin_ids_loaded = True
+        return False
+
 def get_table_columns(db_path: str, table_name: str) -> List[str]:
     """Busca colunas de uma tabela com cache"""
     # Validar nome da tabela para prevenir SQL injection
@@ -6743,29 +6778,14 @@ def _write_remote_file(file_path: str, content: str) -> bool:
 
 
 def get_admin_ids() -> List[str]:
-    """Retorna lista de Player IDs dos administradores do arquivo admin_ids.txt (via SSH)"""
-    try:
-        if not read_remote_file:
-            logging.warning("ssh_client não disponível, não é possível ler admin_ids.txt")
-            return []
-        
-        # Ler arquivo remoto via SSH
-        file_content = read_remote_file(config.ADMIN_IDS_FILE)
-        
-        if file_content is None:
-            # Arquivo não existe ou erro ao ler
-            return []
-        
-        admin_ids = []
-        for line in file_content.splitlines():
-            player_id = line.strip()
-            if player_id:
-                admin_ids.append(player_id)
-        
-        return admin_ids
-    except Exception as e:
-        logging.error(f"Erro ao ler admin_ids.txt: {str(e)}")
-        return []
+    """Retorna lista de Player IDs dos administradores do cache"""
+    global _admin_ids_cache, _admin_ids_loaded
+
+    # Se cache não foi carregado, carregar agora (fallback)
+    if not _admin_ids_loaded:
+        load_admin_ids_cache()
+
+    return _admin_ids_cache.copy()
 
 def get_admins_with_player_info() -> List[Dict]:
     """Retorna lista de administradores com informações do banco de dados"""
@@ -6844,6 +6864,8 @@ def add_admin_id(player_id: str) -> bool:
         
         # Escrever arquivo remoto via SSH
         if _write_remote_file(config.ADMIN_IDS_FILE, new_content):
+            # Atualizar cache local
+            _admin_ids_cache.append(player_id)
             logging.info(f"Admin ID {player_id} adicionado ao arquivo admin_ids.txt")
             return True
         else:
@@ -6881,6 +6903,9 @@ def remove_admin_id(player_id: str) -> bool:
         
         # Escrever arquivo remoto via SSH
         if _write_remote_file(config.ADMIN_IDS_FILE, new_content):
+            # Atualizar cache local
+            if player_id in _admin_ids_cache:
+                _admin_ids_cache.remove(player_id)
             logging.info(f"Admin ID {player_id} removido do arquivo admin_ids.txt")
             return True
         else:

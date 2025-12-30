@@ -4,7 +4,7 @@ Refatorado para usar Blueprints Flask
 """
 from flask import Flask, render_template
 import config
-from database import ensure_protected_loadouts_exist
+from database import ensure_protected_loadouts_exist, load_admin_ids_cache
 import logging
 
 # Configurar logging para console e arquivo
@@ -68,5 +68,9 @@ if __name__ == '__main__':
     # Garantir que loadouts protegidos existam
     ensure_protected_loadouts_exist()
     print("✅ Loadouts protegidos verificados")
-    
+
+    # Carregar cache de admin IDs (uma única vez na inicialização)
+    load_admin_ids_cache()
+    print("✅ Cache de admin IDs carregado")
+
     app.run(host=config.HOST, port=config.PORT, debug=config.DEBUG)

@@ -231,10 +231,6 @@ def api_recent_player_events():
     }
     
     for event in events:
-        # LOG 1: Mostrar timestamp RAW do banco
-        raw_timestamp = event.get('TimeStamp')
-        logger.debug(f"[TIMEZONE DEBUG] EventId: {event.get('EventId')}, RAW TimeStamp from DB: {raw_timestamp}")
-        
         # Converter timestamp de UTC para America/Sao_Paulo
         timestamp_br = event.get('TimeStamp')
         if timestamp_br:
@@ -244,44 +240,25 @@ def api_recent_player_events():
                     # Parsear formato do SQLite (YYYY-MM-DD HH:MM:SS) - sempre como UTC
                     try:
                         dt_utc = datetime.strptime(timestamp_br, '%Y-%m-%d %H:%M:%S.%f')
-                        logger.debug(f"[TIMEZONE DEBUG] Parsed with microseconds: {dt_utc}")
                     except ValueError:
                         dt_utc = datetime.strptime(timestamp_br, '%Y-%m-%d %H:%M:%S')
-                        logger.debug(f"[TIMEZONE DEBUG] Parsed without microseconds: {dt_utc}")
-                    
-                    # LOG 2: Mostrar datetime ANTES de adicionar UTC
-                    logger.debug(f"[TIMEZONE DEBUG] Before adding UTC timezone: {dt_utc} (tzinfo={dt_utc.tzinfo})")
-                    
-                    # SEMPRE adicionar timezone UTC (banco armazena em UTC)
+
+                    # Adicionar timezone UTC (banco armazena em UTC)
                     dt_utc = dt_utc.replace(tzinfo=ZoneInfo('UTC'))
-                    
-                    # LOG 3: Mostrar datetime DEPOIS de adicionar UTC
-                    logger.debug(f"[TIMEZONE DEBUG] After adding UTC timezone: {dt_utc} (tzinfo={dt_utc.tzinfo})")
                 else:
                     # Se já for datetime, adicionar UTC se não tiver timezone
                     dt_utc = timestamp_br
                     if dt_utc.tzinfo is None:
                         dt_utc = dt_utc.replace(tzinfo=ZoneInfo('UTC'))
-                
-                # LOG 4: Mostrar ANTES da conversão para SP
-                logger.debug(f"[TIMEZONE DEBUG] Before astimezone to SP: {dt_utc}")
-                
+
                 # Converter para America/Sao_Paulo
                 dt_sp = dt_utc.astimezone(ZoneInfo('America/Sao_Paulo'))
-                
-                # LOG 5: Mostrar DEPOIS da conversão para SP
-                logger.debug(f"[TIMEZONE DEBUG] After astimezone to SP: {dt_sp}")
-                
                 timestamp_br = dt_sp.isoformat()
-                
-                # LOG 6: Mostrar resultado final ISO
-                logger.debug(f"[TIMEZONE DEBUG] Final ISO timestamp: {timestamp_br}")
-                
-            except (ValueError, AttributeError) as e:
-                logger.error(f"[TIMEZONE DEBUG] ERROR converting timestamp: {e}")
+
+            except (ValueError, AttributeError):
                 # Se falhar, manter o timestamp original
                 pass
-        
+
         result['events'].append({
             'event_id': event.get('EventId'),
             'player_id': event.get('PlayerID'),
@@ -297,8 +274,5 @@ def api_recent_player_events():
             'related_player_name': event.get('RelatedPlayerName'),
             'related_steam_name': event.get('RelatedSteamName')
         })
-        
-        # LOG 7: Confirmar o que está sendo retornado
-        logger.debug(f"[TIMEZONE DEBUG] Event {event.get('EventId')} final timestamp in response: {timestamp_br}")
     
     return jsonify(result)

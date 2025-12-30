@@ -252,12 +252,52 @@ function updatePlayerMarkerVisibility(playerId) {
 function updatePositions(data) {
     // Criar conjunto de IDs de jogadores atuais para identificar quais remover
     const currentPlayerIds = new Set();
-    
+
+    // Detectar conexões e desconexões de jogadores (antes de atualizar os dados)
+    if (MapState.notificationsEnabled && Object.keys(MapState.previousPlayersData).length > 0) {
+        const previousPlayerIds = new Set(Object.keys(MapState.previousPlayersData));
+        const currentOnlineIds = new Set();
+
+        // Coletar IDs de jogadores online atuais
+        data.players.forEach(function(player) {
+            if (player.is_online) {
+                currentOnlineIds.add(player.player_id);
+            }
+        });
+
+        // Detectar jogadores que conectaram (online agora, mas não estava antes)
+        currentOnlineIds.forEach(function(playerId) {
+            const wasOnline = MapState.previousPlayersData[playerId] && MapState.previousPlayersData[playerId].is_online;
+            if (!wasOnline) {
+                const player = data.players.find(p => p.player_id === playerId);
+                if (player) {
+                    const playerName = player.player_name || 'Desconhecido';
+                    const steamName = player.steam_name ? ` (${player.steam_name})` : '';
+                    showToast('Conexão', `${playerName}${steamName} conectou ao servidor`, 'success');
+                    addNotificationToLog('success', `Conexão: ${playerName}${steamName} conectou ao servidor`);
+                }
+            }
+        });
+
+        // Detectar jogadores que desconectaram (estava online antes, mas não está mais)
+        previousPlayerIds.forEach(function(playerId) {
+            const wasOnline = MapState.previousPlayersData[playerId] && MapState.previousPlayersData[playerId].is_online;
+            const isOnlineNow = currentOnlineIds.has(playerId);
+            if (wasOnline && !isOnlineNow) {
+                const previousData = MapState.previousPlayersData[playerId];
+                const playerName = previousData.player_name || 'Desconhecido';
+                const steamName = previousData.steam_name ? ` (${previousData.steam_name})` : '';
+                showToast('Desconexão', `${playerName}${steamName} desconectou do servidor`, 'info');
+                addNotificationToLog('info', `Desconexão: ${playerName}${steamName} desconectou do servidor`);
+            }
+        });
+    }
+
     // Contadores de jogadores exibidos (usar Set para garantir unicidade)
     const countedPlayerIds = new Set();
     let onlineCount = 0;
     let offlineCount = 0;
-    
+
     // Processar cada jogador
     data.players.forEach(function(player) {
         const playerId = player.player_id;
@@ -587,7 +627,11 @@ function updatePositions(data) {
     data.players.forEach(function(player) {
         MapState.previousPlayersData[player.player_id] = {
             coord_x: player.coord_x,
-            coord_y: player.coord_y
+            coord_y: player.coord_y,
+            is_online: player.is_online,
+            is_alive: player.is_alive,
+            player_name: player.player_name,
+            steam_name: player.steam_name
         };
     });
     
