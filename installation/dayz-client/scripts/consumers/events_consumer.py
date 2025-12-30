@@ -667,11 +667,12 @@ class EventsConsumer:
             log_msg = "Evento de início do servidor!"
             self._insert_log_custom(log_msg, "INFO", "EventsConsumer")
             
-            if current_map and next_map:
-                content = f"✅ Servidor iniciado e liberado para jogadores! Mapa atual: {current_map}, Próximo mapa: {next_map}, Horário: {current_time}"
-            else:
-                content = f"✅ Servidor iniciado e liberado para jogadores! Horário: {current_time}"
-            
+            #if current_map != "Indefinido":
+            #    content = f"✅ Servidor iniciado e liberado para jogadores! Mapa atual: {current_map}, Próximo mapa: {next_map}, Horário: {current_time}"
+            #else:
+            #    content = f"✅ Servidor iniciado e liberado para jogadores! Horário: {current_time}"            
+            content = f"✅ Servidor iniciado e liberado para jogadores! Horário: {current_time}"
+                        
             if hasattr(config, 'DISCORD_WEBHOOK_LOGS') and config.DISCORD_WEBHOOK_LOGS:
                 self._send_discord_webhook(content, config.DISCORD_WEBHOOK_LOGS)
             
@@ -695,7 +696,7 @@ class EventsConsumer:
             log_msg = "Evento de aviso de tempo para reiniciar o servidor!"
             self._insert_log_custom(log_msg, "INFO", "EventsConsumer")
             
-            if current_map and next_map:
+            if current_map != "Indefinido":
                 content = f"Mapa atual: {current_map}, Próximo mapa: {next_map}, Horário: {current_time}"
             else:
                 content = f"Horário: {current_time}"

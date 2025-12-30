@@ -69,6 +69,18 @@ function loadPositions() {
     
     $.get(url)
         .done(function(data) {
+            // DEBUG: Verificar se backend retornou duplicados
+            if (data && data.players) {
+                const playerIds = data.players.map(p => p.player_id);
+                const uniqueIds = new Set(playerIds);
+                if (playerIds.length !== uniqueIds.size) {
+                    const duplicates = playerIds.filter((id, index) => playerIds.indexOf(id) !== index);
+                    console.error('🚨 DUPLICADOS detectados na resposta do backend:', duplicates);
+                    console.error('   Total de jogadores:', playerIds.length);
+                    console.error('   IDs únicos:', uniqueIds.size);
+                }
+            }
+            
             updatePositions(data);
             $('#lastUpdate').text(new Date().toLocaleTimeString());
             // Nota: reapplyCurrentTrailFilter() é chamada dentro de updatePositions()
@@ -250,10 +262,17 @@ function updatePlayerMarkerVisibility(playerId) {
  * Atualizar posições no mapa
  */
 function updatePositions(data) {
+    // DEBUG: Log início da atualização
+    console.log('=== updatePositions INÍCIO ===');
+    console.log('Jogadores recebidos do backend:', data.players.length);
+    console.log('IDs únicos na resposta:', new Set(data.players.map(p => p.player_id)).size);
+    console.log('MapState.playersData antes:', Object.keys(MapState.playersData).length);
+    
     // Criar conjunto de IDs de jogadores atuais para identificar quais remover
     const currentPlayerIds = new Set();
     
-    // Contadores de jogadores exibidos
+    // Contadores de jogadores exibidos (usar Set para garantir unicidade)
+    const countedPlayerIds = new Set();
     let onlineCount = 0;
     let offlineCount = 0;
     
@@ -320,11 +339,16 @@ function updatePositions(data) {
             return; // Não processar jogador offline quando filtro está ativo
         }
         
-        // Contar jogador (somente se passou pelo filtro)
-        if (player.is_online) {
-            onlineCount++;
+        // Contar jogador (somente se passou pelo filtro e não foi contado ainda)
+        if (!countedPlayerIds.has(playerId)) {
+            countedPlayerIds.add(playerId);
+            if (player.is_online) {
+                onlineCount++;
+            } else {
+                offlineCount++;
+            }
         } else {
-            offlineCount++;
+            console.warn('⚠️ Jogador duplicado ignorado na contagem:', playerId, player.player_name);
         }
         
         // Verificar se deve mostrar jogadores
@@ -491,17 +515,27 @@ function updatePositions(data) {
         }
     });
     
-    // Limpar MapState.playersData para jogadores que não aparecem mais na resposta
-    // (importante para evitar dados desatualizados no modal)
-    if (onlineOnlyFilterActive) {
-        // Quando filtro "Apenas online" está ativo, limpar dados de jogadores que não estão mais na resposta
-        Object.keys(MapState.playersData).forEach(function(playerId) {
-            if (!currentPlayerIds.has(playerId)) {
-                // Jogador não está mais na resposta, limpar dados
-                delete MapState.playersData[playerId];
+    // CORREÇÃO: Sempre limpar MapState.playersData para jogadores que não aparecem mais na resposta
+    // (importante para evitar dados desatualizados no modal e contadores incorretos)
+    // ANTES: Esta limpeza só ocorria quando filtro "Apenas online" estava ativo,
+    // causando acúmulo de dados antigos e contadores incorretos
+    Object.keys(MapState.playersData).forEach(function(playerId) {
+        if (!currentPlayerIds.has(playerId)) {
+            // Jogador não está mais na resposta do backend, limpar completamente
+            delete MapState.playersData[playerId];
+            
+            // Também remover marcador e trail se existirem
+            if (MapState.playerMarkers[playerId]) {
+                if (MapState.map.hasLayer(MapState.playerMarkers[playerId])) {
+                    MapState.map.removeLayer(MapState.playerMarkers[playerId]);
+                }
+                delete MapState.playerMarkers[playerId];
             }
-        });
-    }
+            removePlayerTrailAndBackups(playerId);
+            
+            console.log('🗑️ Removido jogador que não está mais na resposta:', playerId);
+        }
+    });
     
     // Atualizar badges após carregar dados (para atualizar status online/offline)
     if (MapState.selectedPlayerFilters.length > 0) {
@@ -515,6 +549,15 @@ function updatePositions(data) {
     $('#mapOnlineCount').text(onlineCount);
     $('#mapOfflineCount').text(offlineCount);
     $('#mapTotalCount').text(onlineCount + offlineCount);
+    
+    // DEBUG: Log contadores finais
+    console.log('📊 Contadores atualizados:');
+    console.log('  Online:', onlineCount);
+    console.log('  Offline:', offlineCount);
+    console.log('  Total:', onlineCount + offlineCount);
+    console.log('  Jogadores únicos contados:', countedPlayerIds.size);
+    console.log('  MapState.playersData após limpeza:', Object.keys(MapState.playersData).length);
+    console.log('=== updatePositions FIM ===\n');
     
     if (MapState.showTrails) {
         setTimeout(function() {
@@ -839,8 +882,11 @@ function drawTrail(playerId, trail) {
         return;
     }
     
-    // Inverter ordem dos pontos para mostrar do mais antigo para o mais recente
-    // (os pontos vêm do servidor ordenados do mais recente para o mais antigo)
+    // IMPORTANTE: Inverter ordem dos pontos para mostrar do mais antigo para o mais recente
+    // Os pontos vêm do servidor ordenados do mais recente para o mais antigo:
+    //   normalPoints[0] = ponto MAIS RECENTE
+    //   normalPoints[n] = ponto MAIS ANTIGO
+    // Precisamos inverter para que o cálculo de velocidade compare com o ponto cronologicamente anterior
     const reversedTrail = normalPoints.slice().reverse();
     const color = getPlayerColor(playerId);
     
@@ -917,14 +963,16 @@ function drawTrail(playerId, trail) {
     });
     
     // Adicionar marcadores em cada ponto normal (sem backup) com cálculo de velocidade
-    for (let i = 0; i < normalPoints.length; i++) {
-        const point = normalPoints[i].data;
-        const pointLat = normalPoints[i].mapCoords[0];
-        const pointLng = normalPoints[i].mapCoords[1];
+    // IMPORTANTE: Usar reversedTrail (ordem cronológica) ao invés de normalPoints (ordem invertida)
+    // para que o cálculo de velocidade compare com o ponto cronologicamente anterior
+    for (let i = 0; i < reversedTrail.length; i++) {
+        const point = reversedTrail[i].data;
+        const pointLat = reversedTrail[i].mapCoords[0];
+        const pointLng = reversedTrail[i].mapCoords[1];
         const playerName = MapState.playersData[playerId]?.name || 'Jogador';
         const steamName = MapState.playersData[playerId]?.steamName || '';
         let tooltipText = `<strong>👤 ${playerName}${steamName ? ` (${steamName})` : ''}</strong><br>`;
-        tooltipText += `<strong>📍 Ponto ${normalPoints.length - i}</strong><br>`;
+        tooltipText += `<strong>📍 Ponto ${i + 1}</strong><br>`;
         tooltipText += `⏰ Tempo: <span class="value">${formatTimestampBR(point.timestamp)}</span><br>`;
         tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
         
@@ -933,9 +981,9 @@ function drawTrail(playerId, trail) {
         let timeDiff = null;
         let pointColor = color;
         
-        // Calcular velocidade se houver ponto anterior
+        // Calcular velocidade se houver ponto anterior (cronologicamente)
         if (i > 0) {
-            const prevPoint = normalPoints[i - 1].data;
+            const prevPoint = reversedTrail[i - 1].data;
             
             // Calcular distância em metros (Pitágoras)
             const dx = point.coord_x - prevPoint.coord_x;
@@ -979,13 +1027,13 @@ function drawTrail(playerId, trail) {
                 iconSize: [skullSize, skullSize],
                 iconAnchor: [skullSize / 2, skullSize / 2]
             });
-            pointMarker = L.marker(normalPoints[i].mapCoords, {
+            pointMarker = L.marker(reversedTrail[i].mapCoords, {
                 icon: skullIcon
             }).addTo(MapState.map);
         } else {
             // Jogador vivo - usar circleMarker padrão
             pointMarker = L.circleMarker(
-                normalPoints[i].mapCoords,
+                reversedTrail[i].mapCoords,
                 {
                     radius: 5,
                     fillColor: pointColor,

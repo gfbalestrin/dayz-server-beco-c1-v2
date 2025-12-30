@@ -385,7 +385,9 @@ function drawVehicleTrail(vehicleId, trail) {
         MapState.vehicleTrails[vehicleId].push(circleMarker);
     } else {
         // Objeto em movimento: criar polyline e círculos individuais
-        const latlngs = processedTrail.map(item => item.mapCoords);
+        // IMPORTANTE: Inverter ordem para desenhar do mais antigo para o mais recente
+        const reversedTrail = processedTrail.slice().reverse();
+        const latlngs = reversedTrail.map(item => item.mapCoords);
         const polyline = L.polyline(latlngs, {
             color: '#28a745',
             weight: 3,
@@ -394,20 +396,20 @@ function drawVehicleTrail(vehicleId, trail) {
         
         MapState.vehicleTrails[vehicleId].push(polyline);
         
-        // Adicionar marcadores em cada ponto
-        for (let i = 0; i < processedTrail.length; i++) {
-            const point = processedTrail[i].data;
-            const pointLat = processedTrail[i].mapCoords[0];
-            const pointLng = processedTrail[i].mapCoords[1];
+        // Adicionar marcadores em cada ponto (usar reversedTrail para ordem cronológica correta)
+        for (let i = 0; i < reversedTrail.length; i++) {
+            const point = reversedTrail[i].data;
+            const pointLat = reversedTrail[i].mapCoords[0];
+            const pointLng = reversedTrail[i].mapCoords[1];
             
             let tooltipText = `<strong>🚗 ${point.vehicle_name || 'Veículo'}</strong><br>`;
-            tooltipText += `<strong>📍 Ponto ${processedTrail.length - i}</strong><br>`;
+            tooltipText += `<strong>📍 Ponto ${i + 1}</strong><br>`;
             tooltipText += `⏰ Tempo: <span class="value">${point.timestamp}</span><br>`;
             tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
             
-            // Calcular velocidade se houver ponto anterior
+            // Calcular velocidade se houver ponto anterior (cronologicamente)
             if (i > 0) {
-                const prevPoint = processedTrail[i - 1].data;
+                const prevPoint = reversedTrail[i - 1].data;
                 const dx = point.coord_x - prevPoint.coord_x;
                 const dy = point.coord_y - prevPoint.coord_y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
@@ -425,7 +427,7 @@ function drawVehicleTrail(vehicleId, trail) {
                 }
             }
             
-            const circleMarker = L.circleMarker(processedTrail[i].mapCoords, {
+            const circleMarker = L.circleMarker(reversedTrail[i].mapCoords, {
                 radius: 4,
                 fillColor: '#28a745',
                 color: 'white',
