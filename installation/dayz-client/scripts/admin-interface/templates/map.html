@@ -7,6 +7,87 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 <link rel="stylesheet" href="{{ url_for('static', filename='css/map.css') }}">
+<style>
+/* Botão de toggle das seções */
+.section-toggle {
+    transition: transform 0.3s ease;
+    text-decoration: none !important;
+    min-width: 20px;
+    min-height: 20px;
+}
+
+.section-toggle i {
+    font-size: 14px;
+}
+
+.section-toggle:hover {
+    opacity: 0.8;
+}
+
+.section-toggle.collapsed {
+    transform: rotate(180deg);
+}
+
+/* Garantir visibilidade do ícone em todos os backgrounds */
+.card-header .section-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Animação de colapso */
+.section-content {
+    transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+    max-height: 2000px;
+    opacity: 1;
+    overflow: hidden;
+}
+
+.section-content.collapsed {
+    max-height: 0 !important;
+    opacity: 0;
+    padding: 0 !important;
+}
+
+/* Lista de jogadores online */
+#sidebarPlayersList {
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+.sidebar-player-item {
+    padding: 8px 10px;
+    border-bottom: 1px solid #dee2e6;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.sidebar-player-item:last-child {
+    border-bottom: none;
+}
+
+.sidebar-player-item:hover {
+    background-color: #e9ecef;
+}
+
+.sidebar-player-name {
+    font-weight: 500;
+    font-size: 0.875rem;
+    display: block;
+    margin-bottom: 2px;
+}
+
+.sidebar-player-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.sidebar-player-actions .btn {
+    font-size: 0.75rem;
+    padding: 2px 6px;
+}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -90,12 +171,50 @@
     
     <!-- Sidebar Direita com Controles -->
     <div class="col-12 col-md-12 col-lg-3">
+        <!-- Jogadores Online -->
+        <div class="card mb-2 card-jogadores-online">
+            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-users me-2"></i>Jogadores Online
+                    <span class="badge bg-dark ms-2" id="sidebarOnlineCount">0</span>
+                </div>
+                <button class="btn btn-sm btn-link text-dark p-0 section-toggle" 
+                        data-section="jogadores-online" 
+                        aria-label="Expandir/Recolher"
+                        type="button">
+                    <i class="fas fa-chevron-up text-dark"></i>
+                </button>
+            </div>
+            <div class="card-body p-2 section-content" id="jogadores-online-content">
+                <div class="mb-2">
+                    <input type="text" 
+                           class="form-control form-control-sm" 
+                           id="sidebarPlayerSearch" 
+                           placeholder="Pesquisar jogador...">
+                </div>
+                <div id="sidebarPlayersList" 
+                     style="max-height: 300px; overflow-y: auto;">
+                    <div class="text-muted text-center small py-3">
+                        Carregando jogadores...
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- Botões de Modo -->
         <div class="card mb-2 card-modos">
-            <div class="card-header bg-primary">
-                <i class="fas fa-cog me-2"></i>Modos
+            <div class="card-header bg-primary d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-cog me-2"></i>Modos
+                </div>
+                <button class="btn btn-sm btn-link text-white p-0 section-toggle" 
+                        data-section="modos" 
+                        aria-label="Expandir/Recolher"
+                        type="button">
+                    <i class="fas fa-chevron-up text-dark"></i>
+                </button>
             </div>
-            <div class="card-body p-2">
+            <div class="card-body p-2 section-content" id="modos-content">
                 <div class="d-grid gap-2">
                     <button type="button" class="btn btn-outline-primary active" id="btnModeNormal">
                         <i class="fas fa-mouse-pointer me-1"></i>Normal
@@ -123,10 +242,18 @@
         
         <!-- Controles de Visualização -->
         <div class="card mb-2 card-visualizar">
-            <div class="card-header bg-success">
-                <i class="fas fa-eye me-2"></i>Visualizar
+            <div class="card-header bg-success d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-eye me-2"></i>Visualizar
+                </div>
+                <button class="btn btn-sm btn-link text-white p-0 section-toggle" 
+                        data-section="visualizar" 
+                        aria-label="Expandir/Recolher"
+                        type="button">
+                    <i class="fas fa-chevron-up text-dark"></i>
+                </button>
             </div>
-            <div class="card-body p-2">
+            <div class="card-body p-2 section-content" id="visualizar-content">
                 <div class="mb-2">
                     <label class="form-label small" for="mapTypeSelect">Tipo de Mapa:</label>
                     <select id="mapTypeSelect" class="form-select form-select-sm"></select>
@@ -255,10 +382,18 @@
         
         <!-- Filtros -->
         <div class="card mb-2 card-filtros">
-            <div class="card-header bg-info">
-                <i class="fas fa-filter me-2"></i>Filtros
+            <div class="card-header bg-info d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-filter me-2"></i>Filtros
+                </div>
+                <button class="btn btn-sm btn-link text-white p-0 section-toggle" 
+                        data-section="filtros" 
+                        aria-label="Expandir/Recolher"
+                        type="button">
+                    <i class="fas fa-chevron-up text-dark"></i>
+                </button>
             </div>
-            <div class="card-body p-2">
+            <div class="card-body p-2 section-content" id="filtros-content">
                 <div class="mb-2">
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" id="onlineOnlyCheck" checked>

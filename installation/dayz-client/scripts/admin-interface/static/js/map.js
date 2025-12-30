@@ -664,4 +664,176 @@ $(document).ready(function() {
             clearInterval(MapState.autoRefreshInterval);
         }
     });
+    
+    // Inicializar colapso das seções da sidebar
+    initializeSidebarCollapse();
+    
+    // Event listener para busca de jogadores na sidebar
+    $('#sidebarPlayerSearch').on('input', function() {
+        updateSidebarPlayersList();
+    });
 });
+
+/**
+ * Gerenciamento de colapso das seções da sidebar
+ */
+function initializeSidebarCollapse() {
+    // Carregar estados salvos do localStorage
+    const savedStates = JSON.parse(localStorage.getItem('mapSidebarStates') || '{}');
+    
+    // Estados padrão se não houver salvos
+    const defaultStates = {
+        'jogadores-online': 'expanded',
+        'modos': 'collapsed',
+        'visualizar': 'expanded',
+        'filtros': 'collapsed'
+    };
+    
+    // Aplicar estados (salvos ou padrões)
+    Object.keys(defaultStates).forEach(function(section) {
+        const state = savedStates[section] || defaultStates[section];
+        if (state === 'collapsed') {
+            collapseSectionImmediate(section);
+        }
+    });
+    
+    // Event listeners para botões de toggle
+    $('.section-toggle').on('click', function() {
+        const section = $(this).data('section');
+        toggleSection(section);
+    });
+}
+
+function toggleSection(section) {
+    const contentId = '#' + section + '-content';
+    const $content = $(contentId);
+    const $toggle = $('.section-toggle[data-section="' + section + '"]');
+    
+    if ($content.hasClass('collapsed')) {
+        // Expandir
+        $content.removeClass('collapsed');
+        $toggle.removeClass('collapsed');
+        saveState(section, 'expanded');
+    } else {
+        // Colapsar
+        $content.addClass('collapsed');
+        $toggle.addClass('collapsed');
+        saveState(section, 'collapsed');
+    }
+}
+
+function collapseSectionImmediate(section) {
+    const contentId = '#' + section + '-content';
+    const $content = $(contentId);
+    const $toggle = $('.section-toggle[data-section="' + section + '"]');
+    
+    $content.addClass('collapsed');
+    $toggle.addClass('collapsed');
+}
+
+function saveState(section, state) {
+    const states = JSON.parse(localStorage.getItem('mapSidebarStates') || '{}');
+    states[section] = state;
+    localStorage.setItem('mapSidebarStates', JSON.stringify(states));
+}
+
+/**
+ * Popular lista de jogadores online na sidebar
+ */
+function updateSidebarPlayersList() {
+    const $list = $('#sidebarPlayersList');
+    const searchTerm = $('#sidebarPlayerSearch').val().toLowerCase();
+    
+    // Filtrar jogadores online
+    const onlinePlayers = Object.keys(MapState.playersData)
+        .map(id => ({ id, ...MapState.playersData[id] }))
+        .filter(p => p.is_online || p.isOnline)
+        .filter(p => {
+            if (!searchTerm) return true;
+            const name = (p.player_name || p.name || '').toLowerCase();
+            const steamName = (p.steam_name || p.steamName || '').toLowerCase();
+            return name.includes(searchTerm) || steamName.includes(searchTerm);
+        })
+        .sort((a, b) => {
+            const nameA = (a.player_name || a.name || '').toLowerCase();
+            const nameB = (b.player_name || b.name || '').toLowerCase();
+            return nameA.localeCompare(nameB);
+        });
+    
+    // Atualizar contador
+    $('#sidebarOnlineCount').text(onlinePlayers.length);
+    
+    // Se vazio
+    if (onlinePlayers.length === 0) {
+        $list.html('<div class="text-muted text-center small py-3">Nenhum jogador online</div>');
+        return;
+    }
+    
+    // Gerar HTML
+    let html = '';
+    onlinePlayers.forEach(function(player) {
+        const playerName = player.player_name || player.name || 'Jogador';
+        const steamName = player.steam_name || player.steamName || '';
+        const steamNameDisplay = steamName ? ` (${steamName})` : '';
+        const isAdmin = player.is_admin || false;
+        const adminBadge = isAdmin ? '<span class="badge bg-danger ms-1" style="font-size: 0.65rem;">Admin</span>' : '';
+        
+        html += `
+            <div class="sidebar-player-item" data-player-id="${player.id}">
+                <div class="sidebar-player-name">
+                    🟢 ${playerName}${steamNameDisplay}${adminBadge}
+                </div>
+                <div class="sidebar-player-actions">
+                    <button class="btn btn-sm btn-outline-primary" 
+                            onclick="zoomToPlayerFromSidebar('${player.id}')" 
+                            title="Zoom no jogador">
+                        <i class="fas fa-search-location"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" 
+                            onclick="viewPlayerTrailFromSidebar('${player.id}')" 
+                            title="Ver trail">
+                        <i class="fas fa-route"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    
+    $list.html(html);
+}
+
+/**
+ * Zoom em jogador a partir da sidebar
+ */
+function zoomToPlayerFromSidebar(playerId) {
+    const marker = MapState.playerMarkers[playerId];
+    if (marker) {
+        const latLng = marker.getLatLng();
+        MapState.map.flyTo(latLng, 3, {
+            animate: true,
+            duration: 1.0
+        });
+        // Abrir popup
+        marker.openPopup();
+    }
+}
+
+/**
+ * Ver trail do jogador a partir da sidebar
+ */
+function viewPlayerTrailFromSidebar(playerId) {
+    // Ativar trails se não estiver ativo
+    if (!MapState.showTrails) {
+        $('#toggleTrailsBtn').click();
+    }
+    
+    // Adicionar jogador ao filtro
+    if (!MapState.selectedPlayerFilters.includes(playerId)) {
+        MapState.selectedPlayerFilters.push(playerId);
+        updateSelectedPlayersBadges();
+        filterPlayers();
+    }
+    
+    // Zoom no jogador
+    zoomToPlayerFromSidebar(playerId);
+}

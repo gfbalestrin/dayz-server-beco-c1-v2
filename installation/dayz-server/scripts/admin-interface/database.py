@@ -3337,11 +3337,12 @@ def get_players_last_position() -> List[Dict]:
                    pc.ItemsInHands, pc.ItemsCount, pc.MainItems
             FROM players_database p
             INNER JOIN (
-                SELECT PlayerID, MAX(Data) as MaxData
+                SELECT PlayerID, CoordX, CoordY, CoordZ, Data, PlayerCoordId,
+                       Health, Blood, Shock, Energy, Water, IsAlive, IsAdmin,
+                       Stamina, StaminaMax, ItemsInHands, ItemsCount, MainItems,
+                       ROW_NUMBER() OVER (PARTITION BY PlayerID ORDER BY Data DESC, PlayerCoordId DESC) as rn
                 FROM players_coord
-                GROUP BY PlayerID
-            ) latest ON p.PlayerID = latest.PlayerID
-            INNER JOIN players_coord pc ON pc.PlayerID = latest.PlayerID AND pc.Data = latest.MaxData
+            ) pc ON p.PlayerID = pc.PlayerID AND pc.rn = 1
             ORDER BY p.PlayerName
         """)
         return [dict(row) for row in cursor.fetchall()]
@@ -3513,11 +3514,12 @@ def get_online_players_positions() -> List[Dict]:
             FROM players_online po
             INNER JOIN players_database p ON po.PlayerID = p.PlayerID
             INNER JOIN (
-                SELECT PlayerID, MAX(Data) as MaxData
+                SELECT PlayerID, CoordX, CoordY, CoordZ, Data, PlayerCoordId,
+                       Health, Blood, Shock, Energy, Water, IsAlive, IsAdmin,
+                       Stamina, StaminaMax, ItemsInHands, ItemsCount, MainItems,
+                       ROW_NUMBER() OVER (PARTITION BY PlayerID ORDER BY Data DESC, PlayerCoordId DESC) as rn
                 FROM players_coord
-                GROUP BY PlayerID
-            ) latest ON p.PlayerID = latest.PlayerID
-            INNER JOIN players_coord pc ON pc.PlayerID = latest.PlayerID AND pc.Data = latest.MaxData
+            ) pc ON p.PlayerID = pc.PlayerID AND pc.rn = 1
             ORDER BY p.PlayerName
         """)
         return [dict(row) for row in cursor.fetchall()]

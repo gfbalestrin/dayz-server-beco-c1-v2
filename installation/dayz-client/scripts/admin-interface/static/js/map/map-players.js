@@ -69,18 +69,6 @@ function loadPositions() {
     
     $.get(url)
         .done(function(data) {
-            // DEBUG: Verificar se backend retornou duplicados
-            if (data && data.players) {
-                const playerIds = data.players.map(p => p.player_id);
-                const uniqueIds = new Set(playerIds);
-                if (playerIds.length !== uniqueIds.size) {
-                    const duplicates = playerIds.filter((id, index) => playerIds.indexOf(id) !== index);
-                    console.error('🚨 DUPLICADOS detectados na resposta do backend:', duplicates);
-                    console.error('   Total de jogadores:', playerIds.length);
-                    console.error('   IDs únicos:', uniqueIds.size);
-                }
-            }
-            
             updatePositions(data);
             $('#lastUpdate').text(new Date().toLocaleTimeString());
             // Nota: reapplyCurrentTrailFilter() é chamada dentro de updatePositions()
@@ -262,12 +250,6 @@ function updatePlayerMarkerVisibility(playerId) {
  * Atualizar posições no mapa
  */
 function updatePositions(data) {
-    // DEBUG: Log início da atualização
-    console.log('=== updatePositions INÍCIO ===');
-    console.log('Jogadores recebidos do backend:', data.players.length);
-    console.log('IDs únicos na resposta:', new Set(data.players.map(p => p.player_id)).size);
-    console.log('MapState.playersData antes:', Object.keys(MapState.playersData).length);
-    
     // Criar conjunto de IDs de jogadores atuais para identificar quais remover
     const currentPlayerIds = new Set();
     
@@ -347,8 +329,6 @@ function updatePositions(data) {
             } else {
                 offlineCount++;
             }
-        } else {
-            console.warn('⚠️ Jogador duplicado ignorado na contagem:', playerId, player.player_name);
         }
         
         // Verificar se deve mostrar jogadores
@@ -550,15 +530,6 @@ function updatePositions(data) {
     $('#mapOfflineCount').text(offlineCount);
     $('#mapTotalCount').text(onlineCount + offlineCount);
     
-    // DEBUG: Log contadores finais
-    console.log('📊 Contadores atualizados:');
-    console.log('  Online:', onlineCount);
-    console.log('  Offline:', offlineCount);
-    console.log('  Total:', onlineCount + offlineCount);
-    console.log('  Jogadores únicos contados:', countedPlayerIds.size);
-    console.log('  MapState.playersData após limpeza:', Object.keys(MapState.playersData).length);
-    console.log('=== updatePositions FIM ===\n');
-    
     if (MapState.showTrails) {
         setTimeout(function() {
             // Carregar trails de todos os jogadores (respeitando filtro "Apenas online" e exclusões)
@@ -619,6 +590,11 @@ function updatePositions(data) {
             coord_y: player.coord_y
         };
     });
+    
+    // Atualizar lista de jogadores online na sidebar
+    if (typeof updateSidebarPlayersList === 'function') {
+        updateSidebarPlayersList();
+    }
 }
 
 /**
