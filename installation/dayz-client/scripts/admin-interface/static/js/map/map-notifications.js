@@ -128,9 +128,6 @@ function addNotificationToLog(type, message, timestamp) {
     
     const logEntry = $(`
         <div class="d-flex align-items-start mb-2 pb-2 border-bottom">
-            <span class="badge ${badgeClass} me-2 mt-1" style="min-width: 60px; text-align: center;">
-                <i class="fas ${iconClass} me-1"></i>${type.toUpperCase()}
-            </span>
             <div class="flex-grow-1">
                 <div class="small text-muted mb-1">${timeStr}</div>
                 <div class="small">${message}</div>
@@ -302,11 +299,8 @@ function saveNotificationSettingsFromModal() {
     };
     
     if (saveNotificationSettings(settings)) {
-        showToast('Sucesso', 'Configurações de notificações salvas', 'success');
         const modal = bootstrap.Modal.getInstance(document.getElementById('notificationSettingsModal'));
         modal.hide();
-    } else {
-        showToast('Erro', 'Erro ao salvar configurações', 'danger');
     }
 }
 
@@ -424,7 +418,6 @@ function processPlayerEvents(events) {
         }
         
         if (message) {
-            showToast('Evento', message, type);
             // Parsear timestamp do evento
             const eventTimestamp = event.timestamp ? new Date(event.timestamp) : new Date();
             addNotificationToLog(type, message, eventTimestamp);
