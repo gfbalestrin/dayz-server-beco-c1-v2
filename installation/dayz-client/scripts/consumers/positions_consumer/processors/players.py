@@ -10,6 +10,7 @@ import logging
 import base64
 import sys
 import os
+import subprocess
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Tuple, Optional
 
@@ -127,7 +128,135 @@ class PlayersProcessor:
             normalized['main_items'] = None
         
         return normalized
-    
+
+    def _execute_rcon_players_geo(self) -> Optional[List[Dict[str, Any]]]:
+        """
+        Executa comando RCON 'players' com parâmetro de geolocalização (-g)
+        Retorna lista de jogadores com dados de geolocalização
+        """
+        if not config.RCON_PASSWORD:
+            logger.debug("RCON_PASSWORD não configurada, geolocalização desabilitada")
+            return None
+
+        geolite_path = getattr(config, 'GEOLITE2_DB_PATH', '')
+        if not geolite_path or not os.path.exists(geolite_path):
+            logger.debug(f"GeoLite2 database não encontrado: {geolite_path}")
+            return None
+
+        try:
+            cmd = [
+                config.RCON_BIN_PATH,
+                '-i', config.RCON_IP,
+                '-p', str(config.RCON_PORT),
+                '-P', config.RCON_PASSWORD,
+                '-g', geolite_path,
+                '-j', 'players'
+            ]
+
+            logger.debug(f"Executando RCON players geo: {config.RCON_BIN_PATH} -i {config.RCON_IP} -p {config.RCON_PORT} -P *** -g {geolite_path} -j players")
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+
+            if result.returncode != 0:
+                logger.debug(f"RCON players geo retornou código {result.returncode}: {result.stderr}")
+                return None
+
+            if not result.stdout or not result.stdout.strip():
+                logger.debug("RCON players geo retornou resposta vazia")
+                return None
+
+            players_data = json.loads(result.stdout)
+            logger.debug(f"RCON players geo retornou {len(players_data) if players_data else 0} jogadores")
+            return players_data
+
+        except subprocess.TimeoutExpired:
+            logger.warning("Timeout ao executar RCON players geo")
+            return None
+        except json.JSONDecodeError as e:
+            logger.warning(f"Resposta RCON não é JSON válido: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"Erro ao executar RCON players geo: {e}")
+            return None
+
+    def _update_players_geolocation(self, connect_players: set) -> bool:
+        """
+        Atualiza dados de geolocalização dos jogadores recém-conectados
+        Chama RCON para obter dados e faz UPDATE na tabela players_online
+        """
+        if not connect_players:
+            return True
+
+        # Buscar dados de geolocalização via RCON
+        rcon_players = self._execute_rcon_players_geo()
+        if not rcon_players:
+            logger.debug("Nenhum dado de geolocalização obtido via RCON")
+            return True
+
+        conn = None
+        try:
+            conn = sqlite3.connect(self.db_path, timeout=10.0)
+            cursor = conn.cursor()
+
+            # Buscar RconGuid dos jogadores conectados
+            placeholders = ','.join(['?'] * len(connect_players))
+            cursor.execute(f"""
+                SELECT PlayerID, RconGuid
+                FROM players_database
+                WHERE PlayerID IN ({placeholders}) AND RconGuid IS NOT NULL AND RconGuid != ''
+            """, list(connect_players))
+
+            player_guid_map = {row[1]: row[0] for row in cursor.fetchall()}
+
+            if not player_guid_map:
+                logger.debug("Nenhum jogador conectado possui RconGuid")
+                conn.close()
+                return True
+
+            # Fazer match e atualizar
+            updated_count = 0
+            for rcon_player in rcon_players:
+                guid = rcon_player.get('guid')
+                if not guid or guid not in player_guid_map:
+                    continue
+
+                player_id = player_guid_map[guid]
+
+                # Preparar valores
+                country = rcon_player.get('country') or None
+                city = rcon_player.get('city') or None
+                lon = rcon_player.get('lon')
+                ip = rcon_player.get('ip') or None
+                port = rcon_player.get('port')
+                ping = rcon_player.get('ping')
+
+                cursor.execute("""
+                    UPDATE players_online
+                    SET Country = ?, City = ?, Lon = ?, IP = ?, Port = ?, Ping = ?
+                    WHERE PlayerID = ?
+                """, (country, city, lon, ip, port, ping, player_id))
+
+                if cursor.rowcount > 0:
+                    updated_count += 1
+                    logger.debug(f"Geolocalização atualizada para {player_id}: {country}/{city}")
+
+            conn.commit()
+            conn.close()
+
+            if updated_count > 0:
+                logger.info(f"Geolocalização atualizada para {updated_count} jogadores")
+
+            return True
+
+        except Exception as e:
+            logger.warning(f"Erro ao atualizar geolocalização: {e}")
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
+            return False
+
     def _update_players_online(self, current_player_ids: List[str], timestamp: datetime) -> bool:
         """
         Atualiza tabela players_online baseado em jogadores conectados/desconectados
@@ -289,9 +418,16 @@ class PlayersProcessor:
                     
                 except Exception as e:
                     logger.warning(f"Erro ao processar Discord (não crítico): {e}")
-                
+
                 conn.close()
-                
+
+                # Atualizar geolocalização dos jogadores conectados (não crítico)
+                if connect_players:
+                    try:
+                        self._update_players_geolocation(connect_players)
+                    except Exception as e:
+                        logger.warning(f"Erro ao atualizar geolocalização (não crítico): {e}")
+
                 # Atualizar estado apenas após sucesso
                 logger.info(f"_update_players_online: atualizando previous_players de {len(self.previous_players)} para {len(current_set)} players")
                 self.previous_players = current_set
