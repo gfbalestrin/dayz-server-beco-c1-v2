@@ -24,6 +24,7 @@ $(document).ready(function() {
     initMap();
     setupMapSelector();
     loadPositions();
+    loadAdminIdsForMap();
     
     // Garantir que inputs de hora sempre usem formato 24h
     // O valor sempre é retornado em formato 24h pelo JavaScript, mas podemos adicionar
@@ -790,10 +791,16 @@ function updateSidebarPlayersList() {
     onlinePlayers.forEach(function(player) {
         const playerName = player.player_name || player.name || 'Jogador';
         const steamName = player.steam_name || player.steamName || '';
-        const steamNameDisplay = steamName ? ` (${steamName})` : '';
+        const steamId = player.steam_id || player.steamId || '';
+        let steamNameDisplay = '';
+        if (steamName && steamId) {
+            steamNameDisplay = ` (<a href="https://steamcommunity.com/profiles/${steamId}" target="_blank" class="text-decoration-none" title="Ver perfil Steam" onclick="event.stopPropagation();">${steamName}</a>)`;
+        } else if (steamName) {
+            steamNameDisplay = ` (${steamName})`;
+        }
         const isAdmin = player.is_admin || false;
         const adminBadge = isAdmin ? '<span class="badge bg-danger ms-1" style="font-size: 0.65rem;">Admin</span>' : '';
-        
+
         html += `
             <div class="sidebar-player-item" data-player-id="${player.id}">
                 <div class="sidebar-player-name">
@@ -809,6 +816,11 @@ function updateSidebarPlayersList() {
                             onclick="viewPlayerTrailFromSidebar('${player.id}')"
                             title="${MapState.selectedPlayerFilters.includes(player.id) ? 'Remover trail' : 'Ver trail'}">
                         <i class="fas fa-route"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning"
+                            onclick="showPlayerControlPanelFromMap('${player.id}')"
+                            title="Painel de Controle">
+                        <i class="fas fa-sliders-h"></i>
                     </button>
                 </div>
             </div>
@@ -832,6 +844,52 @@ function zoomToPlayerFromSidebar(playerId) {
         // Abrir popup
         marker.openPopup();
     }
+}
+
+/**
+ * Carregar IDs de administradores para o mapa
+ */
+function loadAdminIdsForMap() {
+    $.get('/api/admins/list')
+        .done(function(response) {
+            if (response.admins && Array.isArray(response.admins)) {
+                MapState.adminIds = new Set(response.admins.map(a => a.PlayerID || a.player_id));
+            }
+        })
+        .fail(function() {
+            console.warn('Não foi possível carregar lista de administradores');
+        });
+}
+
+/**
+ * Abrir painel de controle do jogador a partir do mapa
+ * @param {string} playerId - ID do jogador
+ */
+function showPlayerControlPanelFromMap(playerId) {
+    // Buscar dados do jogador do MapState
+    const playerData = MapState.playersData[playerId];
+    if (!playerData) {
+        showToast('Erro', 'Jogador não encontrado', 'error');
+        return;
+    }
+
+    // Converter para formato esperado pelo showPlayerControlPanel (PascalCase)
+    const playerFormatted = {
+        PlayerID: playerId,
+        PlayerName: playerData.player_name || playerData.name || 'Jogador',
+        SteamName: playerData.steam_name || playerData.steamName || '',
+        SteamID: playerData.steam_id || playerData.steamId || '',
+        IsOnline: (playerData.is_online || playerData.isOnline) ? 1 : 0
+    };
+
+    // Preparar dados para os módulos compartilhados
+    const playersDataArray = [playerFormatted];
+
+    // Configurar dados compartilhados para os módulos
+    setSharedPlayerData(playersDataArray, MapState.adminIds);
+
+    // Chamar função compartilhada
+    showPlayerControlPanel(playerId, playerFormatted.PlayerName);
 }
 
 /**

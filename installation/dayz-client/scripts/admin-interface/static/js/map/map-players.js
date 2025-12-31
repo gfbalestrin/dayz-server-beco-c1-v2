@@ -307,10 +307,12 @@ function updatePositions(data) {
         MapState.playersData[playerId] = {
             name: player.player_name,
             steamName: player.steam_name,
+            steamId: player.steam_id,
             isOnline: player.is_online,
             // Dados completos para uso no modal
             player_name: player.player_name,
             steam_name: player.steam_name,
+            steam_id: player.steam_id,
             coord_x: player.coord_x,
             coord_y: player.coord_y,
             coord_z: player.coord_z,

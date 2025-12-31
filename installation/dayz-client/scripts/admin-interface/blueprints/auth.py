@@ -117,7 +117,7 @@ def login():
                 get_client_ip()
             )
             
-            return redirect(url_for('views.index'))
+            return redirect(url_for('views.map_view'))
         
         # Se não for Super Admin, verifica no banco de dados
         user_data = authenticate_user(username, password)
@@ -147,7 +147,7 @@ def login():
             # Redirecionar conforme tipo de usuário
             if session.get('user_type') == 'player':
                 return redirect(url_for('views.my_loadout'))
-            return redirect(url_for('views.index'))
+            return redirect(url_for('views.map_view'))
         
         # Credenciais inválidas
         return render_template('login.html', error='Credenciais inválidas')

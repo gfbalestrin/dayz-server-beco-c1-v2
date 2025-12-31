@@ -50,6 +50,7 @@ def api_positions():
             'player_id': pos['PlayerID'],
             'player_name': pos['PlayerName'] or 'Sem nome',
             'steam_name': pos['SteamName'] or 'Sem steam name',
+            'steam_id': pos['SteamID'] or '',
             'coord_x': pos['CoordX'],
             'coord_y': pos['CoordY'],  # Essa é Sul-Norte
             'coord_z': pos['CoordZ'],  # Essa é Altitude
@@ -406,6 +407,7 @@ def api_online_positions():
             'player_id': pos['PlayerID'],
             'player_name': pos['PlayerName'] or 'Sem nome',
             'steam_name': pos['SteamName'] or 'Sem steam name',
+            'steam_id': pos['SteamID'] or '',
             'coord_x': pos['CoordX'],
             'coord_y': pos['CoordY'],
             'coord_z': pos['CoordZ'],

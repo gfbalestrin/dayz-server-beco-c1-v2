@@ -115,6 +115,9 @@ const MapState = {
     autoRefreshInterval: null,
     
     // Clusters
-    containerClusterGroup: null
+    containerClusterGroup: null,
+
+    // Dados de administradores (para o painel de controle)
+    adminIds: new Set()
 };
 

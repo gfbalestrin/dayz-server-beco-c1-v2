@@ -356,16 +356,9 @@ function showActionConfirmationModal(actionName, message, playerId, playerName, 
     $('#actionConfirmationModal').modal('show');
 }
 
-// Função para mostrar modal de enviar mensagem privada
-// Variável para armazenar intervalo de auto-refresh do chat
-let chatRefreshInterval = null;
-let currentChatPlayerId = null;
-
-// Variáveis para armazenar contexto do jogador ao abrir modais
-let currentControlPanelPlayerId = null;
-let currentControlPanelPlayerName = null;
-
 // Função para retornar ao painel de controle principal
+// NOTA: As variáveis chatRefreshInterval, currentChatPlayerId, currentControlPanelPlayerId
+// e currentControlPanelPlayerName são definidas nos módulos shared-player-*.js
 function returnToControlPanel(playerId, playerName) {
     // Fechar modal atual
     $('.modal').modal('hide');
@@ -595,51 +588,7 @@ function sendPrivateMessage(playerId, message) {
     });
 }
 
-// Função para mostrar modal de enviar mensagem global
-function showSendGlobalMessageModal() {
-    $('#sendGlobalMessageText').val('');
-    
-    // Remover handlers anteriores e adicionar novo
-    $('#sendGlobalMessageConfirmBtn').off('click').on('click', function() {
-        const message = $('#sendGlobalMessageText').val().trim();
-        
-        if (!message) {
-            showToast('Aviso', 'Por favor, digite uma mensagem', 'warning');
-            return;
-        }
-        
-        sendGlobalMessage(message);
-    });
-    
-    // Limpar textarea ao fechar modal
-    $('#sendGlobalMessageModal').on('hidden.bs.modal', function() {
-        $('#sendGlobalMessageText').val('');
-    });
-    
-    $('#sendGlobalMessageModal').modal('show');
-}
-
-// Função para enviar mensagem global
-function sendGlobalMessage(message) {
-    $.ajax({
-        url: '/api/messages/global',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({ message: message }),
-        success: function(response) {
-            if (response.success) {
-                showToast('Sucesso', response.message, 'success');
-                $('#sendGlobalMessageModal').modal('hide');
-            } else {
-                showToast('Erro', response.message || 'Erro ao enviar mensagem', 'error');
-            }
-        },
-        error: function(xhr) {
-            const error = xhr.responseJSON || {};
-            showToast('Erro', error.message || 'Erro ao enviar mensagem', 'error');
-        }
-    });
-}
+// NOTA: showSendGlobalMessageModal() e sendGlobalMessage() são definidas em shared-player-chat.js
 
 // Função para escapar aspas simples para uso em atributos JavaScript
 function escapeJsString(str) {
@@ -995,8 +944,7 @@ function showPlayerBansModal(playerId, playerName) {
     });
 }
 
-// Variável para armazenar playerId atual no modal de bans
-let currentBansPlayerId = null;
+// NOTA: currentBansPlayerId é definida em shared-player-bans.js
 
 // Função para renderizar histórico de bans
 function renderBansHistory(bans) {
@@ -1220,6 +1168,10 @@ function loadPlayers() {
             const onlineCount = playersData.filter(p => p.IsOnline && p.IsOnline !== 0).length;
             const offlineCount = playersData.length - onlineCount;
             console.log(`[loadPlayers] Dados carregados: ${playersData.length} total, ${onlineCount} online, ${offlineCount} offline`);
+            // Atualizar dados compartilhados para os módulos shared-player-*
+            if (typeof setSharedPlayerData === 'function') {
+                setSharedPlayerData(playersData, adminIds);
+            }
             renderPlayersTable();
             // Após renderizar a tabela de jogadores, carregar administradores
             // Isso garante que a tabela esteja criada antes de atualizar os botões
@@ -1405,13 +1357,21 @@ function renderPlayersTable() {
 
 // Inicialização
 $(document).ready(function() {
+    // Inicializar módulos compartilhados (se disponíveis)
+    if (typeof setLoadAdminsCallback === 'function') {
+        setLoadAdminsCallback(loadAdmins);
+    }
+    if (typeof initPlayerEventsListeners === 'function') {
+        initPlayerEventsListeners();
+    }
+
     // Carregar preferências do localStorage
     const savedInterval = localStorage.getItem('refreshInterval');
     if (savedInterval) {
         currentRefreshInterval = parseInt(savedInterval);
         $('#refreshIntervalSelect').val(savedInterval);
     }
-    
+
     // Event listeners para controles
     $('#autoRefreshToggle').on('change', function() {
         updateRefreshInterval();
@@ -1532,6 +1492,10 @@ function loadAdmins() {
             // Atualizar Set de admin IDs para verificação rápida
             adminIds = new Set(adminsData.map(admin => admin.PlayerID));
             console.log(`[loadAdmins] Dados carregados: ${adminsData.length} administradores`);
+            // Atualizar dados compartilhados para os módulos shared-player-*
+            if (typeof setSharedPlayerData === 'function') {
+                setSharedPlayerData(playersData, adminIds);
+            }
             renderAdminsTable();
             // Atualizar tabela de jogadores apenas se ela já foi criada
             // Isso evita renderização duplicada que causa erro de contagem de colunas
@@ -1767,47 +1731,7 @@ function removeAdmin(playerId) {
 // ============================================================================
 // FUNCIONALIDADE DE HISTÓRICO DE EVENTOS
 // ============================================================================
-
-const EVENT_TYPE_NAMES = {
-    'player_connected': 'Conexão',
-    'player_disconnected': 'Desconexão',
-    'player_death': 'Morte',
-    'player_killed': 'Morto por Jogador',
-    'player_respawn': 'Respawn',
-    'damage_taken': 'Dano Recebido',
-    'damage_dealt': 'Dano Causado',
-    'fence_built': 'Fence Construída',
-    'fence_destroyed': 'Fence Destruída',
-    'watchtower_built': 'Torre Construída',
-    'watchtower_destroyed': 'Torre Destruída',
-    'flag_built': 'Bandeira Construída',
-    'shelter_built': 'Abrigo Construído',
-    'loadout_changed': 'Loadout Alterado',
-    'admin_action': 'Ação Admin',
-    'chat_command': 'Comando de Chat',
-    'item_found': 'Item Encontrado',
-    'item_picked_up': 'Item Coletado',
-    'item_dropped': 'Item Solto',
-    'item_used': 'Item Usado',
-    'vehicle_entered': 'Entrou em Veículo',
-    'vehicle_exited': 'Saiu de Veículo',
-    'vehicle_damaged': 'Veículo Danificado',
-    'infected_killed': 'Zumbi Morto',
-    'teleport': 'Teleporte',
-    'custom_event': 'Evento Customizado'
-};
-
-/**
- * Estado do histórico de eventos
- */
-const EventsHistoryState = {
-    currentPlayerId: null,
-    currentPage: 1,
-    limit: 50,
-    dateFrom: null,
-    dateTo: null,
-    eventType: null
-};
+// NOTA: EVENT_TYPE_NAMES e EventsHistoryState são definidos em shared-player-events.js
 
 /**
  * Formatar tipo de evento para exibição

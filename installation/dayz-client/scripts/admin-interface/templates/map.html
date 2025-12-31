@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" />
 <link rel="stylesheet" href="{{ url_for('static', filename='css/map.css') }}">
 <style>
 /* Botão de toggle das seções */
@@ -179,10 +180,15 @@
             </div>
             <div class="card-body p-2 section-content" id="jogadores-online-content">
                 <div class="mb-2">
-                    <input type="text" 
-                           class="form-control form-control-sm" 
-                           id="sidebarPlayerSearch" 
+                    <input type="text"
+                           class="form-control form-control-sm"
+                           id="sidebarPlayerSearch"
                            placeholder="Pesquisar jogador...">
+                </div>
+                <div class="mb-2">
+                    <button type="button" class="btn btn-sm btn-warning w-100" id="sendGlobalMessageBtn" onclick="showSendGlobalMessageModal()">
+                        <i class="fas fa-bullhorn me-1"></i>Enviar Mensagem Global
+                    </button>
                 </div>
                 <div id="sidebarPlayersList" 
                      style="max-height: 300px; overflow-y: auto;">
@@ -1793,11 +1799,23 @@
         </div>
     </div>
 </div>
+
+<!-- Modais compartilhados para ações de jogador -->
+{% include 'partials/player-modals.html' %}
 {% endblock %}
 
 {% block extra_js %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+<!-- Módulos compartilhados para ações de jogador -->
+<script src="{{ url_for('static', filename='js/shared/shared-common.js') }}"></script>
+<script src="{{ url_for('static', filename='js/shared/shared-player-utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/shared/shared-player-actions.js') }}"></script>
+<script src="{{ url_for('static', filename='js/shared/shared-player-chat.js') }}"></script>
+<script src="{{ url_for('static', filename='js/shared/shared-player-bans.js') }}"></script>
+<!-- shared-player-events.js não é necessário - map-players.js tem sua própria implementação -->
+<script src="{{ url_for('static', filename='js/shared/shared-player-admin.js') }}"></script>
 <!-- Módulos do Mapa - Ordem de carregamento importante -->
 <script src="{{ url_for('static', filename='js/map/map-state.js') }}"></script>
 <script src="{{ url_for('static', filename='js/map/map-utils.js') }}"></script>
