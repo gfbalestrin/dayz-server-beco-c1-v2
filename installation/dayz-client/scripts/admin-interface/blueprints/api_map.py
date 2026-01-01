@@ -425,9 +425,16 @@ def api_online_positions():
             'stamina_max': pos.get('StaminaMax'),
             'items_in_hands': pos.get('ItemsInHands'),
             'items_count': pos.get('ItemsCount'),
-            'main_items': pos.get('MainItems')
+            'main_items': pos.get('MainItems'),
+            'country': pos.get('Country'),
+            'city': pos.get('City'),
+            'ip': pos.get('IP'),
+            'port': pos.get('Port'),
+            'ping': pos.get('Ping'),
+            'lat': pos.get('Lat'),
+            'lon': pos.get('Lon')
         })
-    
+
     return jsonify(result)
 
 @api_map_bp.route('/api/vehicles/positions')

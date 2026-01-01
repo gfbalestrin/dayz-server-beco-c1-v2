@@ -334,11 +334,21 @@ class PlayersProcessor:
                 # SEMPRE atualizar todos os players atuais
                 if current_set:
                     logger.debug(f"Sincronizando {len(current_set)} jogadores atuais na tabela players_online")
+
+                    # INSERT OR IGNORE para novos jogadores (não sobrescreve existentes)
                     all_current_values = [(player_id, timestamp_str) for player_id in current_set]
                     cursor.executemany(
-                        "INSERT OR REPLACE INTO players_online (PlayerID, DataConnect) VALUES (?, ?)",
+                        "INSERT OR IGNORE INTO players_online (PlayerID, DataConnect) VALUES (?, ?)",
                         all_current_values
                     )
+
+                    # UPDATE para atualizar DataConnect dos existentes (preserva geolocalização)
+                    update_values = [(timestamp_str, player_id) for player_id in current_set]
+                    cursor.executemany(
+                        "UPDATE players_online SET DataConnect = ? WHERE PlayerID = ?",
+                        update_values
+                    )
+
                     logger.debug(f"Atualizados {len(current_set)} jogadores como conectados (sincronização completa)")
                 
                 # Processar desconectados

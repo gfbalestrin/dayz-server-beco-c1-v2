@@ -755,6 +755,53 @@ function saveState(section, state) {
 }
 
 /**
+ * Converter código de país em emoji de bandeira
+ */
+function getCountryFlag(countryCode) {
+    if (!countryCode || countryCode.length !== 2) {
+        return '';
+    }
+    const codePoints = countryCode
+        .toUpperCase()
+        .split('')
+        .map(char => 127397 + char.charCodeAt(0));
+    return String.fromCodePoint(...codePoints);
+}
+
+/**
+ * Exibir modal com detalhes de geolocalização do jogador
+ */
+function showPlayerGeolocationModal(playerId, playerName, country, city, ip, port, ping) {
+    $('#geoModalPlayerName').text(playerName);
+    $('#geoModalPlayerId').text(playerId);
+
+    const flag = getCountryFlag(country);
+    let html = '<table class="table table-sm">';
+
+    if (country) {
+        html += `<tr><th style="width: 100px;">País</th><td>${flag} ${country}</td></tr>`;
+    }
+    if (city) {
+        html += `<tr><th>Cidade</th><td>${city}</td></tr>`;
+    }
+    if (ip) {
+        html += `<tr><th>IP</th><td><a href="https://whatismyipaddress.com/ip/${ip}" target="_blank">${ip}</a></td></tr>`;
+    }
+    if (port) {
+        html += `<tr><th>Porta</th><td>${port}</td></tr>`;
+    }
+    if (ping) {
+        html += `<tr><th>Ping</th><td>${ping} ms</td></tr>`;
+    }
+
+    html += '</table>';
+    $('#geoModalContent').html(html);
+
+    const modal = new bootstrap.Modal(document.getElementById('playerGeolocationModal'));
+    modal.show();
+}
+
+/**
  * Popular lista de jogadores online na sidebar
  */
 function updateSidebarPlayersList() {
@@ -801,12 +848,36 @@ function updateSidebarPlayersList() {
         const isAdmin = player.is_admin || false;
         const adminBadge = isAdmin ? '<span class="badge bg-danger ms-1" style="font-size: 0.65rem;">Admin</span>' : '';
 
+        // Dados de geolocalização
+        const country = player.country || '';
+        const city = player.city || '';
+        const ip = player.ip || '';
+        const port = player.port || '';
+        const ping = player.ping || '';
+
+        // Gerar botão de bandeira se tiver dados de geolocalização
+        let geoButton = '';
+        if (country) {
+            const flag = getCountryFlag(country);
+            const escapedPlayerName = (playerName || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const escapedCity = (city || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const escapedIp = (ip || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            geoButton = `
+                <button class="btn btn-sm btn-outline-secondary"
+                        onclick="showPlayerGeolocationModal('${player.id}', '${escapedPlayerName}', '${country}', '${escapedCity}', '${escapedIp}', '${port}', '${ping}')"
+                        title="Ver geolocalização">
+                    ${flag || '<i class="fas fa-globe"></i>'}
+                </button>
+            `;
+        }
+
         html += `
             <div class="sidebar-player-item" data-player-id="${player.id}">
                 <div class="sidebar-player-name">
                     🟢 ${playerName}${steamNameDisplay}${adminBadge}
                 </div>
                 <div class="sidebar-player-actions">
+                    ${geoButton}
                     <button class="btn btn-sm btn-outline-primary"
                             onclick="zoomToPlayerFromSidebar('${player.id}')"
                             title="Zoom no jogador">

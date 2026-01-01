@@ -328,7 +328,15 @@ function updatePositions(data) {
             stamina_max: player.stamina_max,
             items_in_hands: player.items_in_hands,
             items_count: player.items_count,
-            last_update: player.last_update
+            last_update: player.last_update,
+            // Campos de geolocalização
+            country: player.country,
+            city: player.city,
+            ip: player.ip,
+            port: player.port,
+            ping: player.ping,
+            lat: player.lat,
+            lon: player.lon
         };
         
         // Aplicar filtro se existir (múltiplos jogadores)

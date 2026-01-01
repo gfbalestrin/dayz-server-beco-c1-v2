@@ -3551,6 +3551,7 @@ def get_online_players_positions() -> List[Dict]:
                    pc.Health, pc.Blood, pc.Shock, pc.Energy, pc.Water,
                    pc.IsAlive, pc.IsAdmin, pc.Stamina, pc.StaminaMax,
                    pc.ItemsInHands, pc.ItemsCount, pc.MainItems,
+                   po.Country, po.City, po.IP, po.Port, po.Ping, po.Lat, po.Lon,
                    1 as IsOnline
             FROM players_online po
             INNER JOIN players_database p ON po.PlayerID = p.PlayerID

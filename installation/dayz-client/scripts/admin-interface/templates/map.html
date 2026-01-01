@@ -1800,6 +1800,33 @@
     </div>
 </div>
 
+<!-- Modal de Geolocalização do Jogador -->
+<div class="modal fade" id="playerGeolocationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-globe me-2"></i>Geolocalização
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <p class="mb-2"><strong>Jogador:</strong></p>
+                    <p class="h5 text-primary mb-2" id="geoModalPlayerName"></p>
+                    <p class="text-muted mb-3"><small>Player ID: <code id="geoModalPlayerId"></code></small></p>
+                </div>
+                <div id="geoModalContent">
+                    <!-- Conteúdo dinâmico -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modais compartilhados para ações de jogador -->
 {% include 'partials/player-modals.html' %}
 {% endblock %}
