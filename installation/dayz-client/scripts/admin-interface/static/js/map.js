@@ -802,12 +802,191 @@ function showPlayerGeolocationModal(playerId, playerName, country, city, ip, por
 }
 
 /**
+ * Calcular nível de risco baseado nos dados CFTools
+ * @param {Object} cftools - Dados CFTools do jogador
+ * @returns {string|null} - 'high', 'medium', 'low', ou null
+ */
+function calculateCFToolsRiskLevel(cftools) {
+    if (!cftools) return null;
+
+    // Risco ALTO: VPN/proxy, VAC bans, bans CFTools ou radar detection
+    if (cftools.is_malicious ||
+        cftools.vac_bans > 0 ||
+        cftools.cftools_ban_count > 0 ||
+        cftools.radar_detection) {
+        return 'high';
+    }
+
+    // Risco MÉDIO: Game bans ou perfil privado com histórico recente
+    if (cftools.game_bans > 0 ||
+        (cftools.is_profile_private && cftools.last_ban_days > 0 && cftools.last_ban_days < 365)) {
+        return 'medium';
+    }
+
+    // Risco BAIXO: Apenas perfil privado
+    if (cftools.is_profile_private) {
+        return 'low';
+    }
+
+    return null;
+}
+
+/**
+ * Gerar badges HTML de risco CFTools para um jogador
+ * @param {Object} cftools - Dados CFTools do jogador
+ * @returns {string} - HTML dos badges
+ */
+function generateCFToolsRiskBadges(cftools) {
+    if (!cftools) return '';
+
+    let badges = '';
+
+    // Badge VPN/Proxy (vermelho)
+    if (cftools.is_malicious) {
+        badges += '<span class="badge bg-danger ms-1 cftools-badge" style="font-size: 0.6rem;" title="VPN/Proxy detectado"><i class="fas fa-shield-virus"></i></span>';
+    }
+
+    // Badge VAC Ban (vermelho)
+    if (cftools.vac_bans > 0) {
+        badges += `<span class="badge bg-danger ms-1 cftools-badge" style="font-size: 0.6rem;" title="${cftools.vac_bans} VAC ban(s)"><i class="fas fa-ban"></i> ${cftools.vac_bans}</span>`;
+    }
+
+    // Badge Game Ban (laranja)
+    if (cftools.game_bans > 0) {
+        badges += `<span class="badge bg-warning text-dark ms-1 cftools-badge" style="font-size: 0.6rem;" title="${cftools.game_bans} Game ban(s)"><i class="fas fa-gamepad"></i> ${cftools.game_bans}</span>`;
+    }
+
+    // Badge CFTools Ban (vermelho)
+    if (cftools.cftools_ban_count > 0) {
+        badges += `<span class="badge bg-danger ms-1 cftools-badge" style="font-size: 0.6rem;" title="${cftools.cftools_ban_count} ban(s) CFTools"><i class="fas fa-hammer"></i> ${cftools.cftools_ban_count}</span>`;
+    }
+
+    // Badge Radar Detection (vermelho piscante)
+    if (cftools.radar_detection) {
+        badges += '<span class="badge bg-danger ms-1 cftools-badge cftools-alert-badge" style="font-size: 0.6rem;" title="Radar/ESP detectado"><i class="fas fa-eye"></i></span>';
+    }
+
+    // Badge Perfil Privado (cinza/amarelo dependendo do contexto)
+    if (cftools.is_profile_private) {
+        const hasRisk = cftools.vac_bans > 0 || cftools.game_bans > 0;
+        const privateClass = hasRisk ? 'bg-warning text-dark' : 'bg-secondary';
+        badges += `<span class="badge ${privateClass} ms-1 cftools-badge" style="font-size: 0.6rem;" title="Perfil Steam privado"><i class="fas fa-user-secret"></i></span>`;
+    }
+
+    return badges;
+}
+
+/**
+ * Mostrar modal com detalhes CFTools do jogador
+ * @param {string} playerId - ID do jogador
+ * @param {string} playerName - Nome do jogador
+ */
+function showCFToolsDetailsModal(playerId, playerName) {
+    const playerData = MapState.playersData[playerId];
+    if (!playerData || !playerData.cftools) return;
+
+    const cftools = playerData.cftools;
+    const riskLevel = calculateCFToolsRiskLevel(cftools);
+    const riskClass = riskLevel === 'high' ? 'danger' : riskLevel === 'medium' ? 'warning' : 'secondary';
+    const riskText = riskLevel === 'high' ? 'Alto' : riskLevel === 'medium' ? 'Médio' : riskLevel === 'low' ? 'Baixo' : 'Normal';
+
+    const avatarHtml = cftools.steam_avatar_url
+        ? `<img src="${cftools.steam_avatar_url}" class="rounded me-2" style="width: 32px; height: 32px;">`
+        : '<i class="fas fa-user-shield me-2"></i>';
+
+    const modalContent = `
+        <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title">
+                ${avatarHtml}
+                CFTools - ${escapeHtml(playerName)}
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+            <div class="alert alert-${riskClass} mb-3">
+                <strong><i class="fas fa-shield-alt me-2"></i>Nível de Risco:</strong> ${riskText}
+            </div>
+
+            <h6><i class="fas fa-lock me-2"></i>Informações de Segurança</h6>
+            <table class="table table-sm table-bordered mb-3">
+                <tr>
+                    <td style="width: 50%;"><i class="fas fa-shield-virus me-2"></i>VPN/Proxy</td>
+                    <td>${cftools.is_malicious ? '<span class="badge bg-danger">Detectado</span>' : '<span class="badge bg-success">Limpo</span>'}</td>
+                </tr>
+                <tr>
+                    <td><i class="fas fa-ban me-2"></i>VAC Bans</td>
+                    <td>${cftools.vac_bans > 0 ? `<span class="badge bg-danger">${cftools.vac_bans}</span>` : '<span class="badge bg-success">0</span>'}</td>
+                </tr>
+                <tr>
+                    <td><i class="fas fa-gamepad me-2"></i>Game Bans</td>
+                    <td>${cftools.game_bans > 0 ? `<span class="badge bg-warning text-dark">${cftools.game_bans}</span>` : '<span class="badge bg-success">0</span>'}</td>
+                </tr>
+                <tr>
+                    <td><i class="fas fa-hammer me-2"></i>Bans CFTools</td>
+                    <td>${cftools.cftools_ban_count > 0 ? `<span class="badge bg-danger">${cftools.cftools_ban_count}</span>` : '<span class="badge bg-success">0</span>'}</td>
+                </tr>
+                <tr>
+                    <td><i class="fas fa-eye me-2"></i>Radar Detection</td>
+                    <td>${cftools.radar_detection ? `<span class="badge bg-danger">${cftools.radar_detection}</span>` : '<span class="badge bg-success">Nenhum</span>'}</td>
+                </tr>
+                ${cftools.last_ban_days > 0 ? `
+                <tr>
+                    <td><i class="fas fa-calendar-times me-2"></i>Último Ban</td>
+                    <td><span class="badge bg-info">${cftools.last_ban_days} dias atrás</span></td>
+                </tr>
+                ` : ''}
+            </table>
+
+            <h6><i class="fab fa-steam me-2"></i>Perfil Steam</h6>
+            <table class="table table-sm table-bordered mb-3">
+                <tr>
+                    <td style="width: 50%;"><i class="fas fa-user-secret me-2"></i>Perfil Privado</td>
+                    <td>${cftools.is_profile_private ? '<span class="badge bg-warning text-dark">Sim</span>' : '<span class="badge bg-success">Não</span>'}</td>
+                </tr>
+                <tr>
+                    <td><i class="fas fa-users-slash me-2"></i>Community Ban</td>
+                    <td>${cftools.community_ban ? '<span class="badge bg-danger">Sim</span>' : '<span class="badge bg-success">Não</span>'}</td>
+                </tr>
+                ${cftools.steam_profile_name ? `
+                <tr>
+                    <td><i class="fas fa-user me-2"></i>Nome Steam</td>
+                    <td>${escapeHtml(cftools.steam_profile_name)}</td>
+                </tr>
+                ` : ''}
+            </table>
+
+            <small class="text-muted">
+                <i class="fas fa-sync me-1"></i>Atualizado: ${cftools.last_updated ? new Date(cftools.last_updated).toLocaleString('pt-BR') : 'N/A'}
+            </small>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        </div>
+    `;
+
+    // Usar ou criar modal
+    let modal = document.getElementById('cftoolsDetailsModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'cftoolsDetailsModal';
+        modal.className = 'modal fade';
+        modal.tabIndex = -1;
+        modal.innerHTML = '<div class="modal-dialog"><div class="modal-content"></div></div>';
+        document.body.appendChild(modal);
+    }
+    modal.querySelector('.modal-content').innerHTML = modalContent;
+
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+}
+
+/**
  * Popular lista de jogadores online na sidebar
  */
 function updateSidebarPlayersList() {
     const $list = $('#sidebarPlayersList');
     const searchTerm = $('#sidebarPlayerSearch').val().toLowerCase();
-    
+
     // Filtrar jogadores online
     const onlinePlayers = Object.keys(MapState.playersData)
         .map(id => ({ id, ...MapState.playersData[id] }))
@@ -819,20 +998,30 @@ function updateSidebarPlayersList() {
             return name.includes(searchTerm) || steamName.includes(searchTerm);
         })
         .sort((a, b) => {
+            // Se CFTools disponível, ordenar por risco primeiro (alto no topo)
+            if (MapState.cftoolsAvailable) {
+                const riskA = calculateCFToolsRiskLevel(a.cftools);
+                const riskB = calculateCFToolsRiskLevel(b.cftools);
+                const riskOrder = { 'high': 0, 'medium': 1, 'low': 2, null: 3 };
+                if (riskOrder[riskA] !== riskOrder[riskB]) {
+                    return riskOrder[riskA] - riskOrder[riskB];
+                }
+            }
+            // Depois ordenar alfabeticamente
             const nameA = (a.player_name || a.name || '').toLowerCase();
             const nameB = (b.player_name || b.name || '').toLowerCase();
             return nameA.localeCompare(nameB);
         });
-    
+
     // Atualizar contador
     $('#sidebarOnlineCount').text(onlinePlayers.length);
-    
+
     // Se vazio
     if (onlinePlayers.length === 0) {
         $list.html('<div class="text-muted text-center small py-3">Nenhum jogador online</div>');
         return;
     }
-    
+
     // Gerar HTML
     let html = '';
     onlinePlayers.forEach(function(player) {
@@ -841,12 +1030,25 @@ function updateSidebarPlayersList() {
         const steamId = player.steam_id || player.steamId || '';
         let steamNameDisplay = '';
         if (steamName && steamId) {
-            steamNameDisplay = ` (<a href="https://steamcommunity.com/profiles/${steamId}" target="_blank" class="text-decoration-none" title="Ver perfil Steam" onclick="event.stopPropagation();">${steamName}</a>)`;
+            steamNameDisplay = ` (<a href="https://steamcommunity.com/profiles/${steamId}" target="_blank" class="text-decoration-none" title="Ver perfil Steam" onclick="event.stopPropagation();">${escapeHtml(steamName)}</a>)`;
         } else if (steamName) {
-            steamNameDisplay = ` (${steamName})`;
+            steamNameDisplay = ` (${escapeHtml(steamName)})`;
         }
         const isAdmin = player.is_admin || false;
         const adminBadge = isAdmin ? '<span class="badge bg-danger ms-1" style="font-size: 0.65rem;">Admin</span>' : '';
+
+        // Badges CFTools (se disponível)
+        const cftoolsBadges = MapState.cftoolsAvailable ? generateCFToolsRiskBadges(player.cftools) : '';
+
+        // Avatar Steam do CFTools
+        let avatarHtml = '';
+        if (player.cftools && player.cftools.steam_avatar_url) {
+            avatarHtml = `<img src="${player.cftools.steam_avatar_url}" class="rounded me-1" style="width: 28px; height: 28px; vertical-align: middle;">`;
+        }
+
+        // Classe de risco para destaque visual
+        const riskLevel = MapState.cftoolsAvailable ? calculateCFToolsRiskLevel(player.cftools) : null;
+        const riskClass = riskLevel === 'high' ? ' high-risk' : riskLevel === 'medium' ? ' medium-risk' : '';
 
         // Dados de geolocalização
         const country = player.country || '';
@@ -871,12 +1073,28 @@ function updateSidebarPlayersList() {
             `;
         }
 
+        // Botão CFTools (se disponível e tiver dados)
+        let cftoolsButton = '';
+        if (MapState.cftoolsAvailable && player.cftools) {
+            const btnClass = riskLevel === 'high' ? 'btn-danger' :
+                            riskLevel === 'medium' ? 'btn-warning' : 'btn-outline-info';
+            const escapedPlayerName = (playerName || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            cftoolsButton = `
+                <button class="btn btn-sm ${btnClass}"
+                        onclick="showCFToolsDetailsModal('${player.id}', '${escapedPlayerName}')"
+                        title="Ver detalhes CFTools">
+                    <i class="fas fa-shield-alt"></i>
+                </button>
+            `;
+        }
+
         html += `
-            <div class="sidebar-player-item" data-player-id="${player.id}">
+            <div class="sidebar-player-item${riskClass}" data-player-id="${player.id}">
                 <div class="sidebar-player-name">
-                    🟢 ${playerName}${steamNameDisplay}${adminBadge}
+                    ${avatarHtml}🟢 ${escapeHtml(playerName)}${steamNameDisplay}${adminBadge}${cftoolsBadges}
                 </div>
                 <div class="sidebar-player-actions">
+                    ${cftoolsButton}
                     ${geoButton}
                     <button class="btn btn-sm btn-outline-primary"
                             onclick="zoomToPlayerFromSidebar('${player.id}')"
@@ -897,7 +1115,7 @@ function updateSidebarPlayersList() {
             </div>
         `;
     });
-    
+
     $list.html(html);
 }
 

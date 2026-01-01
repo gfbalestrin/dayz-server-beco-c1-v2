@@ -95,6 +95,47 @@
     font-size: 0.75rem;
     padding: 2px 6px;
 }
+
+/* Estilos CFTools */
+.cftools-badge {
+    vertical-align: middle;
+}
+
+.cftools-alert-badge {
+    animation: cftools-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes cftools-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Destaque para jogadores de alto risco */
+.sidebar-player-item.high-risk {
+    background-color: rgba(220, 53, 69, 0.1);
+    border-left: 3px solid #dc3545;
+}
+
+.sidebar-player-item.medium-risk {
+    background-color: rgba(255, 193, 7, 0.1);
+    border-left: 3px solid #ffc107;
+}
+
+/* Avatar na sidebar */
+.sidebar-player-name img {
+    vertical-align: middle;
+    border: 1px solid #dee2e6;
+}
+
+/* Modal CFTools */
+#cftoolsDetailsModal .modal-header {
+    border-bottom: 2px solid #6c757d;
+}
+
+#cftoolsDetailsModal .table td:first-child {
+    width: 50%;
+    font-weight: 500;
+}
 </style>
 {% endblock %}
 

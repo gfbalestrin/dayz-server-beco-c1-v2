@@ -24,6 +24,13 @@ from ..utils.validation import validate_coordinates, validate_id
 from ..utils.normalization import safe_float, safe_int
 from ..discord.webhooks import sanitize_discord_markdown, send_discord_webhook, insert_player_event, update_discord_players_online_message
 
+# CFTools - importação opcional
+try:
+    from ..cftools import CFToolsClient
+    CFTOOLS_AVAILABLE = True
+except ImportError:
+    CFTOOLS_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,14 +38,105 @@ class PlayersProcessor:
     """
     Processador de dados de jogadores
     """
-    
+
     def __init__(self, db_path: str):
         self.db_path = db_path
         self.queries = Queries(db_path)
         self.max_retries = 5
         self.base_retry_delay = 0.5
         self.previous_players: set = set()  # Estado de players anteriores para detecção de conectados/desconectados
-    
+
+        # Inicializar CFTools se disponível e configurado
+        self.cftools_client: Optional['CFToolsClient'] = None
+        self._init_cftools()
+
+    def _init_cftools(self) -> None:
+        """Inicializa o cliente CFTools se estiver disponível e configurado"""
+        if not CFTOOLS_AVAILABLE:
+            logger.debug("CFTools: Módulo não disponível")
+            return
+
+        # Verificar se está habilitado
+        cftools_enabled = getattr(config, 'CFTOOLS_ENABLED', False)
+        if not cftools_enabled:
+            logger.debug("CFTools: Desabilitado na configuração")
+            return
+
+        # Obter configurações
+        base_url = getattr(config, 'CFTOOLS_BASE_URL', 'https://data.cftools.cloud')
+        app_id = getattr(config, 'CFTOOLS_APP_ID', '')
+        app_secret = getattr(config, 'CFTOOLS_APP_SECRET', '')
+        server_api_id = getattr(config, 'CFTOOLS_SERVER_API_ID', '')
+        game_id = getattr(config, 'CFTOOLS_GAME_ID', '1')
+        server_ip = getattr(config, 'CFTOOLS_SERVER_IP', '')
+        server_port = getattr(config, 'CFTOOLS_SERVER_PORT', '')
+        token_cache_file = getattr(config, 'CFTOOLS_TOKEN_CACHE_FILE', '/tmp/cftools_token.json')
+
+        # Verificar configurações obrigatórias
+        if not app_id or not app_secret or not server_api_id:
+            logger.warning("CFTools: Configurações incompletas (AppId, AppSecret ou ServerApiId)")
+            return
+
+        try:
+            self.cftools_client = CFToolsClient(
+                base_url=base_url,
+                app_id=app_id,
+                app_secret=app_secret,
+                server_api_id=server_api_id,
+                game_id=game_id,
+                server_ip=server_ip,
+                server_port=server_port,
+                token_cache_file=token_cache_file,
+                db_path=self.db_path
+            )
+            logger.info("CFTools: Cliente inicializado com sucesso")
+        except Exception as e:
+            logger.warning(f"CFTools: Erro ao inicializar cliente: {e}")
+            self.cftools_client = None
+
+    def _sync_cftools_data(self, connect_players: set) -> None:
+        """
+        Sincroniza dados do CFTools para jogadores recém-conectados.
+        Método não-bloqueante - falhas são logadas mas não afetam o fluxo principal.
+        """
+        if not self.cftools_client:
+            return
+
+        if not connect_players:
+            return
+
+        # Verificar se sincronização ao conectar está habilitada
+        sync_on_connect = getattr(config, 'CFTOOLS_SYNC_ON_CONNECT', True)
+        if not sync_on_connect:
+            return
+
+        try:
+            # Buscar SteamIDs dos jogadores conectados
+            conn = sqlite3.connect(self.db_path, timeout=10.0)
+            cursor = conn.cursor()
+
+            placeholders = ','.join(['?'] * len(connect_players))
+            cursor.execute(f"""
+                SELECT PlayerID, SteamID
+                FROM players_database
+                WHERE PlayerID IN ({placeholders}) AND SteamID IS NOT NULL AND SteamID != ''
+            """, list(connect_players))
+
+            player_steam_map = {row[0]: row[1] for row in cursor.fetchall()}
+            conn.close()
+
+            if not player_steam_map:
+                logger.debug("CFTools: Nenhum jogador com SteamID para sincronizar")
+                return
+
+            # Sincronizar dados
+            synced = self.cftools_client.sync_all_online_players(player_steam_map)
+            if synced > 0:
+                logger.info(f"CFTools: {synced} jogadores sincronizados")
+
+        except Exception as e:
+            logger.warning(f"CFTools: Erro ao sincronizar dados (não crítico): {e}")
+
     def _validate_player_data(self, player: Dict[str, Any]) -> bool:
         """Valida dados obrigatórios de um player"""
         # Validar player_id (obrigatório)
@@ -431,6 +529,12 @@ class PlayersProcessor:
                         self._update_players_geolocation(connect_players)
                     except Exception as e:
                         logger.warning(f"Erro ao atualizar geolocalização (não crítico): {e}")
+
+                    # Sincronizar dados do CFTools (não crítico)
+                    try:
+                        self._sync_cftools_data(connect_players)
+                    except Exception as e:
+                        logger.warning(f"Erro ao sincronizar CFTools (não crítico): {e}")
 
                 # Atualizar estado apenas após sucesso
                 logger.info(f"_update_players_online: atualizando previous_players de {len(self.previous_players)} para {len(current_set)} players")

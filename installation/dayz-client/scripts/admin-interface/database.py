@@ -3566,6 +3566,67 @@ def get_online_players_positions() -> List[Dict]:
         """)
         return [dict(row) for row in cursor.fetchall()]
 
+
+def get_cftools_data_for_players(player_ids: List[str]) -> Dict[str, Dict]:
+    """
+    Busca dados CFTools para uma lista de jogadores.
+    Retorna dicionário {player_id: cftools_data} ou {} se CFTools não disponível.
+    Esta função é opcional - se a tabela não existir ou ocorrer erro, retorna vazio.
+    """
+    if not player_ids:
+        return {}
+
+    try:
+        with DatabaseConnection(config.DB_PLAYERS) as conn:
+            cursor = conn.cursor()
+
+            # Verificar se tabela existe
+            cursor.execute("""
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='players_cftools'
+            """)
+            if not cursor.fetchone():
+                return {}
+
+            placeholders = ','.join('?' * len(player_ids))
+            cursor.execute(f"""
+                SELECT
+                    PlayerID,
+                    CFToolsId,
+                    Steam64,
+                    CountryCode,
+                    IsMalicious,
+                    Provider,
+                    VACBans,
+                    GameBans,
+                    CommunityBan,
+                    EconomyBan,
+                    LastBanDays,
+                    CFToolsBanCount,
+                    RadarDetection,
+                    Labels,
+                    SteamProfileName,
+                    SteamAvatarUrl,
+                    IsProfilePrivate,
+                    LastSessionId,
+                    LastSessionStart,
+                    LastPing,
+                    LastLoadTime,
+                    LastUpdated
+                FROM players_cftools
+                WHERE PlayerID IN ({placeholders})
+            """, player_ids)
+
+            result = {}
+            for row in cursor.fetchall():
+                row_dict = dict(row)
+                result[row_dict['PlayerID']] = row_dict
+            return result
+    except Exception as e:
+        logging.debug(f"CFTools data unavailable: {e}")
+        return {}
+
+
 def get_players_positions_by_timerange(start_date: str, end_date: str) -> List[Dict]:
     """Retorna posições de jogadores em um período específico"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:

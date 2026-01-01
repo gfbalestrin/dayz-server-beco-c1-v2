@@ -18,7 +18,8 @@ from database import (
     get_vehicle_trail, get_containers_last_position, get_container_trail,
     get_fences_last_position, get_watchtowers_last_position, get_flags_last_position,
     get_fence_trail, get_watchtower_trail, get_flag_trail,
-    get_item_details_from_items_db, dayz_to_pixel, get_player_events, clear_player_events
+    get_item_details_from_items_db, dayz_to_pixel, get_player_events, clear_player_events,
+    get_cftools_data_for_players
 )
 from blueprints.auth import admin_required, audit_action
 from blueprints.helpers import convert_timestamp_to_br, write_command_to_file
@@ -395,16 +396,23 @@ def api_clear_player_events(player_id):
 def api_online_positions():
     """API com posições apenas de jogadores online"""
     positions = get_online_players_positions()
-    
+
+    # Buscar dados CFTools para todos os jogadores online (opcional)
+    player_ids = [pos['PlayerID'] for pos in positions]
+    cftools_data = get_cftools_data_for_players(player_ids)
+
     result = {
         'timestamp': datetime.now().isoformat(),
-        'players': []
+        'players': [],
+        'cftools_available': len(cftools_data) > 0
     }
-    
+
     for pos in positions:
+        player_id = pos['PlayerID']
         pixel_coords = dayz_to_pixel(pos['CoordX'], pos['CoordY'])
-        result['players'].append({
-            'player_id': pos['PlayerID'],
+
+        player_data = {
+            'player_id': player_id,
             'player_name': pos['PlayerName'] or 'Sem nome',
             'steam_name': pos['SteamName'] or 'Sem steam name',
             'steam_id': pos['SteamID'] or '',
@@ -433,7 +441,30 @@ def api_online_positions():
             'ping': pos.get('Ping'),
             'lat': pos.get('Lat'),
             'lon': pos.get('Lon')
-        })
+        }
+
+        # Adicionar dados CFTools se disponíveis
+        if player_id in cftools_data:
+            cf = cftools_data[player_id]
+            player_data['cftools'] = {
+                'cftools_id': cf.get('CFToolsId'),
+                'is_malicious': bool(cf.get('IsMalicious', 0)),
+                'vac_bans': cf.get('VACBans', 0),
+                'game_bans': cf.get('GameBans', 0),
+                'community_ban': bool(cf.get('CommunityBan', 0)),
+                'economy_ban': cf.get('EconomyBan'),
+                'last_ban_days': cf.get('LastBanDays', 0),
+                'cftools_ban_count': cf.get('CFToolsBanCount', 0),
+                'radar_detection': cf.get('RadarDetection'),
+                'labels': cf.get('Labels'),
+                'steam_profile_name': cf.get('SteamProfileName'),
+                'steam_avatar_url': cf.get('SteamAvatarUrl'),
+                'is_profile_private': bool(cf.get('IsProfilePrivate', 0)),
+                'last_session_id': cf.get('LastSessionId'),
+                'last_updated': cf.get('LastUpdated')
+            }
+
+        result['players'].append(player_data)
 
     return jsonify(result)
 

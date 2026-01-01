@@ -250,6 +250,9 @@ function updatePlayerMarkerVisibility(playerId) {
  * Atualizar posições no mapa
  */
 function updatePositions(data) {
+    // Atualizar flag de CFTools disponível
+    MapState.cftoolsAvailable = data.cftools_available || false;
+
     // Criar conjunto de IDs de jogadores atuais para identificar quais remover
     const currentPlayerIds = new Set();
 
@@ -336,7 +339,9 @@ function updatePositions(data) {
             port: player.port,
             ping: player.ping,
             lat: player.lat,
-            lon: player.lon
+            lon: player.lon,
+            // Dados CFTools (se disponíveis)
+            cftools: player.cftools || null
         };
         
         // Aplicar filtro se existir (múltiplos jogadores)

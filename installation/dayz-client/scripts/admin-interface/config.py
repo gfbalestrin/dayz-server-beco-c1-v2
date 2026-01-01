@@ -112,7 +112,21 @@ if os.path.exists(CONFIG_JSON_PATH):
             RCON_BIN = app_config.get('RconBinFile', 'bercon-cli')
             # Caminho completo do binário RCON (assumindo que está no PATH ou no diretório de scripts)
             RCON_BIN_PATH = RCON_BIN if os.path.isabs(RCON_BIN) or '/' in RCON_BIN else RCON_BIN
-            
+
+            # Configurações CFTools - opcional
+            cftools_config = config_data.get('CFTools', {})
+            CFTOOLS_ENABLED = cftools_config.get('Enabled', False)
+            CFTOOLS_BASE_URL = cftools_config.get('BaseUrl', 'https://data.cftools.cloud')
+            CFTOOLS_APP_ID = cftools_config.get('AppId', '')
+            CFTOOLS_APP_SECRET = cftools_config.get('AppSecret', '')
+            CFTOOLS_SERVER_API_ID = cftools_config.get('ServerApiId', '')
+            CFTOOLS_GAME_ID = cftools_config.get('GameId', '1')
+            CFTOOLS_SERVER_IP = cftools_config.get('ServerIP', '')
+            CFTOOLS_SERVER_PORT = cftools_config.get('ServerPort', '')
+            CFTOOLS_TOKEN_CACHE_FILE = cftools_config.get('TokenCacheFile', '/tmp/cftools_token.json')
+            CFTOOLS_SYNC_ON_CONNECT = cftools_config.get('SyncOnConnect', True)
+            CFTOOLS_SYNC_INTERVAL_MINUTES = cftools_config.get('SyncIntervalMinutes', 5)
+
             logger = logging.getLogger(__name__)
             logger.debug(f"RabbitMQ configurado: HOST={RABBITMQ_HOST}, PORT={RABBITMQ_PORT}, VHOST={RABBITMQ_VHOST}, ENABLED={RABBITMQ_ENABLED}")
             logger.debug(f"Discord configurado: DESACTIVE={DISCORD_DESACTIVE}, WEBHOOK_LOGS={'***' if DISCORD_WEBHOOK_LOGS else ''}, CHANNEL_ID={'***' if DISCORD_CHANNEL_PLAYERS_ONLINE_CHANNEL_ID else ''}")
@@ -166,6 +180,18 @@ if os.path.exists(CONFIG_JSON_PATH):
         RCON_PORT = '2305'
         RCON_PASSWORD = ''
         RCON_BIN_PATH = 'bercon-cli'
+        # Configurações CFTools - desabilitado por padrão em caso de erro
+        CFTOOLS_ENABLED = False
+        CFTOOLS_BASE_URL = 'https://data.cftools.cloud'
+        CFTOOLS_APP_ID = ''
+        CFTOOLS_APP_SECRET = ''
+        CFTOOLS_SERVER_API_ID = ''
+        CFTOOLS_GAME_ID = '1'
+        CFTOOLS_SERVER_IP = ''
+        CFTOOLS_SERVER_PORT = ''
+        CFTOOLS_TOKEN_CACHE_FILE = '/tmp/cftools_token.json'
+        CFTOOLS_SYNC_ON_CONNECT = True
+        CFTOOLS_SYNC_INTERVAL_MINUTES = 5
 else:
     # Valores padrão se config.json não existir
     logger = logging.getLogger(__name__)
@@ -213,6 +239,18 @@ else:
     RCON_PORT = '2305'
     RCON_PASSWORD = ''
     RCON_BIN_PATH = 'bercon-cli'
+    # Configurações CFTools - desabilitado por padrão se config.json não existir
+    CFTOOLS_ENABLED = False
+    CFTOOLS_BASE_URL = 'https://data.cftools.cloud'
+    CFTOOLS_APP_ID = ''
+    CFTOOLS_APP_SECRET = ''
+    CFTOOLS_SERVER_API_ID = ''
+    CFTOOLS_GAME_ID = '1'
+    CFTOOLS_SERVER_IP = ''
+    CFTOOLS_SERVER_PORT = ''
+    CFTOOLS_TOKEN_CACHE_FILE = '/tmp/cftools_token.json'
+    CFTOOLS_SYNC_ON_CONNECT = True
+    CFTOOLS_SYNC_INTERVAL_MINUTES = 5
 
 # Validação de configurações obrigatórias
 logger = logging.getLogger(__name__)

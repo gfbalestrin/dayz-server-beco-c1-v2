@@ -257,3 +257,84 @@ CREATE INDEX IF NOT EXISTS idx_events_event_type ON players_events(EventType);
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON players_events(TimeStamp);
 CREATE INDEX IF NOT EXISTS idx_events_player_type ON players_events(PlayerID, EventType);
 CREATE INDEX IF NOT EXISTS idx_events_related_player ON players_events(RelatedPlayerID);
+
+-- ============================================================
+-- TABELA DE DADOS CFTOOLS
+-- ============================================================
+
+-- Tabela players_cftools: Armazena dados obtidos da API CFTools
+-- Integração opcional - sistema funciona sem ela
+CREATE TABLE IF NOT EXISTS players_cftools (
+    -- Identificadores
+    PlayerID TEXT PRIMARY KEY NOT NULL,
+    CFToolsId TEXT,
+    Steam64 TEXT,
+
+    -- Dados de conexão
+    CountryCode TEXT,
+    IPAddress TEXT,
+    IsMalicious INTEGER DEFAULT 0,
+    Provider TEXT,
+
+    -- Dados de segurança - Steam Bans
+    VACBans INTEGER DEFAULT 0,
+    GameBans INTEGER DEFAULT 0,
+    CommunityBan INTEGER DEFAULT 0,
+    EconomyBan TEXT,
+    LastBanDays INTEGER DEFAULT 0,
+
+    -- Dados de segurança - CFTools
+    CFToolsBanCount INTEGER DEFAULT 0,
+    RadarDetection TEXT,
+    Labels TEXT,
+
+    -- Dados de perfil Steam
+    SteamProfileName TEXT,
+    SteamAvatarUrl TEXT,
+    IsProfilePrivate INTEGER DEFAULT 0,
+
+    -- Dados de sessão
+    LastSessionId TEXT,
+    LastSessionStart DATETIME,
+    LastPing INTEGER,
+    LastLoadTime REAL,
+
+    -- Metadados
+    FirstSeen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    LastUpdated DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UpdateCount INTEGER DEFAULT 0,
+
+    FOREIGN KEY (PlayerID) REFERENCES players_database(PlayerID) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_cftools_cftools_id ON players_cftools(CFToolsId);
+CREATE INDEX IF NOT EXISTS idx_cftools_steam64 ON players_cftools(Steam64);
+CREATE INDEX IF NOT EXISTS idx_cftools_malicious ON players_cftools(IsMalicious);
+CREATE INDEX IF NOT EXISTS idx_cftools_vac_bans ON players_cftools(VACBans);
+CREATE INDEX IF NOT EXISTS idx_cftools_game_bans ON players_cftools(GameBans);
+CREATE INDEX IF NOT EXISTS idx_cftools_ban_count ON players_cftools(CFToolsBanCount);
+CREATE INDEX IF NOT EXISTS idx_cftools_profile_private ON players_cftools(IsProfilePrivate);
+CREATE INDEX IF NOT EXISTS idx_cftools_last_updated ON players_cftools(LastUpdated);
+CREATE INDEX IF NOT EXISTS idx_cftools_suspicious ON players_cftools(IsMalicious, VACBans, GameBans, CFToolsBanCount);
+
+-- Tabela players_cftools_sessions: Histórico de sessões CFTools
+CREATE TABLE IF NOT EXISTS players_cftools_sessions (
+    SessionId INTEGER PRIMARY KEY AUTOINCREMENT,
+    PlayerID TEXT NOT NULL,
+    CFToolsSessionId TEXT NOT NULL,
+    SessionStart DATETIME NOT NULL,
+    SessionEnd DATETIME,
+    IPAddress TEXT,
+    CountryCode TEXT,
+    IsMalicious INTEGER DEFAULT 0,
+    Provider TEXT,
+    InitialPing INTEGER,
+    FinalPing INTEGER,
+    LoadTime REAL,
+    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (PlayerID) REFERENCES players_database(PlayerID) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_cftools_sessions_player ON players_cftools_sessions(PlayerID);
+CREATE INDEX IF NOT EXISTS idx_cftools_sessions_cftools_id ON players_cftools_sessions(CFToolsSessionId);
+CREATE INDEX IF NOT EXISTS idx_cftools_sessions_start ON players_cftools_sessions(SessionStart);

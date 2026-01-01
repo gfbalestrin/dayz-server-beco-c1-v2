@@ -56,6 +56,19 @@
       "ConnectionPoolSize": 3,
       "ConnectionTTL": 30
     }
+  },
+  "CFTools": {
+    "Enabled": false,
+    "BaseUrl": "https://data.cftools.cloud",
+    "AppId": "",
+    "AppSecret": "",
+    "ServerApiId": "",
+    "GameId": "1",
+    "ServerIP": "",
+    "ServerPort": "",
+    "TokenCacheFile": "/tmp/cftools_token.json",
+    "SyncOnConnect": true,
+    "SyncIntervalMinutes": 5
   }
 }
 

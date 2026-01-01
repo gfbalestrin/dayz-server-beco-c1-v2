@@ -118,6 +118,9 @@ const MapState = {
     containerClusterGroup: null,
 
     // Dados de administradores (para o painel de controle)
-    adminIds: new Set()
+    adminIds: new Set(),
+
+    // CFTools - indica se dados CFTools estão disponíveis
+    cftoolsAvailable: false
 };
 
