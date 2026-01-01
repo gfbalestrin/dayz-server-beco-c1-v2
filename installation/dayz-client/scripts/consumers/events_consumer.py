@@ -13,6 +13,7 @@ import os
 import time
 import re
 import hashlib
+import subprocess
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -105,7 +106,130 @@ class EventsConsumer:
         text = text.replace('\n', '').replace('\r', '')
         text = re.sub(r'([*_~`|\[\]()<>"\\])', r'\\\1', text)
         return text
-    
+
+    def _execute_rcon_players_geo(self) -> Optional[list]:
+        """
+        Executa comando RCON 'players' com parâmetro de geolocalização (-g)
+        Retorna lista de jogadores com dados de geolocalização
+        """
+        if not config.RCON_PASSWORD:
+            logger.debug("RCON_PASSWORD não configurada, geolocalização desabilitada")
+            return None
+
+        geolite_path = getattr(config, 'GEOLITE2_DB_PATH', '')
+        if not geolite_path or not os.path.exists(geolite_path):
+            logger.debug(f"GeoLite2 database não encontrado: {geolite_path}")
+            return None
+
+        try:
+            cmd = [
+                config.RCON_BIN_PATH,
+                '-i', config.RCON_IP,
+                '-p', str(config.RCON_PORT),
+                '-P', config.RCON_PASSWORD,
+                '-g', geolite_path,
+                '-j', 'players'
+            ]
+
+            logger.debug(f"Executando RCON players geo")
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+
+            if result.returncode != 0:
+                logger.debug(f"RCON players geo retornou código {result.returncode}")
+                return None
+
+            if not result.stdout or not result.stdout.strip():
+                logger.debug("RCON players geo retornou resposta vazia")
+                return None
+
+            players_data = json.loads(result.stdout)
+            logger.debug(f"RCON players geo retornou {len(players_data) if players_data else 0} jogadores")
+            return players_data
+
+        except subprocess.TimeoutExpired:
+            logger.warning("Timeout ao executar RCON players geo")
+            return None
+        except json.JSONDecodeError as e:
+            logger.warning(f"Resposta RCON não é JSON válido: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"Erro ao executar RCON players geo: {e}")
+            return None
+
+    def _update_player_geolocation(self, player_id: str) -> bool:
+        """
+        Atualiza dados de geolocalização de um jogador recém-conectado
+        Chama RCON para obter dados e faz UPDATE na tabela players_online
+        """
+        if not player_id:
+            return False
+
+        # Buscar dados de geolocalização via RCON
+        rcon_players = self._execute_rcon_players_geo()
+        if not rcon_players:
+            logger.debug("Nenhum dado de geolocalização obtido via RCON")
+            return False
+
+        conn = None
+        try:
+            conn = sqlite3.connect(self.db_players_path, timeout=10.0)
+            cursor = conn.cursor()
+
+            # Buscar RconGuid do jogador conectado
+            cursor.execute("""
+                SELECT RconGuid
+                FROM players_database
+                WHERE PlayerID = ? AND RconGuid IS NOT NULL AND RconGuid != ''
+            """, (player_id,))
+
+            row = cursor.fetchone()
+            if not row:
+                logger.debug(f"Jogador {player_id} não possui RconGuid")
+                conn.close()
+                return False
+
+            player_guid = row[0]
+
+            # Buscar dados de geolocalização no resultado do RCON
+            for rcon_player in rcon_players:
+                guid = rcon_player.get('guid')
+                if guid == player_guid:
+                    # Encontrou o jogador - atualizar geolocalização
+                    country = rcon_player.get('country') or None
+                    city = rcon_player.get('city') or None
+                    lon = rcon_player.get('lon')
+                    ip = rcon_player.get('ip') or None
+                    port = rcon_player.get('port')
+                    ping = rcon_player.get('ping')
+
+                    cursor.execute("""
+                        UPDATE players_online
+                        SET Country = ?, City = ?, Lon = ?, IP = ?, Port = ?, Ping = ?
+                        WHERE PlayerID = ?
+                    """, (country, city, lon, ip, port, ping, player_id))
+
+                    conn.commit()
+                    conn.close()
+
+                    if cursor.rowcount > 0:
+                        logger.info(f"Geolocalização atualizada para {player_id}: {country}/{city}")
+                        return True
+                    return False
+
+            logger.debug(f"Jogador {player_id} não encontrado no resultado do RCON")
+            conn.close()
+            return False
+
+        except Exception as e:
+            logger.warning(f"Erro ao atualizar geolocalização para {player_id}: {e}")
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
+            return False
+
     def _send_discord_webhook(self, content: str, webhook_url: str) -> bool:
         """Envia webhook para Discord"""
         if not hasattr(config, 'DISCORD_DESACTIVE') or config.DISCORD_DESACTIVE == '1':
@@ -738,36 +862,79 @@ class EventsConsumer:
         """Handler para player_connected"""
         try:
             player_id = data.get('player_id', '').strip()
-            
+
             if not player_id:
                 logger.warning("player_connected: player_id ausente")
                 return False
-            
+
+            # Inserir jogador na tabela players_online (INSERT OR IGNORE para não sobrescrever)
+            try:
+                conn = sqlite3.connect(self.db_players_path, timeout=10.0)
+                cursor = conn.cursor()
+
+                timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                cursor.execute(
+                    "INSERT OR IGNORE INTO players_online (PlayerID, DataConnect) VALUES (?, ?)",
+                    (player_id, timestamp_str)
+                )
+
+                conn.commit()
+                conn.close()
+
+                if cursor.rowcount > 0:
+                    logger.info(f"Jogador {player_id} inserido em players_online via events_consumer")
+
+            except Exception as e:
+                logger.warning(f"Erro ao inserir jogador em players_online: {e}")
+
+            # Atualizar geolocalização do jogador (não crítico)
+            try:
+                self._update_player_geolocation(player_id)
+            except Exception as e:
+                logger.warning(f"Erro ao atualizar geolocalização (não crítico): {e}")
+
             log_msg = "Evento de player conectado detectado!"
             self._insert_log_custom(log_msg, "INFO", "EventsConsumer")
-            
-            # Nota: O positions_consumer já processa isso, mas mantemos compatibilidade
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Erro em handle_player_connected: {e}")
             return False
-    
+
     def handle_player_disconnected(self, data: Dict[str, Any]) -> bool:
         """Handler para player_disconnected"""
         try:
             player_id = data.get('player_id', '').strip()
-            
+
             if not player_id:
                 logger.warning("player_disconnected: player_id ausente")
                 return False
-            
+
+            # Remover jogador da tabela players_online
+            try:
+                conn = sqlite3.connect(self.db_players_path, timeout=10.0)
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    "DELETE FROM players_online WHERE PlayerID = ?",
+                    (player_id,)
+                )
+
+                conn.commit()
+                conn.close()
+
+                if cursor.rowcount > 0:
+                    logger.info(f"Jogador {player_id} removido de players_online via events_consumer")
+
+            except Exception as e:
+                logger.warning(f"Erro ao remover jogador de players_online: {e}")
+
             log_msg = "Evento de player desconectado detectado!"
             self._insert_log_custom(log_msg, "INFO", "EventsConsumer")
-            
-            # Nota: O positions_consumer já processa isso, mas mantemos compatibilidade
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Erro em handle_player_disconnected: {e}")
             return False
