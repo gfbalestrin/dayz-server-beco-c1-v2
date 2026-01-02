@@ -22,7 +22,15 @@ from ..database.sqlite_utils import configure_sqlite_pragmas, generate_unique_ti
 from ..database.queries import Queries
 from ..utils.validation import validate_coordinates, validate_id
 from ..utils.normalization import safe_float, safe_int
-from ..discord.webhooks import sanitize_discord_markdown, send_discord_webhook, insert_player_event, update_discord_players_online_message
+from ..discord.webhooks import sanitize_discord_markdown, send_discord_webhook, update_discord_players_online_message
+
+# Importar módulo compartilhado (consumers/shared/)
+# players.py está em: consumers/positions_consumer/processors/players.py
+# Precisamos adicionar consumers/ ao path para importar shared.players_online_ops
+_consumers_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _consumers_dir not in sys.path:
+    sys.path.insert(0, _consumers_dir)
+from shared.players_online_ops import insert_player_event
 
 # CFTools - importação opcional
 try:
@@ -485,7 +493,7 @@ class PlayersProcessor:
                                 
                                 current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                                 details_json = json.dumps({'timestamp': current_date})
-                                insert_player_event(player_id, 'player_connected', details=details_json)
+                                insert_player_event(self.db_path, player_id, 'player_connected', details=details_json, check_duplicate=True)
                             except Exception as e:
                                 logger.warning(f"Erro ao processar Discord para jogador conectado {player_id}: {e}")
                         
@@ -512,7 +520,7 @@ class PlayersProcessor:
                                 }
                                 details_dict = {k: v for k, v in details_dict.items() if v is not None}
                                 details_json = json.dumps(details_dict)
-                                insert_player_event(player_id, 'player_disconnected', details=details_json)
+                                insert_player_event(self.db_path, player_id, 'player_disconnected', details=details_json, check_duplicate=True)
                             except Exception as e:
                                 logger.warning(f"Erro ao processar Discord para jogador desconectado {player_id}: {e}")
                         
