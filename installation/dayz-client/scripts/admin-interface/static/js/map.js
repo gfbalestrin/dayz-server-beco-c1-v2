@@ -324,12 +324,9 @@ $(document).ready(function() {
         if (!MapState.showTrails) {
             MapState.showTrails = true;
             $('#toggleTrailsBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar trails dos jogadores');
-            // Mostrar seções de atalhos e filtros
-            $('#trailQuickShortcuts').show();
-            $('#trailCustomFilter').show();
-            // Aplicar filtro padrão de 30 segundos automaticamente
-            if (typeof applyTrailFilterShortcut === 'function') {
-                applyTrailFilterShortcut('30seconds');
+            // Ativar timeline interativa
+            if (typeof MapTimeline !== 'undefined') {
+                MapTimeline.enable();
             }
         }
         

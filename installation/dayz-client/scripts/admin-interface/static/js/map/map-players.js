@@ -37,6 +37,21 @@ function getCountryFlag(countryCode) {
 }
 
 /**
+ * Formatar Date object para string local (sem conversao para UTC)
+ * Formato: YYYY-MM-DD HH:MM:SS
+ */
+function formatDateLocal(date) {
+    if (!date) return null;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const h = String(date.getHours()).padStart(2, '0');
+    const min = String(date.getMinutes()).padStart(2, '0');
+    const s = String(date.getSeconds()).padStart(2, '0');
+    return `${y}-${m}-${d} ${h}:${min}:${s}`;
+}
+
+/**
  * Formatar timestamp para exibição em America/Sao_Paulo
  */
 function formatTimestampBR(timestamp) {
@@ -587,6 +602,11 @@ function updatePositions(data) {
     
     if (MapState.showTrails) {
         setTimeout(function() {
+            // Atualizar timeline para tempo real (se liveMode ativo)
+            if (typeof MapTimeline !== 'undefined' && MapTimeline.enabled) {
+                MapTimeline.refreshToNow();
+            }
+
             // Carregar trails de todos os jogadores (respeitando filtro "Apenas online" e exclusões)
             // Usar MapState.playersData ao invés de MapState.playerMarkers para incluir todos os jogadores,
             // incluindo aqueles cujos marcadores foram ocultados temporariamente
@@ -680,10 +700,10 @@ function loadPlayerTrailsBatch(playerIds) {
     // Adicionar filtros de data se estiverem ativos
     if (MapState.trailDateFilter.enabled) {
         if (MapState.trailDateFilter.startDate) {
-            params.date_from = MapState.trailDateFilter.startDate.toISOString();
+            params.date_from = formatDateLocal(MapState.trailDateFilter.startDate);
         }
         if (MapState.trailDateFilter.endDate) {
-            params.date_to = MapState.trailDateFilter.endDate.toISOString();
+            params.date_to = formatDateLocal(MapState.trailDateFilter.endDate);
         }
     }
     
@@ -798,10 +818,10 @@ function loadPlayerTrail(playerId) {
     // Adicionar filtros de data se estiverem ativos
     if (MapState.trailDateFilter.enabled) {
         if (MapState.trailDateFilter.startDate) {
-            params.date_from = MapState.trailDateFilter.startDate.toISOString();
+            params.date_from = formatDateLocal(MapState.trailDateFilter.startDate);
         }
         if (MapState.trailDateFilter.endDate) {
-            params.date_to = MapState.trailDateFilter.endDate.toISOString();
+            params.date_to = formatDateLocal(MapState.trailDateFilter.endDate);
         }
     }
     
@@ -907,8 +927,8 @@ function drawTrail(playerId, trail) {
         }
     });
     
-    // Desenhar marcadores de backup separadamente
-    if (backupPoints.length > 0) {
+    // Desenhar marcadores de backup separadamente (apenas se filtro ativo)
+    if (backupPoints.length > 0 && MapState.showBackupMarkers) {
         drawBackupMarkers(playerId, backupPoints, trail);
     }
     
@@ -1004,54 +1024,76 @@ function drawTrail(playerId, trail) {
         const point = reversedTrail[i].data;
         const pointLat = reversedTrail[i].mapCoords[0];
         const pointLng = reversedTrail[i].mapCoords[1];
-        const playerName = MapState.playersData[playerId]?.name || 'Jogador';
-        const steamName = MapState.playersData[playerId]?.steamName || '';
-        let tooltipText = `<strong>👤 ${playerName}${steamName ? ` (${steamName})` : ''}</strong><br>`;
-        tooltipText += `<strong>📍 Ponto ${i + 1}</strong><br>`;
-        tooltipText += `⏰ Tempo: <span class="value">${formatTimestampBR(point.timestamp)}</span><br>`;
-        tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
-        
-        let speed = null;
-        let distance = null;
-        let timeDiff = null;
+        const playerData = MapState.playersData[playerId];
+        const playerName = playerData?.name || 'Jogador';
+        const steamName = playerData?.steamName || '';
+
+        // Verificar se é o último ponto (mais recente) - após reverse(), o mais recente está no final do array
+        const isLastPoint = (i === reversedTrail.length - 1);
+
+        let tooltipText;
         let pointColor = color;
-        
-        // Calcular velocidade se houver ponto anterior (cronologicamente)
-        if (i > 0) {
-            const prevPoint = reversedTrail[i - 1].data;
-            
-            // Calcular distância em metros (Pitágoras)
-            const dx = point.coord_x - prevPoint.coord_x;
-            const dy = point.coord_y - prevPoint.coord_y;
-            distance = Math.sqrt(dx * dx + dy * dy);
-            
-            // Calcular diferença de tempo em segundos
-            const time1 = new Date(point.timestamp);
-            const time2 = new Date(prevPoint.timestamp);
-            timeDiff = Math.abs(time2 - time1) / 1000; // segundos
-            
-            // Calcular velocidade em km/h
-            if (timeDiff > 0) {
-                speed = (distance / timeDiff) * 3.6; // m/s para km/h
-                
-                tooltipText += `<br><br><strong>📊 Desde último ponto:</strong><br>`;
-                tooltipText += `📏 Distância: <span class="value">${distance.toFixed(1)}m</span><br>`;
-                tooltipText += `⏱️ Tempo: <span class="value">${timeDiff.toFixed(1)}s</span><br>`;
-                tooltipText += `🚀 Velocidade: <span class="value">${speed.toFixed(1)} km/h</span>`;
-                
-                // Velocidade suspeita (>50 km/h) - apenas se tempo >= 5 segundos para evitar falsos positivos
-                // Considera também distância mínima para evitar erros de medição
-                if (timeDiff >= 5 && distance >= 10 && speed > 50) {
-                    pointColor = '#ff0000'; // vermelho mais vibrante
-                    tooltipText += `<br><br><span style="color: #ff5252; font-weight: bold; font-size: 14px; background: rgba(255,0,0,0.2); padding: 4px 8px; border-radius: 4px; display: inline-block;">⚠️ VELOCIDADE SUSPEITA!</span>`;
+
+        if (isLastPoint) {
+            // Último ponto: tooltip igual ao modo sem trails
+            tooltipText = `
+                <strong>👤 ${playerName}${steamName ? ` (${steamName})` : ''}</strong><br>
+                ${playerData?.isOnline ? '🟢 <span class="value">Online</span>' : '🔴 <span class="value">Offline</span>'}<br>
+                📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span><br>
+                ${point.coord_z ? `📏 Altura: <span class="value">${point.coord_z.toFixed(1)}m</span><br>` : ''}
+                ⏰ Atualizado: <span class="value">${formatTimestampBR(point.timestamp)}</span>
+            `;
+        } else {
+            // Pontos intermediários: tooltip com informações de velocidade
+            tooltipText = `<strong>👤 ${playerName}${steamName ? ` (${steamName})` : ''}</strong><br>`;
+            tooltipText += `<strong>📍 Ponto ${i + 1}</strong><br>`;
+            tooltipText += `⏰ Tempo: <span class="value">${formatTimestampBR(point.timestamp)}</span><br>`;
+            tooltipText += `📍 Coords: <span class="value">X=${point.coord_x.toFixed(1)}, Y=${point.coord_y.toFixed(1)}</span>`;
+
+            // Calcular velocidade se houver ponto anterior (cronologicamente)
+            if (i > 0) {
+                const prevPoint = reversedTrail[i - 1].data;
+
+                // Calcular distância em metros (Pitágoras)
+                const dx = point.coord_x - prevPoint.coord_x;
+                const dy = point.coord_y - prevPoint.coord_y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // Calcular diferença de tempo em segundos
+                const time1 = new Date(point.timestamp);
+                const time2 = new Date(prevPoint.timestamp);
+                const timeDiff = Math.abs(time2 - time1) / 1000; // segundos
+
+                // Calcular velocidade em km/h
+                if (timeDiff > 0) {
+                    const speed = (distance / timeDiff) * 3.6; // m/s para km/h
+
+                    tooltipText += `<br><br><strong>📊 Desde último ponto:</strong><br>`;
+                    tooltipText += `📏 Distância: <span class="value">${distance.toFixed(1)}m</span><br>`;
+                    tooltipText += `⏱️ Tempo: <span class="value">${timeDiff.toFixed(1)}s</span><br>`;
+                    tooltipText += `🚀 Velocidade: <span class="value">${speed.toFixed(1)} km/h</span>`;
+
+                    // Velocidade suspeita (>50 km/h) - apenas se tempo >= 5 segundos para evitar falsos positivos
+                    // Considera também distância mínima para evitar erros de medição
+                    if (timeDiff >= 5 && distance >= 10 && speed > 50) {
+                        pointColor = '#ff0000'; // vermelho mais vibrante
+                        tooltipText += `<br><br><span style="color: #ff5252; font-weight: bold; font-size: 14px; background: rgba(255,0,0,0.2); padding: 4px 8px; border-radius: 4px; display: inline-block;">⚠️ VELOCIDADE SUSPEITA!</span>`;
+                    }
                 }
             }
         }
-        
-        // Criar marcador no ponto - usar caveira se jogador estiver morto
+
+        // Criar marcador no ponto
         let pointMarker;
-        if (point.is_alive === false) {
-            // Jogador morto - usar ícone de caveira vermelha
+
+        if (isLastPoint) {
+            // Último ponto: usar ícone estilizado igual ao modo sem trails (com animação pulsante)
+            const styledIcon = createMarkerIcon(color, point.is_alive !== false);
+            pointMarker = L.marker(reversedTrail[i].mapCoords, {
+                icon: styledIcon
+            }).addTo(MapState.map);
+        } else if (point.is_alive === false) {
+            // Ponto intermediário com jogador morto - usar ícone de caveira vermelha menor
             const skullSize = 20;
             const skullFontSize = 12;
             const skullIcon = L.divIcon({
@@ -1066,7 +1108,7 @@ function drawTrail(playerId, trail) {
                 icon: skullIcon
             }).addTo(MapState.map);
         } else {
-            // Jogador vivo - usar circleMarker padrão
+            // Ponto intermediário normal - usar circleMarker padrão
             pointMarker = L.circleMarker(
                 reversedTrail[i].mapCoords,
                 {
@@ -1079,60 +1121,68 @@ function drawTrail(playerId, trail) {
                 }
             ).addTo(MapState.map);
         }
-        
-        // Adicionar evento de clique (sempre, para mostrar menu de ações)
-        pointMarker.on('click', function() {
-            // Encontrar índice do ponto no trail completo
-            const fullTrail = MapState.playerTrailsData[playerId] || trail;
-            let pointIndexInFullTrail = -1;
-            
-            // Tentar encontrar pelo player_coord_id primeiro
-            if (point.player_coord_id) {
-                for (let j = 0; j < fullTrail.length; j++) {
-                    if (fullTrail[j].player_coord_id === point.player_coord_id) {
-                        pointIndexInFullTrail = j;
-                        break;
+
+        // Adicionar evento de clique
+        if (isLastPoint) {
+            // Último ponto: mesmo comportamento do modo sem trails
+            pointMarker.on('click', function() {
+                showPlayerMarkerActions(null, playerId);
+            });
+        } else {
+            // Pontos intermediários: menu de ações do ponto
+            pointMarker.on('click', function() {
+                // Encontrar índice do ponto no trail completo
+                const fullTrail = MapState.playerTrailsData[playerId] || trail;
+                let pointIndexInFullTrail = -1;
+
+                // Tentar encontrar pelo player_coord_id primeiro
+                if (point.player_coord_id) {
+                    for (let j = 0; j < fullTrail.length; j++) {
+                        if (fullTrail[j].player_coord_id === point.player_coord_id) {
+                            pointIndexInFullTrail = j;
+                            break;
+                        }
                     }
                 }
-            }
-            
-            // Se não encontrou, tentar por coordenadas e timestamp
-            if (pointIndexInFullTrail === -1) {
-                for (let j = 0; j < fullTrail.length; j++) {
-                    const trailPoint = fullTrail[j];
-                    const coordMatch = Math.abs(trailPoint.coord_x - point.coord_x) < 0.1 &&
-                                     Math.abs(trailPoint.coord_y - point.coord_y) < 0.1;
-                    const timeMatch = trailPoint.timestamp === point.timestamp;
-                    
-                    if (coordMatch && timeMatch) {
-                        pointIndexInFullTrail = j;
-                        break;
+
+                // Se não encontrou, tentar por coordenadas e timestamp
+                if (pointIndexInFullTrail === -1) {
+                    for (let j = 0; j < fullTrail.length; j++) {
+                        const trailPoint = fullTrail[j];
+                        const coordMatch = Math.abs(trailPoint.coord_x - point.coord_x) < 0.1 &&
+                                         Math.abs(trailPoint.coord_y - point.coord_y) < 0.1;
+                        const timeMatch = trailPoint.timestamp === point.timestamp;
+
+                        if (coordMatch && timeMatch) {
+                            pointIndexInFullTrail = j;
+                            break;
+                        }
                     }
                 }
-            }
-            
-            // Se ainda não encontrou, usar índice no trail filtrado como fallback
-            if (pointIndexInFullTrail === -1) {
-                pointIndexInFullTrail = trail.indexOf(point);
-            }
-            
-            showPointActionsMenu(playerId, point, trail.length - i, pointIndexInFullTrail, fullTrail);
-        });
-        
+
+                // Se ainda não encontrou, usar índice no trail filtrado como fallback
+                if (pointIndexInFullTrail === -1) {
+                    pointIndexInFullTrail = trail.indexOf(point);
+                }
+
+                showPointActionsMenu(playerId, point, trail.length - i, pointIndexInFullTrail, fullTrail);
+            });
+        }
+
         // Adicionar cursor pointer
         if (pointMarker.getElement) {
             pointMarker.getElement().style.cursor = 'pointer';
         }
-        
+
         // Adicionar tooltip (direção dinâmica baseada na posição)
         const tooltipDirection = getTooltipDirectionForPoint(pointLat, pointLng);
-        
+
         pointMarker.bindTooltip(tooltipText, {
             permanent: false,
             direction: tooltipDirection,
             className: 'trail-tooltip'
         });
-        
+
         MapState.playerTrails[playerId].push(pointMarker);
     }
 }
@@ -1297,8 +1347,10 @@ function updateTrailButtonVisibility() {
         $('#toggleTrailsBtn').show();
     } else {
         $('#toggleTrailsBtn').hide();
-        $('#trailQuickShortcuts').hide();
-        $('#trailCustomFilter').hide();
+        // Desativar timeline quando jogadores sao ocultados
+        if (typeof MapTimeline !== 'undefined') {
+            MapTimeline.disable();
+        }
     }
 }
 
@@ -1309,16 +1361,14 @@ function disableTrails() {
     if (MapState.showTrails) {
         MapState.showTrails = false;
         $('#toggleTrailsBtn').html('<i class="fas fa-route me-1"></i>Mostrar Trails');
-        $('#trailQuickShortcuts').hide();
-        $('#trailCustomFilter').hide();
+        // Desativar timeline interativa
+        if (typeof MapTimeline !== 'undefined') {
+            MapTimeline.disable();
+        }
         // Limpar filtros
         MapState.trailDateFilter.enabled = false;
         MapState.trailDateFilter.startDate = null;
         MapState.trailDateFilter.endDate = null;
-        $('#trailStartDate').val('');
-        $('#trailStartTime').val('');
-        $('#trailEndDate').val('');
-        $('#trailEndTime').val('');
         // Remover todos os trails
         Object.keys(MapState.playerTrails).forEach(function(key) {
             const trail = MapState.playerTrails[key];
@@ -1349,32 +1399,16 @@ function disableTrails() {
 function toggleTrails() {
     // Validar se jogadores estão visíveis antes de ativar
     if (!MapState.showPlayers) {
-        showToast('Aviso', 'É necessário ativar "Mostrar Jogadores" para usar trails', 'warning');
+        showToast('Aviso', 'E necessario ativar "Mostrar Jogadores" para usar trails', 'warning');
         return;
     }
     MapState.showTrails = !MapState.showTrails;
-    
+
     if (MapState.showTrails) {
         $('#toggleTrailsBtn').html('<i class="fas fa-eye-slash me-1"></i>Ocultar trails dos jogadores');
-        $('#trailQuickShortcuts').show();
-        $('#trailCustomFilter').show();
-        // Aplicar filtro padrão de 2 minutos automaticamente (se não houver filtro ativo)
-        if (!MapState.activeTrailShortcut && !MapState.hasCustomFilter) {
-            if (typeof applyTrailFilterShortcut === 'function') {
-                applyTrailFilterShortcut('30seconds');
-            }
-        } else if (MapState.activeTrailShortcut) {
-            // Restaurar destaque do atalho ativo
-            const activeButton = $(`#trailQuickShortcuts button[data-filter="${MapState.activeTrailShortcut}"]`);
-            if (activeButton.length > 0) {
-                // Trocar btn-outline-* por btn-* para destacar
-                if (activeButton.hasClass('btn-outline-secondary')) {
-                    activeButton.removeClass('btn-outline-secondary').addClass('btn-secondary');
-                } else if (activeButton.hasClass('btn-outline-warning')) {
-                    activeButton.removeClass('btn-outline-warning').addClass('btn-warning');
-                }
-                activeButton.addClass('active');
-            }
+        // Ativar timeline interativa
+        if (typeof MapTimeline !== 'undefined') {
+            MapTimeline.enable();
         }
         // Coletar IDs de jogadores que precisam de trail
         const onlineOnlyFilterActive = $('#onlineOnlyCheck').is(':checked');
@@ -1418,38 +1452,22 @@ function toggleTrails() {
         }, 2000);
     } else {
         $('#toggleTrailsBtn').html('<i class="fas fa-route me-1"></i>Mostrar trails dos jogadores');
-        $('#trailQuickShortcuts').hide();
-        $('#trailCustomFilter').hide();
-        $('#trailCustomFilter').hide();
+        // Desativar timeline interativa
+        if (typeof MapTimeline !== 'undefined') {
+            MapTimeline.disable();
+        }
         // Limpar filtros
         MapState.trailDateFilter.enabled = false;
         MapState.trailDateFilter.startDate = null;
         MapState.trailDateFilter.endDate = null;
         MapState.activeTrailShortcut = null;
         MapState.hasCustomFilter = false;
-        $('#trailStartDate').val('');
-        $('#trailStartTime').val('');
-        $('#trailEndDate').val('');
-        $('#trailEndTime').val('');
-        
-        // Mostrar todos os marcadores novamente quando trails são desativados
+
+        // Mostrar todos os marcadores novamente quando trails sao desativados
         Object.keys(MapState.playerMarkers).forEach(function(playerId) {
             const marker = MapState.playerMarkers[playerId];
             if (marker && !MapState.map.hasLayer(marker)) {
                 marker.addTo(MapState.map);
-            }
-        });
-        // Restaurar classes outline de todos os botões
-        $('#trailQuickShortcuts button[data-filter]').each(function() {
-            const $btn = $(this);
-            $btn.removeClass('active');
-            const filter = $btn.data('filter');
-            if (filter === '24hours') {
-                $btn.removeClass('btn-warning').addClass('btn-outline-warning');
-            } else if (filter === 'clear') {
-                $btn.removeClass('btn-danger').addClass('btn-outline-danger');
-            } else {
-                $btn.removeClass('btn-secondary').addClass('btn-outline-secondary');
             }
         });
         // Remover todos os trails

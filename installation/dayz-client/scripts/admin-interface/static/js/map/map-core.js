@@ -438,10 +438,15 @@ function toggleAutoRefresh() {
         // Obter intervalo do campo de input (em segundos) e converter para milissegundos
         const intervalSeconds = parseInt($('#autoRefreshInterval').val()) || 10;
         const intervalMs = intervalSeconds * 1000;
-        
+
         // Armazenar valor em segundos no MapState para referência
         MapState.autoRefreshIntervalSeconds = intervalSeconds;
-        
+
+        // Ativar modo tempo real na timeline (sincronizado com auto-refresh)
+        if (typeof MapTimeline !== 'undefined' && MapTimeline.enabled) {
+            MapTimeline.enableLiveMode(true);
+        }
+
         MapState.autoRefreshInterval = setInterval(function() {
             if (typeof loadPositions === 'function') loadPositions();
             if (MapState.showVehicles && typeof loadVehicles === 'function') loadVehicles();
@@ -457,6 +462,10 @@ function toggleAutoRefresh() {
         if (MapState.autoRefreshInterval) {
             clearInterval(MapState.autoRefreshInterval);
             MapState.autoRefreshInterval = null;
+        }
+        // Desativar modo tempo real na timeline
+        if (typeof MapTimeline !== 'undefined' && MapTimeline.enabled) {
+            MapTimeline.disableLiveMode(true);
         }
         console.log('Auto-refresh desligado');
     }

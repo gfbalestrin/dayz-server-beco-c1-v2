@@ -136,6 +136,268 @@
     width: 50%;
     font-weight: 500;
 }
+
+/* Timeline Interativa de Trails */
+.trail-timeline {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: rgba(33, 37, 41, 0.95);
+    border-radius: 8px;
+    padding: 10px 15px;
+    min-width: 800px;
+    max-width: 95%;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+@media (max-width: 900px) {
+    .trail-timeline {
+        min-width: 95%;
+        padding: 8px 10px;
+    }
+    .timeline-header {
+        flex-wrap: wrap;
+        gap: 8px !important;
+    }
+    .timeline-controls {
+        order: 2;
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+.timeline-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 10px;
+}
+
+.timeline-date-selector {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.timeline-date-input {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.timeline-date-input::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+}
+
+.timeline-controls {
+    display: flex;
+    gap: 3px;
+}
+
+.timeline-autoplay {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.timeline-window-selector {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.timeline-label {
+    color: rgba(255,255,255,0.7);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.timeline-backup-filter {
+    display: flex;
+    align-items: center;
+    margin-left: 8px;
+}
+
+.timeline-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+}
+
+.timeline-checkbox-label input[type="checkbox"] {
+    accent-color: #27ae60;
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+}
+
+.timeline-current-time {
+    background: rgba(52, 152, 219, 0.3);
+    padding: 5px 10px;
+    border-radius: 4px;
+    color: #3498db;
+    font-weight: bold;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.timeline-bar-container {
+    position: relative;
+    height: 40px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: 15px;
+}
+
+.timeline-bar {
+    position: relative;
+    height: 100%;
+    width: 100%;
+}
+
+.timeline-ticks {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+}
+
+.timeline-tick {
+    position: absolute;
+    width: 1px;
+    background: rgba(255,255,255,0.2);
+    height: 100%;
+}
+
+.timeline-tick-label {
+    position: absolute;
+    bottom: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: rgba(255,255,255,0.6);
+    white-space: nowrap;
+}
+
+.timeline-cursor {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    pointer-events: none;
+    transition: left 0.1s ease-out;
+}
+
+.timeline-window-indicator {
+    height: 100%;
+    background: rgba(52, 152, 219, 0.4);
+    border-left: 2px solid #3498db;
+    border-right: 2px solid #3498db;
+    border-radius: 4px;
+}
+
+.timeline-activity {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.timeline-activity-bar {
+    position: absolute;
+    height: 100%;
+    border-radius: 2px;
+}
+
+.btn-timeline {
+    padding: 5px 10px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 14px;
+}
+
+.btn-timeline:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.btn-timeline.active {
+    background: #3498db;
+    border-color: #3498db;
+}
+
+.btn-timeline:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Botao Ao Vivo */
+.btn-live {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.btn-live.active {
+    background: #e74c3c;
+    border-color: #e74c3c;
+}
+
+.btn-live .live-indicator {
+    width: 8px;
+    height: 8px;
+    background: #fff;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.btn-live.active .live-indicator {
+    animation: pulse-live 1s ease-in-out infinite;
+}
+
+@keyframes pulse-live {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.timeline-live {
+    display: flex;
+    align-items: center;
+    margin-left: 8px;
+}
+
+.timeline-select {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.timeline-select option {
+    background: #212529;
+    color: white;
+}
 </style>
 {% endblock %}
 
@@ -192,7 +454,88 @@
     <div class="col-12 col-md-12 col-lg-9 mb-3">
         <div class="position-relative">
             <div id="map" class="map-container" data-map-configs='{{ map_configs | tojson }}' data-map-default="chernarus"></div>
-            
+
+            <!-- Timeline Interativa de Trails -->
+            <div id="trailTimeline" class="trail-timeline" style="display: none;">
+                <div class="timeline-header">
+                    <!-- Seletor de Data -->
+                    <div class="timeline-date-selector">
+                        <button class="btn-timeline" id="timelinePrevDay" title="Dia anterior">&#9664;</button>
+                        <input type="date" id="timelineDate" class="timeline-date-input">
+                        <button class="btn-timeline" id="timelineNextDay" title="Proximo dia">&#9654;</button>
+                    </div>
+
+                    <!-- Controles de Navegacao -->
+                    <div class="timeline-controls">
+                        <button class="btn-timeline" id="timelineBackward" title="Recuar">&#9664;&#9664;</button>
+                        <button class="btn-timeline" id="timelineStepBack" title="Recuar 1 min">&#9664;</button>
+                        <button class="btn-timeline" id="timelineStepForward" title="Avancar 1 min">&#9654;</button>
+                        <button class="btn-timeline" id="timelineForward" title="Avancar">&#9654;&#9654;</button>
+                    </div>
+
+                    <!-- Botao Ao Vivo -->
+                    <div class="timeline-live">
+                        <button class="btn-timeline btn-live active" id="timelineLiveBtn" title="Modo Tempo Real">
+                            <span class="live-indicator"></span>AO VIVO
+                        </button>
+                    </div>
+
+                    <!-- Auto-play -->
+                    <div class="timeline-autoplay">
+                        <button class="btn-timeline btn-play" id="timelinePlay" title="Auto-play">&#9654;</button>
+                        <select id="timelineSpeed" class="timeline-select" title="Velocidade">
+                            <option value="500">0.5s</option>
+                            <option value="1000" selected>1s</option>
+                            <option value="2000">2s</option>
+                            <option value="5000">5s</option>
+                        </select>
+                    </div>
+
+                    <!-- Janela de Tempo -->
+                    <div class="timeline-window-selector">
+                        <span class="timeline-label">Janela:</span>
+                        <select id="timelineWindow" class="timeline-select">
+                            <option value="1">1 min</option>
+                            <option value="2">2 min</option>
+                            <option value="5">5 min</option>
+                            <option value="10" selected>10 min</option>
+                            <option value="15">15 min</option>
+                            <option value="30">30 min</option>
+                            <option value="60">1 hora</option>
+                        </select>
+                    </div>
+
+                    <!-- Filtro Backups -->
+                    <div class="timeline-backup-filter">
+                        <label class="timeline-checkbox-label" title="Exibir pontos de backup salvos">
+                            <input type="checkbox" id="showBackupCheck">
+                            <span class="timeline-label">Backups</span>
+                        </label>
+                    </div>
+
+                    <!-- Horario Atual -->
+                    <div class="timeline-current-time">
+                        <span id="timelineCurrentRange">--:-- - --:--</span>
+                    </div>
+                </div>
+
+                <!-- Barra da Timeline -->
+                <div class="timeline-bar-container">
+                    <div class="timeline-bar" id="timelineBar">
+                        <!-- Marcacoes de hora (geradas via JS) -->
+                        <div class="timeline-ticks" id="timelineTicks"></div>
+
+                        <!-- Indicadores de atividade (heatmap) -->
+                        <div class="timeline-activity" id="timelineActivity"></div>
+
+                        <!-- Cursor/Slider -->
+                        <div class="timeline-cursor" id="timelineCursor">
+                            <div class="timeline-window-indicator"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Alerta de Modo Teleporte -->
             <div class="position-absolute top-0 start-0 w-100 p-2" style="display: none;" id="teleportInfo">
                 <div class="alert alert-info mb-0">
@@ -334,94 +677,6 @@
                     </button>
                     <button type="button" class="btn btn-sm btn-secondary" id="toggleTrailsBtn">
                         <i class="fas fa-route me-1"></i>Mostrar trails dos jogadores
-                    </button>
-                </div>
-                <!-- Atalhos Rápidos para Trails (visível apenas quando trails estão ativos) -->
-                <div id="trailQuickShortcuts" class="mt-2 mb-2" style="display: none;">
-                    <label class="form-label small fw-bold">
-                        <i class="fas fa-bolt me-1 text-warning"></i>Atalhos Rápidos:
-                    </label>
-                    <div class="row g-1">
-                        <div class="col-6">
-                            <div class="d-grid gap-1">
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="10seconds">
-                                    <i class="fas fa-stopwatch me-1"></i>Últimos 10s
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="30seconds">
-                                    <i class="fas fa-stopwatch me-1"></i>Últimos 30s
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="1minute">
-                                    <i class="fas fa-stopwatch me-1"></i>Último minuto
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="2minutes">
-                                    <i class="fas fa-stopwatch me-1"></i>Últimos 2 min
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="5minutes">
-                                    <i class="fas fa-stopwatch me-1"></i>Últimos 5 min
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="10minutes">
-                                    <i class="fas fa-stopwatch me-1"></i>Últimos 10 min
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="30minutes">
-                                    <i class="fas fa-stopwatch me-1"></i>Últimos 30 min
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="1hour">
-                                    <i class="fas fa-hourglass-half me-1"></i>Última Hora
-                                </button>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="d-grid gap-1">
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="3hours">
-                                    <i class="fas fa-clock me-1"></i>Últimas 3h
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="6hours">
-                                    <i class="fas fa-clock me-1"></i>Últimas 6h
-                                </button>
-                                <button type="button" class="btn btn-outline-warning btn-sm" data-filter="24hours">
-                                    <i class="fas fa-calendar-day me-1"></i>Últimas 24h
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="today">
-                                    <i class="fas fa-sun me-1"></i>Hoje
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="yesterday">
-                                    <i class="fas fa-calendar-minus me-1"></i>Ontem
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="7days">
-                                    <i class="fas fa-calendar-week me-1"></i>Últimos 7 Dias
-                                </button>
-                                <button type="button" class="btn btn-outline-danger btn-sm" data-filter="clear">
-                                    <i class="fas fa-times me-1"></i>Limpar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- Campos de Data para Filtro Personalizado (visível apenas quando trails estão ativos) -->
-                <div id="trailCustomFilter" class="mt-3 pt-3 border-top" style="display: none;">
-                    <label class="form-label small fw-bold">
-                        <i class="fas fa-calendar-alt me-1 text-info"></i>Filtro Personalizado:
-                    </label>
-                    <div class="row g-2">
-                        <div class="col-6">
-                            <label class="form-label small">Data Início:</label>
-                            <input type="date" id="trailStartDate" class="form-control form-control-sm">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small">Hora:</label>
-                            <input type="time" id="trailStartTime" class="form-control form-control-sm" step="1" lang="pt-BR" data-format="24h">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small">Data Fim:</label>
-                            <input type="date" id="trailEndDate" class="form-control form-control-sm">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small">Hora:</label>
-                            <input type="time" id="trailEndTime" class="form-control form-control-sm" step="1" lang="pt-BR" data-format="24h">
-                        </div>
-                    </div>
-                    <button class="btn btn-primary btn-sm w-100 mt-3 mb-3" id="applyTrailFilter">
-                        <i class="fas fa-filter me-2"></i>Aplicar Filtro
                     </button>
                 </div>
                 <div class="d-grid gap-1 mt-1">
@@ -1897,5 +2152,6 @@
 <script src="{{ url_for('static', filename='js/map/map-fences.js') }}"></script>
 <script src="{{ url_for('static', filename='js/map/map-events.js') }}"></script>
 <script src="{{ url_for('static', filename='js/map/map-teleport.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map/map-timeline.js') }}"></script>
 <script src="{{ url_for('static', filename='js/map.js') }}"></script>
 {% endblock %}

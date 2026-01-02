@@ -67,6 +67,7 @@ const MapState = {
     showKills: false,
     showDamages: false,
     showTrails: false,
+    showBackupMarkers: false,  // Ocultar backups por padrão
     
     // Filtros e seleções
     selectedPlayerFilters: [],

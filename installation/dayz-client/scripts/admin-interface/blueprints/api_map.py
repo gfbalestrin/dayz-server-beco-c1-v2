@@ -19,7 +19,7 @@ from database import (
     get_fences_last_position, get_watchtowers_last_position, get_flags_last_position,
     get_fence_trail, get_watchtower_trail, get_flag_trail,
     get_item_details_from_items_db, dayz_to_pixel, get_player_events, clear_player_events,
-    get_cftools_data_for_players
+    get_cftools_data_for_players, get_player_activity_by_hour
 )
 from blueprints.auth import admin_required, audit_action
 from blueprints.helpers import convert_timestamp_to_br, write_command_to_file
@@ -467,6 +467,43 @@ def api_online_positions():
         result['players'].append(player_data)
 
     return jsonify(result)
+
+@api_map_bp.route('/api/players/activity/hourly')
+@admin_required
+def api_player_activity_hourly():
+    """
+    Retorna atividade de jogadores por hora para uma data específica.
+    Usado para mostrar heatmap de atividade na timeline.
+
+    Query params:
+        - date: YYYY-MM-DD (obrigatório)
+        - player_ids: IDs separados por vírgula (opcional)
+    """
+    date = request.args.get('date')
+    if not date:
+        return jsonify({'error': 'date is required'}), 400
+
+    player_ids_param = request.args.get('player_ids', '')
+    player_ids = [pid.strip() for pid in player_ids_param.split(',') if pid.strip()] if player_ids_param else None
+
+    try:
+        activity = get_player_activity_by_hour(date, player_ids)
+
+        # Preencher horas sem atividade com 0
+        activity_map = {item['hour']: item['count'] for item in activity}
+        full_activity = [{'hour': h, 'count': activity_map.get(h, 0)} for h in range(24)]
+
+        # Calcular máximo para normalização no frontend
+        max_count = max((item['count'] for item in full_activity), default=0)
+
+        return jsonify({
+            'date': date,
+            'activity': full_activity,
+            'max_count': max_count
+        })
+    except Exception as e:
+        logging.error(f"Erro ao buscar atividade: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @api_map_bp.route('/api/vehicles/positions')
 @admin_required

@@ -3469,14 +3469,15 @@ def get_players_trails_batch(player_ids: List[str], limit: int = 100, date_from:
         
         date_conditions = []
         date_conditions_subquery = []  # Para usar na subquery sem alias
+        # Nota: Nao usar datetime() pois impede uso do indice. O formato YYYY-MM-DD HH:MM:SS ja e ordenavel como string.
         if date_from:
-            date_conditions.append("datetime(pc.Data) >= datetime(?)")
-            date_conditions_subquery.append("datetime(Data) >= datetime(?)")
+            date_conditions.append("pc.Data >= ?")
+            date_conditions_subquery.append("Data >= ?")
             params.append(date_from)
-        
+
         if date_to:
-            date_conditions.append("datetime(pc.Data) <= datetime(?)")
-            date_conditions_subquery.append("datetime(Data) <= datetime(?)")
+            date_conditions.append("pc.Data <= ?")
+            date_conditions_subquery.append("Data <= ?")
             params.append(date_to)
         
         where_clause = " AND ".join(where_conditions)
@@ -3503,7 +3504,7 @@ def get_players_trails_batch(player_ids: List[str], limit: int = 100, date_from:
                 SELECT PlayerCoordId
                 FROM (
                     SELECT PlayerCoordId,
-                           ROW_NUMBER() OVER (PARTITION BY PlayerID ORDER BY datetime(Data) DESC) as rn
+                           ROW_NUMBER() OVER (PARTITION BY PlayerID ORDER BY Data DESC) as rn
                     FROM players_coord
                     WHERE PlayerID IN ({placeholders})
                     AND {date_clause_subquery}
@@ -3515,7 +3516,7 @@ def get_players_trails_batch(player_ids: List[str], limit: int = 100, date_from:
             ) pcb ON pc.PlayerCoordId = pcb.PlayerCoordId
             WHERE pc.PlayerID IN ({placeholders})
             AND {date_clause}
-            ORDER BY pc.PlayerID, datetime(pc.Data) DESC
+            ORDER BY pc.PlayerID, pc.Data DESC
         """
         
         # Parâmetros: player_ids para subquery, date conditions, limit, player_ids para WHERE, date conditions
@@ -3545,6 +3546,8 @@ def get_online_players_positions() -> List[Dict]:
     """Retorna posições de jogadores online"""
     with DatabaseConnection(config.DB_PLAYERS) as conn:
         cursor = conn.cursor()
+        # Query otimizada: filtra players_coord apenas para jogadores online
+        # Isso evita processar 550k+ registros desnecessariamente
         cursor.execute("""
             SELECT p.PlayerID, p.PlayerName, p.SteamID, p.SteamName,
                    pc.CoordX, pc.CoordY, pc.CoordZ, pc.Data, pc.PlayerCoordId,
@@ -3561,6 +3564,7 @@ def get_online_players_positions() -> List[Dict]:
                        Stamina, StaminaMax, ItemsInHands, ItemsCount, MainItems,
                        ROW_NUMBER() OVER (PARTITION BY PlayerID ORDER BY Data DESC, PlayerCoordId DESC) as rn
                 FROM players_coord
+                WHERE PlayerID IN (SELECT PlayerID FROM players_online)
             ) pc ON p.PlayerID = pc.PlayerID AND pc.rn = 1
             ORDER BY p.PlayerName
         """)
@@ -7656,7 +7660,41 @@ def get_recent_player_events(limit: int = 50, since_timestamp: str = None, event
         logger.exception(f"Erro ao buscar eventos recentes: {str(e)}")
         return []
 
-def save_vehicle_check_data(vehicle_id: str, vehicle_name: str, position: dict, 
+def get_player_activity_by_hour(date: str, player_ids: List[str] = None) -> List[Dict]:
+    """
+    Retorna contagem de posições por hora para uma data específica.
+    Usado para mostrar heatmap de atividade na timeline.
+
+    Args:
+        date: Data no formato 'YYYY-MM-DD'
+        player_ids: Lista opcional de IDs de jogadores para filtrar
+
+    Returns:
+        Lista de dicts: [{'hour': 0, 'count': 15}, {'hour': 1, 'count': 8}, ...]
+    """
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+
+        query = """
+            SELECT
+                CAST(strftime('%H', Data) AS INTEGER) as hour,
+                COUNT(*) as count
+            FROM players_coord
+            WHERE DATE(Data) = ?
+        """
+        params = [date]
+
+        if player_ids:
+            placeholders = ','.join('?' * len(player_ids))
+            query += f" AND PlayerID IN ({placeholders})"
+            params.extend(player_ids)
+
+        query += " GROUP BY hour ORDER BY hour"
+
+        cursor.execute(query, params)
+        return [{'hour': row['hour'], 'count': row['count']} for row in cursor.fetchall()]
+
+def save_vehicle_check_data(vehicle_id: str, vehicle_name: str, position: dict,
                             items: list, attachments: list, health_parts: dict) -> Optional[int]:
     """
     Salva dados de um veículo coletados via checkvehicle no banco de dados
