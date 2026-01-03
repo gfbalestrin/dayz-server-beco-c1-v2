@@ -329,6 +329,17 @@ const MapTimeline = {
             // Parar no final do dia
             if (self.currentPosition >= 1439) {
                 self.stopPlay();
+                return;
+            }
+
+            // Parar se atingir a data/hora atual
+            const now = new Date();
+            if (self.currentDate.toDateString() === now.toDateString()) {
+                // Mesma data que hoje - verificar se atingiu hora atual
+                const currentMinutes = self.getCurrentMinutes();
+                if (self.currentPosition >= currentMinutes) {
+                    self.stopPlay();
+                }
             }
         }, this.playSpeed);
     },
@@ -344,7 +355,10 @@ const MapTimeline = {
     },
 
     updateSpeed: function() {
-        this.playSpeed = parseInt(this.elements.speedSelect.val());
+        const multiplier = parseInt(this.elements.speedSelect.val());
+        // Velocidade base: 1 minuto por segundo (1000ms)
+        // Multiplicador aumenta velocidade: 2x = 500ms, 5x = 200ms, 10x = 100ms
+        this.playSpeed = Math.round(1000 / multiplier);
         if (this.isPlaying) {
             this.stopPlay();
             this.startPlay();
