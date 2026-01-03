@@ -1088,8 +1088,18 @@ function drawTrail(playerId, trail) {
 
         if (isLastPoint) {
             // Último ponto: usar ícone estilizado igual ao modo sem trails (com animação pulsante)
+            // Verificar se jogador tem posição mais recente no marcador principal
+            let markerCoords = reversedTrail[i].mapCoords;
+            const playerMarker = MapState.playerMarkers[playerId];
+            if (playerMarker && typeof playerMarker.getLatLng === 'function') {
+                const currentPos = playerMarker.getLatLng();
+                if (currentPos) {
+                    markerCoords = [currentPos.lat, currentPos.lng];
+                }
+            }
+
             const styledIcon = createMarkerIcon(color, point.is_alive !== false);
-            pointMarker = L.marker(reversedTrail[i].mapCoords, {
+            pointMarker = L.marker(markerCoords, {
                 icon: styledIcon
             }).addTo(MapState.map);
         } else if (point.is_alive === false) {
@@ -1334,9 +1344,15 @@ function updatePlayerTrailOnMove(playerId, newLat, newLng) {
     const newPoint = [newLat, newLng];
     currentLatLngs.push(newPoint);
     lastPolyline.setLatLngs(currentLatLngs);
-    
+
     // Atualizar visualmente com animação suave
     lastPolyline.redraw();
+
+    // Atualizar posição do ícone estilizado (último marcador no array)
+    const lastMarker = existingTrail[existingTrail.length - 1];
+    if (lastMarker && lastMarker instanceof L.Marker && typeof lastMarker.setLatLng === 'function') {
+        lastMarker.setLatLng(newPoint);
+    }
 }
 
 /**

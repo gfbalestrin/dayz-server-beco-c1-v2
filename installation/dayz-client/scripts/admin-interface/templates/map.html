@@ -139,16 +139,14 @@
 
 /* Timeline Interativa de Trails */
 .trail-timeline {
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1000;
+    position: relative;
+    margin-bottom: 10px;
+    z-index: 1;
     background: rgba(33, 37, 41, 0.95);
     border-radius: 8px;
     padding: 10px 15px;
     min-width: 800px;
-    max-width: 95%;
+    max-width: 100%;
     box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     border: 1px solid rgba(255,255,255,0.1);
 }
@@ -452,89 +450,89 @@
 <div class="row">
     <!-- Mapa -->
     <div class="col-12 col-md-12 col-lg-9 mb-3">
-        <div class="position-relative">
-            <div id="map" class="map-container" data-map-configs='{{ map_configs | tojson }}' data-map-default="chernarus"></div>
-
-            <!-- Timeline Interativa de Trails -->
-            <div id="trailTimeline" class="trail-timeline" style="display: none;">
-                <div class="timeline-header">
-                    <!-- Seletor de Data -->
-                    <div class="timeline-date-selector">
-                        <button class="btn-timeline" id="timelinePrevDay" title="Dia anterior">&#9664;</button>
-                        <input type="date" id="timelineDate" class="timeline-date-input">
-                        <button class="btn-timeline" id="timelineNextDay" title="Proximo dia">&#9654;</button>
-                    </div>
-
-                    <!-- Controles de Navegacao -->
-                    <div class="timeline-controls">
-                        <button class="btn-timeline" id="timelineBackward" title="Recuar">&#9664;&#9664;</button>
-                        <button class="btn-timeline" id="timelineStepBack" title="Recuar 1 min">&#9664;</button>
-                        <button class="btn-timeline" id="timelineStepForward" title="Avancar 1 min">&#9654;</button>
-                        <button class="btn-timeline" id="timelineForward" title="Avancar">&#9654;&#9654;</button>
-                    </div>
-
-                    <!-- Botao Ao Vivo -->
-                    <div class="timeline-live">
-                        <button class="btn-timeline btn-live active" id="timelineLiveBtn" title="Modo Tempo Real">
-                            <span class="live-indicator"></span>AO VIVO
-                        </button>
-                    </div>
-
-                    <!-- Auto-play -->
-                    <div class="timeline-autoplay">
-                        <button class="btn-timeline btn-play" id="timelinePlay" title="Auto-play">&#9654;</button>
-                        <select id="timelineSpeed" class="timeline-select" title="Velocidade">
-                            <option value="500">0.5s</option>
-                            <option value="1000" selected>1s</option>
-                            <option value="2000">2s</option>
-                            <option value="5000">5s</option>
-                        </select>
-                    </div>
-
-                    <!-- Janela de Tempo -->
-                    <div class="timeline-window-selector">
-                        <span class="timeline-label">Janela:</span>
-                        <select id="timelineWindow" class="timeline-select">
-                            <option value="1">1 min</option>
-                            <option value="2">2 min</option>
-                            <option value="5">5 min</option>
-                            <option value="10" selected>10 min</option>
-                            <option value="15">15 min</option>
-                            <option value="30">30 min</option>
-                            <option value="60">1 hora</option>
-                        </select>
-                    </div>
-
-                    <!-- Filtro Backups -->
-                    <div class="timeline-backup-filter">
-                        <label class="timeline-checkbox-label" title="Exibir pontos de backup salvos">
-                            <input type="checkbox" id="showBackupCheck">
-                            <span class="timeline-label">Backups</span>
-                        </label>
-                    </div>
-
-                    <!-- Horario Atual -->
-                    <div class="timeline-current-time">
-                        <span id="timelineCurrentRange">--:-- - --:--</span>
-                    </div>
+        <!-- Timeline Interativa de Trails (fora do mapa para nao sobrepor) -->
+        <div id="trailTimeline" class="trail-timeline" style="display: none;">
+            <div class="timeline-header">
+                <!-- Seletor de Data -->
+                <div class="timeline-date-selector">
+                    <button class="btn-timeline" id="timelinePrevDay" title="Dia anterior">&#9664;</button>
+                    <input type="date" id="timelineDate" class="timeline-date-input">
+                    <button class="btn-timeline" id="timelineNextDay" title="Proximo dia">&#9654;</button>
                 </div>
 
-                <!-- Barra da Timeline -->
-                <div class="timeline-bar-container">
-                    <div class="timeline-bar" id="timelineBar">
-                        <!-- Marcacoes de hora (geradas via JS) -->
-                        <div class="timeline-ticks" id="timelineTicks"></div>
+                <!-- Controles de Navegacao -->
+                <div class="timeline-controls">
+                    <button class="btn-timeline" id="timelineBackward" title="Recuar">&#9664;&#9664;</button>
+                    <button class="btn-timeline" id="timelineStepBack" title="Recuar 1 min">&#9664;</button>
+                    <button class="btn-timeline" id="timelineStepForward" title="Avancar 1 min">&#9654;</button>
+                    <button class="btn-timeline" id="timelineForward" title="Avancar">&#9654;&#9654;</button>
+                </div>
 
-                        <!-- Indicadores de atividade (heatmap) -->
-                        <div class="timeline-activity" id="timelineActivity"></div>
+                <!-- Botao Ao Vivo -->
+                <div class="timeline-live">
+                    <button class="btn-timeline btn-live active" id="timelineLiveBtn" title="Modo Tempo Real">
+                        <span class="live-indicator"></span>AO VIVO
+                    </button>
+                </div>
 
-                        <!-- Cursor/Slider -->
-                        <div class="timeline-cursor" id="timelineCursor">
-                            <div class="timeline-window-indicator"></div>
-                        </div>
+                <!-- Auto-play -->
+                <div class="timeline-autoplay">
+                    <button class="btn-timeline btn-play" id="timelinePlay" title="Auto-play">&#9654;</button>
+                    <select id="timelineSpeed" class="timeline-select" title="Velocidade">
+                        <option value="500">0.5s</option>
+                        <option value="1000" selected>1s</option>
+                        <option value="2000">2s</option>
+                        <option value="5000">5s</option>
+                    </select>
+                </div>
+
+                <!-- Janela de Tempo -->
+                <div class="timeline-window-selector">
+                    <span class="timeline-label">Janela:</span>
+                    <select id="timelineWindow" class="timeline-select">
+                        <option value="1">1 min</option>
+                        <option value="2">2 min</option>
+                        <option value="5">5 min</option>
+                        <option value="10" selected>10 min</option>
+                        <option value="15">15 min</option>
+                        <option value="30">30 min</option>
+                        <option value="60">1 hora</option>
+                    </select>
+                </div>
+
+                <!-- Filtro Backups -->
+                <div class="timeline-backup-filter">
+                    <label class="timeline-checkbox-label" title="Exibir pontos de backup salvos">
+                        <input type="checkbox" id="showBackupCheck">
+                        <span class="timeline-label">Backups</span>
+                    </label>
+                </div>
+
+                <!-- Horario Atual -->
+                <div class="timeline-current-time">
+                    <span id="timelineCurrentRange">--:-- - --:--</span>
+                </div>
+            </div>
+
+            <!-- Barra da Timeline -->
+            <div class="timeline-bar-container">
+                <div class="timeline-bar" id="timelineBar">
+                    <!-- Marcacoes de hora (geradas via JS) -->
+                    <div class="timeline-ticks" id="timelineTicks"></div>
+
+                    <!-- Indicadores de atividade (heatmap) -->
+                    <div class="timeline-activity" id="timelineActivity"></div>
+
+                    <!-- Cursor/Slider -->
+                    <div class="timeline-cursor" id="timelineCursor">
+                        <div class="timeline-window-indicator"></div>
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div class="position-relative">
+            <div id="map" class="map-container" data-map-configs='{{ map_configs | tojson }}' data-map-default="chernarus"></div>
 
             <!-- Alerta de Modo Teleporte -->
             <div class="position-absolute top-0 start-0 w-100 p-2" style="display: none;" id="teleportInfo">
