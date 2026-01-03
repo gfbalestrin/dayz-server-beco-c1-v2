@@ -136,7 +136,7 @@ class CustomMission: MissionServer
         super.OnInit();		
 		if (!IsDeathmatchEnabled)
 		{
-			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitWorldTracking, 5000, false);
+			//GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(InitWorldTracking, 5000, false);
 		}
 		
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SendStartEvent, 5000, false);
