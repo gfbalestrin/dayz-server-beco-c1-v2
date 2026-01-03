@@ -3580,6 +3580,8 @@ def get_cftools_data_for_players(player_ids: List[str]) -> Dict[str, Dict]:
     if not player_ids:
         return {}
 
+    logging.debug(f"CFTools DB: Querying CFTools data for {len(player_ids)} player IDs")
+
     try:
         with DatabaseConnection(config.DB_PLAYERS) as conn:
             cursor = conn.cursor()
@@ -3625,6 +3627,15 @@ def get_cftools_data_for_players(player_ids: List[str]) -> Dict[str, Dict]:
             for row in cursor.fetchall():
                 row_dict = dict(row)
                 result[row_dict['PlayerID']] = row_dict
+
+            logging.debug(f"CFTools DB: Found {len(result)} players with CFTools data")
+
+            # Log sample de dados (apenas 3 primeiros)
+            if result:
+                for pid, data in list(result.items())[:3]:
+                    last_updated = data.get('LastUpdated', 'never')
+                    logging.debug(f"  - PlayerID {pid}: LastUpdated={last_updated}")
+
             return result
     except Exception as e:
         logging.debug(f"CFTools data unavailable: {e}")

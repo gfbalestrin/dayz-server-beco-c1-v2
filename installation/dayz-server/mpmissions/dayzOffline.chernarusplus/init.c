@@ -317,12 +317,12 @@ class CustomMission: MissionServer
 			if (!IsDeathmatchEnabled)
 			{
 				array<Man> players60 = new array<Man>;
-				GetGame().GetPlayers(players60);
-				SendPlayersPositions(players60);
+				//GetGame().GetPlayers(players60);
+				//SendPlayersPositions(players60);
 
 				//LogVehiclesPositionsSimple(); // Loga coordenadas dos veículos para análise de performance
-				CleanTrackedVehicles(); // Limpa veículos destruídos do array
-				SendVehiclesPositionsSimple(); // Envia apenas coordenadas dos veículos (update parcial)
+				//CleanTrackedVehicles(); // Limpa veículos destruídos do array
+				//SendVehiclesPositionsSimple(); // Envia apenas coordenadas dos veículos (update parcial)
 				//LogFencesStatusSimple(); // Loga informações simples das fences rastreadas
 				//LogWatchtowersStatusSimple(); // Loga informações simples das watchtowers rastreadas
 				//LogFlagsStatusSimple(); // Loga informações simples das flags rastreadas
@@ -351,23 +351,23 @@ class CustomMission: MissionServer
 			{
 				// Obter players UMA vez para reutilizar
 				array<Man> players600 = new array<Man>;
-				GetGame().GetPlayers(players600);
+				//GetGame().GetPlayers(players600);
 				
 				// Limpeza de objetos destruídos/removidos dos arrays
-				CleanTrackedFences(); // Limpa fences destruídas do array
-				CleanTrackedWatchtowers(); // Limpa watchtowers removidas do array
-				CleanTrackedFlags(); // Limpa flags inválidas do array
-				CleanTrackedContainers(); // Limpa containers destruídos do array
+				//CleanTrackedFences(); // Limpa fences destruídas do array
+				//CleanTrackedWatchtowers(); // Limpa watchtowers removidas do array
+				//CleanTrackedFlags(); // Limpa flags inválidas do array
+				//CleanTrackedContainers(); // Limpa containers destruídos do array
 				
 				// Envio de status completo via ExternalAction
-				SendFencesStatus(); // Envia status completo de todas as fences rastreadas
-				SendWatchtowersStatus(); // Envia status completo das watchtowers rastreadas
-				SendFlagsStatus(); // Envia status completo das flags rastreadas
+				//SendFencesStatus(); // Envia status completo de todas as fences rastreadas
+				//SendWatchtowersStatus(); // Envia status completo das watchtowers rastreadas
+				//SendFlagsStatus(); // Envia status completo das flags rastreadas
 				// TEMPORARIAMENTE DESATIVADO: Update parcial de containers desativado para avaliação de performance
 				// SendContainersPositionsSimple(); // Envia posições simplificadas dos containers (sem items)
 				
 				// Solicitar backup de jogadores online
-				RequestPlayersBackup(players600);
+				//RequestPlayersBackup(players600);
 			}
 			
 		}

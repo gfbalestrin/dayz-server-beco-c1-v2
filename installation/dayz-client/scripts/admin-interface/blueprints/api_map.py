@@ -401,6 +401,11 @@ def api_online_positions():
     player_ids = [pos['PlayerID'] for pos in positions]
     cftools_data = get_cftools_data_for_players(player_ids)
 
+    logging.debug(f"CFTools Merge: Retrieved data for {len(cftools_data)}/{len(player_ids)} online players")
+    if len(cftools_data) < len(player_ids):
+        missing = len(player_ids) - len(cftools_data)
+        logging.debug(f"CFTools Merge: {missing} players without CFTools data")
+
     result = {
         'timestamp': datetime.now().isoformat(),
         'players': [],

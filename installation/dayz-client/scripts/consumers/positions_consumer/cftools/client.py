@@ -9,6 +9,7 @@ import time
 import hashlib
 import logging
 import sqlite3
+import socket
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from urllib.request import Request, urlopen
@@ -84,16 +85,24 @@ class CFToolsClient:
                 return json.loads(response.read().decode('utf-8'))
 
         except HTTPError as e:
-            logger.warning(f"CFTools API HTTP error {e.code}: {e.reason} for {endpoint}")
+            error_body = e.read().decode('utf-8', errors='ignore') if hasattr(e, 'fp') and e.fp else ''
+            logger.error(f"CFTools API: HTTP {e.code} - {e.reason}")
+            logger.debug(f"CFTools API: Error body: {error_body[:200]}")  # Primeiros 200 chars
             return None
         except URLError as e:
-            logger.warning(f"CFTools API URL error: {e.reason} for {endpoint}")
+            logger.error(f"CFTools API: Network error - {e.reason}")
+            logger.debug(f"CFTools API: Check network connectivity and firewall")
+            return None
+        except socket.timeout:
+            logger.error(f"CFTools API: Request timeout after 10 seconds")
+            logger.debug(f"CFTools API: Endpoint: {url}")
             return None
         except json.JSONDecodeError as e:
-            logger.warning(f"CFTools API JSON decode error: {e}")
+            logger.error(f"CFTools API: Invalid JSON response - {str(e)}")
             return None
         except Exception as e:
-            logger.warning(f"CFTools API unexpected error: {e}")
+            logger.error(f"CFTools API: Unexpected error - {type(e).__name__}: {str(e)}")
+            logger.debug(f"CFTools API: Traceback:", exc_info=True)
             return None
 
     def _load_cached_token(self) -> bool:
@@ -204,7 +213,8 @@ class CFToolsClient:
             return None
 
         sessions = response.get('sessions', [])
-        logger.debug(f"CFTools: {len(sessions)} sessões obtidas")
+        logger.info(f"CFTools API: Received response with {len(sessions)} players")
+        logger.debug(f"CFTools API: Response status: {response.get('status', 'unknown')}")
         return sessions
 
     def _extract_player_data(self, session: Dict) -> Dict[str, Any]:
@@ -284,6 +294,9 @@ class CFToolsClient:
         Returns:
             Número de jogadores sincronizados
         """
+        logger.info(f"CFTools API: Requesting GSM list for {len(player_steam_map)} players")
+        logger.debug(f"CFTools API: Steam64 IDs: {list(player_steam_map.values())[:5]}...")
+
         if not self.db_path:
             logger.warning("CFTools: db_path não configurado")
             return 0

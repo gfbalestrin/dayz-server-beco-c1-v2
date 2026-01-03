@@ -120,6 +120,8 @@ class PlayersProcessor:
 
         try:
             # Buscar SteamIDs dos jogadores conectados
+            logger.debug(f"CFTools Sync: Querying SteamIDs for {len(connect_players)} players from database")
+
             conn = sqlite3.connect(self.db_path, timeout=10.0)
             cursor = conn.cursor()
 
@@ -133,14 +135,32 @@ class PlayersProcessor:
             player_steam_map = {row[0]: row[1] for row in cursor.fetchall()}
             conn.close()
 
+            logger.info(f"CFTools Sync: Found SteamIDs for {len(player_steam_map)}/{len(connect_players)} players")
+
+            # Log de jogadores sem SteamID
+            if len(player_steam_map) < len(connect_players):
+                missing_steam = len(connect_players) - len(player_steam_map)
+                logger.warning(f"CFTools Sync: {missing_steam} players missing SteamID - will be skipped")
+
             if not player_steam_map:
                 logger.debug("CFTools: Nenhum jogador com SteamID para sincronizar")
                 return
 
             # Sincronizar dados
+            logger.info(f"CFTools Sync: Attempting sync for {len(player_steam_map)} players")
+            logger.debug(f"CFTools Sync: Player IDs: {list(player_steam_map.keys())[:10]}...")  # Primeiros 10
+
             synced = self.cftools_client.sync_all_online_players(player_steam_map)
+
             if synced > 0:
-                logger.info(f"CFTools: {synced} jogadores sincronizados")
+                logger.info(f"CFTools Sync: ✓ Successfully synced {synced}/{len(player_steam_map)} players")
+            else:
+                logger.warning(f"CFTools Sync: ✗ Failed to sync any of {len(player_steam_map)} players")
+
+            # Se alguns falharam, indicar quantos
+            if synced < len(player_steam_map):
+                failed = len(player_steam_map) - synced
+                logger.warning(f"CFTools Sync: {failed} players failed to sync")
 
         except Exception as e:
             logger.warning(f"CFTools: Erro ao sincronizar dados (não crítico): {e}")
