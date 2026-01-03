@@ -981,20 +981,26 @@ function drawTrail(playerId, trail) {
     }
     
     // Adicionar posição atual do jogador ao último segmento se estiver online
+    // MAS APENAS se não houver filtro de data ativo OU se estiver em modo tempo real
     const currentMarker = MapState.playerMarkers[playerId];
     if (currentMarker && polylineSegments.length > 0) {
         const currentLatLng = currentMarker.getLatLng();
         const isOnline = currentMarker.options.opacity === 1.0;
-        
-        if (isOnline && currentLatLng) {
+
+        // Verificar se deve usar posição atual
+        const isDateFilterActive = MapState.trailDateFilter && MapState.trailDateFilter.enabled;
+        const isLiveMode = typeof MapTimeline !== 'undefined' && MapTimeline.liveMode;
+
+        // Só adicionar posição atual se não houver filtro de data ativo OU se estiver em modo tempo real
+        if (isOnline && currentLatLng && (!isDateFilterActive || isLiveMode)) {
             const lastSegment = polylineSegments[polylineSegments.length - 1];
             if (lastSegment.length > 0) {
                 const lastTrailPoint = lastSegment[lastSegment.length - 1];
                 const distance = Math.sqrt(
-                    Math.pow(currentLatLng.lat - lastTrailPoint[0], 2) + 
+                    Math.pow(currentLatLng.lat - lastTrailPoint[0], 2) +
                     Math.pow(currentLatLng.lng - lastTrailPoint[1], 2)
                 );
-                
+
                 // Se posição atual está significativamente diferente do último ponto do trail, adicionar
                 if (distance > 0.0001) {
                     lastSegment.push([currentLatLng.lat, currentLatLng.lng]);
@@ -1088,13 +1094,20 @@ function drawTrail(playerId, trail) {
 
         if (isLastPoint) {
             // Último ponto: usar ícone estilizado igual ao modo sem trails (com animação pulsante)
-            // Verificar se jogador tem posição mais recente no marcador principal
             let markerCoords = reversedTrail[i].mapCoords;
-            const playerMarker = MapState.playerMarkers[playerId];
-            if (playerMarker && typeof playerMarker.getLatLng === 'function') {
-                const currentPos = playerMarker.getLatLng();
-                if (currentPos) {
-                    markerCoords = [currentPos.lat, currentPos.lng];
+
+            // Usar posição atual APENAS se não houver filtro de data ativo OU se estiver em modo tempo real
+            const isDateFilterActive = MapState.trailDateFilter && MapState.trailDateFilter.enabled;
+            const isLiveMode = typeof MapTimeline !== 'undefined' && MapTimeline.liveMode;
+
+            if (!isDateFilterActive || isLiveMode) {
+                // Verificar se jogador tem posição mais recente no marcador principal
+                const playerMarker = MapState.playerMarkers[playerId];
+                if (playerMarker && typeof playerMarker.getLatLng === 'function') {
+                    const currentPos = playerMarker.getLatLng();
+                    if (currentPos) {
+                        markerCoords = [currentPos.lat, currentPos.lng];
+                    }
                 }
             }
 

@@ -324,7 +324,7 @@ const MapTimeline = {
         this.elements.playBtn.html('&#10074;&#10074;').addClass('active');
 
         this.playInterval = setInterval(function() {
-            self.stepBy(self.windowMinutes);
+            self.stepBy(1);  // Avança 1 minuto por vez, janela se move junto
 
             // Parar no final do dia
             if (self.currentPosition >= 1439) {
