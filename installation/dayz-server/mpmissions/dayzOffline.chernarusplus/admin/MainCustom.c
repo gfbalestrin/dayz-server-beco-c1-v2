@@ -64,11 +64,11 @@ void MainCustom()
 		SetClearWeatherNow();
 
 		// (Opcional) Reaplica após alguns segundos, caso algum subsistema mude o clima muito cedo
-		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SetClearWeatherNow, 5000, false);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SetClearWeatherNow, 10000, false);
 	}
 }
 
-void SetClearWeatherNow()
+void SetClearWeatherNowTest()
 {
     Weather weather = GetGame().GetWeather();
     if (!weather) return;
@@ -104,7 +104,7 @@ void SetClearWeatherNow()
     WriteToLog("SetClearWeatherNow(): aplicado CLEAR absoluto no init.", LogFile.INIT, false, LogType.INFO);
 }
 
-void SetClearWeatherNowOld()
+void SetClearWeatherNow()
 {
     Weather weather = GetGame().GetWeather();
     if (!weather) return;
