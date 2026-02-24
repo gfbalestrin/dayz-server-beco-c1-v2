@@ -35,7 +35,7 @@ void MainCustom()
 		}
 	} else {
 		// Força o horário para 06:00
-		hour = 6;
+		hour = 10;
 		minute = 0;
 
 		if ((month == reset_month) && (day < reset_day))
@@ -61,7 +61,7 @@ void MainCustom()
 		}
 
 		// >>> Clima CLEAR no start
-		//SetClearWeatherNow();
+		SetClearWeatherNow();
 
 		// (Opcional) Reaplica após alguns segundos, caso algum subsistema mude o clima muito cedo
 		//GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SetClearWeatherNow, 5000, false);
@@ -77,13 +77,14 @@ void SetClearWeatherNow()
 
 	int yy, mm, dd, hh, mins;
     GetGame().GetWorld().GetDate(yy, mm, dd, hh, mins);
-	GetGame().GetWorld().SetDate(yy, 9, 22, 10, 0);
+	GetGame().GetWorld().SetDate(yy, 12, 21, 10, 0);
 
-	weather.GetOvercast().Set(1.0, 1, 0);
 	weather.GetRain().Set(0.0, 1, 0);
-	weather.GetFog().Set(0.0, 1, 0);                
+	weather.GetOvercast().Set(0.01, 1, 0);
+	weather.GetFog().Set(0.0, 1, 0);
 	weather.SetWindSpeed(0.0);
 	weather.SetWindMaximumSpeed(0.0);
+	weather.SetWindFunctionParams(0, 0, 0);
 }
 
 void SetClearWeatherNowOld()
