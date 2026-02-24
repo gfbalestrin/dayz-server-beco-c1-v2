@@ -35,7 +35,7 @@ void MainCustom()
 		}
 	} else {
 		// Força o horário para 06:00
-		hour = 12;
+		hour = 6;
 		minute = 0;
 
 		if ((month == reset_month) && (day < reset_day))
@@ -134,6 +134,13 @@ void SetClearWeatherNow()
 
 	weather.SetWindMaximumSpeed(20);
 	weather.SetWindFunctionParams(0.1, 0.3, 50);
+
+	weather.GetRain().Set(0.0, 1, 0);
+                weather.GetOvercast().Set(0.01, 1, 0);
+                weather.GetFog().Set(0.0, 1, 0);
+                weather.SetWindSpeed(0.0);
+                weather.SetWindMaximumSpeed(0.0);
+                weather.SetWindFunctionParams(0, 0, 0); // sem variação
 }
 
 void SetClearWeatherNowOld()
