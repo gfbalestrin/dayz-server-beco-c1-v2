@@ -1807,7 +1807,7 @@ bool ExecuteCommand(TStringArray tokens)
             }
 
             string clima = tokens[2];
-            clima = clima.ToLower();
+            clima.ToLower();
 
             Weather weather = GetGame().GetWeather();
 
