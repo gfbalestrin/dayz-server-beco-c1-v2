@@ -1871,20 +1871,12 @@ bool ExecuteCommand(TStringArray tokens)
                 // Equinócio de Primavera (21 de Março, 12:00) - Sol em elevação média
                 GetGame().GetWorld().SetDate(yy, 3, 21, 12, 0);
                 
-                weather.GetRain().Set(0.0, 1, 0);
-                weather.GetOvercast().Set(0.0, 1, 0);
-                weather.GetFog().Set(0.0, 1, 0);
-                
                 SendPrivateMessage(playerID, "Spring: Sol de Primavera (21 de Março, 12:00)", MessageColor.FRIENDLY);
             }
             else if (clima == "summer")
             {
                 // Solstício de Verão (21 de Junho, 12:00) - Sol no ponto mais alto possível (Cores vivas e menos névoa)
                 GetGame().GetWorld().SetDate(yy, 6, 21, 12, 0);
-                
-                weather.GetRain().Set(0.0, 1, 0);
-                weather.GetOvercast().Set(0.0, 1, 0);
-                weather.GetFog().Set(0.0, 1, 0);
                 
                 SendPrivateMessage(playerID, "Summer: Sol a pino máximo (21 de Junho, 12:00)", MessageColor.FRIENDLY);
             }
@@ -1893,20 +1885,12 @@ bool ExecuteCommand(TStringArray tokens)
                 // Equinócio de Outono (22 de Setembro, 12:00) - Sol começando a baixar
                 GetGame().GetWorld().SetDate(yy, 9, 22, 12, 0);
                 
-                weather.GetRain().Set(0.0, 1, 0);
-                weather.GetOvercast().Set(0.0, 1, 0);
-                weather.GetFog().Set(0.0, 1, 0);
-                
                 SendPrivateMessage(playerID, "Autumn: Sol de Outono (22 de Setembro, 12:00)", MessageColor.FRIENDLY);
             }
             else if (clima == "winter")
             {
                 // Solstício de Inverno (21 de Dezembro, 12:00) - Sol mais baixo possível (Máximo de névoa atmosférica e sombras longas)
                 GetGame().GetWorld().SetDate(yy, 12, 21, 12, 0);
-                
-                weather.GetRain().Set(0.0, 1, 0);
-                weather.GetOvercast().Set(0.0, 1, 0);
-                weather.GetFog().Set(0.0, 1, 0);
                 
                 SendPrivateMessage(playerID, "Winter: Sol no horizonte (21 de Dez., 12:00). Preparando para névoa pesada...", MessageColor.FRIENDLY);
             }
