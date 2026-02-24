@@ -79,12 +79,11 @@ void SetClearWeatherNow()
     GetGame().GetWorld().GetDate(yy, mm, dd, hh, mins);
 	GetGame().GetWorld().SetDate(yy, 9, 22, 10, 0);
 
+	weather.GetOvercast().Set(1.0, 1, 0);
 	weather.GetRain().Set(0.0, 1, 0);
-	weather.GetOvercast().Set(0.01, 1, 0);
-	weather.GetFog().Set(0.0, 1, 0);
+	weather.GetFog().Set(0.0, 1, 0);                
 	weather.SetWindSpeed(0.0);
 	weather.SetWindMaximumSpeed(0.0);
-	weather.SetWindFunctionParams(0, 0, 0);
 }
 
 void SetClearWeatherNowOld()
