@@ -75,6 +75,8 @@ void SetClearWeatherNow()
 
     weather.MissionWeather(true);
 
+	int yy, mm, dd, hh, mins;
+    GetGame().GetWorld().GetDate(yy, mm, dd, hh, mins);
 	GetGame().GetWorld().SetDate(yy, 12, 21, 12, 0);
 	// O SEGREDO: Overcast no máximo (1.0) para tapar o sol e matar o "Atmospheric Scattering"
 	weather.GetOvercast().Set(1.0, 1, 0);
