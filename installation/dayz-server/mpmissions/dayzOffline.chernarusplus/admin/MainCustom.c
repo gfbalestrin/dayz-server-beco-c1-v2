@@ -64,11 +64,11 @@ void MainCustom()
 		SetClearWeatherNow();
 
 		// (Opcional) Reaplica após alguns segundos, caso algum subsistema mude o clima muito cedo
-		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SetClearWeatherNow, 10000, false);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SetClearWeatherNow, 5000, false);
 	}
 }
 
-void SetClearWeatherNowTest()
+void SetClearWeatherNow()
 {
     Weather weather = GetGame().GetWeather();
     if (!weather) return;
@@ -76,35 +76,67 @@ void SetClearWeatherNowTest()
     // Delega o clima ao script da missão
     weather.MissionWeather(true);
 
-    // TRAVA os limites em 0.0 (Isso proíbe o motor de gerar esses climas)
-    weather.GetOvercast().SetLimits(0.0, 0.0);
-    weather.GetOvercast().SetForecastChangeLimits(0.0, 0.0);
-    weather.GetOvercast().SetForecastTimeLimits(9999, 9999);
+    // Section A
+	//limits of clouds at any point in time. Valued between 0.0 and 1.0.
+	//( 1.0 , 1.0 ); max cloud all the time
+	//( 0.0 , 0.0 ); no clouds ever
+	//( 0.0 , 1.0 ); between no clouds and max clouds
+	//( 0.5 , 0.5 ); always half clouds
+	//you have to test with clouds on highest in video settings to test well
 
-    weather.GetRain().SetLimits(0.0, 0.0);
-    weather.GetRain().SetForecastChangeLimits(0.0, 0.0);
-    weather.GetRain().SetForecastTimeLimits(9999, 9999);
-    weather.SetRainThresholds(0.0, 0.0, 0);
+	weather.GetOvercast().SetLimits( 0.0 , 1.0 );
+	weather.GetRain().SetLimits(     0.0 , 0.5 );
+	weather.GetFog().SetLimits(      0.0 , 0.3 );
 
-    // O segredo da neblina: Limite máximo em 0.0
-    weather.GetFog().SetLimits(0.0, 0.0);
-    weather.GetFog().SetForecastChangeLimits(0.0, 0.0);
-    weather.GetFog().SetForecastTimeLimits(9999, 9999);
+	// Section B
+	//limits of how much clouds change over time
+	//( 1.0 , 1.0 ); clouds change 1.0 or -1.0 within time limits from Section C
+	//( 0.0 , 0.0 ); clouds never change
+	//( 0.0 , 1.0 ); clouds change between -1.0 and 1.0 within time limits from Section C
+	//( 0.5 , 0.5 ); clouds change -0.5 or 0.5 within time limits from Section C
 
-    // Aplica "clear" instantâneo
-    weather.GetOvercast().Set(0.0, 0, 0);
-    weather.GetRain().Set(0.0, 0, 0);
-    weather.GetFog().Set(0.0, 0, 0);
+	weather.GetOvercast().SetForecastChangeLimits( 0.2, 0.2 );
+	weather.GetRain().SetForecastChangeLimits(     0.3, 0.3 );
+	weather.GetFog().SetForecastChangeLimits(      0.8, 0.8 );;
 
-    // Vento parado
-    weather.SetWindSpeed(0.0);
-    weather.SetWindMaximumSpeed(0.0);
-    weather.SetWindFunctionParams(0, 0, 0);
+	//Section C
+	//limits how long it takes for clouds to change in seconds
+	//( 1800 , 1800 ); clouds take 1800 seconds to change by a value set in Section B
+	//( 1 , 1800 ); clouds take between 1 and 1800 seconds to change by a value set in Section B
+	//( 1 , 1 ); clouds take 1 second to change by a value set in Section B
 
-    WriteToLog("SetClearWeatherNow(): aplicado CLEAR absoluto no init.", LogFile.INIT, false, LogType.INFO);
+	weather.GetOvercast().SetForecastTimeLimits( 60 , 600 );
+	weather.GetRain().SetForecastTimeLimits(     60 , 600 );
+	weather.GetFog().SetForecastTimeLimits(      60 , 600 );
+
+	//Saction D
+	//when the server starts it's session the intensity of clouds is equal to a number with a 6-7 decimal precision within 0.0 and 0.3
+	//you can change Math.RandomFloatInclusive(0.0, 0.3) to just a value
+	//for example: weather.GetOvercast().Set( 0.5, 0, 0);
+	//the server session's cloud intensity will be 0.5 on that session. It's still subject to change over time because of Section B and C, but the lower this value, the less of an impact the values in Section A B and C have
+
+	weather.GetOvercast().Set( Math.RandomFloatInclusive(0.0, 0.8), 0, 0);
+	weather.GetRain().Set(     Math.RandomFloatInclusive(0.0, 0.3), 0, 0);
+	weather.GetFog().Set(      Math.RandomFloatInclusive(0.0, 0.3), 0, 0);
+
+
+	//Section E - Wind settings
+	//Maximum windspeed ever
+	//I think the values mean that wind changes within a factors 0.1 and 0.3 of the maximum value over a certain period
+	//(1.0, 1.0, 50) makes the wind 15 all the time
+	//needs some further testing because wind doesn't seem to always be insane
+	//(0.0, 0.0, 50) makes it wind speed 0 all the time
+	//this seems to be consistently no wind
+	//Again not 100% sure, especially the value 50 is difficult to see any difference when testing
+	//I don’t see any difference between 50 or 1 for example
+	//With lower wind speeds comes slower getting wet and drying up
+	//With 0 wind speed consistently, drying up takes a very long time
+
+	weather.SetWindMaximumSpeed(20);
+	weather.SetWindFunctionParams(0.1, 0.3, 50);
 }
 
-void SetClearWeatherNow()
+void SetClearWeatherNowOld()
 {
     Weather weather = GetGame().GetWeather();
     if (!weather) return;
