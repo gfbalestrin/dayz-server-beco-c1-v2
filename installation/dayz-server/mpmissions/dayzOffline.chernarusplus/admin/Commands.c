@@ -1828,6 +1828,9 @@ bool ExecuteCommand(TStringArray tokens)
             weather.GetFog().SetForecastChangeLimits(0, 0);
             weather.GetFog().SetForecastTimeLimits(0, 0);
 
+            int yy, mm, dd, hh, mins;
+            GetGame().GetWorld().GetDate(yy, mm, dd, hh, mins);
+
             // 3) Aplicar o preset
             if (clima == "clear")
             {
@@ -1863,49 +1866,49 @@ bool ExecuteCommand(TStringArray tokens)
                 weather.SetWindSpeed(3.0);
                 weather.SetWindMaximumSpeed(5.0);
             }
-            else if (clima == "nuke")
+            else if (clima == "spring")
             {
-                // Dá um "choque" na Engine com valores próximos de zero, mas válidos
-                weather.GetRain().Set(0.0, 1, 0);
-                
-                // 10% de nuvens obriga a Engine a calcular a iluminação solar
-                weather.GetOvercast().Set(0.1, 1, 0); 
-                
-                // Zero neblina, mas com 5 segundos de transição para o cliente processar
-                weather.GetFog().Set(0.0, 5, 0);
-                
-                // Vento forte muitas vezes dissipa o "Aerosol" padrão do mapa
-                weather.SetWindSpeed(20.0);
-                weather.SetWindMaximumSpeed(20.0);
-                SendPrivateMessage(playerID, "Nuke: Testando vento máximo com margem de 0.1", MessageColor.FRIENDLY);
-            }
-            else if (clima == "summer")
-            {
-                int y, m, d, h, min;
-                GetGame().GetWorld().GetDate(y, m, d, h, min);
-                
-                // Força Julho (Verão), dia 15, ao meio-dia em ponto
-                GetGame().GetWorld().SetDate(y, 7, 15, 12, 0);
+                // Equinócio de Primavera (21 de Março, 12:00) - Sol em elevação média
+                GetGame().GetWorld().SetDate(yy, 3, 21, 12, 0);
                 
                 weather.GetRain().Set(0.0, 1, 0);
                 weather.GetOvercast().Set(0.0, 1, 0);
                 weather.GetFog().Set(0.0, 1, 0);
                 
-                SendPrivateMessage(playerID, "Summer: Sol a pino forçado (Julho, 12:00)", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "Spring: Sol de Primavera (21 de Março, 12:00)", MessageColor.FRIENDLY);
             }
-            else if (clima == "inverso")
+            else if (clima == "summer")
             {
-                // Joga a previsão para 100% de neblina para daqui a 5 minutos
-                weather.GetFog().Set(1.0, 300, 0);
+                // Solstício de Verão (21 de Junho, 12:00) - Sol no ponto mais alto possível (Cores vivas e menos névoa)
+                GetGame().GetWorld().SetDate(yy, 6, 21, 12, 0);
                 
-                // Mas força o atual para zero instantaneamente
-                weather.GetFog().Set(0.0, 0, 0);
+                weather.GetRain().Set(0.0, 1, 0);
+                weather.GetOvercast().Set(0.0, 1, 0);
+                weather.GetFog().Set(0.0, 1, 0);
                 
-                // Faz o mesmo com o Overcast
-                weather.GetOvercast().Set(1.0, 300, 0);
-                weather.GetOvercast().Set(0.0, 0, 0);
+                SendPrivateMessage(playerID, "Summer: Sol a pino máximo (21 de Junho, 12:00)", MessageColor.FRIENDLY);
+            }
+            else if (clima == "autumn")
+            {
+                // Equinócio de Outono (22 de Setembro, 12:00) - Sol começando a baixar
+                GetGame().GetWorld().SetDate(yy, 9, 22, 12, 0);
                 
-                SendPrivateMessage(playerID, "Inverso: Testando desbug de interpolação", MessageColor.FRIENDLY);
+                weather.GetRain().Set(0.0, 1, 0);
+                weather.GetOvercast().Set(0.0, 1, 0);
+                weather.GetFog().Set(0.0, 1, 0);
+                
+                SendPrivateMessage(playerID, "Autumn: Sol de Outono (22 de Setembro, 12:00)", MessageColor.FRIENDLY);
+            }
+            else if (clima == "winter")
+            {
+                // Solstício de Inverno (21 de Dezembro, 12:00) - Sol mais baixo possível (Máximo de névoa atmosférica e sombras longas)
+                GetGame().GetWorld().SetDate(yy, 12, 21, 12, 0);
+                
+                weather.GetRain().Set(0.0, 1, 0);
+                weather.GetOvercast().Set(0.0, 1, 0);
+                weather.GetFog().Set(0.0, 1, 0);
+                
+                SendPrivateMessage(playerID, "Winter: Sol no horizonte (21 de Dez., 12:00). Preparando para névoa pesada...", MessageColor.FRIENDLY);
             }
             else if (clima == "default")
             {
