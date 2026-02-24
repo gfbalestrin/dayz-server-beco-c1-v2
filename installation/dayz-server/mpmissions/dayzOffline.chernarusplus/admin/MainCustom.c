@@ -77,16 +77,14 @@ void SetClearWeatherNow()
 
 	int yy, mm, dd, hh, mins;
     GetGame().GetWorld().GetDate(yy, mm, dd, hh, mins);
-	GetGame().GetWorld().SetDate(yy, 12, 21, 12, 0);
-	// O SEGREDO: Overcast no máximo (1.0) para tapar o sol e matar o "Atmospheric Scattering"
-	weather.GetOvercast().Set(1.0, 1, 0);
-                
-	// Mas forçamos a chuva e a neblina volumétrica a ficarem no zero absoluto
+	GetGame().GetWorld().SetDate(yy, 9, 22, 10, 0);
+
 	weather.GetRain().Set(0.0, 1, 0);
+	weather.GetOvercast().Set(0.01, 1, 0);
 	weather.GetFog().Set(0.0, 1, 0);
-	
 	weather.SetWindSpeed(0.0);
 	weather.SetWindMaximumSpeed(0.0);
+	weather.SetWindFunctionParams(0, 0, 0);
 }
 
 void SetClearWeatherNowOld()
