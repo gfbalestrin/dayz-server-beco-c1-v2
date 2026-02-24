@@ -35,7 +35,7 @@ void MainCustom()
 		}
 	} else {
 		// Força o horário para 06:00
-		hour = 6;
+		hour = 12;
 		minute = 0;
 
 		if ((month == reset_month) && (day < reset_day))
@@ -64,7 +64,7 @@ void MainCustom()
 		SetClearWeatherNow();
 
 		// (Opcional) Reaplica após alguns segundos, caso algum subsistema mude o clima muito cedo
-		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SetClearWeatherNow, 4000, false);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SetClearWeatherNow, 5000, false);
 	}
 }
 
