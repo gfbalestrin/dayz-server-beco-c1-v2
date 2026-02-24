@@ -61,10 +61,10 @@ void MainCustom()
 		}
 
 		// >>> Clima CLEAR no start
-		SetClearWeatherNow();
+		//SetClearWeatherNow();
 
 		// (Opcional) Reaplica após alguns segundos, caso algum subsistema mude o clima muito cedo
-		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SetClearWeatherNow, 5000, false);
+		//GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SetClearWeatherNow, 5000, false);
 	}
 }
 
