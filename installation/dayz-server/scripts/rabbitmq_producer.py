@@ -36,7 +36,10 @@ def check_and_install_dependencies():
             try:
                 # Tentar importar pika do venv
                 import importlib.util
-                spec = importlib.util.spec_from_file_location("pika", os.path.join(venv_dir, "lib", "python3.12", "site-packages", "pika", "__init__.py"))
+                #spec = importlib.util.spec_from_file_location("pika", os.path.join(venv_dir, "lib", "python3.12", "site-packages", "pika", "__init__.py"))
+                py_version = f"python{sys.version_info.major}.{sys.version_info.minor}"
+                pika_path = os.path.join(venv_dir, "lib", py_version, "site-packages", "pika", "__init__.py")
+                spec = importlib.util.spec_from_file_location("pika", pika_path)
                 if spec and spec.loader:
                     # pika existe no venv, mas precisa usar o Python do venv
                     # Retornar True mas indicar que precisa usar venv_python

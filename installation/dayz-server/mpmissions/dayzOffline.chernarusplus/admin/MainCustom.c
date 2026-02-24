@@ -76,6 +76,42 @@ void SetClearWeatherNow()
     // Delega o clima ao script da missão
     weather.MissionWeather(true);
 
+    // TRAVA os limites em 0.0 (Isso proíbe o motor de gerar esses climas)
+    weather.GetOvercast().SetLimits(0.0, 0.0);
+    weather.GetOvercast().SetForecastChangeLimits(0.0, 0.0);
+    weather.GetOvercast().SetForecastTimeLimits(9999, 9999);
+
+    weather.GetRain().SetLimits(0.0, 0.0);
+    weather.GetRain().SetForecastChangeLimits(0.0, 0.0);
+    weather.GetRain().SetForecastTimeLimits(9999, 9999);
+    weather.SetRainThresholds(0.0, 0.0, 0);
+
+    // O segredo da neblina: Limite máximo em 0.0
+    weather.GetFog().SetLimits(0.0, 0.0);
+    weather.GetFog().SetForecastChangeLimits(0.0, 0.0);
+    weather.GetFog().SetForecastTimeLimits(9999, 9999);
+
+    // Aplica "clear" instantâneo
+    weather.GetOvercast().Set(0.0, 0, 0);
+    weather.GetRain().Set(0.0, 0, 0);
+    weather.GetFog().Set(0.0, 0, 0);
+
+    // Vento parado
+    weather.SetWindSpeed(0.0);
+    weather.SetWindMaximumSpeed(0.0);
+    weather.SetWindFunctionParams(0, 0, 0);
+
+    WriteToLog("SetClearWeatherNow(): aplicado CLEAR absoluto no init.", LogFile.INIT, false, LogType.INFO);
+}
+
+void SetClearWeatherNowOld()
+{
+    Weather weather = GetGame().GetWeather();
+    if (!weather) return;
+
+    // Delega o clima ao script da missão
+    weather.MissionWeather(true);
+
     // Destrava limites e tempos (sem máquina de previsão)
     weather.GetOvercast().SetLimits(0.0, 1.0);
     weather.GetOvercast().SetForecastChangeLimits(0, 0);

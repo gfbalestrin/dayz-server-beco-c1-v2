@@ -228,7 +228,7 @@ PUBLISH_TO_RABBITMQ() {
     # Criar diretório de logs se não existir
     local log_dir="${DayzServerFolder:-/tmp}/profiles/"
     mkdir -p "$log_dir"
-    local error_log="${log_dir}/rabbitmq_producer_errors.log"
+    local error_log="${log_dir}rabbitmq_producer_errors.log"
     
     # Sempre usar modo verbose para capturar erros detalhados
     # Os erros serão logados no arquivo de log mesmo sem verbose=1

@@ -351,10 +351,10 @@ if grep -qiE 'debian|ubuntu' /etc/os-release; then
 
     # Validação de versões suportadas
     if [[ "$DISTRO_NAME" == "debian" ]]; then
-        if [[ "$VERSION" -ge 10 && "$VERSION" -le 12 ]]; then
+        if [[ "$VERSION" -ge 10 && "$VERSION" -le 13 ]]; then
             echo "Versão do Debian é suportada."
         else
-            echo "Versão do Debian não suportada. Apenas Debian 10, 11 e 12 são suportados."
+            echo "Versão do Debian não suportada. Apenas Debian 10, 11, 12 e 13 são suportados."
             exit 1
         fi
     elif [[ "$DISTRO_NAME" == "ubuntu" ]]; then

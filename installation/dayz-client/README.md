@@ -88,6 +88,13 @@ sudo rabbitmqctl add_vhost dayz
 # Criar usuário consumer
 sudo rabbitmqctl add_user dayz_consumer sua_senha_segura
 sudo rabbitmqctl set_permissions -p dayz dayz_consumer ".*" ".*" ".*"
+
+# Inserface web
+rabbitmq-plugins enable rabbitmq_management
+systemctl restart rabbitmq-server
+rabbitmqctl add_user admin 123456
+rabbitmqctl set_user_tags admin administrator
+rabbitmqctl set_permissions -p / admin ".*" ".*" ".*"
 ```
 
 ### 4. Iniciar Consumers

@@ -24,6 +24,9 @@ DB_CONTAINERS = os.path.join(BASE_DIR, "..", "..", "databases", "containers_beco
 DB_STRUCTURES = os.path.join(BASE_DIR, "..", "..", "databases", "structures_beco_c1.db")
 DB_ITEMS = os.path.join(BASE_DIR, "..", "..", "databases", "dayz_items.db")
 
+# Arquivo de configuração do deathmatch
+DEATHMATCH_CONFIG_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/deathmatch_config.json'
+
 # Banco de dados GeoLite2 para geolocalização de jogadores
 GEOLITE2_DB_PATH = os.path.join(BASE_DIR, "..", "..", "databases", "GeoLite2-City.mmdb")
 

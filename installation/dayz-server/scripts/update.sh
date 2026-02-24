@@ -379,11 +379,11 @@ if [[ "$DayzRaidRulesEnable" == "1" ]]; then
     fi
     if [[ "$DAY_ALLOWED" == "true" ]] && [[ "$HOUR_ALLOWED" == "true" ]]; then
         INSERT_CUSTOM_LOG "Ativando regras de raid (dia e horário permitidos)..." "INFO" "$ScriptName"
-        SEND_DISCORD_WEBHOOK "Raid liberado! Dias permitidos: $DayzRaidRulesDaysAllowedPT - Horário permitido: $DayzRaidRule>
+        SEND_DISCORD_WEBHOOK "Raid liberado! Dias permitidos: $DayzRaidRulesDaysAllowedPT - Horário permitido: $DayzRaidRulesHoursAllowed" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
         sed -i "s/^\s*disableBaseDamage =.*/disableBaseDamage = 0;/" "$CFG_FILE"
     else
         INSERT_CUSTOM_LOG "Regras de raid NÃO ativadas: condições de dia/horário não atendidas" "INFO" "$ScriptName"
-        SEND_DISCORD_WEBHOOK "Raid NÃO Permitido! Dias permitidos: $DayzRaidRulesDaysAllowedPT - Horário permitido: $DayzRai>
+        SEND_DISCORD_WEBHOOK "Raid NÃO Permitido! Dias permitidos: $DayzRaidRulesDaysAllowedPT - Horário permitido: $DayzRaidRulesHoursAllowed" "$DiscordWebhookLogs" "$CurrentDate" "$ScriptName"
         sed -i "s/^\s*disableBaseDamage =.*/disableBaseDamage = 1;/" "$CFG_FILE"
     fi
 fi
