@@ -1910,6 +1910,20 @@ bool ExecuteCommand(TStringArray tokens)
                 
                 SendPrivateMessage(playerID, "Winter: Sol no horizonte (21 de Dez., 12:00). Preparando para névoa pesada...", MessageColor.FRIENDLY);
             }
+            else if (clima == "crisp")
+            {
+                // O SEGREDO: Overcast no máximo (1.0) para tapar o sol e matar o "Atmospheric Scattering"
+                weather.GetOvercast().Set(1.0, 1, 0);
+                
+                // Mas forçamos a chuva e a neblina volumétrica a ficarem no zero absoluto
+                weather.GetRain().Set(0.0, 1, 0);
+                weather.GetFog().Set(0.0, 1, 0);
+                
+                weather.SetWindSpeed(0.0);
+                weather.SetWindMaximumSpeed(0.0);
+                
+                SendPrivateMessage(playerID, "Crisp: Céu nublado (sem sol direto), zero chuva, zero neblina. Foco em visão de longo alcance.", MessageColor.FRIENDLY);
+            }
             else if (clima == "default")
             {
                 // devolve o controle para a state machine padrão/config XML
