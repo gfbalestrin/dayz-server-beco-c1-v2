@@ -75,18 +75,16 @@ void SetClearWeatherNow()
 
     weather.MissionWeather(true);
 
-    // Permitimos uma margem microscópica (0.01) para a Engine não bugar
-    weather.GetOvercast().SetLimits(0.0, 0.05);
-    weather.GetRain().SetLimits(0.0, 0.0);
-    weather.GetFog().SetLimits(0.0, 0.01);
-
-    // O TRUQUE: 0.01 de alvo, mas com 5 segundos de transição (em vez de 0)
-    // Isso obriga o motor a calcular a luz corretamente e remover o "failsafe"
-    weather.GetOvercast().Set(0.01, 5, 0);
-    weather.GetRain().Set(0.0, 5, 0);
-    weather.GetFog().Set(0.01, 5, 0);
-    
-    weather.SetWindSpeed(0.5); // Um pingo de vento ajuda a espalhar o haze volumétrico
+	GetGame().GetWorld().SetDate(yy, 12, 21, 12, 0);
+	// O SEGREDO: Overcast no máximo (1.0) para tapar o sol e matar o "Atmospheric Scattering"
+	weather.GetOvercast().Set(1.0, 1, 0);
+                
+	// Mas forçamos a chuva e a neblina volumétrica a ficarem no zero absoluto
+	weather.GetRain().Set(0.0, 1, 0);
+	weather.GetFog().Set(0.0, 1, 0);
+	
+	weather.SetWindSpeed(0.0);
+	weather.SetWindMaximumSpeed(0.0);
 }
 
 void SetClearWeatherNowOld()
