@@ -5372,6 +5372,46 @@ def authenticate_user(username: str, password: str) -> Optional[Dict]:
                 update_last_login(user_data['UserID'])
                 return user_data
         return None
+def get_or_create_steam_user(steam_id: str, player_id_dayz: str, steam_name: str) -> Optional[dict]:
+    """
+    Busca ou cria um usuário vinculado ao SteamID.
+    Retorna os dados do usuário para a sessão.
+    """
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        
+        # 1. Tentar buscar usuário existente
+        cursor.execute("SELECT * FROM users WHERE PlayerID = ?", (player_id_dayz,))
+        result = cursor.fetchone()
+        
+        if result:
+            user_data = dict(result)
+            update_last_login(user_data['UserID'])
+            return user_data
+            
+        # 2. Se não existir, criar um novo
+        clean_name = re.sub(r'[^a-zA-Z0-9]', '', steam_name).lower()[:10]
+        new_username = f"{clean_name}_{steam_id[-4:]}"
+        
+        cursor.execute("""
+            INSERT INTO users (Username, Password, UserType, PlayerID, IsActive, MustChangePassword)
+            VALUES (?, ?, 'player', ?, 1, 0)
+        """, (new_username, "EXTERNAL_STEAM_AUTH", player_id_dayz))
+        
+        user_id = cursor.lastrowid
+        update_last_login(user_id)
+        
+        # Retornar o novo usuário
+        cursor.execute("SELECT * FROM users WHERE UserID = ?", (user_id,))
+        return dict(cursor.fetchone())
+
+def get_player_by_steam_id(steam_id: str) -> Optional[dict]:
+    """Busca dados do jogador na players_database pelo SteamID64"""
+    with DatabaseConnection(config.DB_PLAYERS) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT PlayerID, SteamName FROM players_database WHERE SteamID = ?", (steam_id,))
+        result = cursor.fetchone()
+        return dict(result) if result else None
 
 def get_user_by_username(username: str) -> Optional[Dict]:
     """Busca usuário por username"""
