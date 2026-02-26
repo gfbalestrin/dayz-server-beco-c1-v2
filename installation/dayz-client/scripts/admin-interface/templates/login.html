@@ -18,13 +18,21 @@
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
             padding: 40px;
-            max-width: 400px;
+            max-width: 420px;
             width: 100%;
         }
         .login-icon {
             font-size: 48px;
             color: #667eea;
             margin-bottom: 20px;
+        }
+        .server-highlight {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 12px;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            color: #444;
         }
     </style>
 </head>
@@ -55,17 +63,29 @@
                 </label>
                 <input type="password" class="form-control" id="password" name="password" required>
             </div>
-            <button type="submit" class="btn btn-primary w-100">
+            <button type="submit" class="btn btn-primary w-100 mb-2">
                 <i class="fas fa-sign-in-alt me-2"></i>Entrar
             </button>
         </form>
 
-        <div class="mt-4 pt-3 border-top text-center">
-            <p class="text-muted small mb-3">Acesso rápido para Jogadores</p>
-            <a href="{{ url_for('auth.steam_login') }}">
-                <img src="https://community.cloudflare.steamstatic.com/public/images/signinthroughsteam/sits_01.png" 
-                     alt="Entrar com Steam">
-            </a>
+        <div class="mt-4 pt-3 border-top">
+            <div class="text-center">
+                <p class="text-muted small mb-2"><strong>Novo por aqui?</strong></p>
+                
+                <div class="server-highlight text-start mb-3">
+                    <i class="fas fa-info-circle me-1 text-primary"></i>
+                    Para registrar-se, primeiro jogue em nosso servidor:
+                    <div class="mt-2 p-2 bg-dark text-white rounded font-monospace fw-bold text-center small">
+                        [BR] BECO-C1 | 1PP DEATHMATCH
+                    </div>
+                </div>
+
+                <p class="text-muted small mb-3">Após ser identificado no servidor, autentique-se:</p>
+                <a href="{{ url_for('auth.steam_login') }}">
+                    <img src="https://community.cloudflare.steamstatic.com/public/images/signinthroughsteam/sits_01.png" 
+                         alt="Entrar com Steam" style="transition: transform 0.2s;">
+                </a>
+            </div>
         </div>
     </div>
 
