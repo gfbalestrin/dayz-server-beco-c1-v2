@@ -751,9 +751,9 @@ void OnEventCustom(EventType eventTypeId, Param params)
         // Se channel for 0 (Global), então é um comando de jogador
         // Solução abandonada porque o playername aqui pode ser duplicado
         // Para agilizar a execução, chama o CheckCommands diretamente
-        //GetGame().GetCallQueue(CALL_CATEGORY_GAMEPLAY).CallLater(CheckCommands, 2000, false);
+        GetGame().GetCallQueue(CALL_CATEGORY_GAMEPLAY).CallLater(CheckCommands, 2000, false);
         
-        CheckCommands();
+        //CheckCommands();
         return;
 
         // playerBase = GetPlayerByName(playerName);
