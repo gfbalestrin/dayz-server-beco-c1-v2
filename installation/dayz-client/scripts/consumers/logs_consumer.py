@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Consumer RabbitMQ para logs
-Consome filas logs.custom e logs.adm e grava no SQLite
+Consome filas logs.custom, logs.err, e logs.adm e grava no SQLite
 """
 
 import pika
@@ -85,7 +85,7 @@ class LogsConsumer:
             )
             
             # Declarar filas
-            for queue_name in ['logs.custom', 'logs.adm']:
+            for queue_name in ['logs.custom', 'logs.adm', 'logs.err']:
                 self.channel.queue_declare(queue=queue_name, durable=True)
                 self.channel.queue_bind(
                     exchange=config.RABBITMQ_EXCHANGE,
@@ -781,6 +781,46 @@ class LogsConsumer:
                         INSERT INTO logs_custom (Message, LogLevel, Source, TimeStamp)
                         VALUES (?, ?, ?, ?)
                     """, (message, level, source, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+
+                if queue_name == 'logs.err':
+                    # 1. Extrair os campos do primeiro nível
+                    raw_message = data.get('message', '')
+                    
+                    # Valores padrão caso o parse falhe
+                    message = str(raw_message)
+                    level = 'ERROR'  # Como a fila é logs.err, fixamos o padrão como ERROR
+                    source = 'dayz-server.err'
+                    
+                    # 2. Tentar decodificar o JSON aninhado (o conteúdo da chave 'message')
+                    if isinstance(raw_message, str) and raw_message.strip().startswith('{'):
+                        try:
+                            parsed_message = json.loads(raw_message)
+                            
+                            if isinstance(parsed_message, dict):
+                                # Mapeamento específico para logs do DayZ
+                                # 'line' vira a mensagem principal
+                                message = str(parsed_message.get('line', raw_message))
+                                
+                                # 'log_file' vira a fonte (source)
+                                source = str(parsed_message.get('log_file', 'dayz-server.err'))
+                                
+                                # 'log_type' pode definir o level (se vier 'err' vira 'ERROR')
+                                log_type = parsed_message.get('log_type', 'ERROR').upper()
+                                level = 'ERROR' if log_type == 'ERR' else log_type
+                                
+                                logger.debug(f"JSON de erro DayZ processado: {message[:50]}...")
+                        
+                        except json.JSONDecodeError:
+                            logger.warning("Falha ao decodificar JSON aninhado em logs.err, usando raw_message")
+
+                    # 3. Inserir no banco de dados
+                    # Usando o timestamp vindo do RabbitMQ (se disponível) ou o atual
+                    ts_string = data.get('timestamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+
+                    cursor.execute("""
+                        INSERT INTO logs_custom (Message, LogLevel, Source, TimeStamp)
+                        VALUES (?, ?, ?, ?)
+                    """, (message, level, source, ts_string))
                     
                 elif queue_name == 'logs.adm':
                     # Formato logs.adm: {"log_type": "adm", "log_file": "...", "line": "...", "content": "...", "timestamp": "..."}
@@ -1294,7 +1334,7 @@ class LogsConsumer:
             self.channel.basic_qos(prefetch_count=self.batch_size)
             
             # Consumir filas
-            for queue_name in ['logs.custom', 'logs.adm']:
+            for queue_name in ['logs.custom', 'logs.adm', 'logs.err']:
                 self.channel.basic_consume(
                     queue=queue_name,
                     on_message_callback=self.callback
