@@ -230,7 +230,7 @@ void OnEventCustom(EventType eventTypeId, Param params)
                 existingPlayer = GetActivePlayerById(playerId);
 
                 if (CheckIfIsAdmin(playerId))
-                    m_player.SetAllowDamage(false);
+                    existingPlayer.SetAllowDamage(false);
                 
                 if (existingPlayer)
                 {
