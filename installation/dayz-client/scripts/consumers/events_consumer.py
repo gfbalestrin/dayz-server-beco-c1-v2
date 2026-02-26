@@ -14,6 +14,8 @@ import time
 import re
 import hashlib
 import subprocess
+import bcrypt
+import random
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -654,6 +656,8 @@ class EventsConsumer:
                     return self.handle_player_disconnected(data)
                 elif action == 'player_respawned':
                     return self.handle_player_respawned(data)
+                if action == 'reset_password':
+                    return self.handle_reset_password(data)
                 else:
                     logger.warning(f"Ação desconhecida em events.players: {action}")
                     return False
@@ -670,6 +674,194 @@ class EventsConsumer:
             logger.error(f"Erro ao processar ação {action}: {e}")
             return False
     
+    def get_player_rcon_id(self, player_guid):
+        """
+        Busca o ID do jogador no RCON usando o GUID
+        
+        Args:
+            player_guid: GUID do jogador (RconGuid do banco de dados)
+        
+        Returns:
+            int: ID do jogador no RCON ou None se não encontrado
+        """
+        try:
+            # Listar jogadores online
+            response = self.execute_rcon_command('players')
+            
+            if not response or not isinstance(response, list):
+                logger.warning("Resposta de players inválida ou vazia")
+                return None
+            
+            # Procurar jogador pelo GUID (comparação case-insensitive)
+            player_guid_lower = player_guid.lower() if player_guid else ''
+            for player in response:
+                if isinstance(player, dict):
+                    player_guid_from_rcon = player.get('guid', '').lower()
+                    if player_guid_from_rcon == player_guid_lower:
+                        player_id = player.get('id')
+                        if player_id is not None:
+                            return int(player_id)
+            
+            logger.warning(f"Jogador com GUID {player_guid} não encontrado online")
+            return None
+            
+        except Exception as e:
+            logger.exception(f"Erro ao buscar ID do jogador no RCON: {str(e)}")
+            return None
+    
+    def execute_rcon_command(self, command):
+        """
+        Executa um comando RCON usando bercon-cli
+        
+        Args:
+            command: Comando RCON a executar (ex: 'say -1 Mensagem')
+        
+        Returns:
+            dict: Resposta JSON do RCON ou None em caso de erro
+        """
+        # Validar se a senha RCON está configurada
+        if not config.RCON_PASSWORD:
+            logger.error("RCON_PASSWORD não está configurada")
+            return None
+        
+        try:
+            cmd = [
+                config.RCON_BIN_PATH,
+                '-i', config.RCON_IP,
+                '-p', str(config.RCON_PORT),
+                '-P', config.RCON_PASSWORD,
+                '-j', command
+            ]
+            
+            logger.debug(f"Executando comando RCON: {' '.join(cmd[:3])} -P *** -j {command}")
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode != 0:
+                logger.error(f"Erro ao executar comando RCON (returncode={result.returncode}): {result.stderr}")
+                logger.debug(f"stdout: {result.stdout}")
+                return None
+            
+            # Verificar se stdout está vazio
+            if not result.stdout or not result.stdout.strip():
+                logger.warning("Resposta RCON vazia")
+                return None
+            
+            try:
+                return json.loads(result.stdout)
+            except json.JSONDecodeError as e:
+                logger.error(f"Resposta RCON não é JSON válido: {result.stdout}")
+                logger.debug(f"Erro de parsing: {str(e)}")
+                return None
+                
+        except subprocess.TimeoutExpired:
+            logger.error("Timeout ao executar comando RCON")
+            return None
+        except Exception as e:
+            logger.exception(f"Erro ao executar comando RCON: {str(e)}")
+            return None
+
+
+    def handle_reset_password(self, data: Dict[str, Any]) -> bool:
+        """Handler para reset_password refatorado"""
+        player_id = data.get('player_id', '').strip()
+        
+        if not player_id:
+            logger.warning("reset_password: player_id ausente")
+            return False
+
+        try:
+            # 1. Registrar evento inicial
+            self._insert_player_event(player_id, 'reset_password', details="")
+
+            # 2. Preparar dados base (Senha e Hash)
+            senha = str(random.randint(1000, 9999))
+            hash_resultado = bcrypt.hashpw(senha.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
+
+            with sqlite3.connect(self.db_players_path, timeout=10.0) as conn:
+                cursor = conn.cursor()
+                
+                # 3. Buscar dados do jogador
+                cursor.execute("""
+                    SELECT PlayerName, SteamID, SteamName, RconGuid 
+                    FROM players_database WHERE PlayerID = ?
+                """, (player_id,))
+                player_data = cursor.fetchone()
+
+                if not player_data:
+                    logger.warning(f"Jogador {player_id} não encontrado em players_database")
+                    return False
+                
+                player_name, steam_id, steam_name, rcon_guid = player_data
+                
+                # Validação de dados essenciais
+                if not all([player_name, steam_id, steam_name]):
+                    logger.warning(f"Dados incompletos para player_id {player_id}")
+                    return False
+
+                # 4. Verificar se usuário já existe
+                cursor.execute("SELECT UserID, Username FROM users WHERE PlayerID = ?", (player_id,))
+                user_data = cursor.fetchone()
+
+                if user_data:
+                    # --- CASO: ATUALIZAR USUÁRIO EXISTENTE ---
+                    user_id, username = user_data
+                    cursor.execute("""
+                        UPDATE users SET Password = ?, MustChangePassword = 1 WHERE UserID = ?
+                    """, (hash_resultado, user_id))
+                    logger.info(f"Senha atualizada para usuário existente: {username}")
+                else:
+                    # --- CASO: CRIAR NOVO USUÁRIO ---
+                    base_login = re.sub(r'[^a-z0-9]', '', steam_name.lower())[:10] or "survivor"
+                    login = base_login
+                    suffix = 1
+                    
+                    # Loop para garantir login único
+                    while True:
+                        cursor.execute("SELECT 1 FROM users WHERE Username = ? LIMIT 1", (login,))
+                        if not cursor.fetchone():
+                            break
+                        login = f"{base_login}{suffix}"
+                        suffix += 1
+
+                    cursor.execute("""
+                        INSERT INTO users (Username, Password, UserType, PlayerID, IsActive, MustChangePassword)
+                        VALUES (?, ?, 'player', ?, 1, 1)
+                    """, (login, hash_resultado, player_id))
+                    username = login
+                    logger.info(f"Novo usuário criado: {username}")
+
+                # 5. Notificações e Webhooks (Discord)
+                sanitized_steam = self._sanitize_discord_markdown(steam_name)
+                sanitized_player = self._sanitize_discord_markdown(player_name)
+                content = f"Jogador **{sanitized_player}** ([{sanitized_steam}](<https://steamcommunity.com/profiles/{steam_id}>)) resetou seu acesso."
+                
+                if hasattr(config, 'DISCORD_WEBHOOK_LOGS') and config.DISCORD_WEBHOOK_LOGS:
+                    self._send_discord_webhook(content, config.DISCORD_WEBHOOK_LOGS)
+
+                # 6. Comunicação RCON (Opcional se jogador online)
+                if rcon_guid:
+                    rcon_id = self.get_player_rcon_id(rcon_guid)
+                    if rcon_id is not None:
+                        say_command = f"say -{rcon_id} Nova senha gerada com sucesso. Login: {username}, Senha: {senha}"
+                        self.execute_rcon_command(say_command)
+                        logger.info(f"Senha enviada via RCON para ID {rcon_id}")
+                    else:
+                        logger.info(f"Jogador {username} offline. Senha não enviada via RCON.")
+
+            # Log final de sucesso
+            self._insert_log_custom(f"Resetada senha para o jogador {player_id}", "INFO", "EventsConsumer")
+            return True
+
+        except Exception as e:
+            logger.error(f"Erro crítico em handle_reset_password: {e}", exc_info=True)
+            return False
+
     def handle_update_player(self, data: Dict[str, Any]) -> bool:
         """Handler para update_player"""
         try:
@@ -975,7 +1167,8 @@ class EventsConsumer:
         except Exception as e:
             logger.error(f"Erro em handle_player_respawned: {e}")
             return False
-    
+        
+
     def process_batch(self):
         """Processa batch de mensagens"""
         if not self.batch:

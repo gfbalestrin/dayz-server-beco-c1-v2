@@ -27,6 +27,12 @@ DB_ITEMS = os.path.join(BASE_DIR, "..", "..", "databases", "dayz_items.db")
 # Arquivo de configuração do deathmatch
 DEATHMATCH_CONFIG_FILE = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/files/deathmatch_config.json'
 
+# Caminhos dos loadouts
+LOADOUTS_BASE_PATH = '/home/dayzadmin/servers/dayz-server/mpmissions/dayzOffline.chernarusplus/admin/loadouts'
+LOADOUTS_CUSTOM_FILE = os.path.join(LOADOUTS_BASE_PATH, 'custom.json')
+LOADOUTS_PLAYERS_DIR = os.path.join(LOADOUTS_BASE_PATH, 'players')
+LOADOUTS_PLAYERS_IDS_FILE = os.path.join(LOADOUTS_BASE_PATH, 'players_ids.json')
+
 # Banco de dados GeoLite2 para geolocalização de jogadores
 GEOLITE2_DB_PATH = os.path.join(BASE_DIR, "..", "..", "databases", "GeoLite2-City.mmdb")
 

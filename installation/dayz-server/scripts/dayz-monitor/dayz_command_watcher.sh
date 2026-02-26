@@ -153,10 +153,7 @@ get_rabbitmq_queue() {
         fences_positions|watchtowers_positions|flags_positions)
             echo "data.structures.positions"
             ;;
-        reset_password)
-            echo "users.management"
-            ;;
-        player_connected|player_disconnected|player_respawned)
+        player_connected|player_disconnected|player_respawned|reset_password)
             echo "events.players"
             ;;
         players_backup_request)
@@ -208,7 +205,7 @@ tail -F "$COMMAND_FILE" 2>/dev/null | while IFS= read -r line || [[ -n "$line" ]
     if [[ "$action" == "players_backup_request" ]]; then
         INSERT_CUSTOM_LOG "Interceptando players_backup_request para processamento local" "INFO" "$ScriptName"
         process_players_backup_batch "$line_trimmed" &
-        continue
+        continue   
     fi
     
     # Obter queue RabbitMQ para esta ação
