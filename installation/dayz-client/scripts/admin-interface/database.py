@@ -5377,29 +5377,48 @@ def get_or_create_steam_user(steam_id: str, player_id_dayz: str, steam_name: str
     with DatabaseConnection(config.DB_PLAYERS) as conn:
         cursor = conn.cursor()
         
-        # 1. Tentar buscar usuário existente
+        # 1. Tentar buscar usuário existente pelo PlayerID (vínculo único do DayZ)
         cursor.execute("SELECT * FROM users WHERE PlayerID = ?", (player_id_dayz,))
         result = cursor.fetchone()
         
         if result:
             user_data = dict(result)
-            # FAÇA O UPDATE AQUI MESMO, usando a mesma conexão 'conn'
             cursor.execute("UPDATE users SET LastLogin = CURRENT_TIMESTAMP WHERE UserID = ?", (user_data['UserID'],))
             return user_data
             
-        # 2. Se não existir, criar um novo já com LastLogin
-        clean_name = re.sub(r'[^a-zA-Z0-9]', '', steam_name).lower()[:10]
-        new_username = f"{clean_name}_{steam_id[-4:]}"
+        # 2. Se não existir, definir o Login Ideal
+        # Limpa o nome: apenas letras e números, minúsculo, máx 15 letras
+        base_login = re.sub(r'[^a-zA-Z0-9]', '', steam_name).lower()[:15] or "survivor"
         
+        login_final = base_login
+        contador = 2 # Começamos a numerar a partir do 2 (ex: fulano, fulano2, fulano3...)
+        
+        # Loop para encontrar um Username que não esteja em uso
+        while True:
+            cursor.execute("SELECT 1 FROM users WHERE Username = ?", (login_final,))
+            if not cursor.fetchone():
+                # Nome está livre!
+                break
+            # Se o nome já existe, tenta o próximo número
+            login_final = f"{base_login}{contador}"
+            contador += 1
+
+        # 3. Inserir o novo usuário
         cursor.execute("""
             INSERT INTO users (Username, Password, UserType, PlayerID, IsActive, MustChangePassword, LastLogin)
             VALUES (?, ?, 'player', ?, 1, 0, CURRENT_TIMESTAMP)
-        """, (new_username, "EXTERNAL_STEAM_AUTH", player_id_dayz))
+        """, (login_final, "EXTERNAL_STEAM_AUTH", player_id_dayz))
+        
+        # FORÇAR O COMMIT AQUI
+        conn.commit() 
         
         user_id = cursor.lastrowid
-        
+        print(f"DEBUG: Usuário criado com ID {user_id} e Username {login_final}") # Veja se isso aparece no log
+
         cursor.execute("SELECT * FROM users WHERE UserID = ?", (user_id,))
-        return dict(cursor.fetchone())
+        new_user = cursor.fetchone()
+        
+        return dict(new_user) if new_user else None
 
 def get_player_by_steam_id(steam_id: str) -> Optional[dict]:
     """Busca dados do jogador na players_database pelo SteamID64"""
