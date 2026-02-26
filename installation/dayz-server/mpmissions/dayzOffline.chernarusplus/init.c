@@ -388,11 +388,16 @@ class CustomMission: MissionServer
 		string playerName = identity.GetName();		
 		string steamId    = identity.GetPlainId();
 
+		bool isAdmin = CheckIfIsAdmin(playerId);
+
 		Entity playerEnt;
 		if (IsDeathmatchEnabled)
 		{
 			// Gera posição segura de respawn
 			vector safePosition = GetFarthestSpawnPosition(spawnZones);//GetRandomSafeSpawnPosition(spawnZones);
+			if (isAdmin)
+				safePosition = Vector("15278.44".ToFloat(), "500".ToFloat(), "15299.06".ToFloat());
+				
 			//safePosition[1] = safePosition[1] + 0.5;
 			WriteToLog("CreateCharacter(): Posicionando jogador em: " + safePosition.ToString(), LogFile.INIT, false, LogType.DEBUG);
 			// Cria nova entidade do jogador
@@ -412,7 +417,7 @@ class CustomMission: MissionServer
 
 		GetGame().SelectPlayer( identity, m_player );
 
-		if (CheckIfIsAdmin(playerId)) 
+		if (isAdmin) 
 		{
 			WriteToLog("CreateCharacter(): " + playerName + " é admin.", LogFile.INIT, false, LogType.DEBUG);
 			m_player.SetAllowDamage(false);
@@ -433,13 +438,13 @@ class CustomMission: MissionServer
 					GiveDefaultDeathmatchLoadout(m_player, playerId);		
 					// Stats/posição/dano depois
 					//GetGame().GetCallQueue(CALL_CATEGORY_GAMEPLAY).CallLater(PostSpawnInit, 300, false, m_player, pos);
-					//ScheduleSpawnStaminaBurst(m_player);
-					m_player.SetHealth("", "", 100);
-					m_player.SetHealth("GlobalHealth", "Blood", 5000);
-					m_player.SetHealth("GlobalHealth", "Shock", 5000);
-					m_player.GetStatEnergy().Set(4000);
-					m_player.GetStatWater().Set(4000);		
+					//ScheduleSpawnStaminaBurst(m_player);						
 				}
+				m_player.SetHealth("", "", 100);
+				m_player.SetHealth("GlobalHealth", "Blood", 5000);
+				m_player.SetHealth("GlobalHealth", "Shock", 5000);
+				m_player.GetStatEnergy().Set(4000);
+				m_player.GetStatWater().Set(4000);
 				m_player.SetAllowDamage(true);
 			}		
 			
