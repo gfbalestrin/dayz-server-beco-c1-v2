@@ -431,7 +431,9 @@ class CustomMission: MissionServer
             m_player.SetHealth("GlobalHealth", "Shock", 5000);
             m_player.GetStatEnergy().Set(4000);
             m_player.GetStatWater().Set(4000);
-			GiveAdminLoadout(m_player, playerId);
+			if (!GiveCustomLoadout(m_player, playerId)) {
+				GiveAdminLoadout(m_player, playerId);
+			}
 		} else {
 			WriteToLog("CreateCharacter(): " + playerName + " é jogador comum.", LogFile.INIT, false, LogType.DEBUG);
 
