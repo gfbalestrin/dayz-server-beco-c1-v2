@@ -25,8 +25,14 @@ from blueprints import api_items_manage, api_kits, api_users
 from blueprints import api_loadouts, api_loadout_rules, api_commands
 from blueprints import api_server_config
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
+
+# ESSA LINHA É ESSENCIAL: Diz ao Flask para confiar nos cabeçalhos enviados pelo Nginx
+# x_proto=1 diz para o Flask usar 'https' se o Nginx disser que é https
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 # Registrar blueprints
 app.register_blueprint(auth.auth_bp)

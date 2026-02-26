@@ -1,6 +1,7 @@
 """
 Camada de acesso aos bancos de dados SQLite
 """
+import re
 import sqlite3
 import base64
 import json
@@ -5373,10 +5374,6 @@ def authenticate_user(username: str, password: str) -> Optional[Dict]:
                 return user_data
         return None
 def get_or_create_steam_user(steam_id: str, player_id_dayz: str, steam_name: str) -> Optional[dict]:
-    """
-    Busca ou cria um usuário vinculado ao SteamID.
-    Retorna os dados do usuário para a sessão.
-    """
     with DatabaseConnection(config.DB_PLAYERS) as conn:
         cursor = conn.cursor()
         
@@ -5386,22 +5383,21 @@ def get_or_create_steam_user(steam_id: str, player_id_dayz: str, steam_name: str
         
         if result:
             user_data = dict(result)
-            update_last_login(user_data['UserID'])
+            # FAÇA O UPDATE AQUI MESMO, usando a mesma conexão 'conn'
+            cursor.execute("UPDATE users SET LastLogin = CURRENT_TIMESTAMP WHERE UserID = ?", (user_data['UserID'],))
             return user_data
             
-        # 2. Se não existir, criar um novo
+        # 2. Se não existir, criar um novo já com LastLogin
         clean_name = re.sub(r'[^a-zA-Z0-9]', '', steam_name).lower()[:10]
         new_username = f"{clean_name}_{steam_id[-4:]}"
         
         cursor.execute("""
-            INSERT INTO users (Username, Password, UserType, PlayerID, IsActive, MustChangePassword)
-            VALUES (?, ?, 'player', ?, 1, 0)
+            INSERT INTO users (Username, Password, UserType, PlayerID, IsActive, MustChangePassword, LastLogin)
+            VALUES (?, ?, 'player', ?, 1, 0, CURRENT_TIMESTAMP)
         """, (new_username, "EXTERNAL_STEAM_AUTH", player_id_dayz))
         
         user_id = cursor.lastrowid
-        update_last_login(user_id)
         
-        # Retornar o novo usuário
         cursor.execute("SELECT * FROM users WHERE UserID = ?", (user_id,))
         return dict(cursor.fetchone())
 
