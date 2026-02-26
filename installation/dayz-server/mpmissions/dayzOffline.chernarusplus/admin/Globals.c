@@ -8,7 +8,7 @@ string MessagesToSendoFile = "$mission:admin/files/messages_to_send.txt";
 string MessagesPrivateToSendoFile = "$mission:admin/files/messages_private_to_send.txt";
 string AdminIdsFile = "$mission:admin/files/admin_ids.txt";
 string CommandsResultsFile = "$mission:admin/files/commands_results.txt";
-string UrlAppPython = "http://beco.servegame.com:54321/";
+string UrlAppPython = "https://beco.servegame.com";
 bool IsDeathmatchEnabled = false;
 bool MonitorMode = true;
 

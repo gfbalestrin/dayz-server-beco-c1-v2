@@ -1481,9 +1481,10 @@ bool ExecuteCommand(TStringArray tokens)
     {
         case "help":
             if (IsDeathmatchEnabled) {
+                SendPrivateMessage(playerID, "Para personalizar seu loadout acesse: " + UrlAppPython, MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!loadouts -> Lista loadouts configurados", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!loadout meuloadout1' -> Ativa meuloadout1", MessageColor.FRIENDLY);
-                SendPrivateMessage(playerID, "!loadout reset -> Gera nova senha aleatória para acessar o sistema de loadout: " + UrlAppPython, MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!loadout reset -> Gera nova senha aleatória para acessar o sistema de loadout: " + UrlAppPython, MessageColor.FRIENDLY);                
                 SendPrivateMessage(playerID, "!maps -> Lista mapas disponíveis", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!votemap 1 -> Vota no mapa 1", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!players -> Lista jogadores online", MessageColor.FRIENDLY);
