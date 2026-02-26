@@ -314,9 +314,14 @@ class CustomMission: MissionServer
 				}
 				CleanUpDeadEntitiesNearPlayers();
 			} 
+
+			array<Man> players60 = new array<Man>;
+			GetGame().GetPlayers(players60);
+			SendPlayersPositions(players60);
+
 			if (!IsDeathmatchEnabled)
 			{
-				array<Man> players60 = new array<Man>;
+				//array<Man> players60 = new array<Man>;
 				//GetGame().GetPlayers(players60);
 				//SendPlayersPositions(players60);
 
