@@ -161,32 +161,43 @@
                     {% endif %}
 
                     <!-- Dropdown Loadouts -->
+                    {% if session.user_type in ['super_admin', 'admin'] %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {% if request.endpoint in ['views.my_loadout', 'views.loadouts', 'views.loadout_rules'] %}active{% endif %}" href="#" id="loadoutsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-layer-group me-1"></i>Loadouts
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="loadoutsDropdown">
+                            
                             <li>
                                 <a class="dropdown-item {% if request.endpoint == 'views.my_loadout' %}active{% endif %}" href="{{ url_for('views.my_loadout') }}">
                                     <i class="fas fa-user-circle me-1"></i>Meu Loadout
                                 </a>
                             </li>
-                            {% if session.user_type != 'player' %}
+                            
                             <li>
                                 <a class="dropdown-item {% if request.endpoint == 'views.loadouts' %}active{% endif %}" href="{{ url_for('views.loadouts') }}">
                                     <i class="fas fa-layer-group me-1"></i>Loadouts
                                 </a>
                             </li>
-                            {% endif %}
-                            {% if session.user_type in ['super_admin', 'admin'] %}
+                            
                             <li>
                                 <a class="dropdown-item {% if request.endpoint == 'views.loadout_rules' %}active{% endif %}" href="{{ url_for('views.loadout_rules') }}">
                                     <i class="fas fa-shield-alt me-1"></i>Regras Loadouts
                                 </a>
                             </li>
-                            {% endif %}
+                            
                         </ul>
                     </li>
+                    {% endif %}
+                    
+                    {% if session.user_type not in ['super_admin', 'admin'] %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'views.my_loadout' %}active{% endif %}" 
+                           href="{{ url_for('views.my_loadout') }}">
+                            <i class="fas fa-user-circle me-1"></i>Meu Loadout
+                        </a>
+                    </li>
+                    {% endif %}
 
                     {% if session.user_type != 'player' %}
                     <!-- Dropdown BD -->
