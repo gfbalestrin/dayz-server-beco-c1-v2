@@ -94,6 +94,7 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
           "$Line" != *"Dismantled Upper Wooden Wall from Fence"* && \
           "$Line" != *"Dismantled Upper Frame from Fence"* && \
           "$Line" != *"built Shelter"* && \
+          "$Line" != *"has been disconnected"* && \
           "$Line" != *"Chat("* ]]; then
         continue
     fi
@@ -129,6 +130,11 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
     elif [[ "$Content" == *"built Shelter"* ]]; then
         position=$(extract_position "$Content")
         enqueue_structure_command "registercontainer" "$position"
+    elif [[ "$Content" == *"has been disconnected"* && "$DayzDeathmatch" -eq 1 ]]; then
+        player_id=$(extract_player_id "$Content")
+        INSERT_CUSTOM_LOG "Evento de desconexão detectado para o player $player_id. Alterando Alive para 0..." "DEBUG" "$ScriptName"
+        sleep 5
+        sqlite3 "$DayzServerFolder/$DayzPlayerDbFile" "UPDATE Players SET Alive = 0 WHERE UID = '$player_id';"
     elif [[ "$Content" == *"Chat("* ]]; then
         player_id=$(extract_player_id "$Content")
         
