@@ -299,6 +299,15 @@ def my_loadout():
         return render_template('error.html', message='Você precisa ter um player_id associado à sua conta para acessar esta página.'), 403
     return render_template('my_loadout.html', player_id=player_id)
 
+@views_bp.route('/player_maps')
+@login_required
+def player_maps():
+    """Tela de gerenciamento de loadouts do usuário logado"""
+    player_id = session.get('player_id')
+    if not player_id:
+        return render_template('error.html', message='Você precisa ter um player_id associado à sua conta para acessar esta página.'), 403
+    return render_template('player_maps.html', player_id=player_id)
+
 
 @views_bp.route('/my-loadout/new')
 @login_required

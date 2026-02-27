@@ -7,7 +7,7 @@ import os
 import json
 import logging
 import config
-from blueprints.auth import admin_required
+from blueprints.auth import admin_required, login_required
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ def _dm_write_all(data):
 
 
 @api_deathmatch_bp.route('/api/deathmatch/config')
-@admin_required
+@login_required
 def api_deathmatch_config():
     """Retorna um mapa do deathmatch_config.json com listas de pontos (X,Z).
     Se query param 'regionId' for fornecido, retorna esse; caso contrário, retorna o ativo.
@@ -141,7 +141,7 @@ def api_deathmatch_config():
 
 
 @api_deathmatch_bp.route('/api/deathmatch/maps')
-@admin_required
+@login_required
 def api_deathmatch_maps():
     """Lista todos os mapas do deathmatch com status de ativo."""
     try:
