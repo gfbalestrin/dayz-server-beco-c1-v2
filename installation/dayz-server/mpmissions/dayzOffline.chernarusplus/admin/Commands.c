@@ -1533,15 +1533,7 @@ bool ExecuteCommand(TStringArray tokens)
                 WriteToLog("Jogador " + playerID + " teleportado para X=" + posT[0].ToString() + " Y=" + posT[2].ToString() + " Z=" + posT[1].ToString(), LogFile.INIT, false, LogType.INFO);
             }
             break;
-
-        case "healold":
-            target.SetHealth("", "", 100);
-            target.SetHealth("GlobalHealth", "Blood", 5000);
-            target.SetHealth("GlobalHealth", "Shock", 5000);
-            target.GetStatEnergy().Set(4000);
-            target.GetStatWater().Set(4000);
-            target.MessageStatus("Você foi curado");
-            break;
+            
         case "heal":
             target.SetHealth("", "", 100);
             target.SetHealth("GlobalHealth", "Blood", 5000);
