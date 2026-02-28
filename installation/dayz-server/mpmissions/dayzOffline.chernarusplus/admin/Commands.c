@@ -2076,6 +2076,9 @@ bool ExecuteCommand(TStringArray tokens)
             else
                 g_AdminStamina.Enable(target);
             break;
+        default:
+            SendPrivateMessage(playerID, "Comando não reconhecido!", MessageColor.IMPORTANT);
+            break;
     }
 
     return true;
