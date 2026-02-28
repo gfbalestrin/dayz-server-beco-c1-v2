@@ -1533,8 +1533,8 @@ bool ExecuteCommand(TStringArray tokens)
                 WriteToLog("Jogador " + playerID + " teleportado para X=" + posT[0].ToString() + " Y=" + posT[2].ToString() + " Z=" + posT[1].ToString(), LogFile.INIT, false, LogType.INFO);
             }
             break;
-            
-        case "heal":
+
+        case "healold":
             target.SetHealth("", "", 100);
             target.SetHealth("GlobalHealth", "Blood", 5000);
             target.SetHealth("GlobalHealth", "Shock", 5000);
@@ -1555,6 +1555,33 @@ bool ExecuteCommand(TStringArray tokens)
         
             target.MessageStatus("Você foi curado (vida, sangue, cortes e doenças)");
             break; 
+
+        case "heal":
+            target.SetHealth("", "", 100);
+            target.SetHealth("GlobalHealth", "Blood", 5000);
+            target.SetHealth("GlobalHealth", "Shock", 5000);
+            target.GetStatEnergy().Set(4000);
+            target.GetStatWater().Set(4000);
+        
+            // Para de sangrar (se você já usa isso no heal)
+            if (target.GetBleedingManagerServer())
+                target.GetBleedingManagerServer().RemoveAllSources();
+        
+            // Remove doenças (se você já usa isso no heal)
+            target.RemoveAllAgents();
+        
+            // --- AQUECER ---
+            // Secar o personagem ajuda MUITO a não ficar com frio
+            target.GetStatWet().Set(0);                 // 0 = seco :contentReference[oaicite:2]{index=2}
+        
+            // Encher o "buff de calor" (heat buffer)
+            target.GetStatHeatBuffer().Set(100.0);      // >=25 já ativa o indicador :contentReference[oaicite:3]{index=3}
+        
+            // Conforto térmico positivo
+            target.GetStatHeatComfort().Set(1.0);       // valor positivo (ajuda a parar “frio”) :contentReference[oaicite:4]{index=4}
+        
+            target.MessageStatus("Você foi curado e aquecido");
+            break;
 
         case "kill":
             target.SetAllowDamage(true);
