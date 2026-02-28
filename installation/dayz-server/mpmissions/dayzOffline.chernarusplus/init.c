@@ -42,6 +42,7 @@ class CustomMission: MissionServer
 	ref array<vector> spawnZones;	
 	ref array<vector> wallZones;
 	SafeZoneDataSpawns spawns;
+	g_AdminStamina = new AdminStaminaService();
 
 	void CustomMission()
 	{

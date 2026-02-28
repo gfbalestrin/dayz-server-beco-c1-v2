@@ -2076,10 +2076,11 @@ bool ExecuteCommand(TStringArray tokens)
             else
                 g_AdminStamina.Enable(target);
             break;
+    
         default:
             WriteToLog("Comando do sistema desconhecido: " + command, LogFile.INIT, false, LogType.ERROR);
             return false;
-    }
+        }
 
     return true;
 }
@@ -3743,8 +3744,6 @@ bool ExecuteDeleteEntity(TStringArray tokens)
 }
 
 // Stamina
-ref AdminStaminaService g_AdminStamina = new AdminStaminaService();
-
 class AdminStaminaService
 {
     ref map<string, ref Timer> m_Timers;
