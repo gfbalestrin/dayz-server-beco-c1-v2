@@ -1543,27 +1543,26 @@ bool ExecuteCommand(TStringArray tokens)
             target.MessageStatus("Você foi curado");
             break;
         case "heal":
-            // Vida / sangue / choque / energia / água
             target.SetHealth("", "", 100);
             target.SetHealth("GlobalHealth", "Blood", 5000);
             target.SetHealth("GlobalHealth", "Shock", 5000);
             target.GetStatEnergy().Set(4000);
             target.GetStatWater().Set(4000);
         
-            // 1) Remove cortes/sangramentos
+            // Remove cortes/sangramento
             if (target.GetBleedingManagerServer())
-                target.GetBleedingManagerServer().RemoveAllSources(); // :contentReference[oaicite:3]{index=3}
+                target.GetBleedingManagerServer().RemoveAllSources();
         
-            // 2) Remove doenças (agents)
-            target.RemoveAllAgents(); // :contentReference[oaicite:4]{index=4}
+            // Remove agentes/doenças
+            target.RemoveAllAgents();
         
-            // 3) Remove modifiers (febre, wound infection, etc.)
-            ModifiersManager mm = target.GetModifiersManager();
-            if (mm)
-                mm.DeactivateAllModifiers(); // :contentReference[oaicite:5]{index=5}
+            // Remove modifiers (atenção: também remove efeitos "bons" como epinefrina)
+            ModifiersManager modMan = target.GetModifiersManager();
+            if (modMan)
+                modMan.DeactivateAllModifiers();
         
             target.MessageStatus("Você foi curado (vida, sangue, cortes e doenças)");
-            break;            
+            break; 
 
         case "kill":
             target.SetAllowDamage(true);
