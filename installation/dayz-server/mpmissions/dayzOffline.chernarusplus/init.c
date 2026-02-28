@@ -41,8 +41,7 @@ class CustomMission: MissionServer
 	string customMessage;
 	ref array<vector> spawnZones;	
 	ref array<vector> wallZones;
-	SafeZoneDataSpawns spawns;
-	g_AdminStamina = new AdminStaminaService();
+	SafeZoneDataSpawns spawns;	
 
 	void CustomMission()
 	{
@@ -51,6 +50,7 @@ class CustomMission: MissionServer
 		WriteToLog("CustomMission(): Inicializando CustomMission", LogFile.INIT, false, LogType.INFO);
 
 		FixedMessages = new array<string>;
+		g_AdminStamina = new AdminStaminaService();
 
 		if (IsDeathmatchEnabled) 
 		{
