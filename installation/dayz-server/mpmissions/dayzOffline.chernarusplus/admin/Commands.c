@@ -2076,6 +2076,10 @@ bool ExecuteCommand(TStringArray tokens)
             else
                 g_AdminStamina.Enable(target);
             break;
+        default:
+            WriteToLog("Comando do sistema desconhecido: " + command, LogFile.INIT, false, LogType.ERROR);
+            return false;
+    }
 
     return true;
 }
