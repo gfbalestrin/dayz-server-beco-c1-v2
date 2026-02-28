@@ -2071,14 +2071,11 @@ bool ExecuteCommand(TStringArray tokens)
             
             break;
         case "stamina":
-        {
             if (g_AdminStamina.IsEnabled(target))
                 g_AdminStamina.Disable(target);
             else
                 g_AdminStamina.Enable(target);
             break;
-        }
-
 
     return true;
 }
