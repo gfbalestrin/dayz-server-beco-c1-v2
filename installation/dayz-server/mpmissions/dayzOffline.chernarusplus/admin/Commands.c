@@ -1492,7 +1492,8 @@ bool ExecuteCommand(TStringArray tokens)
             }
             
             if (CheckIfIsAdmin(playerID))
-            {                
+            {   
+                SendPrivateMessage(playerID, "!stamina -> Stamina infinita", MessageColor.FRIENDLY);             
                 SendPrivateMessage(playerID, "!heal -> Se cura", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!godmode -> Ativa godmode", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!ungodmode -> Desativa godmode", MessageColor.FRIENDLY);
