@@ -58,8 +58,7 @@ ref array<string> ALLOWED_HOLSTERS;
 ref array<string> ALLOWED_PISTOLS;
 // Lista de jogadores ativos/conectados
 ref array<ref ActivePlayer> ActivePlayers;
-// Stamina
-ref AdminStaminaService g_AdminStamina;
+
 
 // Mapa de desconexões pendentes (aguardando confirmação de logout)
 // Key: PlayerID, Value: timestamp quando logout foi iniciado

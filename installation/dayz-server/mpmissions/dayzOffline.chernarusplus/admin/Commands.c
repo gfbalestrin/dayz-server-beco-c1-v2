@@ -3810,3 +3810,6 @@ class AdminStaminaService
         return m_Timers.Contains(player.GetIdentity().GetId());
     }
 }
+
+// Stamina
+ref AdminStaminaService g_AdminStamina;
