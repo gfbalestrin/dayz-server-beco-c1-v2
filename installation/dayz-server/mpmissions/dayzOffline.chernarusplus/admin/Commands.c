@@ -1505,6 +1505,7 @@ bool ExecuteCommand(TStringArray tokens)
                 SendPrivateMessage(playerID, "!teleport 100.0 100.0 100.0 -> Teleporta para a posição 100.0, 100.0, 100.0", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!getposition -> Mostra posição atual", MessageColor.FRIENDLY);         
                 SendPrivateMessage(playerID, "!goup 10.0 -> Eleva o jogador para 10.0 metros", MessageColor.FRIENDLY);
+                SendPrivateMessage(playerID, "!gofor 10.0 -> Avança o jogador para frente em 10.0 metros", MessageColor.FRIENDLY);
                 SendPrivateMessage(playerID, "!setheight 10.0 -> Ajusta a altura do jogador para 10.0 metros", MessageColor.FRIENDLY);
             }
             break;
@@ -1964,6 +1965,43 @@ bool ExecuteCommand(TStringArray tokens)
                 WriteToLog("Jogador " + playerID + " elevado em " + goupHeight.ToString() + " metros. Posição final: " + goupNewPos.ToString(), LogFile.INIT, false, LogType.INFO);
             } else {
                 SendPrivateMessage(playerID, "Uso: !goup <altura>", MessageColor.WARNING);
+                return false;
+            }
+            break;
+        case "gofor":
+            if (tokens.Count() > 2)
+            {
+                float distance = tokens[2].ToFloat();
+        
+                if (distance <= 0)
+                {
+                    SendPrivateMessage(playerID, "A distância deve ser um valor positivo", MessageColor.WARNING);
+                    return false;
+                }
+        
+                if (distance > 10000)
+                {
+                    SendPrivateMessage(playerID, "A distância máxima permitida é 10000 metros", MessageColor.WARNING);
+                    return false;
+                }
+        
+                vector currentPos = target.GetPosition();
+                vector direction = target.GetDirection();
+        
+                // Garante que não mova para cima/baixo se estiver olhando muito inclinado
+                direction[1] = 0;
+                direction.Normalize();
+        
+                vector newPos = currentPos + (direction * distance);
+        
+                target.SetPosition(newPos);
+        
+                target.MessageStatus("Você foi movido " + distance.ToString() + " metros para frente");
+                WriteToLog("Jogador " + playerID + " movido para frente em " + distance.ToString() + " metros. Nova posição: " + newPos.ToString(), LogFile.INIT, false, LogType.INFO);
+            }
+            else
+            {
+                SendPrivateMessage(playerID, "Uso: !goforward <distancia>", MessageColor.WARNING);
                 return false;
             }
             break;
