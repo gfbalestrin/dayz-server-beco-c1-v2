@@ -1969,42 +1969,46 @@ bool ExecuteCommand(TStringArray tokens)
             }
             break;
         case "gofor":
-            if (tokens.Count() > 2)
             {
-                float distance = tokens[2].ToFloat();
-        
-                if (distance <= 0)
+                if (tokens.Count() > 2)
                 {
-                    SendPrivateMessage(playerID, "A distância deve ser um valor positivo", MessageColor.WARNING);
+                    float distance = tokens[2].ToFloat();
+            
+                    if (distance <= 0)
+                    {
+                        SendPrivateMessage(playerID, "A distância deve ser um valor positivo", MessageColor.WARNING);
+                        return false;
+                    }
+            
+                    if (distance > 10000)
+                    {
+                        SendPrivateMessage(playerID, "A distância máxima permitida é 10000 metros", MessageColor.WARNING);
+                        return false;
+                    }
+            
+                    vector currentPos = target.GetPosition();
+                    vector direction = target.GetDirection();
+            
+                    direction[1] = 0;
+                    direction.Normalize();
+            
+                    vector newPos = currentPos + (direction * distance);
+            
+                    // opcional: ajustar altura para o terreno
+                    // newPos[1] = GetGame().SurfaceY(newPos[0], newPos[2]);
+            
+                    target.SetPosition(newPos);
+            
+                    target.MessageStatus("Você foi movido " + distance.ToString() + " metros para frente");
+                    WriteToLog("Jogador " + playerID + " movido para frente em " + distance.ToString() + " metros. Nova posição: " + newPos.ToString(), LogFile.INIT, false, LogType.INFO);
+                }
+                else
+                {
+                    SendPrivateMessage(playerID, "Uso: !goforward <distancia>", MessageColor.WARNING);
                     return false;
                 }
-        
-                if (distance > 10000)
-                {
-                    SendPrivateMessage(playerID, "A distância máxima permitida é 10000 metros", MessageColor.WARNING);
-                    return false;
-                }
-        
-                vector currentPos = target.GetPosition();
-                vector direction = target.GetDirection();
-        
-                // Garante que não mova para cima/baixo se estiver olhando muito inclinado
-                direction[1] = 0;
-                direction.Normalize();
-        
-                vector newPos = currentPos + (direction * distance);
-        
-                target.SetPosition(newPos);
-        
-                target.MessageStatus("Você foi movido " + distance.ToString() + " metros para frente");
-                WriteToLog("Jogador " + playerID + " movido para frente em " + distance.ToString() + " metros. Nova posição: " + newPos.ToString(), LogFile.INIT, false, LogType.INFO);
+                break;
             }
-            else
-            {
-                SendPrivateMessage(playerID, "Uso: !goforward <distancia>", MessageColor.WARNING);
-                return false;
-            }
-            break;
         
         case "setheight":            
             if (tokens.Count() > 2) {
