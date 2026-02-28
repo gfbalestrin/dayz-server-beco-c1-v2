@@ -1534,28 +1534,6 @@ bool ExecuteCommand(TStringArray tokens)
             }
             break;
 
-        case "healold":
-            target.SetHealth("", "", 100);
-            target.SetHealth("GlobalHealth", "Blood", 5000);
-            target.SetHealth("GlobalHealth", "Shock", 5000);
-            target.GetStatEnergy().Set(4000);
-            target.GetStatWater().Set(4000);
-        
-            // Remove cortes/sangramento
-            if (target.GetBleedingManagerServer())
-                target.GetBleedingManagerServer().RemoveAllSources();
-        
-            // Remove agentes/doenças
-            target.RemoveAllAgents();
-        
-            // Remove modifiers (atenção: também remove efeitos "bons" como epinefrina)
-            ModifiersManager modMan = target.GetModifiersManager();
-            if (modMan)
-                modMan.DeactivateAllModifiers();
-        
-            target.MessageStatus("Você foi curado (vida, sangue, cortes e doenças)");
-            break; 
-
         case "heal":
             target.SetHealth("", "", 100);
             target.SetHealth("GlobalHealth", "Blood", 5000);
