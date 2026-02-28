@@ -1972,35 +1972,35 @@ bool ExecuteCommand(TStringArray tokens)
             {
                 if (tokens.Count() > 2)
                 {
-                    float distance = tokens[2].ToFloat();
+                    float distanceGoFor = tokens[2].ToFloat();
             
-                    if (distance <= 0)
+                    if (distanceGoFor <= 0)
                     {
                         SendPrivateMessage(playerID, "A distância deve ser um valor positivo", MessageColor.WARNING);
                         return false;
                     }
             
-                    if (distance > 10000)
+                    if (distance GoFor> 10000)
                     {
                         SendPrivateMessage(playerID, "A distância máxima permitida é 10000 metros", MessageColor.WARNING);
                         return false;
                     }
             
-                    vector currentPos = target.GetPosition();
-                    vector direction = target.GetDirection();
+                    vector currentPosGoFor = target.GetPosition();
+                    vector directionGoFor = target.GetDirection();
             
-                    direction[1] = 0;
-                    direction.Normalize();
+                    directionGoFor[1] = 0;
+                    directionGoFor.Normalize();
             
-                    vector newPos = currentPos + (direction * distance);
+                    vector newPosGoFor = currentPosGoFor + (directionGoFor * distanceGoFor);
             
                     // opcional: ajustar altura para o terreno
-                    // newPos[1] = GetGame().SurfaceY(newPos[0], newPos[2]);
+                    // newPosGoFor[1] = GetGame().SurfaceY(newPos[0], newPos[2]);
             
-                    target.SetPosition(newPos);
+                    target.SetPosition(newPosGoFor);
             
-                    target.MessageStatus("Você foi movido " + distance.ToString() + " metros para frente");
-                    WriteToLog("Jogador " + playerID + " movido para frente em " + distance.ToString() + " metros. Nova posição: " + newPos.ToString(), LogFile.INIT, false, LogType.INFO);
+                    target.MessageStatus("Você foi movido " + distanceGoFor.ToString() + " metros para frente");
+                    WriteToLog("Jogador " + playerID + " movido para frente em " + distanceGoFor.ToString() + " metros. Nova posição: " + newPosGoFor.ToString(), LogFile.INIT, false, LogType.INFO);
                 }
                 else
                 {
