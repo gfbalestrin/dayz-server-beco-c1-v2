@@ -1980,7 +1980,7 @@ bool ExecuteCommand(TStringArray tokens)
                         return false;
                     }
             
-                    if (distance GoFor> 10000)
+                    if (distanceGoFor> 10000)
                     {
                         SendPrivateMessage(playerID, "A distância máxima permitida é 10000 metros", MessageColor.WARNING);
                         return false;
