@@ -15,6 +15,7 @@ stdbuf -oL tail -n 0 -F "$LogFileName" | while IFS= read -r Line; do
     # Ignora linhas que não contêm os erros críticos monitorados
     if [[ "$Line" != *"Can't compile mission init script'!"* && \
           "$Line" != *"Invalid number -nan"* && \
+          "$Line" != *"kicked from server"* && \          
           "$Line" != *"Admin Kick"* ]]; then
         continue
     fi
