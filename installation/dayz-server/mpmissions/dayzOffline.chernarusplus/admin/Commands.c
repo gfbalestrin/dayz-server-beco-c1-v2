@@ -2070,12 +2070,12 @@ bool ExecuteCommand(TStringArray tokens)
             WriteToLog("ExecuteCommand(): checkinventory - Inventário verificado: " + itemCount.ToString() + " itens encontrados para " + checkInventoryTarget.GetIdentity().GetName() + " (request_id: " + requestId + ")", LogFile.INIT, false, LogType.INFO);
             
             break;
-        case "infstamina":
-            string id = target.GetIdentity().GetId();
-            if (g_AdminStaminaTimers.Contains(id))
-                DisableInfiniteStamina(target);
+        case "stamina":
+        {
+            if (g_AdminStamina.IsEnabled(target))
+                g_AdminStamina.Disable(target);
             else
-                EnableInfiniteStamina(target);
+                g_AdminStamina.Enable(target);
             break;
         }
 
@@ -3742,51 +3742,71 @@ bool ExecuteDeleteEntity(TStringArray tokens)
 }
 
 // Stamina
-void RefreshAdminEpinephrine(PlayerBase player)
+ref AdminStaminaService g_AdminStamina = new AdminStaminaService();
+
+class AdminStaminaService
 {
-    if (!player) return;
+    ref map<string, ref Timer> m_Timers;
 
-    // reseta o timer do efeito
-    if (player.GetModifiersManager().IsModifierActive(eModifiers.MDF_EPINEPHRINE))
-        player.GetModifiersManager().DeactivateModifier(eModifiers.MDF_EPINEPHRINE);
-
-    player.GetModifiersManager().ActivateModifier(eModifiers.MDF_EPINEPHRINE);
-}
-
-
-void EnableInfiniteStamina(PlayerBase player)
-{
-    if (!player || !player.GetIdentity()) return;
-
-    string id = player.GetIdentity().GetId();
-    if (g_AdminStaminaTimers.Contains(id)) return; // já ligado
-
-    // aplica imediatamente
-    RefreshAdminEpinephrine(player);
-
-    // renova a cada 55s
-    Timer t = new Timer(CALL_CATEGORY_GAMEPLAY);
-    t.Run(55.0, this, "RefreshAdminEpinephrine", new Param1<PlayerBase>(player), true);
-
-    g_AdminStaminaTimers.Set(id, t);
-    player.MessageStatus("Stamina infinita (admin) ativada");
-}
-
-void DisableInfiniteStamina(PlayerBase player)
-{
-    if (!player || !player.GetIdentity()) return;
-
-    string id = player.GetIdentity().GetId();
-    Timer t;
-    if (g_AdminStaminaTimers.Find(id, t))
+    void AdminStaminaService()
     {
-        t.Stop();
-        g_AdminStaminaTimers.Remove(id);
+        m_Timers = new map<string, ref Timer>();
     }
 
-    // opcional: remover o efeito na hora
-    if (player.GetModifiersManager().IsModifierActive(eModifiers.MDF_EPINEPHRINE))
-        player.GetModifiersManager().DeactivateModifier(eModifiers.MDF_EPINEPHRINE);
+    void RefreshAdminEpinephrine(PlayerBase player)
+    {
+        if (!player) return;
 
-    player.MessageStatus("Stamina infinita (admin) desativada");
+        ModifiersManager mm = player.GetModifiersManager();
+        if (!mm) return;
+
+        if (mm.IsModifierActive(eModifiers.MDF_EPINEPHRINE))
+            mm.DeactivateModifier(eModifiers.MDF_EPINEPHRINE);
+
+        mm.ActivateModifier(eModifiers.MDF_EPINEPHRINE);
+    }
+
+    void Enable(PlayerBase player)
+    {
+        if (!player || !player.GetIdentity()) return;
+
+        string id = player.GetIdentity().GetId();
+        if (m_Timers.Contains(id))
+            return; // já ligado
+
+        RefreshAdminEpinephrine(player);
+
+        Timer t = new Timer(CALL_CATEGORY_GAMEPLAY);
+        // NOTE: aqui "this" é válido porque estamos dentro da classe
+        t.Run(55.0, this, "RefreshAdminEpinephrine", new Param1<PlayerBase>(player), true);
+
+        m_Timers.Set(id, t);
+        player.MessageStatus("Stamina infinita (admin) ativada");
+    }
+
+    void Disable(PlayerBase player)
+    {
+        if (!player || !player.GetIdentity()) return;
+
+        string id = player.GetIdentity().GetId();
+
+        Timer t;
+        if (m_Timers.Find(id, t))
+        {
+            t.Stop();
+            m_Timers.Remove(id);
+        }
+
+        ModifiersManager mm = player.GetModifiersManager();
+        if (mm && mm.IsModifierActive(eModifiers.MDF_EPINEPHRINE))
+            mm.DeactivateModifier(eModifiers.MDF_EPINEPHRINE);
+
+        player.MessageStatus("Stamina infinita (admin) desativada");
+    }
+
+    bool IsEnabled(PlayerBase player)
+    {
+        if (!player || !player.GetIdentity()) return false;
+        return m_Timers.Contains(player.GetIdentity().GetId());
+    }
 }
